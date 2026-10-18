@@ -148,6 +148,27 @@ type relationEntry struct {
 	pending []*relationRequest
 	pins    int
 }
+
+// relationLockManager owns heavyweight lock state: transaction and session
+// tickets, resource queues and grants, unique-key buckets, and MultiXact rows
+// and history. mu guards all of it; engine code reaches it only through
+// manager methods.
+//
+// Lock order (audited in engine-split step 4a). mu is innermost:
+//   - It may be taken while holding replacementMu (admission reservation) or
+//     a transactionOwner.mu (savepoint checkpoint and restore, finish).
+//   - It is never taken while holding Engine.mu, Session.mu,
+//     sessionSettings.mu or Engine.sessionMu. Callers release Engine.mu
+//     before calling the manager.
+//   - While mu is held, no other mutex is taken, no callback runs and nothing
+//     blocks. A queued request waits on its done channel after mu is
+//     released, and notifyRequests closes those channels after unlock.
+//     Context and timer interrupts and unique-key unpin closures run with no
+//     other mutex held.
+//
+// For reference, the surrounding engine order takes replacementMu and
+// transactionOwner.mu before Engine.mu, and Engine.mu before Session.mu,
+// sessionSettings.mu and Engine.sessionMu.
 type relationLockManager struct {
 	mu           sync.Mutex
 	domain       *ids.Domain // Owning engine's identity domain; provenance checks only.

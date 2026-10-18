@@ -148,7 +148,7 @@ declarations that never reach a god struct once the cuts are applied:
 
 | Area | Lines (declarations) | Already free of god structs | Main blockers |
 |---|---:|---:|---|
-| Lock manager | 2.3k | 1.25k | `Operation` timeouts, `Session` lookups in a few entry points |
+| Lock manager | 2.3k | 1.25k | `Operation` timeouts, `Session` lookups in a few entry points (both resolved in step 4a) |
 | Visibility | 2.1k | 0.5k | `Engine` methods reading engine-held registry fields (40 sites) |
 | Catalog core | 6.4k | 1.9k | `Engine`, `CatalogStage`, `AuthorizationView`, session/statement plumbing |
 
@@ -217,11 +217,10 @@ Package names are proposals (§7).
    storage and visibility state, because publication must stay atomic across
    all three. Subsystem state structs have no mutex of their own. Their
    mutating methods carry the `Locked` suffix or document that the caller holds
-   the engine mutex. The lock manager keeps its own mutex. Its ordering
-   relative to `Engine.mu` is stated today only in scattered comments (for
-   example "never take manager.mu under Engine.mu" in
-   `transaction_visibility_registry.go`). Step 4 must confirm that rule
-   against the code and document it in the `lock` README.
+   the engine mutex. The lock manager keeps its own mutex, innermost: never
+   taken under `Engine.mu` or the session mutexes, and holding nothing else.
+   Step 4a confirmed this against the code and documented the order on
+   `relationLockManager`; it moves to the `lock` README in 4b.
 4. **Subsystem packages own data, not orchestration.** They own immutable
    records, copy-on-write transforms and validation. Installing a change,
    cancellation fences and lifecycle stay in the root until a later wave gives
@@ -502,8 +501,12 @@ lock manager part, deadlock detection, and the wait and timeout mechanics
 - The engine back-pointer becomes the domain (cut 10, done in step 1).
 - `relationLockPolicy.operation` becomes a pointer to the lock-owned
   pending-timeout slot that `Operation` embeds (cut 11, done in 4a).
-- `EndReason` becomes a lock-local enum. The completion state comes from
-  `ids`.
+- `EndReason` stays in the engine. The manager never used it; only the
+  session's advisory delegate (`sessionAdvisory.EndSession`), which stays in
+  the engine, receives it. The completion state comes from `ids`.
+- Unique-lock keys hold an opaque owned value with a comparer the manager
+  calls outside its mutex, and `blockingPids` returns plain PIDs, so the
+  manager needs no `sqltype` (done in 4a).
 
 **Stays in the engine.**
 
@@ -513,6 +516,8 @@ lock manager part, deadlock detection, and the wait and timeout mechanics
 - Safe-snapshot blocking (`visibility`).
 
 **Doable because** after the cuts the closure is 20 types over `ids` only.
+Step 4a confirmed it: the lock-owned files compile against `ids`, `sqlstate`
+and the standard library apart from `ErrCatalogReplaced` and `sqlError`.
 More than half the code (1.25k of 2.3k lines) is already free of god structs.
 The remaining references are entry points that stay in the engine.
 
@@ -673,7 +678,7 @@ package-specific scope. This section holds the rules every session follows.
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | not started |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
-| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | not started |
+| 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a done; 4b next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |

@@ -117,12 +117,81 @@ teardown tests.
 
 ## Status
 
-- [ ] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
+- [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
+  (`78265dd49`, `d4a96abb9`, `e9c2356cd`, then the commit that records this
+  status)
 - [ ] 4b — `lock` created and declarations moved
 - [ ] 4c — Aliases removed
 
 Outstanding aliases: none yet.
 
-Lessons for steps 5–7 (state-ownership method): none yet.
+4a results, for 4b:
 
-Notes for later steps: none yet.
+- **Lock-owned files:** `relation_lock.go`, `relation_lock_advisory.go`,
+  `relation_lock_blocking.go`, `relation_lock_queries.go`,
+  `relation_lock_snapshot.go` (formerly `pg_locks_snapshot.go`),
+  `relation_lock_unique.go`, `relation_lock_unique_delta.go`,
+  `relation_deadlock.go`, `relation_timeout.go`, `transaction_multixact.go`
+  and `transaction_multixact_cache.go`. Compiled as their own package they
+  import only `ids`, `sqlstate` and the standard library; the only undefined
+  names are `ErrCatalogReplaced` and `sqlError`.
+- **Engine side of former lock files:** `advisory_lock.go` (session delegate,
+  `acquireAdvisory`), `blocking_pids.go` (SQL function, PID values),
+  `unique_lock.go` (key hash, comparer, `acquireUnique`) and
+  `physical_row_events.go`.
+- **Cut 11:** `relationTimeoutSlot` in `relation_timeout.go`; `Operation`
+  embeds it as `lockWait` and the policy holds `timeoutSlot`.
+- **`EndReason`:** no change. The manager never used it.
+- **Mutex encapsulation:** `holds`, `missingRowGrant`, `replacementGrants`,
+  `validSession` and `transactionTicket` in `relation_lock_queries.go`, with
+  `indexWriters`. No engine file outside the lock files touches the manager
+  mutex or maps.
+- **Session lookups:** the engine checks `txOwnerAttached` and
+  `sessionTokenAttached` before `register` and `registerSession`; lock code
+  uses `token.Private()`.
+- **Lock order:** confirmed and documented on `relationLockManager`. The
+  manager mutex is innermost: taken under `replacementMu` or
+  `transactionOwner.mu`, never under `Engine.mu`, `Session.mu`,
+  `sessionSettings.mu` or `sessionMu`, and holding nothing else. The rule in
+  `transaction_visibility_registry.go` holds for the manager. Its "TX
+  synchronization" half describes only `registerTransactionLocks`:
+  `transactionOwner.mu` is taken before `Engine.mu` elsewhere (about 50
+  paths, never the reverse). The comment now says so.
+- **Tests adapted, none moved or deleted:** `session_timeout_race_test.go`,
+  `session_timeout_pending_test.go`, `inheritance_query_stored_view_test.go`,
+  `insert_conflict_update_lock_test.go` (finds the worker's operation by its
+  timeout slot), `blocking_pids_test.go`, `unique_test.go`,
+  `primary_key_claim_test.go` and `exclusion_peer_test.go`.
+
+Lessons for steps 5–7 (state-ownership method):
+
+- Re-measure with a compile probe: copy the candidate files into a throwaway
+  package and build it with `-gcflags=-e`. The undefined names are exactly the
+  remaining upward references, which is quicker than the declaration graph.
+- A lock-order audit needs callee summaries that model `*Locked` functions
+  releasing and retaking `Engine.mu`. A plain held-set walk reported about
+  ten times more false edges. Resolving interface calls to every
+  implementation adds chains through constant folding; read each chain's
+  tail before calling it a finding.
+- Encapsulating a foreign mutex took few methods: most locked sections asked
+  one question ("does this ticket hold this mode here?"), so five named
+  queries covered nine sites.
+- Move declarations with a declaration-level mover (go/ast byte spans with
+  doc comments), fix imports per file, and keep each existing file's import
+  style.
+
+Notes for later steps:
+
+- 4b: `ErrCatalogReplaced` (`catalog.go`, shared catalog provenance error) and
+  `sqlError` (`engine.go`) need homes. `ErrCatalogReplaced` must keep one
+  identity for `errors.Is`.
+- 4b: engine code reads immutable ticket fields (`ref`, `session`,
+  `persistent`, `manager`) directly; tests also read requests and entries.
+  Export small accessors.
+- Step 7: `acquireSerializableSnapshot` (`serializable_snapshot.go`) waits for
+  a safe snapshot and retakes `replacementMu` as a reader while its callers
+  (`snapshotDataPhase`, `not_null.go`, `typed_mutation.go`) hold
+  `transactionOwner.mu`; other paths take `transactionOwner.mu` with
+  `replacementMu` held. This does not involve the lock manager. Check it when
+  safe-snapshot blocking moves.
+- File lists in this prompt were measured at `a2252c0b1`; use the list above.

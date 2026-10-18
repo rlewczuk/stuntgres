@@ -21,7 +21,8 @@ type transactionVisibility struct {
 
 // Admission serializes this incarnation. Register with the manager first, then
 // associate its exact ticket before any command can reach canonical assignment.
-// Neither manager nor TX synchronization is held while taking Engine.mu.
+// This function holds neither manager.mu nor TX synchronization while taking
+// Engine.mu; the general order is documented on relationLockManager.
 func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error) {
 	if !txOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
