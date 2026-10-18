@@ -135,7 +135,7 @@ Tier C has a refined plan.
 ## Status
 
 - [x] F1 — Generics removed (`69aeb6167` generics, `5ec01573f`
-  `functionInfo`, docs pending)
+  `functionInfo`, docs `937962c4f`)
 - [ ] F2 — Switches converted: [ ] retag [ ] remap [ ] volatility
   [ ] deparse [ ] node tree [ ] generated admission [ ] conditional plan
   [ ] join legality

@@ -39,7 +39,7 @@ alongside another broad rewrite or alias removal (§8).
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)
-  - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs pending)
+  - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
   - [ ] F2 — Switches converted to the node protocol *(broad rewrite; needs
     2c)*
     - [ ] retag
