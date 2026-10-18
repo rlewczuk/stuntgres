@@ -10,19 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// RoutineReference is opaque selected-declaration metadata. The OID is only an
-// identity/debug token; catalog lifetime and permission authority belong to the
-// engine's existing captured-reference manifests and fresh admission view.
-type RoutineReference interface {
-	RoutineOID() uint32
-}
-
-// RoutineRecipeReference borrows the defining stored recipe of a grafted node.
-// Its identity token is not execution or catalog permission authority.
-type RoutineRecipeReference interface {
-	RoutineRecipeOID() uint32
-}
-
 // Info preserves expression metadata without knowing the engine's property type
 // or catalog authority. Callers supply generation-owned usages and provenance.
 type Info[P any] struct {
@@ -76,13 +63,4 @@ const (
 	Missing
 	Ambiguous
 	UnknownPolymorphic
-)
-
-type IntrinsicPropertyRule uint8
-
-const (
-	ExactStable IntrinsicPropertyRule = iota
-	ExactVolatile
-	VolatileOnly
-	ExactImmutable
 )

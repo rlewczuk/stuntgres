@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -62,7 +63,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 		copy := remapped.(functions.CurrentDateTime[ExprContext, ExprProperties])
-		if copy.Kind != node.Kind || copy.Precision != node.Precision || copy.HasPrecision != node.HasPrecision || copy.Pos != node.Pos || copy.Usage.Type == node.Usage.Type || copy.Validate(functionPropertiesMatch(copy.Property, functions.CurrentDateTimeIntrinsicRule())) != nil {
+		if copy.Kind != node.Kind || copy.Precision != node.Precision || copy.HasPrecision != node.HasPrecision || copy.Pos != node.Pos || copy.Usage.Type == node.Usage.Type || copy.Validate(expr.PropertiesMatch(copy.Property, functions.CurrentDateTimeIntrinsicRule())) != nil {
 			t.Fatal(node, copy)
 		}
 		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {

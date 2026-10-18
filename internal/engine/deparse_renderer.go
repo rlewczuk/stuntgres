@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -1184,7 +1185,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Name, n.Args, true)
 	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
 		}
 		return function(n.Kind.Name(), []BoundExpr{n.Arg}, true)

@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func versionInformationSQL(e functions.VersionInformation[ExprContext, ExprProperties]) (string, error) {
-	if err := e.Validate(functionPropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
 	return e.Kind.Name() + "()", nil
@@ -60,7 +61,7 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (Boun
 		}
 		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
-	info := b.info(b.typ(sqltype.Text).Usage(), raw.Pos, functionIntrinsicProperties(kind.IntrinsicRule()))
+	info := b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
 	info, err = b.builtinRoutineInfo(info, catalogRoutineProvider, name)
 	if err != nil {
 		return nil, err

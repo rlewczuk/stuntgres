@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -55,6 +56,6 @@ func (b *expressionBinder) bindUUIDExtract(raw parser.FunctionExpr) (BoundExpr, 
 	if err != nil {
 		return nil, err
 	}
-	properties := mergeExpressionProperties(functionIntrinsicProperties(functions.UUIDExtractIntrinsicRule()), arg.Properties())
+	properties := mergeExpressionProperties(expr.IntrinsicProperties(functions.UUIDExtractIntrinsicRule()), arg.Properties())
 	return functions.NewUUIDExtract[BoundExpr, ExprContext](functionInfo(b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)), kind, arg)
 }

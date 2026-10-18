@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 	if err != nil {
 		return nil, err
 	}
-	properties := functionIntrinsicProperties(functions.NumericFormattingIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.NumericFormattingIntrinsicRule())
 	for _, argument := range args {
 		p := argument.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)

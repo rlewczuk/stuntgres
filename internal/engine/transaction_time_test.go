@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -67,7 +68,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	c := &EvalContext{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, statementScope: &StatementScope{statementStart: statement}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeTransaction, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, binder, kind)
-		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != functionIntrinsicProperties(kind.IntrinsicRule()) || plannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
+		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != expr.IntrinsicProperties(kind.IntrinsicRule()) || plannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
 			t.Fatal("type/volatility", leaf)
 		}
 		if _, err := leaf.Eval((*EvalContext)(nil)); err == nil {
@@ -119,7 +120,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 		copy := remapped.(functions.TransactionTime[ExprContext, ExprProperties])
-		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(functionPropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
+		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(expr.PropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
 			t.Fatal(leaf, copy)
 		}
 		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
@@ -147,17 +148,17 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	clock := transactionTimeUnitLeaf(t, binder, functions.TransactionTimeClock)
 	invalid := clock
 	invalid.Kind = 0
-	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
+	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("unknown kind admitted")
 	}
 	invalid = clock
 	invalid.Usage = binder.typ(sqltype.Text).Usage()
-	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
+	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("wrong result type admitted")
 	}
 	invalid = clock
 	invalid.Property.Volatility = Stable
-	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
+	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
 	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}

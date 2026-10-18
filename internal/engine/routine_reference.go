@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -12,7 +12,7 @@ import (
 // Dynamic extraction rejects arbitrary implementations and typed nil pointers.
 func expressionRoutineDescriptor(node BoundExpr) (*procedureDescriptor, error) {
 	call, ok := node.(interface {
-		CallRoutineReference() functions.RoutineReference
+		CallRoutineReference() expr.RoutineReference
 	})
 	if !ok {
 		return nil, nil
@@ -58,7 +58,7 @@ func (d *relationDescriptor) RoutineRecipeOID() uint32 { return uint32(d.address
 
 func expressionRecipeDescriptor(node BoundExpr) (*relationDescriptor, error) {
 	carrier, ok := node.(interface {
-		CallRoutineRecipeReference() functions.RoutineRecipeReference
+		CallRoutineRecipeReference() expr.RoutineRecipeReference
 	})
 	if !ok || carrier.CallRoutineRecipeReference() == nil {
 		return nil, nil

@@ -155,18 +155,6 @@ func (e conditionalExpression) extremaError() error {
 	return sqlError("42883", "could not identify a comparison function for type "+e.Usage.Type.DiagnosticName())
 }
 
-func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
-	if b.Volatility > a.Volatility {
-		a.Volatility = b.Volatility
-	}
-	a.RowDependent = a.RowDependent || b.RowDependent
-	a.ParameterDependent = a.ParameterDependent || b.ParameterDependent
-	a.StageDependent = a.StageDependent || b.StageDependent
-	a.DomainDependent = a.DomainDependent || b.DomainDependent
-	a.RuntimeDomainConversion = a.RuntimeDomainConversion || b.RuntimeDomainConversion
-	return a
-}
-
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
 // release candidate order; unknown remains analysis state, never runtime data.
 // An empty label requests PostgreSQL's nonthrowing common-type probe: a category

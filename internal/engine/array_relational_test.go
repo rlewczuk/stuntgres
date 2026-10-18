@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -128,7 +129,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner == functions.RandomOwner(&c.statementScope.op.session.random) {
+	if owner == expr.RandomOwner(&c.statementScope.op.session.random) {
 		t.Fatal("seedable stream reused")
 	}
 }

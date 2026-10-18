@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -76,7 +77,7 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 	if err != nil {
 		return nil, err
 	}
-	properties := functionIntrinsicProperties(functions.RangeInspectIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.RangeInspectIntrinsicRule())
 	for _, arg := range args {
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}

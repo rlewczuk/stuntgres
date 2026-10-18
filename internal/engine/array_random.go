@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) FunctionArrayRandomOwner() (functions.RandomOwner, error) {
+func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
 		return nil, fmt.Errorf("stuntgres: missing array random session scope")
 	}

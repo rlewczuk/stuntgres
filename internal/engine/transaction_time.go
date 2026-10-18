@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
 func transactionTimeSQL(e functions.TransactionTime[ExprContext, ExprProperties]) (string, error) {
-	if err := e.Validate(functionPropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
 	return e.Kind.Name() + "()", nil
@@ -77,7 +78,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 		}
 		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
-	info := b.info(b.typ(kind.Type()).Usage(), raw.Pos, functionIntrinsicProperties(kind.IntrinsicRule()))
+	info := b.info(b.typ(kind.Type()).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
 	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name)
 	if err != nil {
 		return nil, err
@@ -97,9 +98,9 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 	}
 	switch n := node.(type) {
 	case functions.TransactionTime[ExprContext, ExprProperties]:
-		return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
+		return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
 	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		return n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
+		return n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
 	case rowExpression, fieldExpression, functions.Posix[BoundExpr, ExprContext, ExprProperties], functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties], functions.Similar[BoundExpr, ExprContext, ExprProperties], functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties], functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties], functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })

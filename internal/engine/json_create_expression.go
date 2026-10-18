@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/parser"
@@ -72,7 +73,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 	}
 	args := make([]BoundExpr, len(operands))
 	var unknown [2]uint64
-	properties := functionIntrinsicProperties(functions.JSONCreateIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.JSONCreateIntrinsicRule())
 	for i, o := range operands {
 		arg := o.Expression
 		rawUnknown := functions.JSONCreateRawUnknown(raw.Args[i])

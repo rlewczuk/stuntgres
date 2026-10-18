@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -629,10 +630,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return nil
 		}
 		if n, ok := bound.(functions.VersionInformation[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
-			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
+			return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
 		if n, ok := bound.(functions.TransactionTime[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
-			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
+			return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
 		if n, ok := bound.(functions.Random[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)

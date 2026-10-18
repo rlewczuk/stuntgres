@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -75,17 +76,17 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		}
 		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
 	case functions.CurrentDateTime[ExprContext, ExprProperties]:
-		if err := n.Validate(functionPropertiesMatch(n.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
+		if err := n.Validate(expr.PropertiesMatch(n.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.Kind, n.HasPrecision, n.Precision)
 	case functions.VersionInformation[ExprContext, ExprProperties]:
-		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
+		if err := n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "VersionInformation kind %d", n.Kind)
 	case functions.TransactionTime[ExprContext, ExprProperties]:
-		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
+		if err := n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "TransactionTime kind %d", n.Kind)

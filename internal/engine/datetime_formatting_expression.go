@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,7 +55,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return b.numericFormattingOperands(raw, operands, source)
 	}
 	var args [2]BoundExpr
-	properties := functionIntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
 	for i, o := range operands {
 		target := b.typ(sqltype.Text)
 		if i == 0 {

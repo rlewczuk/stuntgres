@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -14,34 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type Volatility uint8
-
-const (
-	Immutable Volatility = iota
-	Stable
-	Volatile
-)
-
-type ExprProperties struct {
-	Volatility                                       Volatility
-	RowDependent, ParameterDependent, StageDependent bool
-	DomainDependent                                  bool
-	// RuntimeDomainConversion prevents folding a checked conversion or any
-	// enclosing expression. It does not require a VALUE frame or alter volatility.
-	RuntimeDomainConversion bool
-}
-
-// Dependence and volatility propagate independently through bound expressions.
-type BoundExpr interface {
-	ResultUsage() sqltype.Usage
-	CollationIndeterminate() bool
-	ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position)
-	// ExplicitCollation returns the annotation origin; zero means implicit.
-	ExplicitCollation() parser.Position
-	SourcePosition() parser.Position
-	Properties() ExprProperties
-	Eval(ExprContext) (sqltype.Value, error)
-}
 type EvalContext struct {
 	Context                            context.Context
 	Scope, Frame                       uint32
@@ -94,54 +67,6 @@ type EvalContext struct {
 	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
 	domainPhase        domainCheckIdentity // Existing transaction/command identity, not a permission result.
-}
-type expressionInfo struct {
-	Usage       sqltype.Usage
-	Pos         parser.Position
-	Property    ExprProperties
-	UnknownNull bool
-	// Only genuine scalar REGCLASS constants carry captured relation authority.
-	RegclassRef                   ids.ObjectRef
-	CollationConflict             bool
-	CollationExplicit             parser.Position
-	CollationLeft, CollationRight sqltype.CollationRef
-	CollationConflictPos          parser.Position
-	RoutineReference              functions.RoutineReference
-	RoutineRecipeReference        functions.RoutineRecipeReference // Borrowed immutable defining recipe of a grafted stored node.
-}
-
-func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.Usage }
-func (e expressionInfo) SourcePosition() parser.Position    { return e.Pos }
-func (e expressionInfo) Properties() ExprProperties         { return e.Property }
-func (e expressionInfo) CollationIndeterminate() bool       { return e.CollationConflict }
-func (e expressionInfo) ExplicitCollation() parser.Position { return e.CollationExplicit }
-func (e expressionInfo) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position) {
-	return e.CollationLeft, e.CollationRight, e.CollationConflictPos
-}
-
-func (e expressionInfo) CallRoutineReference() functions.RoutineReference {
-	return e.RoutineReference
-}
-
-func (e expressionInfo) CallRoutineRecipeReference() functions.RoutineRecipeReference {
-	return e.RoutineRecipeReference
-}
-
-// Preserve diagnostic provenance when an existing wrapper copies metadata.
-func boundExpressionInfo(node BoundExpr) expressionInfo {
-	left, right, position := node.ImplicitCollationConflict()
-	info := expressionInfo{Usage: node.ResultUsage(), Pos: node.SourcePosition(), Property: node.Properties(), CollationConflict: node.CollationIndeterminate(), CollationExplicit: node.ExplicitCollation(), CollationLeft: left, CollationRight: right, CollationConflictPos: position}
-	if call, ok := node.(interface {
-		CallRoutineReference() functions.RoutineReference
-	}); ok {
-		info.RoutineReference = call.CallRoutineReference()
-	}
-	if call, ok := node.(interface {
-		CallRoutineRecipeReference() functions.RoutineRecipeReference
-	}); ok {
-		info.RoutineRecipeReference = call.CallRoutineRecipeReference()
-	}
-	return info
 }
 
 // A folded value retains conservative type/dependence metadata and the original
@@ -220,32 +145,8 @@ func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltyp
 	return &procedure.conversion, nil
 }
 
-func functionIntrinsicProperties(rule functions.IntrinsicPropertyRule) ExprProperties {
-	switch rule {
-	case functions.ExactImmutable:
-		return ExprProperties{Volatility: Immutable}
-	case functions.ExactStable:
-		return ExprProperties{Volatility: Stable}
-	case functions.ExactVolatile, functions.VolatileOnly:
-		return ExprProperties{Volatility: Volatile}
-	}
-	return ExprProperties{}
-}
-func functionPropertiesMatch(properties ExprProperties, rule functions.IntrinsicPropertyRule) bool {
-	switch rule {
-	case functions.ExactImmutable:
-		return properties == (ExprProperties{Volatility: Immutable})
-	case functions.ExactStable:
-		return properties == (ExprProperties{Volatility: Stable})
-	case functions.ExactVolatile:
-		return properties == (ExprProperties{Volatility: Volatile})
-	case functions.VolatileOnly:
-		return properties.Volatility == Volatile
-	}
-	return false
-}
-func (c *EvalContext) FunctionPropertiesMatch(properties ExprProperties, rule functions.IntrinsicPropertyRule) bool {
-	return functionPropertiesMatch(properties, rule)
+func (c *EvalContext) FunctionPropertiesMatch(properties ExprProperties, rule expr.IntrinsicPropertyRule) bool {
+	return expr.PropertiesMatch(properties, rule)
 }
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
@@ -2279,13 +2180,6 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProp
 		}
 	}
 	return expressionInfo{Usage: u, Pos: pos, Property: p}
-}
-func expressionError(code, message string, pos parser.Position) error {
-	d := sqlError(code, message).(*sqlstate.Error)
-	if pos.Character > 0 {
-		d.Position = strconv.Itoa(pos.Character)
-	}
-	return d
 }
 func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position) error {
 	if n <= 0 {

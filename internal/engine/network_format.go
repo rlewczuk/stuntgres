@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,7 +61,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 	}
 	var args [2]BoundExpr
 	var formals [2]sqltype.ID
-	properties := functionIntrinsicProperties(functions.NetworkFormatIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.NetworkFormatIntrinsicRule())
 	for i, arg := range operands {
 		args[i], err = b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.typ(formal).Usage(), Label: name})
 		if err != nil {

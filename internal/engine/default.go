@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -252,7 +253,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
 	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
 		}
 		if clock, ok := definitionTypeAt(view, r.definition, sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
