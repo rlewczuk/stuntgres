@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -16,50 +15,6 @@ type installedUUIDOsspFunctionExpression struct {
 	functions.UUIDGeneration
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
-}
-
-func bindInstalledUUIDOssp(b functions.Binder, raw parser.FunctionExpr) (BoundExpr, error) {
-	var names []string
-	if len(raw.Args) <= 100 {
-		names = make([]string, len(raw.Args))
-	}
-	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
-		if err != nil {
-			return nil, err
-		}
-		if names != nil {
-			name := "unknown"
-			if o.Usage.Type != nil {
-				name = b.DiagnosticTypeName(o.Usage.Type)
-			}
-			names[i] = functions.NamedArgumentType(raw, i, name)
-		}
-	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	if err := functions.CallLabelError(raw); err != nil {
-		return nil, err
-	}
-	routine, err := b.InstalledRoutine(raw.Name, functions.UUIDOsspExtension, "")
-	if err != nil {
-		return nil, err
-	}
-	if len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Star || routine == nil {
-		return nil, b.SignatureError(raw.Name, raw.Pos, names)
-	}
-	if err := routine.Validate(); err != nil {
-		return nil, err
-	}
-	if err := functions.CallDecorationError(raw); err != nil {
-		return nil, err
-	}
-	call, err := functions.NewUUIDGeneration(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile}), "uuidv4", nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	return routine.Attach(call)
 }
 
 func (n installedUUIDOsspFunctionExpression) validShape() bool {

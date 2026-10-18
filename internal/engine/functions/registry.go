@@ -35,6 +35,7 @@ var definitions = [...]Definition{
 	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
 	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat},
+	{Names: []string{"uuid_generate_v4"}, Bind: bindUUIDOssp},
 }
 
 // Lookup returns the definition that claims an unqualified function name.
