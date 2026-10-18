@@ -146,8 +146,6 @@ quickcheck under a 900-second deadline:
 ```sh
 make check RUN='^TestReferenceRegtype'
 make check REFERENCE=1 RUN='^TestReferenceRegtype'
-make check RUN='^TestReferenceRegtypeFeatureSmoke$'
-make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'
 ```
 
 Native proof initially must fail with actual absent regtype support. After full

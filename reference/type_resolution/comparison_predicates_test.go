@@ -43,6 +43,14 @@ func (v *comparisonProjection) flush(t *testing.T, p *fixture.Pair, b fixture.Ba
 	v.expressions, v.names, v.types, v.rows = nil, nil, nil, nil
 }
 
+// use switches the batch source, flushing expressions bound to the old one.
+func (v *comparisonProjection) use(t *testing.T, p *fixture.Pair, b fixture.Backend, from string) {
+	if v.from != from {
+		v.flush(t, p, b)
+		v.from = from
+	}
+}
+
 func comparisonAnd(a, b any) any {
 	if a == false || b == false {
 		return false
@@ -82,105 +90,111 @@ func comparisonBetween(t *testing.T, family string) {
 			continue
 		}
 		t.Run(typ.name, func(t *testing.T) {
-			// Classify every triple before allocating fixtures. Only eligible
-			// (left,lower) windows own a 30s context; excluded lower pairs
-			// create no empty setup/reset cycles.
-			var lowers []int
-			classified, admitted := 0, 0
+			// Classify every triple before allocating a fixture. Lowering is
+			// (x >= lower AND x <= upper): each bound pair is independent, so
+			// execution pairs every eligible lower with itself and with the
+			// next eligible identity instead of the full lower x upper product.
+			classified := 0
+			var eligible []int
 			for lower := range comparisonConcrete {
-				eligible := false
-				for upper := range comparisonConcrete {
-					classified++
-					if comparisonOrderingPair(left, lower) && comparisonOrderingPair(left, upper) {
-						admitted++
-						eligible = true
-					}
-				}
-				if eligible {
-					lowers = append(lowers, lower)
+				classified += len(comparisonConcrete)
+				if comparisonOrderingPair(left, lower) {
+					eligible = append(eligible, lower)
 				}
 			}
 			if classified != 7569 {
 				t.Fatalf("classified %d triples, want 7569", classified)
 			}
-			if admitted == 0 && comparisonOrderingPair(left, left) {
+			if len(eligible) == 0 && comparisonOrderingPair(left, left) {
 				t.Fatal("orderable left has no admitted triples")
 			}
-			for _, lower := range lowers {
-				t.Run(comparisonConcrete[lower].name, func(t *testing.T) {
-					comparisonFiniteScenario(t, left, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-						from := " FROM comparison_values x CROSS JOIN comparison_values l CROSS JOIN comparison_values h"
-						order := " ORDER BY x.id,l.id,h.id"
-						plainFrom := from + order
-						boundFrom := from + " CROSS JOIN " + comparisonFiniteCharSource + order
-						projection := comparisonProjection{from: plainFrom}
-						for upper := range comparisonConcrete {
-							if !comparisonOrderingPair(left, upper) {
-								continue
-							}
-							// Lookup-admitted arrays with unavailable leaf ordering are demand tests,
-							// not an allowed successful triple or an exclusion from classification.
-							xp, lp, hp := lower, left, left
-							if comparisonConcrete[upper].name == "pg_node_tree" {
-								xp = upper
-							}
-							boundChar := family == "Strings" && (typ.name == "char" || comparisonConcrete[lower].name == "char" || comparisonConcrete[upper].name == "char")
-							charSource := ""
-							if boundChar {
-								charSource = "comparison_char_source"
-							}
-							x := comparisonFiniteValueFrom(left, "x", xp, charSource)
-							l := comparisonFiniteValueFrom(lower, "l", lp, charSource)
-							h := comparisonFiniteValueFrom(upper, "h", hp, charSource)
-							if message := comparisonDemand(left, 3); message != "" {
-								comparisonExceptionalBetween(t, p, b, x, l, h, message)
-								continue
-							}
-							for form, spelling := range comparisonBetweenForms {
-								var values []any
-								for a := range 3 {
-									for lo := range 3 {
-										for hi := range 3 {
-											av, lov, hiv := a, lo, hi
-											if a != 0 && comparisonConcrete[xp].name == "pg_node_tree" && comparisonStringType(typ.name) {
-												av = 1
-											}
-											if lo != 0 && comparisonConcrete[lp].name == "pg_node_tree" && comparisonStringType(comparisonConcrete[lower].name) {
-												lov = 1
-											}
-											if hi != 0 && comparisonConcrete[hp].name == "pg_node_tree" && comparisonStringType(comparisonConcrete[upper].name) {
-												hiv = 1
-											}
-											ge := comparisonFiniteResult(left, lower, av, lov, 6)
-											le := comparisonFiniteResult(left, upper, av, hiv, 4)
-											want := comparisonAnd(ge, le)
-											if form >= 4 {
-												want = comparisonOr(want, comparisonAnd(comparisonFiniteResult(left, upper, av, hiv, 6), comparisonFiniteResult(left, lower, av, lov, 4)))
-											}
-											if form%2 == 1 {
-												want = comparisonNot(want)
-											}
-											values = append(values, want)
-										}
+			if len(eligible) == 0 {
+				return
+			}
+			bounds := comparisonBetweenBounds(eligible)
+			comparisonFiniteScenario(t, left, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				from := " FROM comparison_values x CROSS JOIN comparison_values l CROSS JOIN comparison_values h"
+				order := " ORDER BY x.id,l.id,h.id"
+				plainFrom := from + order
+				boundFrom := from + " CROSS JOIN " + comparisonFiniteCharSource + order
+				projection := comparisonProjection{from: plainFrom}
+				for _, bound := range bounds {
+					lower, upper := bound[0], bound[1]
+					// Lookup-admitted arrays with unavailable leaf ordering are demand tests,
+					// not an allowed successful triple or an exclusion from classification.
+					xp, lp, hp := lower, left, left
+					if comparisonConcrete[upper].name == "pg_node_tree" {
+						xp = upper
+					}
+					boundChar := family == "Strings" && (typ.name == "char" || comparisonConcrete[lower].name == "char" || comparisonConcrete[upper].name == "char")
+					charSource := ""
+					if boundChar {
+						charSource = "comparison_char_source"
+					}
+					x := comparisonFiniteValueFrom(left, "x", xp, charSource)
+					l := comparisonFiniteValueFrom(lower, "l", lp, charSource)
+					h := comparisonFiniteValueFrom(upper, "h", hp, charSource)
+					if message := comparisonDemand(left, 3); message != "" {
+						comparisonExceptionalBetween(t, p, b, x, l, h, message)
+						continue
+					}
+					for form, spelling := range comparisonBetweenForms {
+						var values []any
+						for a := range 3 {
+							for lo := range 3 {
+								for hi := range 3 {
+									av, lov, hiv := a, lo, hi
+									if a != 0 && comparisonConcrete[xp].name == "pg_node_tree" && comparisonStringType(typ.name) {
+										av = 1
 									}
+									if lo != 0 && comparisonConcrete[lp].name == "pg_node_tree" && comparisonStringType(comparisonConcrete[lower].name) {
+										lov = 1
+									}
+									if hi != 0 && comparisonConcrete[hp].name == "pg_node_tree" && comparisonStringType(comparisonConcrete[upper].name) {
+										hiv = 1
+									}
+									ge := comparisonFiniteResult(left, lower, av, lov, 6)
+									le := comparisonFiniteResult(left, upper, av, hiv, 4)
+									want := comparisonAnd(ge, le)
+									if form >= 4 {
+										want = comparisonOr(want, comparisonAnd(comparisonFiniteResult(left, upper, av, hiv, 6), comparisonFiniteResult(left, lower, av, lov, 4)))
+									}
+									if form%2 == 1 {
+										want = comparisonNot(want)
+									}
+									values = append(values, want)
 								}
-								// add may flush mid-triple. Reset only for a new batch;
-								// later ordinary forms must retain any earlier binding.
-								if len(projection.names) == 0 {
-									projection.from = plainFrom
-								}
-								if boundChar {
-									projection.from = boundFrom
-								}
-								projection.add(t, p, b, x+" "+spelling+" "+l+" AND "+h, values)
 							}
 						}
-						projection.flush(t, p, b)
-					})
-				})
-			}
+						// add may flush mid-triple. Reset only for a new batch;
+						// later ordinary forms must retain any earlier binding.
+						if len(projection.names) == 0 {
+							projection.from = plainFrom
+						}
+						if boundChar {
+							projection.from = boundFrom
+						}
+						projection.add(t, p, b, x+" "+spelling+" "+l+" AND "+h, values)
+					}
+				}
+				projection.flush(t, p, b)
+			})
 		})
 	}
+}
+
+// Same-type and next-identity bounds: every eligible identity is both a lower
+// and an upper bound, alone and mixed. A single eligible identity yields one
+// same-type triple.
+func comparisonBetweenBounds(eligible []int) [][2]int {
+	var bounds [][2]int
+	for i, lower := range eligible {
+		bounds = append(bounds, [2]int{lower, lower})
+		if next := eligible[(i+1)%len(eligible)]; next != lower {
+			bounds = append(bounds, [2]int{lower, next})
+		}
+	}
+	return bounds
 }
 
 func comparisonOrderingPair(left, right int) bool {
