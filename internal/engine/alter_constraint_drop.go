@@ -1,31 +1,34 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
 
-func droppedConstraint(parent *relationDescriptor, action parser.AlterTableAction) (ObjectAddress, ObjectAddress) {
+func droppedConstraint(parent *relationDescriptor, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
 	if action.Action == parser.DropConstraint {
 		for _, c := range parent.uniqueConstraints {
 			if c.Name == action.Constraint.Text {
-				return ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
+				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
 		for _, c := range parent.exclusionConstraints {
 			if c.Name == action.Constraint.Text {
-				return ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
+				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
 		for _, c := range parent.checkConstraints {
 			if c.Name == action.Constraint.Text {
-				return ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ObjectAddress{}
+				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}
 		}
 		for _, c := range parent.notNullConstraints {
 			if c.Name == action.Constraint.Text {
-				return ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ObjectAddress{}
+				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}
 		}
 	}
-	return ObjectAddress{}, ObjectAddress{}
+	return ids.ObjectAddress{}, ids.ObjectAddress{}
 }
 
 // Retire named constraint identities and original backing generations after
@@ -47,7 +50,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 
 func hasDroppedConstraintIndexes(old *relationDescriptor, actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
-		if constraint, _ := droppedConstraint(old, action); constraint != (ObjectAddress{}) {
+		if constraint, _ := droppedConstraint(old, action); constraint != (ids.ObjectAddress{}) {
 			return true
 		}
 	}
@@ -59,18 +62,18 @@ func hasDroppedConstraintIndexes(old *relationDescriptor, actions []parser.Alter
 func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor, actions []parser.AlterTableAction) (*relationDescriptor, error) {
 	for _, action := range actions {
 		constraint, address := droppedConstraint(old, action)
-		if constraint == (ObjectAddress{}) {
+		if constraint == (ids.ObjectAddress{}) {
 			continue
 		}
-		if address != (ObjectAddress{}) && provider.removed(address) {
+		if address != (ids.ObjectAddress{}) && provider.removed(address) {
 			continue // An earlier real column drop can retire the same backing.
 		}
 		if err := provider.replace(next); err != nil {
 			return next, err
 		}
-		retired := [2]ObjectAddress{constraint, address}
+		retired := [2]ids.ObjectAddress{constraint, address}
 		roots := retired[:1]
-		if address != (ObjectAddress{}) {
+		if address != (ids.ObjectAddress{}) {
 			if err := provider.remove(provider.owner.domain.Ref(provider.base.Epoch(), address)); err != nil {
 				return next, err
 			}

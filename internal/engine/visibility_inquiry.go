@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -38,7 +39,7 @@ func (k visibilityInquiryKind) name() string {
 	}
 	return ""
 }
-func (k visibilityInquiryKind) class() OID {
+func (k visibilityInquiryKind) class() ids.OID {
 	switch k {
 	case tableVisibility:
 		return RelationClassID
@@ -179,15 +180,15 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 	}
 	return visibilityInquiryExpression{info, kind, arg}, nil
 }
-func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
+func namedObjectVisible(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
 	return namedObjectVisibleAt(view, nil, path, d)
 }
 
-func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ObjectAddress, d Descriptor) bool {
+func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ids.ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
 		key := descriptorNameKey(d)
 		key.Namespace = namespace
-		if found := definitionLookupAt(view, reader, key); found != (ObjectAddress{}) {
+		if found := definitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
 			return found == d.Address()
 		}
 	}
@@ -235,7 +236,7 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 		if !actor.Superuser {
 			return sqltype.Value{}, sqlError("42501", "must be superuser to import system collations")
 		}
-		if _, exists := auth.catalog.Descriptor(ObjectAddress{ClassID: NamespaceClassID, ObjectID: OID(oid)}); !exists {
+		if _, exists := auth.catalog.Descriptor(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ids.OID(oid)}); !exists {
 			return sqltype.Value{}, sqlError("3F000", fmt.Sprintf("schema with OID %d does not exist", oid))
 		}
 		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
@@ -243,7 +244,7 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if scope.visibilityCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
-	d, exists := scope.visibilityCatalog.Descriptor(ObjectAddress{ClassID: e.kind.class(), ObjectID: OID(oid)})
+	d, exists := scope.visibilityCatalog.Descriptor(ids.ObjectAddress{ClassID: e.kind.class(), ObjectID: ids.OID(oid)})
 	if !exists {
 		if e.kind == collationVersionInquiry || e.kind == databaseCollationVersionInquiry {
 			kind := "collation"
@@ -299,7 +300,7 @@ func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
 	// effectivePath filters TEMP in place for conversion lookup. Give that
 	// derived path its own backing store; the relation path remains immutable.
 	relations := e.effectivePath(auth, explicit, relationLookup)
-	otherExplicit := make([]ObjectAddress, len(explicit))
+	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
 	others := e.effectivePath(auth, otherExplicit, conversionLookup)
 	scope.visibilityCatalog = auth.catalog

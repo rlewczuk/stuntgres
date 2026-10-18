@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -79,12 +80,12 @@ func TestViewCheckStack(t *testing.T) {
 	project := f.view.view.query.Root.(*projectNode)
 	project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: guard}
 	layers := []*relationDescriptor{f.view}
-	refs := []ObjectRef{f.viewRef}
+	refs := []ids.ObjectRef{f.viewRef}
 	for depth := range 2 {
 		source := layers[depth]
 		ref := refs[depth]
 		view := *f.view
-		view.address.ObjectID = OID(20002 + depth)
+		view.address.ObjectID = ids.OID(20002 + depth)
 		view.name = fmt.Sprintf("layer%d", depth)
 		syntax := &parser.Select{From: &parser.TableReference{}}
 		sourceNode := &sourceNode{querySchema: querySchema(source.columns), ref: ref, occurrence: 0}
@@ -300,7 +301,7 @@ func TestViewCheckControlRemap(t *testing.T) {
 	f := viewWriteMechanics(t)
 	for _, mode := range []viewCheckMode{viewCheckNone, viewCheckLocal, viewCheckCascaded} {
 		f.view.view.checkOption = mode
-		ref := func(old ObjectRef) ObjectRef { old.Epoch++; return old }
+		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
 		copy, err := remapFrozenPresentation(f.e.CatalogRead(), f.view.view, nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 		if err != nil {
 			t.Fatal(err)

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -204,8 +205,8 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if d.rules != nil && d.provider != "i" {
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
-	key := NameKey{ClassID: CollationClassID, Namespace: ns.Address, Name: name}
-	if old := stage.lookupName(key); old != (ObjectAddress{}) {
+	key := ids.NameKey{ClassID: CollationClassID, Namespace: ns.Address, Name: name}
+	if old := stage.lookupName(key); old != (ids.ObjectAddress{}) {
 		message := fmt.Sprintf(`collation "%s" already exists`, name)
 		if d.encoding != -1 {
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
@@ -308,7 +309,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		next.owner = ownerTarget
 	}
 	key := descriptorNameKey(&next)
-	if a := stage.lookupName(key); a != (ObjectAddress{}) && a != d.Address() {
+	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
 	}
 	next.revision, err = e.revisionLocked()
@@ -319,7 +320,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 }
 
 func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropCollation) error {
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := e.findUtilityCollation(auth, name)
 		if err != nil {

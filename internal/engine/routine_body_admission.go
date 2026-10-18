@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -45,8 +46,8 @@ func inquiryRoutine(outer *procedureDescriptor) bool {
 // The declaration edge chooses a candidate, not its lifetime. A current owned
 // descriptor can be selected only after matching the exact original manifest.
 func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []expressionDependency, edge routineBodyEdge) (*procedureDescriptor, error) {
-	var original ObjectRef
-	var revision DefinitionRevision
+	var original ids.ObjectRef
+	var revision ids.DefinitionRevision
 	if c.routineReferences != nil {
 		for _, ref := range c.routineReferences {
 			if ref.Address == edge.routine.address {

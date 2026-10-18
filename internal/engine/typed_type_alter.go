@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -18,14 +19,14 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	var typ *typeDescriptor
 	var source *relationDescriptor
 	if err == nil {
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
 			source = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if source.relationKind != compositeRelation {
 				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
 			} else {
-				typ = auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}].(*typeDescriptor)
+				typ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}].(*typeDescriptor)
 			}
 		}
 	}
@@ -85,7 +86,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		if renameErr != nil {
 			return Result{}, renameErr
 		}
-		if source.revision == DefinitionRevision(^uint64(0)) {
+		if source.revision == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.revision = source.revision + 1
@@ -113,7 +114,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			continue
 		}
 		usage := sourceMutation.next.columns[slot].Usage
-		ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())})
+		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}
@@ -122,7 +123,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if err := stage.Replace(sourceMutation.next); err != nil {
 		return Result{}, err
 	}
-	forced := make(map[ObjectAddress]map[int32]bool, len(targets)+1)
+	forced := make(map[ids.ObjectAddress]map[int32]bool, len(targets)+1)
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
 			if slot, ok := source.index[action.Column.Text]; ok {
@@ -153,7 +154,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 		if len(mutation.transforms) != 0 {
 			if forced == nil {
-				forced = make(map[ObjectAddress]map[int32]bool)
+				forced = make(map[ids.ObjectAddress]map[int32]bool)
 			}
 			forced[table.address] = typedTransformAttributes(mutation.transforms)
 		}
@@ -173,7 +174,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 		if graph != nil || len(renames) != 0 {
 			next := *mutation.next
-			if table.revision == DefinitionRevision(^uint64(0)) {
+			if table.revision == ids.DefinitionRevision(^uint64(0)) {
 				return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 			}
 			next.revision = table.revision + 1

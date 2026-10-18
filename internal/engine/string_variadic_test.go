@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -114,7 +115,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	stamped := node.WithOrigin(origins[2])
 	targetRef := viewRef
 	targetRef.Epoch++
-	remapped, err := remapBoundExpression(stamped, func(ref ObjectRef) ObjectRef {
+	remapped, err := remapBoundExpression(stamped, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref == viewRef {
 			return targetRef
 		}
@@ -133,7 +134,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		source := literalExpression{expressionInfo: expressionInfo{usage: node.Usage}, value: sqltype.String(node.Usage.Type, input)}
 		occurrence := functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]{Info: functionInfo(expressionInfo{usage: node.Usage, pos: parser.Position{Offset: 17}}), Name: "quote_ident", Frame: 1, Args: []BoundExpr{source}}
 		ambient := origin
-		if origin.owner != (ObjectRef{}) && origin.attribute == 0 {
+		if origin.owner != (ids.ObjectRef{}) && origin.attribute == 0 {
 			occurrence = occurrence.WithOrigin(origin)
 			ambient = quoteOrigin{} // Lowered view nodes override caller-root context.
 		}
@@ -264,7 +265,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		for _, capture := range description.quotes {
 			want := "stored"
-			if capture.origin.owner == (ObjectRef{}) {
+			if capture.origin.owner == (ids.ObjectRef{}) {
 				want = `"root"`
 			}
 			got, _ := capture.value.Text()
@@ -355,7 +356,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := `"root"`
-			if capture.origin.owner != (ObjectRef{}) {
+			if capture.origin.owner != (ids.ObjectRef{}) {
 				if capture.origin.owner != ref {
 					t.Fatal("retry adopted foreign stored origin")
 				}
@@ -402,7 +403,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := "root"
-			if capture.origin.owner != (ObjectRef{}) {
+			if capture.origin.owner != (ids.ObjectRef{}) {
 				if capture.origin.owner != ref || capture.origin.definition != relation.defaults[capture.origin.attribute].OID {
 					t.Fatal("MERGE default lost physical origin", capture.origin)
 				}
@@ -499,7 +500,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				seen := map[string]bool{}
 				for _, capture := range group.entries {
 					want := "root"
-					if capture.origin.owner != (ObjectRef{}) {
+					if capture.origin.owner != (ids.ObjectRef{}) {
 						if capture.origin.owner != ref || capture.origin.definition != relation.defaults[capture.origin.attribute].OID {
 							t.Fatal("operation-local default origin lost")
 						}
@@ -587,7 +588,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if capture.origin.owner == (ObjectRef{}) {
+					if capture.origin.owner == (ids.ObjectRef{}) {
 						seenRoot = value == root
 					} else {
 						seenView = value == blocked && capture.origin == origin

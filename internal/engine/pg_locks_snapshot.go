@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type pgLockKind uint8
@@ -67,7 +69,7 @@ func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool,
 
 // Capture only: no settling, deadlock/timeout evaluation, callbacks, lazy
 // completion registration or Engine/Session/TX synchronization is permitted.
-func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecord, error) {
+func (m *relationLockManager) snapshotPGLocks(epoch ids.CatalogEpoch) ([]pgLockRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.epoch > epoch {

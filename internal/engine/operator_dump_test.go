@@ -4,25 +4,27 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestUserOperatorDumpFinalGraph(t *testing.T) {
-	for _, oids := range [][4]OID{{90001, 90002, 90003, 90004}, {90003, 90004, 90001, 90002}} {
+	for _, oids := range [][4]ids.OID{{90001, 90002, 90003, 90004}, {90003, 90004, 90001, 90002}} {
 		e := New()
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		// D.neg=C is asymmetric; A.comm=B is asymmetric; B/C are reciprocal
 		// in both kinds. Allocation order must not become link-establishment order.
 		d, c, a, b := oids[0], oids[1], oids[2], oids[3]
 		operators := []*operatorDescriptor{
-			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
-			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},
-			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", function: 65, result: 16, commutator: b},
-			{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", function: 65, result: 16, commutator: c, negator: c},
+			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: d}, name: "#!#", function: 144, result: 16, negator: c},
+			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: c}, name: "#?#", function: 65, result: 16, commutator: b, negator: b},
+			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", function: 65, result: 16, commutator: b},
+			{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", function: 65, result: 16, commutator: c, negator: c},
 		}
 		before := make([]operatorDescriptor, len(operators))
 		graph := make(map[dumpEventKey][]dumpEventKey)
 		for i, op := range operators {
-			op.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			op.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 			op.revision = 1
 			op.left = 23
 			op.right = 23
@@ -54,7 +56,7 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 		}
 		precedes(dumpEventKey{oid: d}, dumpEventKey{oid: c})
 		precedes(dumpEventKey{oid: a}, dumpEventKey{oid: b})
-		for _, source := range []OID{b, c} {
+		for _, source := range []ids.OID{b, c} {
 			completion := dumpEventKey{oid: source, phase: dumpOperatorLinks}
 			precedes(dumpEventKey{oid: b}, completion)
 			precedes(dumpEventKey{oid: c}, completion)
@@ -87,13 +89,13 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	e := New()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	a, b := OID(90001), OID(90003)
+	a, b := ids.OID(90001), ids.OID(90003)
 	operators := []*operatorDescriptor{
-		{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", commutator: b},
-		{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", commutator: a},
+		{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: a}, name: "#~#", commutator: b},
+		{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: b}, name: "#@#", commutator: a},
 	}
 	for _, op := range operators {
-		op.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		op.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 		op.revision = 1
 		op.left = 23
 		op.right = 23
@@ -105,7 +107,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		}
 	}
 	view := e.stageRead(stage)
-	x, y := OID(90002), OID(90004)
+	x, y := ids.OID(90002), ids.OID(90004)
 	graph := map[dumpEventKey][]dumpEventKey{
 		{oid: a}: nil,
 		{oid: x}: nil,
@@ -113,7 +115,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		{oid: y}: nil,
 	}
 	operatorDumpEvents(view, operators, graph)
-	declarations := dumpDeclarationEvents([]OID{a, x, b, y})
+	declarations := dumpDeclarationEvents([]ids.OID{a, x, b, y})
 	replay := &partitionConstraintReplay{original: view}
 	if err := partitionDumpEvents(context.Background(), view, graph, declarations, nil, nil, replay, false); err != nil {
 		t.Fatal(err)

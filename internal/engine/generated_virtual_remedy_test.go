@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -87,7 +88,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide.attributes = []int32{3, 4, 1, 2}
 	base := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
 	wide.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
-	copied, err := remapScalarExpression(old, nil, func(ref ObjectRef) ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
+	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

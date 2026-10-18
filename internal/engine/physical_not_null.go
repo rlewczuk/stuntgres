@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,12 +22,12 @@ const (
 type physicalNotNullCause struct {
 	self      *physicalNotNullCause
 	kind      physicalNotNullCauseKind
-	ref       ObjectRef
-	origin    ObjectRef // Immutable archive namespace; never resolved as a provider.
+	ref       ids.ObjectRef
+	origin    ids.ObjectRef // Immutable archive namespace; never resolved as a provider.
 	attribute int32
-	removedNN OID
-	primary   OID
-	index     ObjectAddress
+	removedNN ids.OID
+	primary   ids.OID
+	index     ids.ObjectAddress
 	usage     sqltype.Usage
 }
 type physicalPrimaryKeyUsage struct {
@@ -34,8 +35,8 @@ type physicalPrimaryKeyUsage struct {
 	usage     sqltype.Usage
 }
 type physicalPrimarySupport struct {
-	constraint OID
-	index      ObjectAddress
+	constraint ids.OID
+	index      ids.ObjectAddress
 	keys       []physicalPrimaryKeyUsage
 }
 type physicalNotNullProof struct {
@@ -105,7 +106,7 @@ func physicalNotNullOriginValid(view CatalogRead, table *relationDescriptor, att
 		return false
 	}
 	if cause.kind == physicalNotNullImportFlag {
-		if cause.primary != 0 || cause.index != (ObjectAddress{}) {
+		if cause.primary != 0 || cause.index != (ids.ObjectAddress{}) {
 			return false
 		}
 	} else if cause.primary == 0 || cause.index.ClassID != RelationClassID || cause.index.ObjectID == 0 || cause.index.SubID != 0 {

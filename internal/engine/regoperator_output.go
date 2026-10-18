@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,8 +12,8 @@ type operatorOutputKey struct {
 	alias sqltype.ID
 }
 
-func operatorSpelling(view CatalogRead, path []ObjectAddress, groups operatorGroups, id OID, alias sqltype.ID) string {
-	descriptor, ok := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
+	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -20,7 +21,7 @@ func operatorSpelling(view CatalogRead, path []ObjectAddress, groups operatorGro
 	operatorPath := path
 	for i, ns := range path {
 		if d, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && d.temporary != (SessionToken{}) {
-			operatorPath = append([]ObjectAddress(nil), path[:i]...)
+			operatorPath = append([]ids.ObjectAddress(nil), path[:i]...)
 			for _, remaining := range path[i+1:] {
 				if d, ok := view.state.descriptors[remaining].(*namespaceDescriptor); !ok || d.temporary == (SessionToken{}) {
 					operatorPath = append(operatorPath, remaining)
@@ -45,7 +46,7 @@ func operatorSpelling(view CatalogRead, path []ObjectAddress, groups operatorGro
 		name = regclassIdentifier(view.state.descriptors[descriptor.namespace].Name()) + "." + name
 	}
 	if alias == sqltype.Regoperator {
-		operand := func(id OID) string {
+		operand := func(id ids.OID) string {
 			if id == 0 {
 				return "NONE"
 			}
@@ -66,7 +67,7 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 	if s.operatorGroups == nil {
 		s.operatorGroups = collectOperatorGroups(s.commentCatalog)
 	}
-	text := operatorSpelling(s.commentCatalog, s.deparsePath, s.operatorGroups, OID(id), alias)
+	text := operatorSpelling(s.commentCatalog, s.deparsePath, s.operatorGroups, ids.OID(id), alias)
 	if s.operatorOutput == nil {
 		s.operatorOutput = make(map[operatorOutputKey]string)
 	}
@@ -92,7 +93,7 @@ func (r *finalRows) FormatRegoper(id uint32) (string, error) {
 func (r *finalRows) FormatRegoperator(id uint32) (string, error) {
 	return r.formatOperator(id, sqltype.Regoperator)
 }
-func captureOperatorOutputValue(rows *finalRows, view CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureOperatorOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
@@ -126,7 +127,7 @@ func captureOperatorOutputValue(rows *finalRows, view CatalogRead, path []Object
 	if rows.operatorOutput == nil {
 		rows.operatorOutput = make(map[operatorOutputKey]string)
 	}
-	rows.operatorOutput[key] = operatorSpelling(view, path, rows.operatorGroups, OID(id), key.alias)
+	rows.operatorOutput[key] = operatorSpelling(view, path, rows.operatorGroups, ids.OID(id), key.alias)
 	rows.output.Operator = rows
 	return nil
 }

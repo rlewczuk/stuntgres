@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 type installedLevenshteinFunctionExpression struct {
 	functions.Levenshtein[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledLevenshtein(raw parser.FunctionExpr) (BoundExpr, error) {

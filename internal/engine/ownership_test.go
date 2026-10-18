@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -50,7 +51,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	base := e.CatalogRead()
-	table := base.state.descriptors[base.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_t"}]].(*relationDescriptor)
+	table := base.state.descriptors[base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_t"}]].(*relationDescriptor)
 	// Explicit stable-sub-ID and associated-type ACL payloads are not public
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
@@ -61,8 +62,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(table.rowType)}].(*typeDescriptor).array} {
-		d := base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
+	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(table.rowType)}].(*typeDescriptor).array} {
+		d := base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		next := *d
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
 		next.aclSyntheticDefault = false
@@ -76,7 +77,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	oldTable := base.state.descriptors[table.address].(*relationDescriptor)
 	store := e.storage[table.address]
 	rows := store.versions
-	generators := make(map[ObjectAddress]*sequenceGenerator)
+	generators := make(map[ids.ObjectAddress]*sequenceGenerator)
 	for a, g := range e.sequences {
 		generators[a] = g
 	}
@@ -86,7 +87,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if name == "ownership_t" {
 			class = RelationClassID
 		}
-		d := base.state.descriptors[base.state.names[NameKey{ClassID: class, Namespace: table.namespace, Name: name}]]
+		d := base.state.descriptors[base.state.names[ids.NameKey{ClassID: class, Namespace: table.namespace, Name: name}]]
 		if d == nil {
 			t.Fatal("missing root", name)
 		}
@@ -96,9 +97,9 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, stage)
 	current := e.CatalogRead()
-	compositeAddress := base.state.names[NameKey{ClassID: TypeClassID, Namespace: table.namespace, Name: "ownership_c"}]
+	compositeAddress := base.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: table.namespace, Name: "ownership_c"}]
 	composite := base.state.descriptors[compositeAddress].(*typeDescriptor)
-	arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(composite.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(composite.array)}
 	array := base.state.descriptors[arrayAddress].(*typeDescriptor)
 	backing := base.state.descriptors[composite.owningRelation].(*relationDescriptor)
 	movedComposite := current.state.descriptors[compositeAddress].(*typeDescriptor)
@@ -140,22 +141,22 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	base := e.CatalogRead()
 	for _, d := range base.state.descriptors {
 		switch d.Kind() {
-		case DatabaseObject:
+		case ids.DatabaseObject:
 			if !ownershipRoot(base, d) {
 				t.Fatal("represented database missing from ownership roots", d)
 			}
-		case NamespaceObject:
+		case ids.NamespaceObject:
 			expected := d.Address().ObjectID == PublicNamespaceOID
 			if ownershipRoot(base, d) != expected {
 				t.Fatal("public exception or protected catalog namespace misclassified", d)
 			}
-		case RelationObject, TypeObject, CollationObject:
+		case ids.RelationObject, ids.TypeObject, ids.CollationObject:
 			if ownershipRoot(base, d) {
 				t.Fatal("immutable builtin executable ownership root", d)
 			}
 		}
 	}
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: ids.DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)

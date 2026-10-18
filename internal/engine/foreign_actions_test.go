@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -73,11 +74,11 @@ func TestForeignActionsDefinition(t *testing.T) {
 	if !slices.Equal(current.foreignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.foreignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.foreignKeys[0])
 	}
-	text, err := (pgRenderer{view: next, relation: current, path: []ObjectAddress{current.namespace}}).foreignKeyConstraintSQL(current, current.foreignKeys[0])
+	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.namespace}}).foreignKeyConstraintSQL(current, current.foreignKeys[0])
 	if err != nil || text != "FOREIGN KEY (a, author) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (author)" {
 		t.Fatal(text, err)
 	}
-	oldText, err := (pgRenderer{view: view, relation: child, path: []ObjectAddress{child.namespace}}).foreignKeyConstraintSQL(child, original)
+	oldText, err := (pgRenderer{view: view, relation: child, path: []ids.ObjectAddress{child.namespace}}).foreignKeyConstraintSQL(child, original)
 	if err != nil || oldText != "FOREIGN KEY (a, b) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (b)" {
 		t.Fatal("retained deparse changed", oldText, err)
 	}
@@ -135,7 +136,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
 	ref := e.domain.Ref(auth.catalog.Epoch(), job.child.address)
-	children, err := scope.captureForeignKeyRows(ref, ObjectAddress{})
+	children, err := scope.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}

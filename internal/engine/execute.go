@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -259,13 +260,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// Analysis changes retire statement-root captures, not unchanged
 			// stored definitions. DISCARD already cleared the complete group.
 			for i, saved := range candidate.quotes {
-				if saved.origin.owner != (ObjectRef{}) {
+				if saved.origin.owner != (ids.ObjectRef{}) {
 					continue
 				}
 				quotes := make([]quoteConstant, 0, len(candidate.quotes)-1)
 				quotes = append(quotes, candidate.quotes[:i]...)
 				for _, remaining := range candidate.quotes[i+1:] {
-					if remaining.origin.owner != (ObjectRef{}) {
+					if remaining.origin.owner != (ids.ObjectRef{}) {
 						quotes = append(quotes, remaining)
 					}
 				}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,14 +25,14 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})
 
 	e.roles = roles
-	grant := func(object ObjectRef, rights authorization.Privileges) {
+	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
-	column := func(index int) ObjectRef {
+	column := func(index int) ids.ObjectRef {
 		object := ref
 		object.Address.SubID = table.attributes[index]
 		return object

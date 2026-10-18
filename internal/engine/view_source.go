@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker authorization.PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
@@ -176,7 +177,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
-func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) (AuthorizationView, error) {
+func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -188,7 +189,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 
 // The source collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
-func authorizeViewSourceSnapshot(auth AuthorizationView, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
+func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced

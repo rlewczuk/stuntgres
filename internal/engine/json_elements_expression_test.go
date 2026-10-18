@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -71,7 +72,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || plannedVolatility(original) != Immutable {
 			t.Fatal("lost argument dependency", dependencies)
 		}
-		clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored remap", clone, err)
 		}

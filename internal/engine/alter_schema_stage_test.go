@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type alterSchemaCandidateProvider struct {
@@ -35,9 +37,9 @@ func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *relationDescriptor
 func TestAlterSchemaWholeCandidate(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-	destination := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
-	addresses := []ObjectAddress{}
+	source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+	destination := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	addresses := []ids.ObjectAddress{}
 	for _, name := range []string{"t", "q1", "q2"} {
 		addresses = append(addresses, NameAddressForTempMove(t, e, source, name))
 	}
@@ -73,7 +75,7 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
 			name := "q2"
 			if field == "table_revision" {
 				name = "t"
@@ -81,9 +83,9 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 			address := NameAddressForTempMove(t, e, source, name)
 			d := *e.state.descriptors[address].(*relationDescriptor)
 			if field == "sequence_stamp" {
-				d.sequencePlanStamp = DefinitionRevision(^uint64(0))
+				d.sequencePlanStamp = ids.DefinitionRevision(^uint64(0))
 			} else {
-				d.revision = DefinitionRevision(^uint64(0))
+				d.revision = ids.DefinitionRevision(^uint64(0))
 			}
 			alterSchemaPublishDescriptor(t, e, &d)
 			before, frontier := e.state, e.nextRevision
@@ -151,7 +153,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
 			address := NameAddressForTempMove(t, e, source, "q2")
 			ref := e.domain.Ref(e.state.epoch, address)
 			tx := transactionBegin(t, a)
@@ -181,7 +183,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 				if moved.name != "grant_q2" || moved.sequence != next.sequence || moved.sequencePlanStamp <= next.sequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
-				destination := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+				destination := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
 				if NameAddressForTempMove(t, e, destination, "grant_q2") != address {
 					t.Fatal("dependency identity changed")
 				}

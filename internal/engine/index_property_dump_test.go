@@ -4,14 +4,16 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	view := New().CatalogRead()
-	parentAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 100010}
-	indexAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 100001}
-	consumer := ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	parentAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100010}
+	indexAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100001}
+	consumer := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	parent := &relationDescriptor{address: parentAddress, namespace: namespace, relationKind: tableRelation}
 	index := &relationDescriptor{address: indexAddress, namespace: namespace, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress, ready: true, valid: true, live: true}}
 	view.state.descriptors[parentAddress] = parent
@@ -42,7 +44,7 @@ func TestIndexPropertyDumpRemappedTopology(t *testing.T) {
 	// their parent. Creation must still follow definition dependencies.
 	graph := map[dumpEventKey][]dumpEventKey{{oid: 30}: nil, {oid: 20}: {{oid: 30}}, {oid: 10}: {{oid: 20}}, {oid: 40}: {{oid: 20}}}
 	order, err := viewDumpOrder(context.Background(), graph, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{30, 20, 10, 40}) {
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{30, 20, 10, 40}) {
 		t.Fatal(order, err)
 	}
 	// A CHECK on the parent requiring its own ordinary index is a real cycle;

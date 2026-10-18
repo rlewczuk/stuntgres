@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,11 +16,11 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	options.persistence, options.owned = "temporary", table.address
 	options.owned.SubID = 1
-	sequence := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20003}, namespace: table.namespace, name: "owned", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
+	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20003}, namespace: table.namespace, name: "owned", revision: 1, sequencePlanStamp: 1, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
 	class, _ := sqltype.DefaultIndexClass(table.columns[0].Usage.Type)
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, owner: table.owner, columns: table.columns, index: table.index, attributes: table.attributes, attributeHighWater: 1, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, owner: table.owner, columns: table.columns, index: table.index, attributes: table.attributes, attributeHighWater: 1, relationKind: indexRelation, sqlIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
 	peer := sessionStart(t, e, nil)
-	peerNamespace := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, owner: table.owner, temporary: peer.token}
+	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, owner: table.owner, temporary: peer.token}
 	peerTable := *table
 	peerTable.address.ObjectID = 20006
 	peerTable.namespace = peerNamespace.address
@@ -35,13 +36,13 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	generator := &sequenceGenerator{last: options.start, generation: 1}
 	e.sequences[sequence.address] = generator
 	root := &logicalIndexRoot{}
-	e.indexRoots = map[ObjectAddress]*logicalIndexRoot{}
+	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
 	e.indexRoots[index.address] = root
 	epoch := e.state.epoch
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range []ObjectAddress{table.address, sequence.address, index.address} {
+	for _, a := range []ids.ObjectAddress{table.address, sequence.address, index.address} {
 		if e.state.descriptors[a] != nil || e.storage[a] != nil || e.sequences[a] != nil || e.indexRoots[a] != nil {
 			t.Fatal("orphan owner dependency", a)
 		}
@@ -74,10 +75,10 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescr
 	roleExecute(t, e, op, "CREATE TEMP SEQUENCE cleanup_owned OWNED BY cleanup_owner.v")
 	namespace := op.session.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
-	owner := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owner"}]].(*relationDescriptor)
-	sequence := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owned"}]].(*relationDescriptor)
+	owner := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owner"}]].(*relationDescriptor)
+	sequence := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owned"}]].(*relationDescriptor)
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
-	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "cleanup_survivor"}]
+	address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "cleanup_survivor"}]
 	survivor := e.state.descriptors[address].(*relationDescriptor)
 	if len(survivor.checkConstraints) != 1 || len(survivor.checkConstraints[0].dependencies) == 0 {
 		t.Fatal("missing real CHECK manifest")
@@ -89,7 +90,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *rel
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	targets := []ObjectAddress{owner.address, sequence.address}
+	targets := []ids.ObjectAddress{owner.address, sequence.address}
 	for _, address := range targets {
 		if err := stage.Remove(e.domain.Ref(stage.base.Epoch(), address)); err != nil {
 			t.Fatal(err)
@@ -108,13 +109,13 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE public.cleanup_late(v INT CHECK(nextval('cleanup_owned')>0))")
 		current := e.state
 		e.mu.Lock()
-		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ObjectAddress{owner.namespace}, nil)
+		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.namespace}, nil)
 		e.mu.Unlock()
 		if err != nil || installed || e.state != current || e.state.descriptors[survivor.address] != survivor || e.sequences[sequence.address] == nil || op.session.temporaryNamespace != owner.namespace {
 			t.Fatal("stale preparation installed", installed, err)
 		}
 		e.DiscardCatalogStage(stage)
-		lateAddress := current.names[NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_late"}]
+		lateAddress := current.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_late"}]
 		late := current.descriptors[lateAddress].(*relationDescriptor)
 		if err := e.endTemporarySession(op.session); err != nil {
 			t.Fatal(err)
@@ -133,8 +134,8 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e, op, owner, sequence, survivor := temporaryCleanupConsumer(t)
 		roleExecute(t, e, op, "CREATE SEQUENCE public.cleanup_unrelated")
 		roleExecute(t, e, op, "CREATE INDEX cleanup_survivor_v_idx ON public.cleanup_survivor(v)")
-		unrelated := e.state.names[NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_unrelated"}]
-		index := e.state.names[NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
+		unrelated := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_unrelated"}]
+		index := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
 		stage := temporaryCleanupPreparedStage(t, e, owner, sequence)
 		captured := e.state
 		// A real row publication replaces storage/index heads, not the catalog.
@@ -145,7 +146,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		}
 		epoch, generation := e.state.epoch, e.state.namespaceGeneration
 		e.mu.Lock()
-		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ObjectAddress{owner.namespace}, nil)
+		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.namespace}, nil)
 		e.mu.Unlock()
 		if err != nil || !installed || e.storage[survivor.address] != currentStore || e.indexRoots[index] != currentRoot || e.sequences[unrelated] != currentGenerator || e.state.epoch != epoch || e.state.namespaceGeneration != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
@@ -162,14 +163,14 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	e, _, _, sequence, survivor := temporaryCleanupConsumer(t)
 	original := e.state
 	maximum := *survivor
-	maximum.revision = DefinitionRevision(^uint64(0))
+	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	e.state = cloneCatalog(original)
 	e.state.descriptors[survivor.address] = &maximum
 	// Restore the unexhausted setup before its automatic session retirement.
 	t.Cleanup(func() { e.state = original })
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	_, err := stageCheckDependents(stage, []ObjectAddress{sequence.address}, parser.DropCascade)
+	_, err := stageCheckDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 	if err != nil {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
@@ -184,14 +185,14 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	e, op, owner, sequence, survivor := temporaryCleanupConsumer(t)
 	roleExecute(t, e, op, "CREATE INDEX cleanup_survivor_v_idx ON public.cleanup_survivor(v)")
 	roleExecute(t, e, op, "INSERT INTO public.cleanup_survivor VALUES(7)")
-	index := e.state.names[NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
+	index := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
 	store, root := e.storage[survivor.address], e.indexRoots[index]
 	// The storage object owns mutable publication heads; views retain the
 	// immutable vector/header and end root, not that object's later slice header.
 	retained, retainedEnds := store.versions, store.ends
 	original := e.state
 	maximum := *survivor
-	maximum.revision = DefinitionRevision(^uint64(0))
+	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	e.state = cloneCatalog(original)
 	e.state.descriptors[survivor.address] = &maximum
 	t.Cleanup(func() {
@@ -245,15 +246,15 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			if kind == "DEFAULT" {
 				roleExecute(t, e, op, "CREATE SEQUENCE public.cleanup_default_source")
 				roleExecute(t, e, op, "CREATE TABLE public.cleanup_defaults(v BIGINT DEFAULT nextval('public.cleanup_default_source'))")
-				sequence = e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: consumer.namespace, Name: "cleanup_default_source"}]].(*relationDescriptor)
-				consumer = e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: consumer.namespace, Name: "cleanup_defaults"}]].(*relationDescriptor)
+				sequence = e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: consumer.namespace, Name: "cleanup_default_source"}]].(*relationDescriptor)
+				consumer = e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: consumer.namespace, Name: "cleanup_defaults"}]].(*relationDescriptor)
 				if len(consumer.defaults) != 1 {
 					t.Fatal("missing actual DEFAULT")
 				}
 			}
 			original := e.state
 			maximum := *consumer
-			maximum.revision = DefinitionRevision(^uint64(0))
+			maximum.revision = ids.DefinitionRevision(^uint64(0))
 			e.state = cloneCatalog(original)
 			e.state.descriptors[consumer.address] = &maximum
 			t.Cleanup(func() { e.state = original })
@@ -262,9 +263,9 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 				stage.terminalCleanup = terminal
 				var err error
 				if kind == "CHECK" {
-					_, err = stageCheckDependents(stage, []ObjectAddress{sequence.address}, parser.DropCascade)
+					_, err = stageCheckDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 				} else {
-					_, err = stageDefaultDependents(stage, []ObjectAddress{sequence.address}, parser.DropCascade)
+					_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 				}
 				if !terminal {
 					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.descriptors) != 0 || e.state.descriptors[consumer.address] != &maximum {
@@ -285,9 +286,9 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			stage.terminalCleanup = true
 			var err error
 			if kind == "CHECK" {
-				_, err = stageCheckDependents(stage, []ObjectAddress{sequence.address}, parser.DropCascade)
+				_, err = stageCheckDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 			} else {
-				_, err = stageDefaultDependents(stage, []ObjectAddress{sequence.address}, parser.DropCascade)
+				_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 			}
 			replacement, ok := stage.descriptors[consumer.address].(*relationDescriptor)
 			if err != nil || !ok || replacement.revision != consumer.revision+1 {

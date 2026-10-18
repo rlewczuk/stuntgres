@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -33,7 +34,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			stage.authorizeLocked(auth, op.session)
 			changes := newCatalogChanges()
-			authority := auth.catalogAuthorityLocked(ObjectRef{}, nil)
+			authority := auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 			// Empty descriptor/removal sets are deliberate: storage-only TRUNCATE and
 			// other staged authorities must still record the database predecessor.
 			if err := e.captureCatalogStageLocked(stage, changes, auth.catalog.state, authority); err != nil {
@@ -101,7 +102,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			message := batchUnitStart(t, session, ctx)
 			defer message.end(context.Canceled)
 			oldCatalog, oldRoles := f.e.state, f.e.roles
-			storage := make(map[ObjectAddress]*relationStorage, len(f.e.storage))
+			storage := make(map[ids.ObjectAddress]*relationStorage, len(f.e.storage))
 			for address, root := range f.e.storage {
 				storage[address] = root
 			}

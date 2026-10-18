@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -326,7 +327,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = s.checkPartitionCreationNamespaceLocked(auth, creation)
 		}
 	}
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	retained := false
 	if err == nil {
 		if selection, ok := stmt.(*parser.Select); source && ok {
@@ -358,8 +359,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = auth.CheckCreate(ns)
 			if err == nil {
 				s.viewCreationNamespace = ns
-				address := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
-				if address != (ObjectAddress{}) {
+				address := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
+				if address != (ids.ObjectAddress{}) {
 					ref = e.domain.Ref(auth.catalog.Epoch(), address)
 				}
 			}
@@ -410,7 +411,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
 		}
 	}
-	var definitionStamp DefinitionRevision
+	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *relationDescriptor
 	if err == nil && ref.Domain() != nil {
 		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address], s.op.session)
@@ -434,13 +435,13 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 	}
-	var typedSourceRef ObjectRef
+	var typedSourceRef ids.ObjectRef
 	if attachment, ok := stmt.(*parser.AlterTableOf); ok && attachment.Type != nil && err == nil {
 		var typ *typeDescriptor
 		typ, err = e.namedType(auth, *attachment.Type)
 		if err == nil {
 			var source *relationDescriptor
-			var path []ObjectAddress
+			var path []ids.ObjectAddress
 			path, err = e.referencePath(auth)
 			if err == nil {
 				source, err = standaloneComposite(auth.catalog, typ, path)
@@ -611,7 +612,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			auth.catalog = e.privateCatalogLocked(s.viewChanges)
 			auth.recaptureCatalog(auth.catalog)
 		}
-		if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
+		if auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
 			return ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {

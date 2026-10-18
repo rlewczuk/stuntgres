@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -209,7 +210,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if got != "replacement" || old != "postgres" {
 		t.Fatal("recipe rewrite aliasing", got, old)
 	}
-	remapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || remapped.(accessInquiryExpression).validateStored() != nil {
 		t.Fatal("stored recipe remap", err)
 	}

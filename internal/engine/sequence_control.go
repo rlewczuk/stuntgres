@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -50,8 +51,8 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 
 // Called under source synchronization; generator scalars are detached from the
 // source, unlike immutable relation descriptors.
-func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*sequenceGenerator, error) {
-	result := make(map[ObjectAddress]*sequenceGenerator)
+func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]*sequenceGenerator, error) {
+	result := make(map[ids.ObjectAddress]*sequenceGenerator)
 	for a, d := range view.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok || r.relationKind != sequenceRelation {
@@ -69,7 +70,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
 	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
@@ -77,13 +78,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
 		return err
 	}
-	temporary := make(map[ObjectAddress]Descriptor)
+	temporary := make(map[ids.ObjectAddress]Descriptor)
 	for a, d := range e.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
 			temporary[a] = d
 		}
 	}
-	namespaces := make(map[ObjectAddress]bool, len(temporary))
+	namespaces := make(map[ids.ObjectAddress]bool, len(temporary))
 	for address := range temporary {
 		namespaces[address] = true
 	}
@@ -152,7 +153,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			return
 		}
 		retained[typ.ID()] = true
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
 		source, ok := e.state.descriptors[address].(*typeDescriptor)
 		if !ok || source.typ != typ {
 			return
@@ -167,7 +168,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			retainBuiltin(typ.Element())
 		}
 		if source.array != 0 {
-			if array, ok := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.array)}].(*typeDescriptor); ok {
+			if array, ok := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
 				retainBuiltin(array.typ)
 			}
 		}
@@ -263,12 +264,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	// OIDs share one identity space even when their catalog classes differ.
 	// Retained TEMP definitions cannot be reminted to make room for imports.
-	retainedIDs := make(map[OID]bool)
+	retainedIDs := make(map[ids.OID]bool)
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
 		reserveDefinitionOIDs(retainedIDs, descriptor)
 	}
-	reservedIDs := make(map[OID]bool, len(next.descriptors)+len(retainedIDs))
+	reservedIDs := make(map[ids.OID]bool, len(next.descriptors)+len(retainedIDs))
 	for id := range retainedIDs {
 		reservedIDs[id] = true
 	}
@@ -276,8 +277,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		reservedIDs[address.ObjectID] = true
 		reserveDefinitionOIDs(reservedIDs, descriptor)
 	}
-	mapping := make(map[ObjectAddress]ObjectAddress)
-	remapCollision := func(address ObjectAddress) error {
+	mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
+	remapCollision := func(address ids.ObjectAddress) error {
 		if !retainedIDs[address.ObjectID] {
 			return nil
 		}
@@ -304,7 +305,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
 			for _, helper := range proc.aggregate.helpers {
-				if err := remapCollision(ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}); err != nil {
+				if err := remapCollision(ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}); err != nil {
 					return err
 				}
 			}
@@ -328,14 +329,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if len(mapping) != 0 {
 		remapDefaultSchemas(next, mapping)
 		originals := next.descriptors
-		next.descriptors = make(map[ObjectAddress]Descriptor, len(originals)+len(temporary))
-		next.names = make(map[NameKey]ObjectAddress, len(originals)+len(temporary))
+		next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(originals)+len(temporary))
+		next.names = make(map[ids.NameKey]ids.ObjectAddress, len(originals)+len(temporary))
 		for a, d := range originals {
 			target := a
 			if dest, ok := mapping[a]; ok {
 				target = dest
 				if next.dumpPriorities == nil {
-					next.dumpPriorities = make(map[ObjectAddress]OID)
+					next.dumpPriorities = make(map[ids.ObjectAddress]ids.OID)
 				}
 				priority := a.ObjectID
 				if captured := next.dumpPriorities[a]; captured != 0 {
@@ -380,8 +381,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			case *operatorDescriptor:
 				n := *r
 				n.address = target
-				move := func(class, id OID) OID {
-					if mapped, ok := mapping[ObjectAddress{ClassID: class, ObjectID: id}]; ok {
+				move := func(class, id ids.OID) ids.OID {
+					if mapped, ok := mapping[ids.ObjectAddress{ClassID: class, ObjectID: id}]; ok {
 						return mapped.ObjectID
 					}
 					return id
@@ -406,12 +407,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.address = target
 				if r.inheritance != nil {
-					n.inheritance = remapInheritance(r.inheritance, func(address ObjectAddress) ObjectAddress {
+					n.inheritance = remapInheritance(r.inheritance, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if destination, ok := mapping[address]; ok {
 							return destination
 						}
 						return address
-					}, func(origin inheritanceOrigin) OID { return origin.constraint })
+					}, func(origin inheritanceOrigin) ids.OID { return origin.constraint })
 				}
 				if target != a {
 					n.columns = append([]ColumnDescriptor(nil), r.columns...)
@@ -498,7 +499,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		next.operatorNames = rebuildOperatorNames(next.descriptors)
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
-		oldStorage := make(map[ObjectAddress]*relationStorage, len(storage))
+		oldStorage := make(map[ids.ObjectAddress]*relationStorage, len(storage))
 		for a, s := range storage {
 			oldStorage[a] = s
 			delete(storage, a)
@@ -509,7 +510,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			storage[a] = s
 		}
-		oldSequences := make(map[ObjectAddress]*sequenceGenerator, len(sequences))
+		oldSequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(sequences))
 		for a, g := range sequences {
 			oldSequences[a] = g
 			delete(sequences, a)
@@ -550,7 +551,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			continue
 		}
 		view := CatalogRead{owner: e, state: next}
-		remap := func(ref ObjectRef) ObjectRef { ref.Epoch = next.epoch; return ref }
+		remap := func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch = next.epoch; return ref }
 		typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		// Replacement preflight certified these exact TEMP providers. They
 		// enter the candidate after imported expressions have been remapped,
@@ -571,7 +572,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		next.descriptors[address] = relation
 	}
-	previous := make(map[ObjectAddress]Descriptor, len(next.descriptors))
+	previous := make(map[ids.ObjectAddress]Descriptor, len(next.descriptors))
 	for address, descriptor := range next.descriptors {
 		previous[address] = descriptor
 	}
@@ -625,7 +626,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 			if !keep {
 				delete(s.sequences, a)
 				if s.lastSequence == a {
-					s.lastSequence = ObjectAddress{}
+					s.lastSequence = ids.ObjectAddress{}
 				}
 			}
 		}
@@ -726,7 +727,7 @@ func arrayDomainDependency(typ *sqltype.Descriptor) bool {
 	return typ.IsArray() && arrayDomainDependency(typ.Element())
 }
 func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
-	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
 	old, ok := source.descriptors[address].(*typeDescriptor)
 	if !ok {
 		return false
@@ -747,7 +748,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Only immutable bootstrap catalog sources have a persistent survivor route.
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
-func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ObjectAddress]Descriptor) error {
+func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
 	catalog := CatalogRead{e, e.state}
 	for _, descriptor := range temporary {
 		consumer, ok := descriptor.(*relationDescriptor)

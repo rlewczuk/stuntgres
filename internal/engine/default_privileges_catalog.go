@@ -3,10 +3,11 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
-func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	for _, namespace := range []ObjectAddress{{}, schema} {
+func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := defaultACLKey{creator: owner, schema: namespace, class: class}
 		if s.defaultReads == nil {
 			s.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
@@ -14,7 +15,7 @@ func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema Obje
 		if _, exists := s.defaultReads[key]; !exists {
 			s.defaultReads[key] = s.base.state.defaultACLs[key]
 		}
-		if schema == (ObjectAddress{}) {
+		if schema == (ids.ObjectAddress{}) {
 			break
 		}
 	}
@@ -24,7 +25,7 @@ func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema Obje
 // CreationDefaultACL normalizes baseline-equal defaults. Types retain a
 // materialized baseline for effective USAGE checks, so remember at creation
 // whether that value represents raw catalog absence rather than an explicit ACL.
-func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema ObjectAddress) (authorization.ACLValue, bool) {
+func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema ids.ObjectAddress) (authorization.ACLValue, bool) {
 	acl := s.creationACL(owner, schema, authorization.DefaultTypes)
 	return acl, authorization.MatchesDefaultBaseline(acl, owner, authorization.DefaultTypes, false)
 }
@@ -87,7 +88,7 @@ func (s *CatalogStage) defaultPreflight(current *catalogState) error {
 	}
 	return nil
 }
-func (s *CatalogStage) removeSchemaDefaults(schema ObjectAddress) {
+func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 	for key, record := range s.base.state.defaultACLs {
 		if key.schema != schema {
 			continue
@@ -125,7 +126,7 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 		creator, _ := roles.Descriptor(key.creator)
 		class := [...]string{"", "relations", "sequences", "functions", "types", "schemas", "large objects"}[key.class]
 		description := "default privileges on new " + class + " belonging to role " + creator.Name
-		if key.schema != (ObjectAddress{}) {
+		if key.schema != (ids.ObjectAddress{}) {
 			description += " in schema " + view.state.descriptors[key.schema].Name()
 		}
 		prefix := "privileges for "
@@ -136,8 +137,8 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 	}
 	return false
 }
-func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
-	for _, namespace := range []ObjectAddress{{}, schema} {
+func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := defaultACLKey{creator: owner, schema: namespace, class: class}
 		if _, private := c.defaultACLs[key]; !private {
 			if c.defaultReads == nil {
@@ -147,7 +148,7 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 				c.defaultReads[key] = e.state.defaultACLs[key]
 			}
 		}
-		if schema == (ObjectAddress{}) {
+		if schema == (ids.ObjectAddress{}) {
 			break
 		}
 	}
@@ -157,10 +158,10 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 // Projection removes namespace-owned directives with their namespaces. Physical
 // retirement removes their directives while retaining empty namespace metadata.
 // Invalid already-orphaned keys remain for validation.
-func pruneNamespaceDefaults(source, next *catalogState, retired []ObjectAddress) {
+func pruneNamespaceDefaults(source, next *catalogState, retired []ids.ObjectAddress) {
 	copied := false
 	for key := range next.defaultACLs {
-		if key.schema == (ObjectAddress{}) || source.descriptors[key.schema] == nil || next.descriptors[key.schema] != nil && !slices.Contains(retired, key.schema) {
+		if key.schema == (ids.ObjectAddress{}) || source.descriptors[key.schema] == nil || next.descriptors[key.schema] != nil && !slices.Contains(retired, key.schema) {
 			continue
 		}
 		if !copied {
@@ -171,7 +172,7 @@ func pruneNamespaceDefaults(source, next *catalogState, retired []ObjectAddress)
 	}
 }
 
-func remapDefaultSchemas(state *catalogState, mapping map[ObjectAddress]ObjectAddress) {
+func remapDefaultSchemas(state *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) {
 	original := state.defaultACLs
 	copied := false
 	for key, record := range original {

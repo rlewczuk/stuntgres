@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,7 +23,7 @@ func pgSequencesRows(t *testing.T, s *Session, query string, want [][]driver.Val
 
 func TestPGSequencesDescriptors(t *testing.T) {
 	e := New()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}
 	d := e.state.descriptors[address].(*relationDescriptor)
 	if !d.virtualView || d.rowType != 12050 || len(d.columns) != 11 {
 		t.Fatal(d)
@@ -37,8 +38,8 @@ func TestPGSequencesDescriptors(t *testing.T) {
 			t.Fatal("NAME collation", column)
 		}
 	}
-	row := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 12050}].(*typeDescriptor)
-	array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 12049}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12050}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12049}].(*typeDescriptor)
 	if row.owningRelation != address || row.array != 12049 || array.owningRelation != address || array.typ.Element() != row.typ {
 		t.Fatal(row, array)
 	}

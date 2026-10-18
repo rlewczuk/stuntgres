@@ -6,18 +6,19 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Retain the published maps, not merely a CatalogRead pointing at mutable maps.
 type temporaryProjectionCatalog struct {
 	view        CatalogRead
-	descriptors map[ObjectAddress]Descriptor
-	names       map[NameKey]ObjectAddress
+	descriptors map[ids.ObjectAddress]Descriptor
+	names       map[ids.NameKey]ids.ObjectAddress
 }
 
 func captureTemporaryProjectionCatalog(e *Engine) temporaryProjectionCatalog {
-	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress)}
+	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
 	for a, d := range p.view.state.descriptors {
 		p.descriptors[a] = d
 	}
@@ -170,8 +171,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	generatorState, memoryState := *generator, *memory
 	sourceGenerator, sourceMemory := source.sequences[sourceTemp], a.sequences[sourceTemp]
 	sourceGeneratorState, sourceMemoryState := *sourceGenerator, *sourceMemory
-	sourceGenerators := make(map[ObjectAddress]*sequenceGenerator)
-	sourceStates := make(map[ObjectAddress]sequenceGenerator)
+	sourceGenerators := make(map[ids.ObjectAddress]*sequenceGenerator)
+	sourceStates := make(map[ids.ObjectAddress]sequenceGenerator)
 	for a, g := range source.sequences {
 		sourceGenerators[a], sourceStates[a] = g, *g
 	}
@@ -280,7 +281,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	r.Rows.Close()
 	importedTable := roleTableRef(t, dest, "portable.owner_table").Address
 	importedSequence := roleTableRef(t, dest, "portable.owned_s").Address
-	if importedTable == sourceTable || dest.state.descriptors[importedSequence].(*relationDescriptor).sequence.owned != (ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
+	if importedTable == sourceTable || dest.state.descriptors[importedSequence].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
 		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.state.descriptors[importedSequence])
 	}
 	sequenceScalar(t, b, "SELECT nextval('portable.owned_s')", 40)
@@ -386,7 +387,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 				}
 			}
 			if self {
-				if dest.state.descriptors[namespace] != tableDescriptor || dest.state.descriptors[toast] != toastDescriptor || s.temporaryNamespace != (ObjectAddress{}) {
+				if dest.state.descriptors[namespace] != tableDescriptor || dest.state.descriptors[toast] != toastDescriptor || s.temporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("self replacement changed retained pair/retired authority")
 				}
 			} else if dest.state.descriptors[namespace] != nil || dest.state.descriptors[toast] != nil {

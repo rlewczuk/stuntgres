@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -18,7 +19,7 @@ func inheritedForeignKeyDeferred(view CatalogRead, source *relationDescriptor, f
 	return ok && target.relationKind == tableRelation && target.partition == nil && target.membership == nil && inheritedForeignKeyDescendant(view, target, source.address)
 }
 
-func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor, ancestor ObjectAddress) bool {
+func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor, ancestor ids.ObjectAddress) bool {
 	if target.inheritance == nil {
 		return false
 	}
@@ -27,7 +28,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 			return true
 		}
 	}
-	visited := make(map[ObjectAddress]bool)
+	visited := make(map[ids.ObjectAddress]bool)
 	var walk func(*relationDescriptor) bool
 	walk = func(relation *relationDescriptor) bool {
 		if visited[relation.address] || relation.inheritance == nil {
@@ -47,7 +48,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 	return walk(target)
 }
 
-func inheritedForeignKeyEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritedForeignKeyEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	for i := range tables {
 		source := tables[i].descriptor
 		event := dumpEventKey{oid: source.address.ObjectID, phase: dumpInheritedForeignKeys}
@@ -115,13 +116,13 @@ type restoredInheritedForeignIndex struct {
 }
 
 type restoredInheritedForeignKey struct {
-	source, target      ObjectRef
+	source, target      ids.ObjectRef
 	beforeSource        *relationDescriptor
 	beforeTarget        *relationDescriptor
 	raw                 parser.ForeignKeyConstraint
 	columns, referenced []restoredInheritedForeignColumn
 	deleted             []restoredInheritedForeignColumn
-	providers           map[ObjectAddress]restoredInheritedForeignIndex
+	providers           map[ids.ObjectAddress]restoredInheritedForeignIndex
 }
 
 func captureInheritedForeignColumns(table *relationDescriptor, names []parser.Identifier) ([]restoredInheritedForeignColumn, bool) {
@@ -144,7 +145,7 @@ func captureInheritedForeignColumns(table *relationDescriptor, names []parser.Id
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTable, created map[ObjectAddress]ObjectRef) (restoredForeignKeys, bool, error) {
+func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddForeignKey || raw.Actions[0].ForeignKey == nil || raw.Actions[0].ForeignKey.NotValid {
 		return restoredForeignKeys{}, false, nil
 	}
@@ -187,7 +188,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	receipt := &restoredInheritedForeignKey{source: sourceRef, target: targetRef, beforeSource: source, beforeTarget: target, raw: *foreign, providers: make(map[ObjectAddress]restoredInheritedForeignIndex)}
+	receipt := &restoredInheritedForeignKey{source: sourceRef, target: targetRef, beforeSource: source, beforeTarget: target, raw: *foreign, providers: make(map[ids.ObjectAddress]restoredInheritedForeignIndex)}
 	var valid bool
 	receipt.columns, valid = captureInheritedForeignColumns(source, foreign.Columns)
 	if !valid {
@@ -235,7 +236,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	pending.child = sourceRef
 	pending.definitions[0].target = targetRef.Address
-	pending.definitions[0].path = []ObjectAddress{target.namespace}
+	pending.definitions[0].path = []ids.ObjectAddress{target.namespace}
 	pending.definitions[0].inherited = receipt
 	return pending, true, nil
 }

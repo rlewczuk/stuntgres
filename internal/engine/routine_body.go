@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,7 +27,7 @@ type routineBodyEdge struct {
 }
 
 var builtinRoutineBodyEdges = [...]struct {
-	outer, inner OID
+	outer, inner ids.OID
 	demand       routineBodyDemand
 }{
 	{879, 873, bodyAlways}, {880, 874, bodyAlways},
@@ -65,8 +66,8 @@ var builtinRoutineBodyEdges = [...]struct {
 func (e *Engine) initializeBuiltinRoutineBodies() {
 	storage := make([]routineBodyEdge, len(builtinRoutineBodyEdges))
 	for i, edge := range builtinRoutineBodyEdges {
-		outer, ok := e.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: edge.outer}].(*procedureDescriptor)
-		inner, found := e.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: edge.inner}].(*procedureDescriptor)
+		outer, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: edge.outer}].(*procedureDescriptor)
+		inner, found := e.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: edge.inner}].(*procedureDescriptor)
 		if !ok || !found {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}
@@ -79,7 +80,7 @@ func (e *Engine) initializeBuiltinRoutineBodies() {
 	}
 }
 
-func polymorphicBodyArgument(node BoundExpr, id OID) BoundExpr {
+func polymorphicBodyArgument(node BoundExpr, id ids.OID) BoundExpr {
 	switch n := node.(type) {
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
 		if (id == 1285 || id == 1290) && len(n.Args) == 1 {
@@ -158,7 +159,7 @@ func walkRoutineBody(outer *procedureDescriptor, node BoundExpr, visit func(*pro
 
 // Only these already-implemented function-method casts belong to the reviewed
 // SQL-body closure. Other casts/I/O helpers do not gain a fabricated invocation.
-func embeddedCastOID(source, target *sqltype.Descriptor) OID {
+func embeddedCastOID(source, target *sqltype.Descriptor) ids.OID {
 	if source == nil || target == nil {
 		return 0
 	}

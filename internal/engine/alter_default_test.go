@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -49,7 +50,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	}
 	e.mu.Lock()
 	exhausted := *d
-	exhausted.revision = DefinitionRevision(^uint64(0))
+	exhausted.revision = ids.DefinitionRevision(^uint64(0))
 	e.state.descriptors[ref.Address] = &exhausted
 	e.mu.Unlock()
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER renamed SET DEFAULT 9"), nil)

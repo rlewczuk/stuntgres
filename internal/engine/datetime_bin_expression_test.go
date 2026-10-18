@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -143,7 +144,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
-	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []BoundExpr
@@ -163,7 +164,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if _, ok := rewritten.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]).Args[1].(groupExpression); !ok {
 		t.Fatal("group child not rewritten")
 	}
-	mapped, err := remapBoundExpression(e, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
+	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

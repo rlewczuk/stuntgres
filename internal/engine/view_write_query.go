@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 type viewWriteOccurrence struct {
 	definition *viewDefinition
@@ -71,7 +74,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 	ownFrames(root)
 	translate := func(n BoundExpr) (BoundExpr, bool, error) {
 		column, ok := n.(columnExpression)
-		if !ok || column.origin == (ObjectRef{}) || !frames[column.frame] {
+		if !ok || column.origin == (ids.ObjectRef{}) || !frames[column.frame] {
 			return n, false, nil
 		}
 		changed := false

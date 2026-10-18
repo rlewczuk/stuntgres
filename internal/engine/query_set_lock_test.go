@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -52,7 +53,7 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 
 // Reuse the existing bound-table fixture, then construct immutable typed view
 // recipes and actual private ACLs. Public SQL witnesses live in reference only.
-func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.PrincipalRef, authorization.PrincipalRef, ObjectRef, ObjectRef, map[string]ObjectRef) {
+func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectRef, ids.ObjectRef, map[string]ids.ObjectRef) {
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	base := source.ref
@@ -70,10 +71,10 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	copy := *original
 	copy.address, copy.name = right.Address, "t_right"
 	e.state.descriptors[right.Address] = &copy
-	refs := make(map[string]ObjectRef)
-	next := OID(1000001)
-	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ObjectRef {
-		ref := e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: next})
+	refs := make(map[string]ids.ObjectRef)
+	next := ids.OID(1000001)
+	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ids.ObjectRef {
+		ref := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: next})
 		next++
 		d := *original
 		d.address, d.name, d.owner, d.relationKind = ref.Address, name, owner, viewRelation
@@ -104,7 +105,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	limited := setRoot()
 	limited.child = &limitNode{child: limited.child, count: literalExpression{expressionInfo: boundExpressionInfo(query.Root.(*projectNode).expressions[0]), value: zero}}
 	add("invoker_zero", true, limited, leaves)
-	grant := func(ref ObjectRef, mask authorization.Privileges) {
+	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		entries := []authorization.ACLEntry{
 			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
@@ -154,7 +155,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 	// Revoke one arm independently: mark suppression must not prune either arm's
 	// ordinary used-column SELECT checks, including LIMIT0 and nested wrappers.
 	for _, tc := range []struct {
-		ref  ObjectRef
+		ref  ids.ObjectRef
 		name string
 	}{{right, "t_right"}, {base, "t"}} {
 		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true}); err != nil {
@@ -173,9 +174,9 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e, _, _, base, _, refs := querySetLockAuthorityFixture(t)
 	e.state = cloneCatalog(e.state)
-	next := OID(1000100)
-	add := func(name string, definition *viewDefinition, kind relationKind) ObjectRef {
-		ref := e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: next})
+	next := ids.OID(1000100)
+	add := func(name string, definition *viewDefinition, kind relationKind) ids.ObjectRef {
+		ref := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: next})
 		next++
 		d := *e.state.descriptors[base.Address].(*relationDescriptor)
 		d.address, d.name, d.view, d.relationKind = ref.Address, name, definition, kind
@@ -203,7 +204,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	localCatalog := add("kind_local_catalog", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: catalog, mark: localMark}}}, viewRelation)
 	localCatalogSet := add("kind_local_catalog_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: localCatalog}, {ref: base}}}, viewRelation)
 	for _, tc := range []struct {
-		ref           ObjectRef
+		ref           ids.ObjectRef
 		mark          queryRowMark
 		code, message string
 	}{
@@ -297,7 +298,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		err = scope.acquireViewSources()
 		if err == nil {
 			for _, want := range []struct {
-				ref  ObjectRef
+				ref  ids.ObjectRef
 				mode relationLockMode
 			}{{base, tc.baseMode}, {right, tc.rightMode}} {
 				e.locks.mu.Lock()

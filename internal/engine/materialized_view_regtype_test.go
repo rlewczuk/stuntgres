@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer := pgRenderer{view: source.stageRead(sourceStage), path: []ObjectAddress{original.namespace}}
+	renderer := pgRenderer{view: source.stageRead(sourceStage), path: []ids.ObjectAddress{original.namespace}}
 	text, err := renderer.literal(context.Background(), literalExpression{expressionInfo: expressionInfo{usage: regtype.Usage()}, value: builtin})
 	if err != nil || text != "'integer'::regtype" {
 		t.Fatalf("builtin symbolic deparse: %q %v", text, err)
@@ -40,9 +41,9 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if original.rowType == reminted.rowType {
 		t.Fatal("fixture did not remint row-type identity")
 	}
-	value, err = remapCatalogAliasDatum(value, func(address ObjectAddress) ObjectAddress {
-		if address == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(original.rowType)}) {
-			return ObjectAddress{ClassID: TypeClassID, ObjectID: OID(reminted.rowType)}
+	value, err = remapCatalogAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
+		if address == (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(original.rowType)}) {
+			return ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(reminted.rowType)}
 		}
 		return address
 	})
@@ -57,7 +58,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer = pgRenderer{view: destination.stageRead(destinationStage), path: []ObjectAddress{reminted.namespace}}
+	renderer = pgRenderer{view: destination.stageRead(destinationStage), path: []ids.ObjectAddress{reminted.namespace}}
 	text, err = renderer.literal(context.Background(), literalExpression{expressionInfo: expressionInfo{usage: destinationRegtype.Usage()}, value: value})
 	if err != nil || text != "'unit_mv'::regtype" {
 		t.Fatalf("reminted symbolic deparse: %q %v", text, err)

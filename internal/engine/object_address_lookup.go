@@ -6,12 +6,13 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func objectInputClass(kind string) (OID, error) {
+func objectInputClass(kind string) (ids.OID, error) {
 	switch kind {
 	case "table", "index", "sequence", "view", "materialized view", "foreign table", "table column", "foreign table column":
 		return 1259, nil
@@ -134,47 +135,47 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		names = names[1:]
 	}
 	auth := scope.deparseAuth
-	if auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: names[0]}) == (ObjectAddress{}) && names[0] != "pg_temp" {
+	if auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
 	return scope.commentCatalog.owner.lookupNamespacesSnapshot(auth, name, functionLookup)
 }
-func objectLookupDescriptor(scope *StatementScope, class OID, names []string) (Descriptor, error) {
+func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (Descriptor, error) {
 	path, err := objectLookupPath(scope, names)
 	if err != nil {
 		return nil, err
 	}
 	for i := range path.count() {
-		a := scope.commentCatalog.state.names[NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]}]
+		a := scope.commentCatalog.state.names[ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]}]
 		if d := scope.commentCatalog.state.descriptors[a]; d != nil {
 			return d, nil
 		}
 	}
 	return nil, nil
 }
-func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]sqltype.Value) (ObjectAddress, error) {
+func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	kind, err := values[0].Text()
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	class, err := objectInputClass(kind)
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	typeName := kind == "type" || kind == "cast" || kind == "domain constraint" || class == 3576
 	if (typeName || class == 2613) && values[1].ArrayLen() != 1 {
-		return ObjectAddress{}, objectListLength("name", 1, true)
+		return ids.ObjectAddress{}, objectListLength("name", 1, true)
 	}
 	if class == 2613 && values[1].ArrayElement(0).IsNull() {
-		return ObjectAddress{}, sqlError("22023", "large object OID may not be null")
+		return ids.ObjectAddress{}, sqlError("22023", "large object OID may not be null")
 	}
 	names, err := objectInputArray(values[1])
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	if len(names) == 0 {
-		return ObjectAddress{}, objectListLength("name", 1, false)
+		return ids.ObjectAddress{}, objectListLength("name", 1, false)
 	}
 	view := scope.commentCatalog
 	types := capturedRegtypeInput{auth: scope.deparseAuth, path: scope.deparsePath, database: scope.op.session.databaseName, temporary: temporaryNamespace(scope.deparseAuth), token: scope.op.session.token, op: scope.op}
@@ -186,7 +187,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if typeName {
 		parsedName, err = parseSyntax(names[0])
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 	}
 	var args []string
@@ -199,75 +200,77 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		for i := range args {
 			cell := values[2].ArrayElement(i)
 			if cell.IsNull() {
-				return ObjectAddress{}, sqlError("22023", "name or argument lists may not contain nulls")
+				return ids.ObjectAddress{}, sqlError("22023", "name or argument lists may not contain nulls")
 			}
 			args[i], err = cell.Text()
 			if err != nil {
-				return ObjectAddress{}, err
+				return ids.ObjectAddress{}, err
 			}
 			parsedArgs[i], err = parseSyntax(args[i])
 			if err != nil {
-				return ObjectAddress{}, err
+				return ids.ObjectAddress{}, err
 			}
 		}
 	} else {
 		args, err = objectInputArray(values[2])
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 	}
 	if (class == 1418 || class == 6237) && len(names) != 1 {
-		return ObjectAddress{}, objectListLength("name", 1, true)
+		return ids.ObjectAddress{}, objectListLength("name", 1, true)
 	}
 	if (kind == "cast" || kind == "domain constraint" || class == 1418 || class == 6237 || class == 6106 || class == 826 || class == 3576) && len(args) != 1 {
-		return ObjectAddress{}, objectListLength("argument", 1, true)
+		return ids.ObjectAddress{}, objectListLength("argument", 1, true)
 	}
 	if (class == 2616 || class == 2753) && len(names) < 2 {
-		return ObjectAddress{}, objectListLength("name", 2, false)
+		return ids.ObjectAddress{}, objectListLength("name", 2, false)
 	}
 	if (class == 2602 || class == 2603) && len(names) < 3 {
-		return ObjectAddress{}, objectListLength("name", 3, false)
+		return ids.ObjectAddress{}, objectListLength("name", 3, false)
 	}
 	if (class == 2617 || class == 2602 || class == 2603) && len(args) != 2 {
-		return ObjectAddress{}, objectListLength("argument", 2, true)
+		return ids.ObjectAddress{}, objectListLength("argument", 2, true)
 	}
 	switch class {
 	case 2612, 2601, 1262, 3466, 3079, 2328, 1417, 6243, 6104, 1260, 2615, 6100, 1213:
 		if len(names) != 1 {
-			return ObjectAddress{}, objectListLength("name", 1, true)
+			return ids.ObjectAddress{}, objectListLength("name", 1, true)
 		}
 	}
 	if typeName {
 		typeID, err = types.resolveParsedTypeName(ctx, parsedName, scope.op)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 	}
-	var argIDs []OID
+	var argIDs []ids.OID
 	if parsedArgs != nil {
-		argIDs = make([]OID, len(parsedArgs))
+		argIDs = make([]ids.OID, len(parsedArgs))
 		for i, raw := range parsedArgs {
 			id, err := types.resolveParsedTypeName(ctx, raw, scope.op)
 			if err != nil {
-				return ObjectAddress{}, err
+				return ids.ObjectAddress{}, err
 			}
-			argIDs[i] = OID(id)
+			argIDs[i] = ids.OID(id)
 		}
 	}
-	a := ObjectAddress{ClassID: class}
-	missing := func(code, message string) (ObjectAddress, error) { return ObjectAddress{}, sqlError(code, message) }
+	a := ids.ObjectAddress{ClassID: class}
+	missing := func(code, message string) (ids.ObjectAddress, error) {
+		return ids.ObjectAddress{}, sqlError(code, message)
+	}
 	switch class {
 	case 1247:
-		a.ObjectID = OID(typeID)
+		a.ObjectID = ids.OID(typeID)
 		return a, nil
 	case 2615, 1260, 1262, 1213, 3079:
 		name := names[0]
 		switch class {
 		case 2615:
-			a = view.state.names[NameKey{ClassID: 2615, Name: name}]
+			a = view.state.names[ids.NameKey{ClassID: 2615, Name: name}]
 		case 1260:
 			if role, ok := scope.commentRoles.Lookup(name); ok {
-				a.ObjectID = OID(role.Ref.ID())
+				a.ObjectID = ids.OID(role.Ref.ID())
 			}
 		case 1213:
 			if name == "pg_default" {
@@ -277,7 +280,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				a.ObjectID = 1664
 			}
 		case 1262, 3079:
-			a = view.state.names[NameKey{ClassID: class, Name: name}]
+			a = view.state.names[ids.NameKey{ClassID: class, Name: name}]
 		}
 		if a.ObjectID != 0 {
 			return a, nil
@@ -293,7 +296,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	case 1255:
 		path, err := objectLookupPath(scope, names)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		var signature strings.Builder
 		human := make([]string, len(argIDs))
@@ -332,10 +335,10 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	case 2617:
 		path, err := objectLookupPath(scope, names)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		for i := range path.count() {
-			key := NameKey{ClassID: 2617, Namespace: path.at(i), Name: names[len(names)-1], Signature: fmt.Sprintf("%d,%d", argIDs[0], argIDs[1])}
+			key := ids.NameKey{ClassID: 2617, Namespace: path.at(i), Name: names[len(names)-1], Signature: fmt.Sprintf("%d,%d", argIDs[0], argIDs[1])}
 			if id := view.state.names[key]; id.ObjectID != 0 {
 				return id, nil
 			}
@@ -344,12 +347,12 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	case 2605:
 		for i := range sqltype.CastMetadataCount() {
 			cast, _ := sqltype.CastMetadataAt(i)
-			if uint32(cast.Source) == typeID && OID(cast.Target) == argIDs[0] {
-				a.ObjectID = OID(cast.OID)
+			if uint32(cast.Source) == typeID && ids.OID(cast.Target) == argIDs[0] {
+				a.ObjectID = ids.OID(cast.OID)
 				return a, nil
 			}
 		}
-		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regtypeSpelling(view, scope.deparsePath, OID(typeID)), regtypeSpelling(view, scope.deparsePath, argIDs[0])))
+		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regtypeSpelling(view, scope.deparsePath, ids.OID(typeID)), regtypeSpelling(view, scope.deparsePath, argIDs[0])))
 	case 2616, 2753:
 		method := uint32(0)
 		switch names[0] {
@@ -362,7 +365,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		}
 		path, err := objectLookupPath(scope, names[1:])
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		for i := range path.count() {
 			if path.at(i).ObjectID != PGCatalogNamespaceOID {
@@ -379,7 +382,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 					name, id, am = family.Name, family.OID, family.Method
 				}
 				if method == am && name == names[len(names)-1] {
-					a.ObjectID = OID(id)
+					a.ObjectID = ids.OID(id)
 					return a, nil
 				}
 			}
@@ -387,7 +390,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		return missing("42704", fmt.Sprintf("%s %q for access method %q does not exist", kind, strings.Join(names[1:], "."), names[0]))
 	case 2606:
 		if kind == "domain constraint" {
-			if domain, ok := view.state.descriptors[ObjectAddress{ClassID: 1247, ObjectID: OID(typeID)}].(*typeDescriptor); ok {
+			if domain, ok := view.state.descriptors[ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}].(*typeDescriptor); ok {
 				for _, check := range domain.domainChecks {
 					if check.Name == args[0] {
 						a.ObjectID = check.OID
@@ -395,7 +398,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 					}
 				}
 			}
-			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regtypeSpelling(view, scope.deparsePath, OID(typeID))))
+			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regtypeSpelling(view, scope.deparsePath, ids.OID(typeID))))
 		}
 	}
 	if class == 1259 || class == 2606 || class == 2604 || class == 2618 || class == 3256 || class == 2620 {
@@ -407,13 +410,13 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				if class == 1259 || class == 2604 {
 					message = "column name must be qualified"
 				}
-				return ObjectAddress{}, sqlError("42601", message)
+				return ids.ObjectAddress{}, sqlError("42601", message)
 			}
 			relationNames = names[:len(names)-1]
 		}
 		d, err := objectLookupDescriptor(scope, 1259, relationNames)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		if d == nil {
 			return missing("42P01", fmt.Sprintf("relation %q does not exist", strings.Join(relationNames, ".")))
@@ -430,12 +433,12 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			column := names[len(names)-1]
 			for _, sub := range relation.attributes {
 				if objectAttributeName(view, relation, sub) == column {
-					return ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
 				}
 			}
 			for sub := int32(-1); sub >= -6; sub-- {
 				if objectAttributeName(view, relation, sub) == column {
-					return ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
 				}
 			}
 			return missing("42703", fmt.Sprintf("column %q of relation %q does not exist", column, strings.Join(relationNames, ".")))
@@ -461,7 +464,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if class == 3456 || class == 2607 || class == 3764 || class == 3600 {
 		d, err := objectLookupDescriptor(scope, class, names)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		if d != nil {
 			return d.Address(), nil
@@ -476,11 +479,11 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		oid, _ := view.LookupType(sqltype.Oid)
 		value, err := oid.Input(ctx, names[0], -1)
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		id, err := value.OID()
 		if err != nil {
-			return ObjectAddress{}, err
+			return ids.ObjectAddress{}, err
 		}
 		return missing("42704", fmt.Sprintf("large object %d does not exist", id))
 	}
@@ -488,7 +491,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	// diagnostics. No descriptor or OID is manufactured to satisfy lookup.
 	return missing("42704", fmt.Sprintf("%s %q does not exist", kind, strings.Join(names, ".")))
 }
-func ownedAddressByName(d *relationDescriptor, class OID, name string) OID {
+func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
 		for _, x := range d.notNullConstraints {

@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
@@ -34,11 +36,11 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 
 // Copy only graph metadata. Stable attributes are relation-local and do not
 // change when a whole relation address is remapped.
-func remapInheritance(graph *tableInheritance, address func(ObjectAddress) ObjectAddress, constraint func(inheritanceOrigin) OID) *tableInheritance {
+func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(inheritanceOrigin) ids.OID) *tableInheritance {
 	if graph == nil {
 		return nil
 	}
-	next := &tableInheritance{parents: make([]ObjectAddress, len(graph.parents)), columns: make(map[int32]inheritedColumn, len(graph.columns)), checks: make(map[string]inheritedConstraint, len(graph.checks)), notNull: make(map[int32]inheritedConstraint, len(graph.notNull))}
+	next := &tableInheritance{parents: make([]ids.ObjectAddress, len(graph.parents)), columns: make(map[int32]inheritedColumn, len(graph.columns)), checks: make(map[string]inheritedConstraint, len(graph.checks)), notNull: make(map[int32]inheritedConstraint, len(graph.notNull))}
 	origins := func(source []inheritanceOrigin) []inheritanceOrigin {
 		result := make([]inheritanceOrigin, len(source))
 		for i, origin := range source {
@@ -78,7 +80,7 @@ func remapInheritance(graph *tableInheritance, address func(ObjectAddress) Objec
 // Definition identities can collide independently of relation addresses. Use
 // each parent's captured identity, never a global old-OID map (TEMP and imported
 // constraints can have the same old number).
-func remapInheritanceConstraintOrigins(next *catalogState, previous map[ObjectAddress]Descriptor) error {
+func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	for address, descriptor := range next.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
@@ -88,7 +90,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ObjectAd
 			continue
 		}
 		var remapErr error
-		graph := remapInheritance(table.inheritance, func(a ObjectAddress) ObjectAddress { return a }, func(origin inheritanceOrigin) OID {
+		graph := remapInheritance(table.inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
 			if origin.constraint == 0 {
 				return 0
 			}

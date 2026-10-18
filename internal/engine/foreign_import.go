@@ -5,12 +5,13 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
-		key := NameKey{ClassID: ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
+		key := ids.NameKey{ClassID: ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
 		if d, ok := auth.catalog.state.descriptors[auth.catalog.state.names[key]].(*foreignDescriptor); ok {
 			return d, nil
 		}
@@ -22,7 +23,7 @@ func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*fore
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.name))
 }
 func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*foreignProcedure, error) {
-	if wrapper.handler == (ObjectAddress{}) {
+	if wrapper.handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.name))
 	}
 	p, ok := catalog.state.descriptors[wrapper.handler].(*procedureDescriptor)

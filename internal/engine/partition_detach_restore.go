@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-type partitionReplayTeardown struct{ child, parent ObjectRef }
+type partitionReplayTeardown struct{ child, parent ids.ObjectRef }
 
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
@@ -44,7 +45,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *Operation, s *parser.AlterTa
 	return partitionReplayTeardown{child: child, parent: parent}, nil
 }
 
-func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.ObjectName, records map[ObjectAddress]partitionReplayTeardown) error {
+func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.ObjectName, records map[ids.ObjectAddress]partitionReplayTeardown) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)

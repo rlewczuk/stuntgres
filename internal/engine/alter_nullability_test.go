@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -76,7 +77,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t DROP COLUMN b, ALTER a SET NOT NULL"} {
 		t.Run(q, func(t *testing.T) {
-			setup := func() (*Engine, ObjectRef) {
+			setup := func() (*Engine, ids.ObjectRef) {
 				e := New()
 				run(t, e, "CREATE TABLE t(a INT,b INT)")
 				run(t, e, "INSERT INTO t VALUES"+strings.TrimSuffix(strings.Repeat("(7,9),", 12), ","))

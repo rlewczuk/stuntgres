@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -27,26 +28,26 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		t.Fatal("actor missing")
 	}
 	view := e.CatalogRead()
-	namespaces := view.Lookup(NameKey{ClassID: NamespaceClassID, Name: "private_types"})
+	namespaces := view.Lookup(ids.NameKey{ClassID: NamespaceClassID, Name: "private_types"})
 	if len(namespaces) != 1 {
 		t.Fatal(namespaces)
 	}
 	namespace := e.domain.Ref(view.Epoch(), namespaces[0])
-	typeRefs := make([]ObjectRef, 2)
+	typeRefs := make([]ids.ObjectRef, 2)
 	for i, name := range []string{"state", "quantity"} {
-		addresses := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: namespaces[0], Name: name})
+		addresses := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespaces[0], Name: name})
 		if len(addresses) != 1 {
 			t.Fatal(addresses)
 		}
 		typeRefs[i] = e.domain.Ref(view.Epoch(), addresses[0])
 	}
-	setACL := func(ref ObjectRef, acl authorization.ACLValue) error {
+	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
 		catalog := e.CatalogRead()
 		descriptor, ok := catalog.Descriptor(ref.Address)
 		if !ok {
 			t.Fatal("ACL fixture descriptor missing", ref)
 		}
-		if descriptor.Kind() == NamespaceObject {
+		if descriptor.Kind() == ids.NamespaceObject {
 			return e.SetObjectACL(context.Background(), ref, acl)
 		}
 		typ, ok := descriptor.(*typeDescriptor)
@@ -65,7 +66,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		return nil
 	}
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	for _, ref := range append([]ObjectRef{namespace}, typeRefs...) {
+	for _, ref := range append([]ids.ObjectRef{namespace}, typeRefs...) {
 		if err := setACL(ref, grant); err != nil {
 			t.Fatal(err)
 		}
@@ -130,7 +131,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	for _, name := range []string{"enum_denied", "domain_denied", "cast_denied", "check_denied"} {
-		if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})) != 0 {
+		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name})) != 0 {
 			t.Fatal("failed inherited authority published relation", name)
 		}
 	}

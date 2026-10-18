@@ -1,10 +1,14 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Descendant replacement authority is a real command target, captured generation
 // and row grant. Neither a source grant nor an RI authorization can manufacture it.
-func (s *StatementScope) validateInheritedReplacements(ref ObjectRef, old []rowVersion) error {
+func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []rowVersion) error {
 	if ref == s.lockedRef {
 		return nil
 	}

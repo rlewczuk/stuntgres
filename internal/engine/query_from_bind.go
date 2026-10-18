@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ type queryColumn struct {
 }
 type queryQualifier struct {
 	name, schema, original, alias string
-	ref                           ObjectRef
+	ref                           ids.ObjectRef
 	columns                       []queryColumn
 	scalarAlias                   bool // The admitted producer declares an alias value as its scalar result.
 	excludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
@@ -53,7 +54,7 @@ func rebaseQueryNamespace(ns queryNamespace, offset int) queryNamespace {
 func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 	for _, l := range left.qualifiers {
 		for _, r := range right.qualifiers {
-			if l.name == r.name && (l.alias != "" || r.alias != "" || l.ref == r.ref || l.ref == (ObjectRef{}) || r.ref == (ObjectRef{})) {
+			if l.name == r.name && (l.alias != "" || r.alias != "" || l.ref == r.ref || l.ref == (ids.ObjectRef{}) || r.ref == (ids.ObjectRef{})) {
 				return queryNamespace{}, sqlError("42712", fmt.Sprintf(`table name "%s" specified more than once`, l.name))
 			}
 		}
@@ -66,7 +67,7 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 }
 
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
-	var origin ObjectRef
+	var origin ids.ObjectRef
 	var relation *relationDescriptor
 	if c.cteScan != nil {
 		c.cteScan.demand[c.physical] = true
@@ -165,7 +166,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, q.alias)
 		} else {
 			err.Detail = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
-			if b.queryQualifierNeedsLateral(q) && !q.excludeColumnDiagnostics && !q.lateralForbidden && (q.ref != (ObjectRef{}) || q.alias != "") {
+			if b.queryQualifierNeedsLateral(q) && !q.excludeColumnDiagnostics && !q.lateralForbidden && (q.ref != (ids.ObjectRef{}) || q.alias != "") {
 				err.Hint = "To reference that table, you must mark this subquery with LATERAL."
 			}
 		}
@@ -758,7 +759,7 @@ func usingQueryColumn(columns []queryColumn, name, side string) (queryColumn, er
 	return result, nil
 }
 
-func (b *expressionBinder) queryAliasVisible(name string, ref ObjectRef) bool {
+func (b *expressionBinder) queryAliasVisible(name string, ref ids.ObjectRef) bool {
 	if b.queryNamespace != nil {
 		for _, q := range b.queryNamespace.qualifiers {
 			if q.name == name && q.ref == ref {

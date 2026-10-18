@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Project a DROP shape through committed, private-write and retained snapshot
@@ -59,14 +61,14 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relati
 }
 
 // Nested cascades may have already projected this statement's private roots.
-func (scope *StatementScope) columnProjectionRoots(address ObjectAddress) ([]rowVersion, *privateDeletionRoot) {
+func (scope *StatementScope) columnProjectionRoots(address ids.ObjectAddress) ([]rowVersion, *privateDeletionRoot) {
 	if scope.projectedRoots {
 		return scope.stage.rows[address], scope.stage.deletes[address]
 	}
 	return scope.ownWrites[address], scope.ownDeletes[address]
 }
 
-func (scope *StatementScope) stageProjectedColumnRoots(address ObjectAddress, writes []rowVersion, deletes *privateDeletionRoot) {
+func (scope *StatementScope) stageProjectedColumnRoots(address ids.ObjectAddress, writes []rowVersion, deletes *privateDeletionRoot) {
 	if !scope.projectedRoots {
 		scope.stage.rows = maps.Clone(scope.ownWrites)
 		scope.stage.deletes = maps.Clone(scope.ownDeletes)
@@ -74,13 +76,13 @@ func (scope *StatementScope) stageProjectedColumnRoots(address ObjectAddress, wr
 	scope.projectedRoots = true
 	if len(scope.ownWrites) != 0 {
 		if scope.stage.rows == nil {
-			scope.stage.rows = make(map[ObjectAddress][]rowVersion)
+			scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion)
 		}
 		scope.stage.rows[address] = writes
 		scope.stage.replacing = true
 	}
 	if scope.stage.deletes == nil {
-		scope.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot)
+		scope.stage.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
 	}
 	scope.stage.deletes[address] = deletes
 }

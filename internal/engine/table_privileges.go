@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Reserved native source identity; not a claim about the oracle's view OID.
-const tablePrivilegesOID OID = 16200
+const tablePrivilegesOID ids.OID = 16200
 
 func (e *Engine) initializeTablePrivileges() error {
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
 	d := e.catalogSourceDescriptor(tablePrivilegesOID, namespace, "table_privileges", 8)
 	d.virtualView = true
 	for i, name := range []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"} {
@@ -41,7 +42,7 @@ func (e *Engine) initializeTablePrivileges() error {
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

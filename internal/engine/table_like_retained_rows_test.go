@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestTableLikeTemporaryRetainedRows(t *testing.T) {
@@ -30,8 +32,8 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			originalChecks := slices.Clone(check.dependencies)
 			indexes := []*relationDescriptor{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
 			sourceTrees := []BoundExpr{generations[3].expression, generations[3].planned, generations[4].expression, generations[4].planned, check.expression, indexes[0].sqlIndex.keys[0].derived.definition, indexes[0].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.keys[0].derived.definition, indexes[1].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.predicate.definition, indexes[1].sqlIndex.predicate.execution}
-			rowRefs := func(nodes []BoundExpr) []ObjectRef {
-				var refs []ObjectRef
+			rowRefs := func(nodes []BoundExpr) []ids.ObjectRef {
+				var refs []ids.ObjectRef
 				for _, node := range nodes {
 					walkBoundExpression(node, func(node BoundExpr) {
 						switch n := node.(type) {
@@ -70,8 +72,8 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if err != nil {
 				t.Fatal("retained row-expression copy", err)
 			}
-			local := func(attribute int32) ObjectRef {
-				return e.domain.Ref(stage.base.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
+			local := func(attribute int32) ids.ObjectRef {
+				return e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
 			}
 			assertTree := func(node BoundExpr) {
 				t.Helper()
@@ -257,7 +259,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	// An old external TEMP constant never borrows the mapper's fresh local-row
 	// epoch, even when a permanent copied consumer would otherwise be valid.
 	permanent := *destination
-	permanent.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	permanent.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	if storedReferenceEpochValid(e.stageRead(stage), &permanent, oldRef) {
 		t.Fatal("permanent consumer gained stale TEMP external authority")
 	}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != Immutable || !project.expressions[0].Properties().ParameterDependent {
 		t.Fatal("dependence metadata")
 	}
-	refs := map[ObjectRef]bool{}
+	refs := map[ids.ObjectRef]bool{}
 	for _, d := range b.dependencies {
 		if refs[d.ref] || d.ref.Domain() != e.domain || d.revision == 0 {
 			t.Fatal(d)

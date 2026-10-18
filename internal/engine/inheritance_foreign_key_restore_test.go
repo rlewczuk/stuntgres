@@ -8,6 +8,7 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -94,17 +95,17 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 	}
 }
 
-func inheritedForeignKeyImportFixture(t *testing.T) (*Engine, *Operation, map[ObjectAddress]ObjectRef) {
+func inheritedForeignKeyImportFixture(t *testing.T) (*Engine, *Operation, map[ids.ObjectAddress]ids.ObjectRef) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE fk_receipt_owner")
 	e := source.restoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	created := make(map[ObjectAddress]ObjectRef)
+	created := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, sql := range []string{"CREATE TABLE public.p(a INT)", "CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p)", "CREATE TABLE public.other(k INT UNIQUE)"} {
 		ref := roleExecute(t, e, op, sql).created
-		if ref == (ObjectRef{}) {
+		if ref == (ids.ObjectRef{}) {
 			t.Fatal("fixture did not capture a genuine creation")
 		}
 		created[ref.Address] = ref

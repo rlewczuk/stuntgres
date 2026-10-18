@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,10 +13,10 @@ func routineLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, known := routineIdentityByOID(view, OID(id)); id == 0 || !known {
+	if _, known := routineIdentityByOID(view, ids.OID(id)); id == 0 || !known {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
-	text := routineSpelling(view, nil, OID(id), true, true)
+	text := routineSpelling(view, nil, ids.OID(id), true, true)
 	literal := "'" + strings.ReplaceAll(text, "'", "''") + "'::regprocedure"
 	if value.Type().BaseType().ID() == sqltype.Regproc {
 		literal += "::regproc"
@@ -25,11 +26,11 @@ func routineLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 
 // Only real descriptors create expression ownership dependencies. Source-fixed
 // lookup-only identities never invent providers or extension replay events.
-func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkRoutineReferencesAt(view, nil, value, record)
 }
 
-func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
+func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -53,11 +54,11 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 	if err != nil {
 		return err
 	}
-	address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(id)}
+	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(id)}
 	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
-	if owner := routineDescriptorOwner(view, OID(id)); owner != nil {
+	if owner := routineDescriptorOwner(view, ids.OID(id)); owner != nil {
 		if _, exists := definitionDescriptorAt(view, reader, owner.address); exists {
 			return record(owner.address)
 		}
@@ -66,13 +67,13 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 }
 
 func (r scalarRenderer) recordRoutineReferences(view CatalogRead, value sqltype.Value) error {
-	return walkRoutineReferencesAt(view, r.definition, value, func(address ObjectAddress) error {
+	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
 		r.record(view.owner.domain.Ref(view.Epoch(), address))
 		return nil
 	})
 }
 
-func remapRoutineDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {
+func remapRoutineDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return value, nil
 	}
@@ -90,8 +91,8 @@ func remapRoutineDatum(value sqltype.Value, destination func(OID) OID) (sqltype.
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	target := destination(OID(id))
-	if target == OID(id) {
+	target := destination(ids.OID(id))
+	if target == ids.OID(id) {
 		return value, nil
 	}
 	physical, err := sqltype.RegprocValue(value.Type().BaseType(), uint32(target))

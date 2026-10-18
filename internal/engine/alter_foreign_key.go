@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -11,9 +12,9 @@ import (
 // External providers are captured before any wait. Self references instead bind
 // against the completed private candidate, which may own a newly added key.
 type alterForeignKeyAdmission struct {
-	target  ObjectRef
+	target  ids.ObjectRef
 	storage *relationStorage
-	index   ObjectAddress
+	index   ids.ObjectAddress
 }
 
 func alterTableLockMode(raw *parser.AlterTable) relationLockMode {
@@ -66,8 +67,8 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return err
 	}
 	captures := make([]alterForeignKeyAdmission, count)
-	refs := []ObjectRef{childRef}
-	stores := map[ObjectAddress]*relationStorage{childRef.Address: e.privateStorageLocked(s.owner.catalog, childRef.Address)}
+	refs := []ids.ObjectRef{childRef}
+	stores := map[ids.ObjectAddress]*relationStorage{childRef.Address: e.privateStorageLocked(s.owner.catalog, childRef.Address)}
 	i := 0
 	for _, action := range raw.Actions {
 		if action.Action != parser.AddForeignKey {
@@ -108,7 +109,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		i++
 	}
 	e.mu.Unlock()
-	slices.SortFunc(refs, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		mode := shareRowExclusive
 		if ref == childRef {
@@ -126,7 +127,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	defer e.mu.Unlock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
-	sameName := func(name parser.ObjectName, expected ObjectRef) error {
+	sameName := func(name parser.ObjectName, expected ids.ObjectRef) error {
 		current, resolveErr := e.resolveReference(auth, name)
 		if resolveErr != nil {
 			var diagnostic *sqlstate.Error
@@ -151,7 +152,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		if err := sameName(action.ForeignKey.Target, captures[i].target); err != nil {
 			return err
 		}
-		if captures[i].index != (ObjectAddress{}) {
+		if captures[i].index != (ids.ObjectAddress{}) {
 			if _, ok := auth.catalog.state.descriptors[captures[i].index].(*relationDescriptor); !ok {
 				return ErrCatalogReplaced
 			}
@@ -164,7 +165,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 
 // Only definitions introduced by this ALTER get an initial historical scan.
 // The ordinary Finish checker remains responsible for genuine later writes.
-func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relationDescriptor, added []OID) error {
+func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relationDescriptor, added []ids.OID) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -191,7 +192,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		if err != nil {
 			return err
 		}
-		children, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), child.address), ObjectAddress{})
+		children, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
@@ -206,7 +207,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 	return nil
 }
 
-func installedForeignKey(stage *CatalogStage, address ObjectAddress, f foreignKeyConstraint) bool {
+func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f foreignKeyConstraint) bool {
 	parent, ok := stage.base.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		return false

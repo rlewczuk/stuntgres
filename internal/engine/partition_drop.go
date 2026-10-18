@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDescriptor) error {
@@ -32,24 +34,24 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationD
 	if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
 		parent = staged
 	}
-	if parent.revision == DefinitionRevision(^uint64(0)) {
+	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
 	definition := *parent.partition
-	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(child ObjectAddress) bool { return child == relation.address })
+	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(child ids.ObjectAddress) bool { return child == relation.address })
 	if definition.defaultChild == relation.address {
-		definition.defaultChild = ObjectAddress{}
+		definition.defaultChild = ids.ObjectAddress{}
 	}
 	next.partition = &definition
 	next.revision++
 	if err := provider.replace(&next); err != nil {
 		return err
 	}
-	return provider.partitionIndexValidity(ObjectAddress{})
+	return provider.partitionIndexValidity(ids.ObjectAddress{})
 }
 
-func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {
+func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -62,7 +64,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {
 		e.mu.Unlock()
 		return nil
 	}
-	var ancestors []ObjectRef
+	var ancestors []ids.ObjectRef
 	for relation.membership != nil {
 		relation, ok = catalog.state.descriptors[relation.membership.parent].(*relationDescriptor)
 		if !ok {
@@ -88,16 +90,16 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {
 	return s.acquirePartitionDescendants(ref, accessExclusive)
 }
 
-func partitionDependsOn(relation *relationDescriptor, target ObjectAddress) bool {
+func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) bool {
 	if relation.partition == nil {
 		return false
 	}
 	for _, key := range relation.partition.keys {
-		if target.ClassID == TypeClassID && OID(key.usage.Type.ID()) == target.ObjectID {
+		if target.ClassID == TypeClassID && ids.OID(key.usage.Type.ID()) == target.ObjectID {
 			return true
 		}
 		if target.ClassID == CollationClassID && target.SubID == 0 && target.ObjectID != 0 &&
-			(OID(key.usage.Collation.ID) == target.ObjectID || OID(key.collation) == target.ObjectID) {
+			(ids.OID(key.usage.Collation.ID) == target.ObjectID || ids.OID(key.collation) == target.ObjectID) {
 			return true
 		}
 		if key.attribute != 0 && target.ClassID == RelationClassID && target.ObjectID == relation.address.ObjectID && target.SubID == key.attribute {

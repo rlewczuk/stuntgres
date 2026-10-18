@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -26,8 +27,8 @@ type serializableTransaction struct {
 	commitOrder                                         uint64
 	didWrite, doomed, committed, ended, aborted, exempt bool
 	finalized, prepared                                 bool
-	reads                                               map[ObjectAddress]struct{}
-	writes                                              map[ObjectAddress]map[serializableWriteKey]serializableWrite
+	reads                                               map[ids.ObjectAddress]struct{}
+	writes                                              map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite
 	incoming, outgoing                                  map[*serializableTransaction]struct{}
 	possible                                            map[*serializableTransaction]struct{}
 	ready                                               chan struct{}
@@ -76,7 +77,7 @@ func (e *Engine) enrollSerializableLocked(ref TxRef, isolation Isolation) {
 		if e.serializable.creators == nil {
 			e.serializable.creators = make(map[VersionID]TxRef)
 		}
-		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: e.visibility[ref].assignedXID, reads: make(map[ObjectAddress]struct{}), writes: make(map[ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
+		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: e.visibility[ref].assignedXID, reads: make(map[ids.ObjectAddress]struct{}), writes: make(map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
 	}
 }
 

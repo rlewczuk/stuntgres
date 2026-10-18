@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ type unnestExpression struct {
 	expressionInfo
 	args []BoundExpr
 	procedure *procedureDescriptor
-	ref ObjectRef
+	ref ids.ObjectRef
 }
 
 func (e unnestExpression) Eval(c *EvalContext) (sqltype.Value, error) {

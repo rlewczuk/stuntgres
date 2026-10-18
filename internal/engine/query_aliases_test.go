@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -103,7 +104,7 @@ func TestQueryAliasesPhysicalACL(t *testing.T) {
 		}
 		reader, _ := e.Roles().Lookup("alias_reader")
 		grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		grant := func(ref ObjectRef, rights authorization.Privileges) {
+		grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 			t.Helper()
 			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 				t.Fatal(err)

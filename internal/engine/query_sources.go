@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
 type queryLeaf struct {
-	ref              ObjectRef
+	ref              ids.ObjectRef
 	relation         *relationDescriptor
 	storage          *relationStorage
 	only             bool
@@ -299,10 +300,10 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		source.borrowAuthority(scope)
 		return source, nil
 	}
-	var single [1]ObjectRef
+	var single [1]ids.ObjectRef
 	refs := single[:0]
 	if len(leaves) > 1 {
-		refs = make([]ObjectRef, 0, len(leaves))
+		refs = make([]ids.ObjectRef, 0, len(leaves))
 	}
 	var collectErr error
 	collectAuth := scope.deparseAuth

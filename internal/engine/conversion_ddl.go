@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 	}
 	object := name.Parts[len(name.Parts)-1].Text
 	for i := range path.count() {
-		address := auth.catalog.state.names[NameKey{ClassID: ConversionClassID, Namespace: path.at(i), Name: object}]
+		address := auth.catalog.state.names[ids.NameKey{ClassID: ConversionClassID, Namespace: path.at(i), Name: object}]
 		if d, ok := auth.catalog.state.descriptors[address].(*conversionDescriptor); ok {
 			return d, nil
 		}
@@ -26,7 +27,7 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 
 // Rebuilding captured owners is the existing trusted native Restore boundary,
 // not a general permission bypass for user DDL or arbitrary callers.
-func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, namespace ObjectRef) error {
+func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, namespace ids.ObjectRef) error {
 	err := auth.CheckCreate(namespace)
 	if err == nil {
 		return nil
@@ -91,8 +92,8 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 		return err
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text
-	key := NameKey{ClassID: ConversionClassID, Namespace: namespace.Address, Name: object}
-	if stage.lookupName(key) != (ObjectAddress{}) {
+	key := ids.NameKey{ClassID: ConversionClassID, Namespace: namespace.Address, Name: object}
+	if stage.lookupName(key) != (ids.ObjectAddress{}) {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists`, object))
 	}
 	if s.Default {
@@ -135,7 +136,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 			return nil
 		}
 	}
-	var destination ObjectRef
+	var destination ids.ObjectRef
 	if s.Action == "schema" {
 		destination, err = e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}})
 		if err != nil {
@@ -174,7 +175,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	default:
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}
-	if address := stage.lookupName(descriptorNameKey(&next)); address != (ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
+	if address := stage.lookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave
@@ -187,7 +188,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 }
 
 func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropConversion) error {
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := e.findUtilityConversion(auth, name)
 		if err != nil {

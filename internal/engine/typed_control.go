@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 const temporaryTypedReplacementError = "stuntgres: catalog replacement with live temporary typed tables of persistent types is unsupported"
 
@@ -9,7 +13,7 @@ const temporaryTypedReplacementError = "stuntgres: catalog replacement with live
 func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 	for _, descriptor := range e.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.ofType == (ObjectAddress{}) {
+		if !ok || table.ofType == (ids.ObjectAddress{}) {
 			continue
 		}
 		namespace := e.state.descriptors[table.namespace].(*namespaceDescriptor)

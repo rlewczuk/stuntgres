@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -130,7 +131,7 @@ func TestInsertReturningWholeRow(t *testing.T) {
 				if !expressionUsesFrame(expr, 1) {
 					t.Fatal("lost zero-member correlation", i)
 				}
-				mapped, err := remapBoundExpression(expr, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID++; return ref }, nil)
+				mapped, err := remapBoundExpression(expr, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, nil)
 				if err != nil || mapped.ResultUsage().Type != typ || !expressionUsesFrame(mapped, 1) {
 					t.Fatal("retained row remapping", mapped, err)
 				}
@@ -353,7 +354,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				}
 				sessionSQL(t, worker, "SET SESSION AUTHORIZATION output_waiter")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				var indexAddress ObjectAddress
+				var indexAddress ids.ObjectAddress
 				for address, descriptor := range e.state.descriptors {
 					if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && index.sqlIndex.parent == ref.Address && index.sqlIndex.unique {
 						indexAddress = address

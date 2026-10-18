@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
-	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
 	ref := e.domain.Ref(e.state.epoch, d.address)
 	empty, err := capturePGCursors(context.Background(), ref, d, s.cursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
@@ -48,7 +49,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// A new catalog's consumer must receive its own timestamp descriptor,
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
-	currentDescriptor := current.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	currentDescriptor := current.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
 	currentRef := current.domain.Ref(current.state.epoch, currentDescriptor.address)
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := capturePGCursors(context.Background(), currentRef, currentDescriptor, s.cursors)
@@ -123,7 +124,7 @@ func TestPGCursorsSource(t *testing.T) {
 func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if d.rowType != sqltype.ID(12079) {
 		t.Fatal("wrong cursor row type", d.rowType)
 	}
-	rowDescriptor, ok := catalog.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: 12079})
+	rowDescriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12079})
 	if !ok {
 		t.Fatal("missing cursor row type")
 	}
@@ -162,7 +163,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if !ok || arrayType.ID() != sqltype.ID(12078) || arrayType.Element() != row.typ {
 		t.Fatal("cursor array does not resolve reciprocally", arrayType)
 	}
-	arrayDescriptor, ok := catalog.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: 12078})
+	arrayDescriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 12078})
 	if !ok {
 		t.Fatal("missing cursor associated array")
 	}
@@ -176,7 +177,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		}
 	}
 	invalidRow := *row
-	invalidRow.owningRelation = ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}
+	invalidRow.owningRelation = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}
 	if err := (typeProvider{}).Validate(catalog, &invalidRow); err == nil {
 		t.Fatal("cursor row type accepted another backing relation")
 	}

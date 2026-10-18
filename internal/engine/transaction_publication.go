@@ -3,12 +3,13 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
 // retain geometric capacity; final installation follows one all-relations veto.
 type rowPublication struct {
-	address            ObjectAddress
+	address            ids.ObjectAddress
 	store              *relationStorage
 	original           *relationStorage
 	originalRelation   *relationDescriptor
@@ -21,7 +22,7 @@ type rowPublication struct {
 	singleSlot         int
 }
 
-func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
+func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
 	owner := txOwnerOf(ref)
 	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
@@ -32,7 +33,7 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 	return e.publishRows(op, ref, writes, deletes, owner.catalog, nil, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -43,7 +44,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 
 // A reserved empty container is not a write. PREPARE is the explicit exception:
 // even an otherwise empty prepared transaction needs a retained public identity.
-func publicationNeedsXID(writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
+func publicationNeedsXID(writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
 	if phase != nil && phase.preparing {
 		return true
 	}
@@ -65,7 +66,7 @@ func publicationNeedsXID(writes map[ObjectAddress][]rowVersion, deletes map[Obje
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {
@@ -146,7 +147,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			return ErrCatalogReplaced
 		}
 		current, frontier := e.state, e.commitSeq
-		var indexStores map[ObjectAddress]*relationStorage
+		var indexStores map[ids.ObjectAddress]*relationStorage
 		if len(e.indexRoots) != 0 || c != nil {
 			captureCatalog := current
 			if nextCatalog != nil {
@@ -155,9 +156,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			indexStores = captureIndexStores(e.storage, captureCatalog)
 		}
 		indexPredecessors := e.indexRoots
-		var nextSequences map[ObjectAddress]*sequenceGenerator
-		var nextStorage map[ObjectAddress]*relationStorage
-		var materializedTokens map[ObjectAddress]*materializedLineage
+		var nextSequences map[ids.ObjectAddress]*sequenceGenerator
+		var nextStorage map[ids.ObjectAddress]*relationStorage
+		var materializedTokens map[ids.ObjectAddress]*materializedLineage
 		if c != nil {
 			if c.cachedBase != current {
 				e.mu.Unlock()
@@ -171,7 +172,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				for address, shape := range c.storage {
 					if shape.materializedContinuous && shape.original != nil {
 						if materializedTokens == nil {
-							materializedTokens = make(map[ObjectAddress]*materializedLineage)
+							materializedTokens = make(map[ids.ObjectAddress]*materializedLineage)
 						}
 						token := shape.original.materializedLineage
 						if token == nil {
@@ -180,17 +181,17 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 						materializedTokens[address] = token
 					}
 				}
-				nextSequences = make(map[ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
+				nextSequences = make(map[ids.ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
 				for a, g := range e.sequences {
 					nextSequences[a] = g
 				}
-				nextStorage = make(map[ObjectAddress]*relationStorage, len(e.storage))
+				nextStorage = make(map[ids.ObjectAddress]*relationStorage, len(e.storage))
 				for a, store := range e.storage {
 					nextStorage[a] = store
 				}
 			}
 		}
-		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
+		capture := func(a ids.ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
 			original := e.storage[a]
 			store := e.privateStorageLocked(c, a)
 			originalRelation, live := e.state.descriptors[a].(*relationDescriptor)
@@ -284,34 +285,34 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if indexCatalog == nil {
 			indexCatalog = current
 		}
-		var indexRoots map[ObjectAddress]*logicalIndexRoot
+		var indexRoots map[ids.ObjectAddress]*logicalIndexRoot
 		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
-			var rebuildIndexes map[ObjectAddress]bool
+			var rebuildIndexes map[ids.ObjectAddress]bool
 			if c != nil && len(c.storage) > 0 {
-				buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
+				buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores))
 				for a, store := range indexStores {
 					buildStores[a] = store
 				}
-				rebuildIndexes = make(map[ObjectAddress]bool, len(c.storage))
+				rebuildIndexes = make(map[ids.ObjectAddress]bool, len(c.storage))
 				for a, shape := range c.storage {
 					buildStores[a] = shape.replacement
 					rebuildIndexes[a] = true
 				}
 			}
 			var indexErr error
-			var rebuildIntents map[ObjectAddress]*relationDescriptor
-			var indexCandidates map[ObjectAddress]indexRootCandidate
+			var rebuildIntents map[ids.ObjectAddress]*relationDescriptor
+			var indexCandidates map[ids.ObjectAddress]indexRootCandidate
 			if c != nil {
 				rebuildIntents = c.indexRebuilds
 				indexCandidates = c.indexCandidates
 			}
-			var runtimeOwners map[ObjectAddress]authorization.PrincipalRef
+			var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 			if c != nil {
 				for address, shape := range c.storage {
 					if shape.materializedConcurrent {
 						if runtimeOwners == nil {
-							runtimeOwners = make(map[ObjectAddress]authorization.PrincipalRef)
+							runtimeOwners = make(map[ids.ObjectAddress]authorization.PrincipalRef)
 						}
 						runtimeOwners[address] = shape.relation.owner
 					}
@@ -386,7 +387,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				if d != nil {
 					if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 						nextRevision = revision
-						if nextRevision != DefinitionRevision(^uint64(0)) {
+						if nextRevision != ids.DefinitionRevision(^uint64(0)) {
 							nextRevision++
 						}
 					}

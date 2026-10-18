@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -58,11 +59,11 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 // Input order is lexical (parameter/member order), not a later value-tree walk.
 // This capture concerns only providers of the demanded input recipe, before
 // leaving the binder's lock, and is discarded with that synchronous occurrence.
-func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[ObjectAddress]Descriptor {
-	providers := make(map[ObjectAddress]Descriptor)
+func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[ids.ObjectAddress]Descriptor {
+	providers := make(map[ids.ObjectAddress]Descriptor)
 	var visit func(*sqltype.Descriptor)
 	visit = func(typ *sqltype.Descriptor) {
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
 		if _, visited := providers[address]; visited {
 			return
 		}

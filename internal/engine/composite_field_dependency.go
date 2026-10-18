@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -136,7 +137,7 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 
 // Only the already admitted typed propagation closure may prune inherited CHECKs.
 func typedFieldCheckOwner(stage *CatalogStage, relation *relationDescriptor) bool {
-	if stage.typedSource == (ObjectAddress{}) || stage.typedObserved[relation.address] == nil {
+	if stage.typedSource == (ids.ObjectAddress{}) || stage.typedObserved[relation.address] == nil {
 		return false
 	}
 	if relation.ofType == stage.typedSource {

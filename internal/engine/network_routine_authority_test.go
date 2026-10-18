@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 	for _, test := range []struct {
 		expression, name, formals string
-		id, result                OID
+		id, result                ids.OID
 	}{
 		{"~ip", "inetnot", "869", 2627, 869},
 		{"ip&ip", "inetand", "869,869", 2628, 869},
@@ -55,10 +56,10 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			}
 			declaration := outer.builtin
 			wantIdentity := routineIdentity{test.id, PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
-			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || OID(node.ResultUsage().Type.ID()) != test.result {
+			if declaration.identity != wantIdentity || declaration.result != test.result || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
-			want := map[OID]bool{test.id: true}
+			want := map[ids.OID]bool{test.id: true}
 			if test.id == 2631 {
 				// RETURN $2 + $1: the existing provider commutes the two inputs;
 				// this real SQL occurrence selects inetpl(INET,INT8), not itself.
@@ -69,7 +70,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			} else if len(outer.body) != 0 {
 				t.Fatal("INTERNAL operator acquired SQL helper edges", outer.body)
 			}
-			found := make(map[OID]bool)
+			found := make(map[ids.OID]bool)
 			for _, dependency := range binder.dependencies {
 				if dependency.ref.Address.ClassID == ProcedureClassID {
 					found[dependency.ref.Address.ObjectID] = true
@@ -87,7 +88,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				for _, mode := range []string{"missing", "foreign", "stale"} {
 					var checks []expressionDependency
 					for _, dependency := range binder.dependencies {
-						if dependency.ref.Address == (ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}) {
+						if dependency.ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}) {
 							switch mode {
 							case "missing":
 								continue

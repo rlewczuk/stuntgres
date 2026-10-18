@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -35,7 +36,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						base.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor),
 						base.state.descriptors[roleTableRef(t, e, "u").Address].(*relationDescriptor),
 					}
-					providers := base.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "policy_domain"})
+					providers := base.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "policy_domain"})
 					if len(providers) != 1 {
 						t.Fatal(providers)
 					}
@@ -63,7 +64,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						}
 						return nil
 					}
-					if err := stageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ObjectAddress{}); err != nil {
+					if err := stageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					wantProjected := 0

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 		return nil, false, nil
 	}
 	view := b.bindingCatalog()
-	descriptor, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 	if !ok || descriptor.owningRelation != relation.address || descriptor.typ.CompositeLen() != len(relation.columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}

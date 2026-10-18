@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
@@ -60,7 +61,7 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 	zero.Rows.Close()
 }
 
-func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *relationDescriptor) {
+func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *relationDescriptor) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
 	old := e.state.descriptors[ref.Address].(*relationDescriptor)
@@ -296,7 +297,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 		t.Fatal(err)
 	}
 	maximum := *old.(*relationDescriptor)
-	maximum.revision = DefinitionRevision(^uint64(0))
+	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Replace(&maximum); err != nil {
 		t.Fatal(err)

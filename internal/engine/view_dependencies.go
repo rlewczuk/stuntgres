@@ -8,12 +8,13 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func viewDepends(d *relationDescriptor, target ObjectAddress) bool {
+func viewDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	if d.view == nil {
 		return false
 	}
@@ -33,15 +34,15 @@ func viewDepends(d *relationDescriptor, target ObjectAddress) bool {
 
 type viewDependencyEdge struct {
 	view   *relationDescriptor
-	target ObjectAddress
+	target ids.ObjectAddress
 }
 
-func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
+func viewDependencyClosure(catalog CatalogRead, targets []ids.ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
 	provider := &dropProvider{base: catalog, stage: stage}
 	return provider.viewClosure(targets)
 }
 
-func (provider *dropProvider) viewClosure(targets []ObjectAddress) []viewDependencyEdge {
+func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDependencyEdge {
 	var views []*relationDescriptor
 	for address, descriptor := range provider.descriptors() {
 		if provider.removed(address) {
@@ -55,15 +56,15 @@ func (provider *dropProvider) viewClosure(targets []ObjectAddress) []viewDepende
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
-	seen := make(map[ObjectAddress]bool, len(targets))
+	seen := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, target := range targets {
 		if target.SubID == 0 {
 			seen[target] = true
 		}
 	}
 	var edges []viewDependencyEdge
-	var visit func(ObjectAddress)
-	visit = func(target ObjectAddress) {
+	var visit func(ids.ObjectAddress)
+	visit = func(target ids.ObjectAddress) {
 		for _, view := range views {
 			if !seen[view.address] && viewDepends(view, target) {
 				seen[view.address] = true
@@ -80,7 +81,7 @@ func (provider *dropProvider) viewClosure(targets []ObjectAddress) []viewDepende
 
 // Attached constraints have catalog identities but no standalone descriptors.
 // Resolve them from their canonical parent metadata, never a spelling registry.
-func constraintName(parent *relationDescriptor, address ObjectAddress) string {
+func constraintName(parent *relationDescriptor, address ids.ObjectAddress) string {
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
@@ -112,7 +113,7 @@ func constraintName(parent *relationDescriptor, address ObjectAddress) string {
 	return ""
 }
 
-func constraintParent(catalog CatalogRead, address ObjectAddress) *relationDescriptor {
+func constraintParent(catalog CatalogRead, address ids.ObjectAddress) *relationDescriptor {
 	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return nil
 	}
@@ -124,7 +125,7 @@ func constraintParent(catalog CatalogRead, address ObjectAddress) *relationDescr
 	return nil
 }
 
-func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
+func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) string {
 	base := target
 	base.SubID = 0
 	if parent := constraintParent(catalog, base); parent != nil {
@@ -160,7 +161,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 			if n, ok := catalog.state.descriptors[namespace].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.state.names[NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
+			if address, ok := catalog.state.names[ids.NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.signature)}]; ok {
 				visible = address == d.address
 				break
 			}
@@ -200,7 +201,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 			if n, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && n.temporary != (SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.state.names[NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
+			if address, ok := catalog.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]; ok {
 				visible = address == d.address
 				break
 			}
@@ -221,7 +222,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.state.names[NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
+				if a, ok := catalog.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
 					visible = a == d.Address()
 					break
 				}
@@ -240,7 +241,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.state.names[NameKey{ClassID: ConversionClassID, Namespace: ns, Name: d.name}]; ok {
+				if a, ok := catalog.state.names[ids.NameKey{ClassID: ConversionClassID, Namespace: ns, Name: d.name}]; ok {
 					visible = a == d.Address()
 					break
 				}
@@ -267,7 +268,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 	return object
 }
 
-func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []ObjectAddress) string {
+func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []ids.ObjectAddress) string {
 	// Internal provider stages have no SQL visibility context. SQL utilities
 	// supply their actual lookup path, including an empty effective path.
 	if path == nil {
@@ -277,20 +278,20 @@ func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []O
 }
 
 type supportedDependent struct {
-	oid          OID
-	target       ObjectAddress
-	view         ObjectAddress
+	oid          ids.OID
+	target       ids.ObjectAddress
+	view         ids.ObjectAddress
 	label        string
-	checkOwner   OID
+	checkOwner   ids.OID
 	checkOrdinal int
 }
 
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) []supportedDependent {
 	policyTargets := targets
 	if len(views) != 0 {
-		policyTargets = make([]ObjectAddress, len(targets), len(targets)+len(views))
+		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
 		copy(policyTargets, targets)
 		for _, edge := range views {
 			policyTargets = append(policyTargets, edge.view.address)
@@ -302,7 +303,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 }
 
 // Other labels are captured before CASCADE mutates policy and rule metadata.
-func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
@@ -342,15 +343,15 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ObjectA
 	}
 	ordered := make([]supportedDependent, 0, len(dependents))
 	seen := make([]bool, len(dependents))
-	var visit func(ObjectAddress)
-	visit = func(target ObjectAddress) {
+	var visit func(ids.ObjectAddress)
+	visit = func(target ids.ObjectAddress) {
 		for i, dependent := range dependents {
 			if seen[i] || dependent.target.ClassID != target.ClassID || dependent.target.ObjectID != target.ObjectID || target.SubID != 0 && dependent.target.SubID != target.SubID {
 				continue
 			}
 			seen[i] = true
 			ordered = append(ordered, dependent)
-			if dependent.view != (ObjectAddress{}) {
+			if dependent.view != (ids.ObjectAddress{}) {
 				visit(dependent.view)
 			}
 		}
@@ -361,12 +362,12 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ObjectA
 	return ordered
 }
 
-func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) error {
+func supportedRestrictError(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) error {
 	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
 	return supportedRestrictErrorLabels(catalog, views, path, dependents, false)
 }
 
-func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdge, path []ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
+func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		provider := dependencyObject(catalog, dependent.target, path)
@@ -392,7 +393,7 @@ func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdg
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
-func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func stageViewDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
 	stage.owner.mu.Lock()
 	defer stage.owner.mu.Unlock()
 	return stageViewDependentsLocked(stage, targets, mode, foreign...)
@@ -400,15 +401,15 @@ func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode pars
 
 // stageViewDependentsLocked requires the owning engine mutex throughout the
 // coherent closure and removals; no provider callbacks or evaluation occur here.
-func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func stageViewDependentsLocked(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).viewDependents(targets, mode, foreign...)
 }
 
-func (provider *dropProvider) viewDependents(targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
 	edges := provider.viewClosure(targets)
 	expanded := targets
 	if len(edges) != 0 {
-		expanded = make([]ObjectAddress, len(targets), len(targets)+len(edges))
+		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
 		copy(expanded, targets)
 		for _, edge := range edges {
 			expanded = append(expanded, edge.view.address)

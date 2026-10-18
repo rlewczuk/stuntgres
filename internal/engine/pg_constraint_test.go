@@ -5,14 +5,15 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
 	source, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_constraint")
@@ -21,7 +22,7 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, Objec
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2606}
 	source := view.state.descriptors[address].(*relationDescriptor)
 	ref := e.domain.Ref(view.Epoch(), address)
 	got, err := capturePGConstraint(context.Background(), view, ref, source)
@@ -45,12 +46,12 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 
 func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
 	t.Helper()
-	domain := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	domain := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}].(*typeDescriptor)
 	if len(row) != 28 || len(domain.domainChecks) != 1 {
 		t.Fatal("missing real bootstrap domain CHECK", row)
 	}
 	id, err := row[0].OID()
-	if err != nil || id == 0 || OID(id) != domain.domainChecks[0].OID {
+	if err != nil || id == 0 || ids.OID(id) != domain.domainChecks[0].OID {
 		t.Fatal("bootstrap CHECK identity detached from recipe", id, err)
 	}
 	for i, value := range row {
@@ -89,7 +90,7 @@ func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *Operation, q string
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -126,8 +127,8 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	row := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10003}].(*typeDescriptor)
-	array := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10002}].(*typeDescriptor)
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10003}].(*typeDescriptor)
+	array := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10002}].(*typeDescriptor)
 	if row.owningRelation != source.address || array.owningRelation != source.address || row.array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -328,14 +329,14 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 	view := e.CatalogRead()
 	for _, tc := range []struct {
 		parent, child sqltype.ID
-		want          [3]OID
+		want          [3]ids.OID
 	}{
-		{sqltype.Int4, sqltype.Int4, [3]OID{96, 96, 96}},
-		{sqltype.Int4, sqltype.Int8, [3]OID{15, 96, 410}},
-		{sqltype.Int8, sqltype.Int4, [3]OID{416, 410, 96}},
-		{sqltype.Int2, sqltype.Int4, [3]OID{532, 94, 96}},
-		{sqltype.Int4, sqltype.Int2, [3]OID{533, 96, 94}},
-		{sqltype.VarChar, sqltype.VarChar, [3]OID{98, 98, 98}},
+		{sqltype.Int4, sqltype.Int4, [3]ids.OID{96, 96, 96}},
+		{sqltype.Int4, sqltype.Int8, [3]ids.OID{15, 96, 410}},
+		{sqltype.Int8, sqltype.Int4, [3]ids.OID{416, 410, 96}},
+		{sqltype.Int2, sqltype.Int4, [3]ids.OID{532, 94, 96}},
+		{sqltype.Int4, sqltype.Int2, [3]ids.OID{533, 96, 94}},
+		{sqltype.VarChar, sqltype.VarChar, [3]ids.OID{98, 98, 98}},
 	} {
 		parent, _ := view.LookupType(tc.parent)
 		child, _ := view.LookupType(tc.child)

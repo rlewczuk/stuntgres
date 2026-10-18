@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -53,7 +54,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
 	}
-	stage.rowShapes = map[ObjectAddress]catalogRowShape{table.address: {original: store, replacement: &relationStorage{generation: store.generation + 1}, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}}
+	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.address: {original: store, replacement: &relationStorage{generation: store.generation + 1}, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +87,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if imported.ofType.ClassID != TypeClassID || imported.rowType == sqltype.ID(imported.ofType.ObjectID) || !reflect.DeepEqual(imported.attributes, []int32{1, 7}) {
 		t.Fatal("attachment/own-row identity lost", imported)
 	}
-	row := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(imported.rowType)}].(*typeDescriptor)
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
 	if row.owningRelation != imported.address || row.typ.CompositeMember(1).Attribute != 7 || row.typ.CompositeMember(1).Name != "note" {
 		t.Fatal("imported own-row codec lost reciprocity", row)
 	}
@@ -108,15 +109,15 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	e, _, root := typedUnitCatalog(t, false)
 	other := *root
 	other.address.ObjectID += 1000
-	other.ofType = ObjectAddress{}
+	other.ofType = ids.ObjectAddress{}
 	child := *root
 	child.address.ObjectID += 2000
-	child.ofType = ObjectAddress{}
+	child.ofType = ids.ObjectAddress{}
 	child.attributes = []int32{3, 8}
-	child.inheritance = &tableInheritance{parents: []ObjectAddress{root.address, other.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: root.address, attribute: 1}, {parent: other.address, attribute: 1}}}, 8: {local: true, origins: []inheritanceOrigin{{parent: root.address, attribute: 7}, {parent: other.address, attribute: 7}}}}}
+	child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{root.address, other.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: root.address, attribute: 1}, {parent: other.address, attribute: 1}}}, 8: {local: true, origins: []inheritanceOrigin{{parent: root.address, attribute: 7}, {parent: other.address, attribute: 7}}}}}
 	changed := *root
 	changed.columns, changed.attributes, changed.index = root.columns[1:], root.attributes[1:], map[string]int{"note": 0}
-	state := &catalogState{descriptors: map[ObjectAddress]Descriptor{root.address: &changed, other.address: &other}}
+	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{root.address: &changed, other.address: &other}}
 	actions, renames, graph, err := typedInheritedActions(CatalogRead{owner: e, state: state}, &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.columns[3].origins, []inheritanceOrigin{{parent: other.address, attribute: 1}}) || len(child.inheritance.columns[3].origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)

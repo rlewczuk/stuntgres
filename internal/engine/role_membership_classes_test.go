@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -23,14 +24,14 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("owner")
 	rights, _ := e.Roles().Lookup("rights")
-	var refs []ObjectRef
+	var refs []ids.ObjectRef
 	for _, tc := range []struct {
-		class OID
+		class ids.OID
 		name  string
 	}{{NamespaceClassID, "membership_classes"}, {RelationClassID, "class_table"}, {RelationClassID, "class_sequence"}, {RelationClassID, "class_view"}, {TypeClassID, "class_enum"}, {TypeClassID, "class_domain"}} {
-		key := NameKey{ClassID: tc.class, Name: tc.name}
+		key := ids.NameKey{ClassID: tc.class, Name: tc.name}
 		if tc.class != NamespaceClassID {
-			key.Namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			key.Namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 		}
 		addresses := e.CatalogRead().Lookup(key)
 		if len(addresses) != 1 {
@@ -42,7 +43,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	// Namespace/relation ACLs use their existing internal publication seam.
 	// Type ACLs use the same validated immutable descriptor staging as domain
 	// fixtures; this does not expand the production SetObjectACL capability.
-	setACL := func(ref ObjectRef, acl authorization.ACLValue) error {
+	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
 		view, err := op.Authorization()
 		if err != nil {
 			return err

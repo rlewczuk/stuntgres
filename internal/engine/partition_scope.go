@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -141,7 +142,7 @@ func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
 	return false
 }
 
-func (s *StatementScope) acquirePartitionLock(ref ObjectRef, mode relationLockMode) error {
+func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext})
 	if request != nil {
@@ -162,7 +163,7 @@ func (s *StatementScope) acquirePartitionLock(ref ObjectRef, mode relationLockMo
 
 // A SELECT's admitted topology is immutable even though AS permits ATTACH SUE.
 // Accept only same-authority append growth; all replacement/decrease fences stay.
-func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ObjectRef) error {
+func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.ObjectRef) error {
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
@@ -173,7 +174,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ObjectRef
 	}
 	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
-			s.partitionRelations = make(map[ObjectAddress]*relationDescriptor)
+			s.partitionRelations = make(map[ids.ObjectAddress]*relationDescriptor)
 		}
 		s.partitionRelations[ref.Address] = d
 	}
@@ -183,7 +184,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ObjectRef
 // Ancestors are opened root-first before a leaf lock. In particular a direct
 // DEFAULT writer must not hold leaf RX while waiting for its parent's AS:
 // a creator owns parent AX before requesting DEFAULT AX.
-func (s *StatementScope) acquirePartitionAncestors(ref ObjectRef) error {
+func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -192,7 +193,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ObjectRef) error {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	var ancestors []ObjectRef
+	var ancestors []ids.ObjectRef
 	for d.membership != nil {
 		d, ok = catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
 		if !ok {
@@ -213,7 +214,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ObjectRef) error {
 
 // Discover the topology once after the parent grant. Descendant waits must not
 // broaden an already admitted SELECT to newly attached branches.
-func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relationLockMode) error {
+func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -226,7 +227,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relatio
 		e.mu.Unlock()
 		return err
 	}
-	var children []ObjectAddress
+	var children []ids.ObjectAddress
 	if d.partition != nil {
 		if captured := s.partitionRelations[ref.Address]; captured != nil {
 			d = captured
@@ -246,7 +247,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ObjectRef, mode relatio
 	return nil
 }
 
-func (s *StatementScope) acquirePartitionDefinitionDefault(parent ObjectRef) error {
+func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -259,8 +260,8 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ObjectRef) err
 		e.mu.Unlock()
 		return err
 	}
-	var child ObjectRef
-	if d.partition != nil && d.partition.defaultChild != (ObjectAddress{}) {
+	var child ids.ObjectRef
+	if d.partition != nil && d.partition.defaultChild != (ids.ObjectAddress{}) {
 		child = parent.Domain().Ref(parent.Epoch, d.partition.defaultChild)
 	}
 	e.mu.Unlock()
@@ -286,7 +287,7 @@ func partitionAppendCompatible(old, current *relationDescriptor) bool {
 		!slices.Equal(old.partition.children, current.partition.children[:len(old.partition.children)]) {
 		return false
 	}
-	return old.partition.defaultChild == (ObjectAddress{}) || old.partition.defaultChild == current.partition.defaultChild
+	return old.partition.defaultChild == (ids.ObjectAddress{}) || old.partition.defaultChild == current.partition.defaultChild
 }
 
 // One existing visibility capture owns the admitted descriptors. Copy metadata

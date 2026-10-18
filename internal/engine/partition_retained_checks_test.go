@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -27,7 +28,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		}
 		return v
 	}
-	makeCheck := func(oid OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
+	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
 		ref := catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)
 		ref.Address.SubID = leaf.attributes[slot]
 		column := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
@@ -46,7 +47,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[RowID]rowEnd{1: {version: 1, end: 2}}}}
 	catalog.owner.state = catalog.state
 	catalog.owner.commitSeq = 3
-	catalog.owner.storage = map[ObjectAddress]*relationStorage{leaf.address: store}
+	catalog.owner.storage = map[ids.ObjectAddress]*relationStorage{leaf.address: store}
 	snapshot, err := captureIndexSnapshot(context.Background(), catalog, catalog.owner.storage, nil, 3)
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +118,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// dependency cells still determine whether this old constraint is affected.
 	virtualLeaf := *leaf
 	sourceColumn := leaf.checkConstraints[1].expression.(comparisonExpression).left.(columnExpression)
-	virtualLeaf.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: sourceColumn, planned: sourceColumn, dependencies: []ObjectRef{sourceColumn.origin}}}
+	virtualLeaf.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: sourceColumn, planned: sourceColumn, dependencies: []ids.ObjectRef{sourceColumn.origin}}}
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
 	virtualExpression := virtualCheck.expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)
@@ -201,7 +202,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// Mapping changes the candidate lookup key, not its immutable original row authority.
 	destination := leaf.address
 	destination.ObjectID = 27000
-	snapshot.captureMapping(map[ObjectAddress]ObjectAddress{leaf.address: destination}, nil)
+	snapshot.captureMapping(map[ids.ObjectAddress]ids.ObjectAddress{leaf.address: destination}, nil)
 	if snapshot.partitionRows[destination].relation != leaf || snapshot.partitionRows[leaf.address].relation != nil {
 		t.Fatal("row history address mapping lost provenance")
 	}

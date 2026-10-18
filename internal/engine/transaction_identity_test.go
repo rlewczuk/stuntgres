@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -272,7 +273,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.kind.name()+"(") {
 			t.Fatal("symbolic recipe", recipe, err)
 		}
-		persisted, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !sameGroupExpression(n, persisted) {
 			t.Fatal("symbolic remapping", err)
 		}

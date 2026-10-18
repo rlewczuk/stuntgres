@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -141,8 +142,8 @@ func retiredImportFixture(t *testing.T) (*Engine, *Operation, *restoredHistoryAu
 	} {
 		roleExecute(t, e, op, q)
 	}
-	a := &restoredHistoryAuthority{facts: make(map[OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
-	refs := make(map[ObjectAddress]ObjectRef)
+	a := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
+	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
 		refs[r.address] = e.domain.Ref(e.CatalogRead().Epoch(), r.address)
@@ -242,7 +243,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
 	tempRef := e.domain.Ref(e.CatalogRead().Epoch(), temp.address)
-	tempFacts := make(map[OID]restoredHistoricalFact)
+	tempFacts := make(map[ids.OID]restoredHistoricalFact)
 	captureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
 		t.Fatal("TEMP facts entered permanent logical-import pairing")
@@ -349,7 +350,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	}
 	before := e.state
 	stores := maps.Clone(e.storage)
-	rows := make(map[ObjectAddress][]rowVersion)
+	rows := make(map[ids.ObjectAddress][]rowVersion)
 	resources := retiredResourceCounts(e)
 	for address, store := range stores {
 		rows[address] = slices.Clone(store.versions)

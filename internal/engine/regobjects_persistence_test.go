@@ -5,14 +5,15 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-	r := capturedRegObjectInput{auth: AuthorizationView{catalog: view}, path: []ObjectAddress{catalog}}
+	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	r := capturedRegObjectInput{auth: AuthorizationView{catalog: view}, path: []ids.ObjectAddress{catalog}}
 	if id, err := r.ResolveRegnamespace(context.Background(), " PG_CATALOG "); err != nil || id != 11 {
 		t.Fatal("namespace catalog lookup", id, err)
 	}
@@ -36,8 +37,8 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	if got, err := rows.FormatRegnamespace(950); err != nil || got != "950" {
 		t.Fatal("namespace output collision", got, err)
 	}
-	fallback := ObjectAddress{ClassID: CollationClassID, ObjectID: 80000}
-	exact := ObjectAddress{ClassID: CollationClassID, ObjectID: 80001}
+	fallback := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 80000}
+	exact := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 80001}
 	if got := selectCollation([]collationCandidate{{fallback, -1}, {exact, 6}}, 6); got != exact {
 		t.Fatal("exact encoding preference", got)
 	}
@@ -52,25 +53,25 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 	for _, fact := range []struct {
 		typ   sqltype.ID
 		oid   uint32
-		class OID
+		class ids.OID
 	}{{sqltype.Regcollation, 950, CollationClassID}, {sqltype.Regnamespace, 11, NamespaceClassID}} {
 		typ, _ := view.LookupType(fact.typ)
 		value, err := sqltype.RegObjectValue(typ, fact.oid)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var references []ObjectAddress
-		if err := walkCatalogAliasReferences(view, value, func(address ObjectAddress) error { references = append(references, address); return nil }); err != nil {
+		var references []ids.ObjectAddress
+		if err := walkCatalogAliasReferences(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(references, []ObjectAddress{{ClassID: fact.class, ObjectID: OID(fact.oid)}}) {
+		if !reflect.DeepEqual(references, []ids.ObjectAddress{{ClassID: fact.class, ObjectID: ids.OID(fact.oid)}}) {
 			t.Fatal("class-aware references", references)
 		}
 		references = nil
-		if err := walkCatalogAliasDependencies(view, value, func(address ObjectAddress) error { references = append(references, address); return nil }); err != nil {
+		if err := walkCatalogAliasDependencies(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(references, []ObjectAddress{{ClassID: fact.class, ObjectID: OID(fact.oid)}}) {
+		if !reflect.DeepEqual(references, []ids.ObjectAddress{{ClassID: fact.class, ObjectID: ids.OID(fact.oid)}}) {
 			t.Fatal("scalar alias dependency", references)
 		}
 		arrayType, _ := view.LookupType(typ.AssociatedArray())
@@ -88,7 +89,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		}
 		for _, opaque := range []sqltype.Value{array, wrapped} {
 			references = nil
-			if err := walkCatalogAliasDependencies(view, opaque, func(address ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+			if err := walkCatalogAliasDependencies(view, opaque, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 				t.Fatal("opaque alias payload gained dependency", references, err)
 			}
 		}
@@ -101,11 +102,11 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 			t.Fatal(err)
 		}
 		references = nil
-		if err := walkCatalogAliasDependencies(view, scalarWrapped, func(address ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+		if err := walkCatalogAliasDependencies(view, scalarWrapped, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("domain Const mistaken for scalar alias Const", references, err)
 		}
-		remapped, err := remapCatalogAliasDatum(wrapped, func(address ObjectAddress) ObjectAddress {
-			if address.ClassID == fact.class && address.ObjectID == OID(fact.oid) {
+		remapped, err := remapCatalogAliasDatum(wrapped, func(address ids.ObjectAddress) ids.ObjectAddress {
+			if address.ClassID == fact.class && address.ObjectID == ids.OID(fact.oid) {
 				address.ObjectID++
 			}
 			return address
@@ -119,11 +120,11 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		}
 		unknown, _ := sqltype.RegObjectValue(typ, 4294967295)
 		references = nil
-		if err := walkCatalogAliasReferences(view, unknown, func(address ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+		if err := walkCatalogAliasReferences(view, unknown, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("unknown OID acquired dependency", references, err)
 		}
 		wrongClass := TypeClassID
-		unchanged, err := remapCatalogAliasDatum(value, func(address ObjectAddress) ObjectAddress {
+		unchanged, err := remapCatalogAliasDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 			if address.ClassID == wrongClass {
 				address.ObjectID++
 			}
@@ -143,7 +144,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(view.Epoch(), ObjectAddress{ClassID: CollationClassID, ObjectID: 963})
+	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 963})
 	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
 	if err := validateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")

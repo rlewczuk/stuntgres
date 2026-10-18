@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,8 +23,8 @@ type partitionKeyEntry struct {
 type partitionDefinition struct {
 	strategy     parser.PartitionStrategy
 	keys         []partitionKeyEntry
-	children     []ObjectAddress
-	defaultChild ObjectAddress
+	children     []ids.ObjectAddress
+	defaultChild ids.ObjectAddress
 }
 type partitionDatum struct {
 	kind  int8
@@ -31,7 +32,7 @@ type partitionDatum struct {
 	pos   parser.Position
 }
 type partitionMembership struct {
-	parent             ObjectAddress
+	parent             ids.ObjectAddress
 	strategy           parser.PartitionStrategy
 	modulus, remainder int32
 	defaultBound       bool
@@ -93,7 +94,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 				return invalid()
 			}
 		}
-		seen := make(map[ObjectAddress]bool, len(p.children))
+		seen := make(map[ids.ObjectAddress]bool, len(p.children))
 		for i, a := range p.children {
 			child, ok := catalog.state.descriptors[a].(*relationDescriptor)
 			if !ok || seen[a] || child.membership == nil || child.membership.parent != d.address {
@@ -104,7 +105,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 				return invalid()
 			}
 			if p.strategy == parser.PartitionHash {
-				if !validHashPartitionBound(child.membership) || p.defaultChild != (ObjectAddress{}) {
+				if !validHashPartitionBound(child.membership) || p.defaultChild != (ids.ObjectAddress{}) {
 					return invalid()
 				}
 				for _, earlier := range p.children[:i] {
@@ -148,7 +149,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 				}
 			}
 		}
-		if p.defaultChild != (ObjectAddress{}) && !seen[p.defaultChild] {
+		if p.defaultChild != (ids.ObjectAddress{}) && !seen[p.defaultChild] {
 			return invalid()
 		}
 	}
@@ -201,7 +202,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		} else if len(membership.lower) != 0 || len(membership.upper) != 0 {
 			return invalid()
 		}
-		visited := map[ObjectAddress]bool{d.address: true}
+		visited := map[ids.ObjectAddress]bool{d.address: true}
 		for ancestor := parent; ancestor != nil; {
 			if visited[ancestor.address] {
 				return invalid()

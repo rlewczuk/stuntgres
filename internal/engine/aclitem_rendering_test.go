@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -35,8 +36,8 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := comparisonExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
-	relation := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 45000}, attributes: []int32{1}}
-	var refs []ObjectRef
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 45000}, attributes: []int32{1}}
+	var refs []ids.ObjectRef
 	if _, err := (scalarRenderer{aclOutput: captured, owner: relation, dependencies: &refs}).sql(context.Background(), view, comparison); err != nil {
 		t.Fatal(err)
 	}

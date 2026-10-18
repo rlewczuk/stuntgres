@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -58,7 +59,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			auth.recaptureCatalog(CatalogRead{owner: e, state: e.state})
 			auth.state.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
-			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ObjectRef, error) {
+			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
 				t.Helper()
 				e.mu.Lock()
 				defer e.mu.Unlock()
@@ -67,7 +68,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			assertCollected := func(invoker authorization.PrincipalRef, leaves ...queryLeaf) {
 				t.Helper()
 				refs, err := collect(auth, invoker, leaves...)
-				if err != nil || !reflect.DeepEqual(refs, []ObjectRef{baseRef}) {
+				if err != nil || !reflect.DeepEqual(refs, []ids.ObjectRef{baseRef}) {
 					t.Fatalf("canonical collection lost source authority or physical closure: refs=%v err=%v", refs, err)
 				}
 			}

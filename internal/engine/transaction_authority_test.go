@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -60,7 +61,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := scope.view.read()
-	var relation ObjectRef
+	var relation ids.ObjectRef
 	for a := range data.committed {
 		relation = e.domain.Ref(data.catalog.Epoch(), a)
 	}
@@ -74,7 +75,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if err = stage.Apply(relation, [][]sqltype.Value{{value}}); err == nil {
 		t.Fatal("copied stage accepted writes")
 	}
-	if err = scope.Writes().Apply(ObjectRef{}, [][]sqltype.Value{{value}}); err == nil {
+	if err = scope.Writes().Apply(ids.ObjectRef{}, [][]sqltype.Value{{value}}); err == nil {
 		t.Fatal("foreign relation staged")
 	}
 	if err = scope.Writes().Apply(relation, [][]sqltype.Value{{}}); err == nil {

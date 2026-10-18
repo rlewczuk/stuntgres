@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -322,7 +323,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	run(t, source, "INSERT INTO t VALUES(1),(2),(2),(91)")
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
-	storage := make(map[ObjectAddress]*relationStorage)
+	storage := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
 	for address, relation := range source.storage {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}

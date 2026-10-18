@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -53,12 +54,12 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			index := *f.index
 			index.sqlIndex = &definition
 			beforeDefinition, beforeExecution := predicate.definition, predicate.execution
-			beforeDependencies := append([]ObjectRef(nil), predicate.dependencies...)
+			beforeDependencies := append([]ids.ObjectRef(nil), predicate.dependencies...)
 			beforeAttributes := append([]int32(nil), predicate.attributes...)
 			next := cloneCatalog(oldCatalog)
 			next.epoch++
 			next.descriptors[index.address] = &index
-			typeAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(current.ID())}
+			typeAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.descriptors[typeAddress].(*typeDescriptor)
 			typeDefinition.typ = current
 			next.descriptors[typeAddress] = &typeDefinition
@@ -74,7 +75,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if !catalogExpressionTypesChanged(&index, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
-			stores := map[ObjectAddress]*relationStorage{f.parent.address: f.store}
+			stores := map[ids.ObjectAddress]*relationStorage{f.parent.address: f.store}
 			if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +85,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			// A nonempty relation mapping and newer epoch must not change
 			// references in the typesOnly pass.
-			mapping := map[ObjectAddress]ObjectAddress{f.parent.address: {ClassID: RelationClassID, ObjectID: 30000}}
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{f.parent.address: {ClassID: RelationClassID, ObjectID: 30000}}
 			if err := f.e.reownCatalogExpressions(next, mapping, true); err != nil {
 				t.Fatal(err)
 			}

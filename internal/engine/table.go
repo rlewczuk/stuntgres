@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -18,8 +19,8 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: invalid table drop")
 	}
-	refs := make([]ObjectRef, 0, len(s.Names))
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	refs := make([]ids.ObjectRef, 0, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	var notices []sqlstate.Error
 	for _, name := range s.Names {
 		if len(name.Parts) < 1 || len(name.Parts) > 2 {
@@ -28,15 +29,15 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
-			_, exists := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			_, exists := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 			if name.Parts[0].Text == "pg_temp" {
-				exists = temporaryNamespace(auth) != (ObjectAddress{})
+				exists = temporaryNamespace(auth) != (ids.ObjectAddress{})
 			}
 			if !exists {
 				kind, missing = "schema", name.Parts[0].Text
 			}
 		}
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		var err error
 		if kind == "schema" {
 			err = sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, missing))
@@ -136,7 +137,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			return Result{}, err
 		}
 	}
-	targets := make([]ObjectAddress, len(refs))
+	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}

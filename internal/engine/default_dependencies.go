@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -13,10 +14,10 @@ type defaultDependencyEdge struct {
 	relation  *relationDescriptor
 	attribute int32
 	column    string
-	target    ObjectAddress
+	target    ids.ObjectAddress
 }
 
-func defaultDepends(d *relationDescriptor, target ObjectAddress) bool {
+func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, definition := range d.defaults {
 		for _, dependency := range definition.dependencies {
 			a := dependency.Address
@@ -58,26 +59,26 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 					return fmt.Errorf("stuntgres: foreign temporary default provider")
 				}
 			}
-		} else if provider.Kind() == CollationObject {
+		} else if provider.Kind() == ids.CollationObject {
 			if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
 				return err
 			}
-		} else if provider.Kind() == NamespaceObject {
+		} else if provider.Kind() == ids.NamespaceObject {
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default namespace provider")
 			}
-		} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != TSDictionaryObject {
+		} else if provider.Kind() != ids.TypeObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.TSDictionaryObject {
 			return fmt.Errorf("stuntgres: invalid default provider kind")
 		}
 	}
 	return nil
 }
 
-func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
+func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).defaultDependents(targets, mode)
 }
 
-func (provider *dropProvider) defaultDependents(targets []ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
+func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
 	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*relationDescriptor)
@@ -108,7 +109,7 @@ func (provider *dropProvider) defaultDependents(targets []ObjectAddress, mode pa
 			if !ok {
 				continue
 			}
-			var dependency ObjectAddress
+			var dependency ids.ObjectAddress
 			for _, ref := range definition.dependencies {
 				for _, target := range targets {
 					a := ref.Address
@@ -117,11 +118,11 @@ func (provider *dropProvider) defaultDependents(targets []ObjectAddress, mode pa
 						break
 					}
 				}
-				if dependency != (ObjectAddress{}) {
+				if dependency != (ids.ObjectAddress{}) {
 					break
 				}
 			}
-			if dependency == (ObjectAddress{}) {
+			if dependency == (ids.ObjectAddress{}) {
 				continue
 			}
 			edges = append(edges, defaultDependencyEdge{d, attribute, d.columns[slot].Name, dependency})

@@ -2,10 +2,12 @@ package engine
 
 import (
 	"sort"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func (s *StatementScope) acquireViewSources() (err error) {
-	var grants map[ObjectRef]relationLockMode
+	var grants map[ids.ObjectRef]relationLockMode
 	defer func() {
 		if err == nil {
 			err = s.acquireInheritanceSources(grants)
@@ -26,14 +28,14 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		e.mu.Unlock()
 		return nil
 	}
-	seen := make(map[ObjectRef]relationLockMode)
-	var refs []ObjectRef
+	seen := make(map[ids.ObjectRef]relationLockMode)
+	var refs []ids.ObjectRef
 	var retainedViews []*relationDescriptor
 	hasMaterializedSource := false
-	var visit func(ObjectRef, relationLockMode) error
-	visit = func(ref ObjectRef, mode relationLockMode) error {
+	var visit func(ids.ObjectRef, relationLockMode) error
+	visit = func(ref ids.ObjectRef, mode relationLockMode) error {
 		prior, visited := seen[ref]
-		if ref == (ObjectRef{}) || visited && strongerQueryRowMode(prior, mode) == prior {
+		if ref == (ids.ObjectRef{}) || visited && strongerQueryRowMode(prior, mode) == prior {
 			return nil
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
@@ -109,7 +111,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
 		}
-		var physical []ObjectRef
+		var physical []ids.ObjectRef
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.deparseAuth
 			collectAuth.recaptureCatalog(catalog)
@@ -153,11 +155,11 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	return nil
 }
 
-func (s *StatementScope) acquireBoundViewRelations(refs []ObjectRef) error {
+func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 	return s.acquireBoundViewRelationModes(refs, nil)
 }
 
-func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes map[ObjectRef]relationLockMode) error {
+func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]relationLockMode) error {
 	e := s.op.session.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
@@ -210,9 +212,9 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 }
 
 func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
-	var refs []ObjectRef
-	seen := make(map[ObjectRef]bool)
-	add := func(ref ObjectRef) {
+	var refs []ids.ObjectRef
+	seen := make(map[ids.ObjectRef]bool)
+	add := func(ref ids.ObjectRef) {
 		if ref.Address.ClassID != RelationClassID {
 			return
 		}

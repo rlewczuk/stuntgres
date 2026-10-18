@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture immutable definitions from the caller's coherent catalog generation;
 // catalog labels are metadata, not enum datum input (including unsafe members).
-func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

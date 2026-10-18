@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -84,10 +85,10 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	base := e.CatalogRead()
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	setup := e.BeginCatalogStage(base)
 	for _, name := range []string{"ownership_parent", "ownership_child"} {
-		old := base.state.descriptors[base.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}]].(*relationDescriptor)
+		old := base.state.descriptors[base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}]].(*relationDescriptor)
 		next := *old
 		next.owner = source
 		next.revision++
@@ -97,7 +98,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, setup)
 	oldState, oldRoles := e.state, e.roles
-	parent := oldState.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_parent"}]
+	parent := oldState.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_parent"}]
 	store := e.storage[parent]
 	rows := store.versions
 	stmt := &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}
@@ -114,7 +115,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"ownership_parent", "ownership_child", "ownership_external"} {
-		if _, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}]; exists {
+		if _, exists := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}]; exists {
 			t.Fatal("actual cascade retained object", name)
 		}
 	}
@@ -128,16 +129,16 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	base := e.CatalogRead()
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	setup := e.BeginCatalogStage(base)
-	move := base.state.descriptors[base.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_move"}]].(*relationDescriptor)
+	move := base.state.descriptors[base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_move"}]].(*relationDescriptor)
 	next := *move
 	next.owner = source
 	next.revision++
 	if err := setup.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	other := base.state.descriptors[base.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_other"}]].(*relationDescriptor)
+	other := base.state.descriptors[base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_other"}]].(*relationDescriptor)
 	grant := *other
 	grant.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
 	grant.revision++
@@ -165,10 +166,10 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	e, owner, source, _, reader := ownershipUnitRoles()
 	ownershipUnitExec(t, e, "CREATE TYPE ownership_cleanup_e AS ENUM('a')")
 	base := e.CatalogRead()
-	address := base.state.names[NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_cleanup_e"}]
+	address := base.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_cleanup_e"}]
 	typ := base.state.descriptors[address].(*typeDescriptor)
 	setup := e.BeginCatalogStage(base)
-	for _, a := range []ObjectAddress{address, {ClassID: TypeClassID, ObjectID: OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: TypeClassID, ObjectID: ids.OID(typ.array)}} {
 		old := base.state.descriptors[a].(*typeDescriptor)
 		next := *old
 		next.revision++
@@ -197,7 +198,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	for _, a := range []ObjectAddress{address, {ClassID: TypeClassID, ObjectID: OID(typ.array)}} {
+	for _, a := range []ids.ObjectAddress{address, {ClassID: TypeClassID, ObjectID: ids.OID(typ.array)}} {
 		old := base.state.descriptors[a].(*typeDescriptor)
 		next := e.state.descriptors[a].(*typeDescriptor)
 		if next.owner != owner || next.typ != old.typ || next.array != old.array || next.owningRelation != old.owningRelation || len(next.acl.Entries) != 0 || len(old.acl.Entries) != 2 {
@@ -249,7 +250,7 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 				e.roles = graph
 			}
 			before, roles := e.state, e.roles
-			address := before.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_primary"}]
+			address := before.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_primary"}]
 			store := e.storage[address]
 			versions := store.versions
 			_, err := testExecute(e, context.Background(), &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}, nil)
@@ -280,9 +281,9 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	before := e.state
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	root := before.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "ownership_policy_root"}]
-	survivor := before.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "ownership_policy_survivor"}]
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	root := before.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "ownership_policy_root"}]
+	survivor := before.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "ownership_policy_survivor"}]
 	original := before.descriptors[survivor].(*relationDescriptor)
 	store := e.storage[survivor]
 	versions := store.versions
@@ -398,7 +399,7 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
 	source := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
 	downstream := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
-	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_sql_support"}]
+	address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_sql_support"}]
 	original := e.state.descriptors[address].(*relationDescriptor)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
 	delegated := objectACLUnitEntry(source, downstream, authorization.SelectPrivilege, 0)

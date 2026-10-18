@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				return
 			}
 			root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: p.usage}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: call.operation, includeNulls: call.includeNulls}}}
-			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
 			})

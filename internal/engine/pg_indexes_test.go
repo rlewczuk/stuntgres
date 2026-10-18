@@ -5,13 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ObjectRef) {
+func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 12002}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12002}
 	d, ok := c.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_indexes")
@@ -72,7 +73,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	if err := (relationProvider{}).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
-	row := c.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}].(*typeDescriptor)
+	row := c.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
 	if row.owningRelation != d.address {
 		t.Fatal("row type linkage", row)
 	}
@@ -118,7 +119,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 			parent := roleTableRef(t, e, "pgi_unit_schema.pgi_unit_table")
 			reader, _ := e.Roles().Lookup("pgi_unit_reader")
 			owner, _ := e.Roles().Lookup("pgi_unit_owner")
-			grant := func(ref ObjectRef, rights authorization.Privileges, public bool) {
+			grant := func(ref ids.ObjectRef, rights authorization.Privileges, public bool) {
 				t.Helper()
 				acl := authorization.ACLValue{Explicit: true}
 				if rights != 0 {
@@ -237,7 +238,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	foreign := New()
 	bad := ref
 	bad = foreign.domain.Ref(bad.Epoch, bad.Address)
-	for _, invalid := range []ObjectRef{bad, ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, parent.Address)} {
+	for _, invalid := range []ids.ObjectRef{bad, ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, parent.Address)} {
 		if _, err := capturePGIndexes(context.Background(), old, auth, invalid, d); err == nil {
 			t.Fatal("invalid capture accepted", invalid)
 		}

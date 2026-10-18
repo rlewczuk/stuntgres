@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"unicode/utf8"
 )
 
@@ -232,7 +233,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 	if e.importTargets == nil {
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
-	seen := map[ObjectAddress]bool{}
+	seen := map[ids.ObjectAddress]bool{}
 	candidate := cloneCatalog(e.state)
 	roles := e.roleRead(CatalogRead{e, candidate}, e.roles)
 	ownersChanged := false
@@ -240,7 +241,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		a := candidate.names[NameKey{ClassID: ExtensionClassID, Name: record.Name}]
+		a := candidate.names[ids.NameKey{ClassID: ExtensionClassID, Name: record.Name}]
 		ext, ok := candidate.descriptors[a].(*extensionDescriptor)
 		if !ok || seen[a] || ext.version != record.Version {
 			return fmt.Errorf("stuntgres: invalid extension owner import target")
@@ -274,7 +275,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				}
 				signature = string(queryIntSignature(base.typ.ID()))
 			}
-			a := candidate.names[NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: signature}]
+			a := candidate.names[ids.NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: signature}]
 			d := candidate.descriptors[a]
 			if d == nil || extensionMembership(d) != ext.address {
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
@@ -285,7 +286,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					n := *d
 					n.owner = owner.Ref
 					candidate.descriptors[a] = &n
-					arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.array)}
+					arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.array)}
 					array, ok := candidate.descriptors[arrayAddress].(*typeDescriptor)
 					if !ok || !array.typ.IsArray() || array.typ.Element() != d.typ {
 						return fmt.Errorf("stuntgres: invalid owned intarray array")

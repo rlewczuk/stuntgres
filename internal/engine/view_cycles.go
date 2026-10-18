@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Publication permits cyclic rewrite definitions. Expansion rejects only an
 // active-path recurrence, not repeated occurrences of a shared acyclic source.
@@ -17,7 +21,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 	if !hasView {
 		return false, nil
 	}
-	active, done := make(map[ObjectAddress]bool), make(map[ObjectAddress]bool)
+	active, done := make(map[ids.ObjectAddress]bool), make(map[ids.ObjectAddress]bool)
 	visibilityDemand := false
 	var visit func(*relationDescriptor) error
 	visit = func(d *relationDescriptor) error {

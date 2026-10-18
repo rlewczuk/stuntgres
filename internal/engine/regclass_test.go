@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -48,8 +49,8 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	value := sqltype.String(typ, "1259")
 	var err error
 	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
-	var deps []ObjectRef
-	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regclass)}) || deps[1].Address != (ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}) {
+	var deps []ids.ObjectRef
+	if _, err = (scalarRenderer{dependencies: &deps}).sql(context.Background(), view, literal); err != nil || len(deps) != 2 || deps[0].Address != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}) || deps[1].Address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}) {
 		t.Fatal(deps, err)
 	}
 	array, err := sqltype.OwnedArrayValue(arrayTyp, []sqltype.ArrayDimension{{Length: 1, Lower: 1}}, []sqltype.Value{value})
@@ -66,12 +67,12 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 			t.Fatal("opaque array acquired DROP dependency", dep)
 		}
 	}
-	var replay []ObjectAddress
-	if err = regclassReplayReferences(view, opaque, func(a ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ObjectAddress{{ClassID: RelationClassID, ObjectID: 1259}}) {
+	var replay []ids.ObjectAddress
+	if err = regclassReplayReferences(view, opaque, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || !reflect.DeepEqual(replay, []ids.ObjectAddress{{ClassID: RelationClassID, ObjectID: 1259}}) {
 		t.Fatal(replay, err)
 	}
 	sentinel := errors.New("replay sentinel")
-	if err = regclassReplayReferences(view, opaque, func(ObjectAddress) error { return sentinel }); !errors.Is(err, sentinel) {
+	if err = regclassReplayReferences(view, opaque, func(ids.ObjectAddress) error { return sentinel }); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
 	intTyp, _ := view.LookupType(sqltype.Int4)
@@ -85,7 +86,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	}
 	numeric := coercionExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, child: literalExpression{expressionInfo: expressionInfo{usage: intTyp.Usage()}, value: integer}, plan: plan, mode: sqltype.Explicit}
 	replay = nil
-	if err = regclassReplayReferences(view, numeric, func(a ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
+	if err = regclassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)
 	}
 	if !defaultReplayDeferrable(columnDefault{expression: numeric}) {
@@ -243,11 +244,11 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 					t.Fatal("opaque payload gained DROP dependency", dependency)
 				}
 			}
-			var refs []ObjectAddress
-			if err := regclassReplayReferences(catalog, definition.expression, func(address ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
+			var refs []ids.ObjectAddress
+			if err := regclassReplayReferences(catalog, definition.expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(refs, []ObjectAddress{targetRef.Address}) {
+			if !reflect.DeepEqual(refs, []ids.ObjectAddress{targetRef.Address}) {
 				t.Fatal("live replay-only prerequisite missing", refs)
 			}
 		})

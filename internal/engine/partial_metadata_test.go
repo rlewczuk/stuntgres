@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -76,7 +77,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.state = next
-	f.e.indexRoots = map[ObjectAddress]*logicalIndexRoot{index.address: root}
+	f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: root}
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
@@ -126,11 +127,11 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if metadata.Predicate == nil {
 		t.Fatal("structural metadata omitted the original analyzed predicate")
 	}
-	var dependencies []ObjectRef
+	var dependencies []ids.ObjectRef
 	if _, err := (scalarRenderer{owner: f.parent, dependencies: &dependencies}).sql(ctx, candidate, metadata.Predicate); err != nil {
 		t.Fatal(err)
 	}
-	var attributes []ObjectRef
+	var attributes []ids.ObjectRef
 	for _, dependency := range dependencies {
 		if dependency.Address.ClassID == RelationClassID {
 			attributes = append(attributes, dependency)
@@ -138,7 +139,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	}
 	wantRef := f.e.domain.Ref(candidate.Epoch(), f.parent.address)
 	wantRef.Address.SubID = 20
-	if !reflect.DeepEqual(attributes, []ObjectRef{wantRef}) {
+	if !reflect.DeepEqual(attributes, []ids.ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)
 	}
 	var preparation indexExecutionPreparation

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,12 +13,12 @@ import (
 
 // Generation definitions have stable attribute identities, separate from defaults.
 type columnGeneration struct {
-	OID        OID
+	OID        ids.OID
 	kind       generationKind
 	expression BoundExpr
 	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
 	planned         BoundExpr
-	dependencies    []ObjectRef
+	dependencies    []ids.ObjectRef
 	catalogSnapshot bool
 }
 
@@ -37,7 +38,7 @@ func (k generationKind) sql() string {
 
 type tableOIDExpression struct {
 	expressionInfo
-	owner ObjectRef
+	owner ids.ObjectRef
 }
 
 func (n tableOIDExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -48,7 +49,7 @@ func (n tableOIDExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 	}
 	owner := n.owner
-	if c.physicalTable != (ObjectRef{}) {
+	if c.physicalTable != (ids.ObjectRef{}) {
 		owner = c.physicalTable
 	}
 	return sqltype.OIDValue(n.usage.Type, uint32(owner.Address.ObjectID))
@@ -657,7 +658,7 @@ func generationHasTableOID(node BoundExpr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, mapping map[ObjectAddress]ObjectAddress, eval EvalContext, changed map[ObjectAddress]map[int32]bool) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -790,10 +791,10 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && provider.Kind() != TSDictionaryObject && provider.Kind() != ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
-			if provider.Kind() == ProcedureObject {
+			if provider.Kind() == ids.ProcedureObject {
 				// Analyzed dependencies retain installed identity even when a
 				// branch is pruned. Surviving-tree immutability is checked
 				// separately; validate the actual procedure manifest here.
@@ -805,7 +806,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 					return err
 				}
 			}
-			if provider.Kind() == CollationObject {
+			if provider.Kind() == ids.CollationObject {
 				if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
 					return err
 				}
@@ -1096,7 +1097,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	}
 }
 
-func generationDepends(d *relationDescriptor, target ObjectAddress) bool {
+func generationDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, definition := range d.generations {
 		for _, dependency := range definition.dependencies {
 			address := dependency.Address

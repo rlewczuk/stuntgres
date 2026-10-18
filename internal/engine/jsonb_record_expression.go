@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
 		view := c.evaluation.domainCatalog()
 		if view.state != nil {
-			d, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(target.ID())}].(*typeDescriptor)
+			d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(target.ID())}].(*typeDescriptor)
 			if ok && d.typ == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.state.descriptors[d.namespace].Name() {
 				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
 					return err
@@ -54,7 +55,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 					if !base.IsDomain() {
 						break
 					}
-					parent, found := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.ID())}].(*typeDescriptor)
+					parent, found := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.ID())}].(*typeDescriptor)
 					if !found || parent.typ != base {
 						break
 					}
@@ -374,7 +375,7 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 	if _, valid, err := b.retainedComposite(key, usage); err != nil || !valid {
 		return annotation, err
 	}
-	descriptor, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(current.ID())}].(*typeDescriptor)
+	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(current.ID())}].(*typeDescriptor)
 	if !ok || descriptor.typ != current {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}

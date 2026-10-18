@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 type defaultACLKey struct {
 	creator authorization.PrincipalRef
-	schema  ObjectAddress
+	schema  ids.ObjectAddress
 	class   authorization.DefaultACLClass
 }
 type defaultACLRecord struct{ acl authorization.ACLValue }
@@ -34,12 +35,12 @@ func overlayDefaultACLs(source map[defaultACLKey]*defaultACLRecord, changes map[
 	return next
 }
 
-func creationDefaultACL(view CatalogRead, owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+func creationDefaultACL(view CatalogRead, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	var global, scoped *authorization.ACLValue
 	if record := view.state.defaultACLs[defaultACLKey{creator: owner, class: class}]; record != nil {
 		global = &record.acl
 	}
-	if schema != (ObjectAddress{}) {
+	if schema != (ids.ObjectAddress{}) {
 		if record := view.state.defaultACLs[defaultACLKey{creator: owner, schema: schema, class: class}]; record != nil {
 			scoped = &record.acl
 		}
@@ -51,15 +52,15 @@ func validateDefaultACLs(roles authorization.Read, view CatalogRead) error {
 		if record == nil {
 			return fmt.Errorf("stuntgres: invalid default ACL record")
 		}
-		if err := authorization.ValidateDefaultACLHeader(roles, key.creator, key.class, key.schema != (ObjectAddress{}), record.acl); err != nil {
+		if err := authorization.ValidateDefaultACLHeader(roles, key.creator, key.class, key.schema != (ids.ObjectAddress{}), record.acl); err != nil {
 			return err
 		}
-		if key.schema != (ObjectAddress{}) {
+		if key.schema != (ids.ObjectAddress{}) {
 			if _, ok := view.state.descriptors[key.schema].(*namespaceDescriptor); !ok {
 				return CatalogConflict{}
 			}
 		}
-		if err := authorization.ValidateDefaultACL(roles, key.creator, key.class, key.schema != (ObjectAddress{}), record.acl); err != nil {
+		if err := authorization.ValidateDefaultACL(roles, key.creator, key.class, key.schema != (ids.ObjectAddress{}), record.acl); err != nil {
 			return err
 		}
 	}

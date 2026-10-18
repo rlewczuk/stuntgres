@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -33,7 +34,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				t.Fatal("sole statement view was released")
 			}
 			defer retained.Release()
-			before := make(map[ObjectAddress][]rowVersion)
+			before := make(map[ids.ObjectAddress][]rowVersion)
 			frontier := e.commitSeq
 			for _, ref := range refs {
 				store := s.mutationStorage(ref)

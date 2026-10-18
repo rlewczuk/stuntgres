@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -82,7 +83,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		t.Fatal("stale typed state resurrected")
 	}
 	for _, name := range []string{"pair", "typed", "holder"} {
-		if _, ok := view.state.names[NameKey{ClassID: RelationClassID, Namespace: source.namespace, Name: name}]; ok {
+		if _, ok := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: source.namespace, Name: name}]; ok {
 			t.Fatal("replacement resurrected old relation", name)
 		}
 	}
@@ -181,7 +182,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			if current.state != after || current.state.descriptors[source.address] != source || current.state.descriptors[root.address] != root || current.state.descriptors[child.address] != child || e.storage[root.address] != rootStorage || e.storage[child.address] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
-			if root.ofType != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}) {
+			if root.ofType != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}) {
 				t.Fatal("attachment changed")
 			}
 			for _, relation := range []*relationDescriptor{source, root, child} {
@@ -214,7 +215,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 
 // Publish real immutable type ACL descriptors, not a replacement SQL codec or
 // role/session revision. Type-only ACL replacement is the established seam.
-func typedReviewTypeACL(t *testing.T, e *Engine, address ObjectAddress, acl authorization.ACLValue) {
+func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl authorization.ACLValue) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -227,7 +228,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ObjectAddress, acl auth
 	domainUnitPublish(t, e, stage)
 }
 
-func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ObjectAddress) {
+func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	admin, finish := roleOperation(t, e, "postgres")
@@ -235,7 +236,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ObjectAdd
 	roleExecute(t, e, admin, "CREATE USER typed_reader")
 	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
 	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
-	ns := e.domain.Ref(e.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	ns := e.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +244,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ObjectAdd
 	op, done := roleOperation(t, e, "typed_owner")
 	roleExecute(t, e, op, "CREATE TYPE pair AS (id integer)")
 	roleExecute(t, e, op, "CREATE TABLE typed OF pair")
-	address := e.CatalogRead().state.names[NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: "member"}]
+	address := e.CatalogRead().state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: "member"}]
 	return e, op, done, address
 }
 
@@ -252,7 +253,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	defer done()
 	pair := roleTableRef(t, e, "pair")
 	source := e.CatalogRead().state.descriptors[pair.Address].(*relationDescriptor)
-	typedReviewTypeACL(t, e, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}, authorization.ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}, authorization.ACLValue{Explicit: true})
 	reader, finish := roleOperation(t, e, "typed_reader")
 	defer finish()
 	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
@@ -265,7 +266,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	roleExecute(t, e, reader, "ALTER TABLE mine OF pair")
 	mine := roleTableRef(t, e, "mine")
 	mineDescriptor := e.CatalogRead().state.descriptors[mine.Address].(*relationDescriptor)
-	if mineDescriptor.ofType.ObjectID != OID(source.rowType) || mineDescriptor.owner == source.owner {
+	if mineDescriptor.ofType.ObjectID != ids.OID(source.rowType) || mineDescriptor.owner == source.owner {
 		t.Fatal("attach did not retain reader ownership")
 	}
 	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE")

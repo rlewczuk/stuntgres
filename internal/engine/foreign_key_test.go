@@ -5,12 +5,13 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session, ObjectRef, RowID) {
+func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session, ids.ObjectRef, RowID) {
 	t.Helper()
 	e := New()
 	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -23,7 +24,7 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session,
 	e.mu.Unlock()
 	return e, a, b, c, ref, row
 }
-func foreignKeyHeldMode(t *testing.T, e *Engine, ref ObjectRef, row RowID, ticket *relationTicket, want relationLockMode) {
+func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row RowID, ticket *relationTicket, want relationLockMode) {
 	t.Helper()
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref, row: row}]
@@ -36,7 +37,7 @@ func foreignKeyHeldMode(t *testing.T, e *Engine, ref ObjectRef, row RowID, ticke
 		t.Fatal("exact canonical parent row grant", ref, row, actual, want)
 	}
 }
-func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ObjectRef, row RowID, holder *relationTicket, want relationLockMode) {
+func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row RowID, holder *relationTicket, want relationLockMode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
 	e.locks.mu.Lock()

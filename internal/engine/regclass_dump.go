@@ -1,10 +1,12 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // regclassReplayReferences discovers only replay-order prerequisites. Opaque
 // array/domain datums must be rendered after their live names exist, but must
 // never acquire the DROP dependencies of a scalar regclass input constant.
 // Numeric coercion inputs are integer/OID literals and therefore untouched.
-func regclassReplayReferences(view CatalogRead, node BoundExpr, visit func(ObjectAddress) error) error {
+func regclassReplayReferences(view CatalogRead, node BoundExpr, visit func(ids.ObjectAddress) error) error {
 	var failure error
 	walkBoundExpression(node, func(child BoundExpr) {
 		if failure != nil {
@@ -14,8 +16,8 @@ func regclassReplayReferences(view CatalogRead, node BoundExpr, visit func(Objec
 		if !ok {
 			return
 		}
-		_, err := remapRegclassDatum(literal.value, func(oid OID) OID {
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+		_, err := remapRegclassDatum(literal.value, func(oid ids.OID) ids.OID {
+			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 			if _, exists := view.Descriptor(address); exists && failure == nil && oid != 0 {
 				failure = visit(address)
 			}

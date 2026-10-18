@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -229,7 +230,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 func TestRLSPolicyDependencyClosure(t *testing.T) {
 	for _, tc := range []struct {
 		name, setup, condition string
-		class                  OID
+		class                  ids.OID
 	}{
 		{"helper", "CREATE VIEW dependent_view AS SELECT id FROM helper", "EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)", RelationClassID},
 		{"policy_integer", "CREATE DOMAIN policy_integer AS INTEGER", "id::policy_integer>0", TypeClassID},
@@ -256,19 +257,19 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: expression}}
 			state.descriptors[owner.address] = &attached
 			base.state = state
-			var target ObjectAddress
+			var target ids.ObjectAddress
 			for address, descriptor := range state.descriptors {
 				if address.ClassID == tc.class && descriptor.Name() == tc.name {
 					target = address
 					break
 				}
 			}
-			if target == (ObjectAddress{}) {
+			if target == (ids.ObjectAddress{}) {
 				t.Fatal("missing provider")
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{target})
+			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -285,7 +286,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if strings.Join(labels, "\n") != want {
 				t.Fatal("incomplete or unordered closure", labels)
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.descriptors[owner.address].(*relationDescriptor)

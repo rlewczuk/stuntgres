@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -148,7 +149,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")
 	source := view.state.descriptors[sourceRef.Address].(*relationDescriptor)
-	scope := &StatementScope{commentCatalog: view, deparsePath: []ObjectAddress{source.namespace}}
+	scope := &StatementScope{commentCatalog: view, deparsePath: []ids.ObjectAddress{source.namespace}}
 	got, err := scope.FormatRegclass(uint32(sourceRef.Address.ObjectID))
 	if err != nil || got != "regclass_source" {
 		t.Fatal(got, err)
@@ -214,7 +215,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || grouped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}
-	remapped, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
+	remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil || remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax ||
 		remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Args[0].(columnExpression).slot != 1 || node.Args[0].(columnExpression).slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -155,10 +156,10 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 	changes := cloneCatalogChanges(s.transactions.catalog)
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
 	e.mu.Unlock()
-	if err == nil || ref != (ObjectRef{}) {
+	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.state != base || e.nextOID != oid || e.nextRevision != revision || len(changes.descriptors) != 0 || len(changes.names) != 0 || s.temporaryNamespace != (ObjectAddress{}) {
+	if e.state != base || e.nextOID != oid || e.nextRevision != revision || len(changes.descriptors) != 0 || len(changes.names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

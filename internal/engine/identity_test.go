@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			identity := d.identities[1]
-			identity.sequence = ObjectAddress{}
+			identity.sequence = ids.ObjectAddress{}
 			d.identities[1] = identity
 		},
 		func(d *relationDescriptor) { d.identities[99] = d.identities[1] },
@@ -52,7 +53,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	sequence := read.state.descriptors[old.identities[1].sequence].(*relationDescriptor)
 	next := *sequence
 	options := *sequence.sequence
-	options.owned = ObjectAddress{}
+	options.owned = ids.ObjectAddress{}
 	next.sequence = &options
 	if err := (relationProvider{}).Validate(read, &next); err == nil {
 		t.Fatal("unowned internal sequence admitted")

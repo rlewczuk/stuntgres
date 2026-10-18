@@ -2,16 +2,17 @@ package engine
 
 import (
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Entries are immutable once published by Execute under Engine.mu. A candidate
 // borrows the old group and copies only when a successful fold changes it.
 type quoteOrigin struct {
-	owner      ObjectRef
+	owner      ids.ObjectRef
 	attribute  int32
-	definition OID
-	revision   DefinitionRevision
+	definition ids.OID
+	revision   ids.DefinitionRevision
 }
 type quoteConstant struct {
 	offset     int
@@ -42,7 +43,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *E
 	index := -1
 	if retained {
 		origin := e.Origin
-		if origin.owner == (ObjectRef{}) {
+		if origin.owner == (ids.ObjectRef{}) {
 			origin = c.quoteOrigin
 		}
 		entry = quoteConstant{offset: e.Pos.Offset, origin: origin, frame: e.Frame, name: e.Name, anyelement: e.AnyElement, source: e.Args[0].ResultUsage(), result: e.Usage}
@@ -81,7 +82,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *E
 // The stable case borrows the entire published group without allocating.
 func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 	valid := func(origin quoteOrigin) bool {
-		if origin.owner == (ObjectRef{}) {
+		if origin.owner == (ids.ObjectRef{}) {
 			return true
 		}
 		if view.owner == nil || origin.owner.Domain() != view.owner.domain || origin.owner.Epoch != view.Epoch() {

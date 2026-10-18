@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -38,7 +39,7 @@ func preparedBoundaryReceive[T any](t *testing.T, channel <-chan T, description 
 	}
 }
 
-func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent ObjectAddress) (int, rowVersion) {
+func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent ids.ObjectAddress) (int, rowVersion) {
 	t.Helper()
 	position := -1
 	var update rowVersion
@@ -59,7 +60,7 @@ func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent Obj
 
 // All roots in these tests come from admitted statements, not fabricated registry
 // entries. The existing expression executor supplies an outside-metadata barrier.
-func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransaction, ObjectAddress) {
+func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransaction, ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	origin := sessionStart(t, e, nil)
@@ -117,7 +118,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	if !retainedVisibility || preparedVisibility.xid != beforeVisibility.xid || preparedVisibility.snapshot || preparedVisibility.xmin != 0 || preparedVisibility.safeBuilder {
 		t.Fatal("PREPARE must drop reader snapshot but retain detached writer visibility", preparedVisibility)
 	}
-	var parent ObjectAddress
+	var parent ids.ObjectAddress
 	for address := range entry.writes {
 		parent = address
 	}
@@ -137,15 +138,15 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 
 type preparedBoundarySnapshot struct {
 	catalog         *catalogState
-	descriptors     map[ObjectAddress]Descriptor
-	names           map[NameKey]ObjectAddress
+	descriptors     map[ids.ObjectAddress]Descriptor
+	names           map[ids.NameKey]ids.ObjectAddress
 	counters        [10]uint64
-	storagePointers map[ObjectAddress]*relationStorage
-	storage         map[ObjectAddress]relationStorage
-	generators      map[ObjectAddress]*sequenceGenerator
-	generatorValues map[ObjectAddress]sequenceGenerator
-	indexes         map[ObjectAddress]*logicalIndexRoot
-	indexValues     map[ObjectAddress][]logicalIndexEntry
+	storagePointers map[ids.ObjectAddress]*relationStorage
+	storage         map[ids.ObjectAddress]relationStorage
+	generators      map[ids.ObjectAddress]*sequenceGenerator
+	generatorValues map[ids.ObjectAddress]sequenceGenerator
+	indexes         map[ids.ObjectAddress]*logicalIndexRoot
+	indexValues     map[ids.ObjectAddress][]logicalIndexEntry
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
 	ssi             map[TxRef]serializableTransaction
@@ -163,9 +164,9 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	s := preparedBoundarySnapshot{
 		catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names),
 		counters:        [10]uint64{uint64(e.state.epoch), e.state.namespaceGeneration, uint64(e.nextOID), uint64(e.nextRevision), e.nextRow, e.nextVersion, uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.nextPrincipal},
-		storagePointers: maps.Clone(e.storage), storage: map[ObjectAddress]relationStorage{},
-		generators: maps.Clone(e.sequences), generatorValues: map[ObjectAddress]sequenceGenerator{},
-		indexes: maps.Clone(e.indexRoots), indexValues: map[ObjectAddress][]logicalIndexEntry{},
+		storagePointers: maps.Clone(e.storage), storage: map[ids.ObjectAddress]relationStorage{},
+		generators: maps.Clone(e.sequences), generatorValues: map[ids.ObjectAddress]sequenceGenerator{},
+		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
 		owners: maps.Clone(e.locks.owners), resources: maps.Clone(entry.ticket.resources), locks: map[lockResource]relationEntry{},
@@ -393,7 +394,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 	}
 }
 
-func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransaction, parent ObjectAddress) {
+func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransaction, parent ids.ObjectAddress) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -696,7 +697,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 		t.Fatal("validation-only PREPARE materialized installable row/deletion/slot roots")
 	}
 	stores := captureIndexStores(e.storage, e.state)
-	rebuild := map[ObjectAddress]bool{}
+	rebuild := map[ids.ObjectAddress]bool{}
 	for address, change := range entry.catalog.storage {
 		stores[address], rebuild[address] = change.replacement, true
 	}

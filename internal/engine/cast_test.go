@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -119,7 +120,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		if dep.ref == original.origin {
 			foundColumn = true
 		}
-		if dep.ref.Address.ClassID == TypeClassID && dep.ref.Address.ObjectID == OID(sqltype.Text) {
+		if dep.ref.Address.ClassID == TypeClassID && dep.ref.Address.ObjectID == ids.OID(sqltype.Text) {
 			foundText = true
 		}
 	}

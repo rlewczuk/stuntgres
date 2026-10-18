@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -92,7 +93,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	d, _ := view.LookupType(sqltype.Numeric)
 	original := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	want := numericSeriesUnitRead(t, original)
-	clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

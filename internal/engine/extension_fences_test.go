@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -57,7 +58,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			if err := scope.Finish(nil); err == nil {
 				t.Fatal("stale actual authority installed provider")
 			}
-			if e.state != before || e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ObjectAddress{}) {
+			if e.state != before || e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("authority fence partially published")
 			}
 			if reason != "recreated_role" {
@@ -85,7 +86,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		e.mu.Lock()
 		private := e.privateCatalogLocked(txOwnerOf(tx).catalog)
 		e.mu.Unlock()
-		a := private.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+		a := private.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 		ext := private.state.descriptors[a].(*extensionDescriptor)
 		for _, a := range ext.members {
 			d := private.state.descriptors[a]
@@ -111,7 +112,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if _, err := e.Commit(op, tx); err != nil {
 			t.Fatal(err)
 		}
-		installed := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+		installed := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 		if installed.address == ext.address {
 			t.Fatal("rolled-back identity reused")
 		}

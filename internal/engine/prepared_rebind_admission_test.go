@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -11,8 +12,8 @@ import (
 
 type preparedRebindAdmissionResult struct {
 	err     error
-	target  ObjectRef
-	sources []ObjectRef
+	target  ids.ObjectRef
+	sources []ids.ObjectRef
 	rows    bool
 }
 
@@ -79,14 +80,14 @@ func TestPreparedRebindAdmission(t *testing.T) {
 						late = source.ref
 					}
 				}
-				var early ObjectRef
+				var early ids.ObjectRef
 				var earlyHolder TxRef
 				earlyHeld := false
 				createHeldEarly := func() {
 					sessionSQL(t, ddl, "CREATE TABLE a.t(v INT)")
 					e.mu.Lock()
-					ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "a"}]
-					address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "t"}]
+					ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "a"}]
+					address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: "t"}]
 					early = e.domain.Ref(e.state.epoch, address)
 					e.mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)

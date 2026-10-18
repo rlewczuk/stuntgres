@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -96,8 +97,8 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	}
 }
 
-func (s *StatementScope) mutationTargetRefs(ref ObjectRef) []ObjectRef {
-	refs := make([]ObjectRef, 1, len(s.inheritedTargets)+1)
+func (s *StatementScope) mutationTargetRefs(ref ids.ObjectRef) []ids.ObjectRef {
+	refs := make([]ids.ObjectRef, 1, len(s.inheritedTargets)+1)
 	refs[0] = ref
 	for _, target := range s.inheritedTargets {
 		refs = append(refs, target.ref)
@@ -105,7 +106,7 @@ func (s *StatementScope) mutationTargetRefs(ref ObjectRef) []ObjectRef {
 	return refs
 }
 
-func (s *StatementScope) mutationStorage(ref ObjectRef) *relationStorage {
+func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *relationStorage {
 	if ref == s.lockedRef {
 		return s.lockedStorage
 	}
@@ -171,7 +172,7 @@ func (row queryPhysicalRow) deletion() deleteCandidate {
 }
 
 type mutationRowIdentity struct {
-	ref ObjectRef
+	ref ids.ObjectRef
 	row RowID
 }
 

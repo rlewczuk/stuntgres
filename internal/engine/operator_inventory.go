@@ -1,11 +1,13 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // All operator identities in PostgreSQL REL_18_0 pg_operator.dat.
 // Identity availability is independent of executable operator providers.
 var builtinOperators = [...]struct {
-	oid         OID
+	oid         ids.OID
 	name        string
-	left, right OID
+	left, right ids.OID
 }{
 	{15, "=", 23, 20},
 	{36, "<>", 23, 20},

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -181,7 +182,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: 23})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23})
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -410,9 +411,9 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	public := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	key := func(symbol string) NameKey {
-		return NameKey{ClassID: OperatorClassID, Namespace: public, Name: symbol, Signature: "23,23"}
+	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	key := func(symbol string) ids.NameKey {
+		return ids.NameKey{ClassID: OperatorClassID, Namespace: public, Name: symbol, Signature: "23,23"}
 	}
 	definition := operatorUnitDefinition("#=#", "int4eq")
 	definition.Options = append(definition.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#!#)")...)
@@ -426,7 +427,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		shell.function != 0 || shell.result != 0 || shell.owner != auth.state.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
-	if e.CatalogRead().state != before || before.names[key("#=#")] != (ObjectAddress{}) || before.names[key("#!#")] != (ObjectAddress{}) {
+	if e.CatalogRead().state != before || before.names[key("#=#")] != (ids.ObjectAddress{}) || before.names[key("#!#")] != (ids.ObjectAddress{}) {
 		t.Fatal("forward peer setup mutated the published root")
 	}
 	collationUnitPublish(t, e, stage)
@@ -469,7 +470,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	}
 	e.DiscardCatalogStage(stage)
 	if e.CatalogRead().state != before || *source != sourceBefore || *completed != shellBefore ||
-		before.names[key("#?#")] != (ObjectAddress{}) || before.names[key("#@#")] != (ObjectAddress{}) {
+		before.names[key("#?#")] != (ids.ObjectAddress{}) || before.names[key("#@#")] != (ids.ObjectAddress{}) {
 		t.Fatal("failed private peer setup changed published descriptors or names")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,10 +23,10 @@ func pgDependUnitCatalog(t *testing.T) (*Engine, CatalogRead, *sqltype.Descripto
 	state.descriptors = maps.Clone(base.state.descriptors)
 	return e, CatalogRead{owner: e, state: &state}, typ
 }
-func pgDependUnitAddress(class, id OID, sub int32) ObjectAddress {
-	return ObjectAddress{ClassID: class, ObjectID: id, SubID: sub}
+func pgDependUnitAddress(class, id ids.OID, sub int32) ids.ObjectAddress {
+	return ids.ObjectAddress{ClassID: class, ObjectID: id, SubID: sub}
 }
-func pgDependUnitEdge(c, id OID, sub int32, rc, rid OID, rs int32, kind byte) pgDependEdge {
+func pgDependUnitEdge(c, id ids.OID, sub int32, rc, rid ids.OID, rs int32, kind byte) pgDependEdge {
 	return pgDependEdge{pgDependUnitAddress(c, id, sub), pgDependUnitAddress(rc, rid, rs), kind}
 }
 func pgDependUnitBag(t *testing.T, got, want []pgDependEdge) {
@@ -117,7 +118,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	}
 	pgDependUnitBag(t, got, want)
 	source := catalog.state.descriptors[pgDependUnitAddress(1259, 2608, 0)].(*relationDescriptor)
-	captured, err := capturePGDepend(context.Background(), catalog, ObjectRef{}, source)
+	captured, err := capturePGDepend(context.Background(), catalog, ids.ObjectRef{}, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 		if err != nil || len(kind) != 1 {
 			t.Fatal(kind, err)
 		}
-		decoded = append(decoded, pgDependUnitEdge(OID(class), OID(id), int32(sub), OID(refclass), OID(refid), int32(refsub), kind[0]))
+		decoded = append(decoded, pgDependUnitEdge(ids.OID(class), ids.OID(id), int32(sub), ids.OID(refclass), ids.OID(refid), int32(refsub), kind[0]))
 	}
 	pgDependUnitBag(t, decoded, want)
 }
@@ -201,7 +202,7 @@ func TestPGDependCanceledCapture(t *testing.T) {
 	if edges, err := collectPGDepend(ctx, catalog); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal(edges, err)
 	}
-	if rows, err := capturePGDepend(ctx, catalog, ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := capturePGDepend(ctx, catalog, ids.ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal(rows, err)
 	}
 }
@@ -228,7 +229,7 @@ func TestPGDependCancellationDuringWalk(t *testing.T) {
 		t.Fatal("partial collection published", edges, err)
 	}
 	ctx = &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if rows, err := capturePGDepend(ctx, catalog, ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := capturePGDepend(ctx, catalog, ids.ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("partial source published", rows, err)
 	}
 }

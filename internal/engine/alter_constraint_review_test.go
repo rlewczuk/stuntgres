@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -43,8 +44,8 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: "t_a_key"}
-	if stage.lookupName(key) != (ObjectAddress{}) || stage.removals[backing].ref.Address != backing || stage.touched[key] != backing {
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: "t_a_key"}
+	if stage.lookupName(key) != (ids.ObjectAddress{}) || stage.removals[backing].ref.Address != backing || stage.touched[key] != backing {
 		t.Fatal("retirement did not vacate private name with original publication fences")
 	}
 	next, err = e.stageAddedUnique(op, auth, stage, next, actions[0].Unique)

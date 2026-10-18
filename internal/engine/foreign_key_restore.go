@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type restoredForeignKey struct {
 	raw        parser.ForeignKeyConstraint
-	path       []ObjectAddress
-	target     ObjectAddress
-	supporting ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
+	path       []ids.ObjectAddress
+	target     ids.ObjectAddress
+	supporting ids.ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
 	inherited  *restoredInheritedForeignKey
-	boundOID   OID
+	boundOID   ids.OID
 	boundSlot  int // Actual append position in this sole stage, verified against boundOID.
 }
 type restoredForeignKeys struct {
-	child       ObjectRef
+	child       ids.ObjectRef
 	auth        AuthorizationView
 	definitions []restoredForeignKey
 }
@@ -48,12 +49,12 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 		if err != nil {
 			return err
 		}
-		definition.path = make([]ObjectAddress, path.count())
+		definition.path = make([]ids.ObjectAddress, path.count())
 		for at := range path.count() {
 			namespace := path.at(at)
 			definition.path[at] = namespace
-			if definition.target == (ObjectAddress{}) {
-				definition.target = pending.auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+			if definition.target == (ids.ObjectAddress{}) {
+				definition.target = pending.auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
 			}
 		}
 	}
@@ -113,15 +114,15 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				}
 			}
 			target := definition.target
-			if target == (ObjectAddress{}) {
+			if target == (ids.ObjectAddress{}) {
 				for _, namespace := range definition.path {
-					target = base.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
-					if target != (ObjectAddress{}) {
+					target = base.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+					if target != (ids.ObjectAddress{}) {
 						break
 					}
 				}
 			}
-			if target == (ObjectAddress{}) {
+			if target == (ids.ObjectAddress{}) {
 				e.mu.Unlock()
 				return sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(definition.raw.Target)))
 			}

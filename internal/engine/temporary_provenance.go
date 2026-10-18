@@ -1,11 +1,14 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 // Stored definitions retain their immutable reference manifests across native
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
-func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ObjectRef) bool {
+func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
 	if view.owner == nil || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
@@ -66,7 +69,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
-func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ObjectRef) bool {
+func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
 	if catalog.owner == nil || ref.Domain() != catalog.owner.domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
 		return false
 	}
@@ -126,15 +129,15 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	return false
 }
 
-func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, ref ObjectRef) (ObjectRef, error) {
+func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) (ids.ObjectRef, error) {
 	if !storedViewReferenceValid(catalog, consumer, ref) {
-		return ObjectRef{}, ErrCatalogReplaced
+		return ids.ObjectRef{}, ErrCatalogReplaced
 	}
 	ref.Epoch = catalog.Epoch()
 	return ref, nil
 }
 
-func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ObjectRef, token SessionToken) bool {
+func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, token SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
 		return ref.Domain() == view.owner.domain
 	}
@@ -144,7 +147,7 @@ func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, re
 	return temporarySequenceEpochValid(view, ref, token)
 }
 
-func temporarySequenceEpochValid(view CatalogRead, ref ObjectRef, token SessionToken) bool {
+func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token SessionToken) bool {
 	if token == (SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
 		return false
 	}
@@ -165,7 +168,7 @@ func (r scalarRenderer) retainedConsumer() *relationDescriptor {
 
 // Type refs have no node-local captured ObjectRef. Choose the already recorded
 // immutable manifest ref only after sql has checked exact builtin Type/Usage.
-func (r scalarRenderer) recordStoredType(view CatalogRead, ref ObjectRef) {
+func (r scalarRenderer) recordStoredType(view CatalogRead, ref ids.ObjectRef) {
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old) {
 			r.record(old)
@@ -181,8 +184,8 @@ func (r scalarRenderer) recordStoredType(view CatalogRead, ref ObjectRef) {
 	r.record(ref)
 }
 
-func storedCollationReferenceValid(view CatalogRead, consumer *relationDescriptor, ref ObjectRef, capability sqltype.CollationRef) bool {
-	if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
+func storedCollationReferenceValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, capability sqltype.CollationRef) bool {
+	if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || !capability.Valid() || ids.OID(capability.ID) != ref.Address.ObjectID || !storedReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	target, ok := view.Descriptor(ref.Address)
@@ -200,7 +203,7 @@ func storedCollationReferenceValid(view CatalogRead, consumer *relationDescripto
 // The concrete node Usage has already been checked against the live provider.
 // Retained definitions must serialize the same lawful captured manifest epoch,
 // rather than manufacture a fresh reference that disagrees with that manifest.
-func (r scalarRenderer) recordStoredCollation(view CatalogRead, ref ObjectRef, capability sqltype.CollationRef) {
+func (r scalarRenderer) recordStoredCollation(view CatalogRead, ref ids.ObjectRef, capability sqltype.CollationRef) {
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old, capability) {
 			r.record(old)

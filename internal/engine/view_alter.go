@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // PostgreSQL uses different callbacks for column, dependency and other forms.
 // Keep admission and execution on the same action-specific authority contract.
-func alterViewAuthority(auth AuthorizationView, ref ObjectRef, s *parser.AlterView) error {
+func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.AlterView) error {
 	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	kind, label := viewRelation, "view"
 	ownerChecked := false
@@ -90,7 +91,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	var extension *extensionDescriptor
 	switch s.Action {
 	case "depends", "no_depends":
-		address, exists := auth.catalog.state.names[NameKey{ClassID: ExtensionClassID, Name: s.Target.Text}]
+		address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: s.Target.Text}]
 		if !exists {
 			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
 		}
@@ -103,11 +104,11 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		changed = present == (s.Action == "no_depends")
 		if changed {
 			if present {
-				next.autoExtensions = make([]ObjectAddress, len(old.autoExtensions)-1)
+				next.autoExtensions = make([]ids.ObjectAddress, len(old.autoExtensions)-1)
 				copy(next.autoExtensions, old.autoExtensions[:slot])
 				copy(next.autoExtensions[slot:], old.autoExtensions[slot+1:])
 			} else {
-				next.autoExtensions = make([]ObjectAddress, len(old.autoExtensions)+1)
+				next.autoExtensions = make([]ids.ObjectAddress, len(old.autoExtensions)+1)
 				copy(next.autoExtensions, old.autoExtensions[:slot])
 				next.autoExtensions[slot] = address
 				copy(next.autoExtensions[slot+1:], old.autoExtensions[slot:])
@@ -188,7 +189,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	return Result{}, err
 }
 
-func viewDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor) error {
+func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor) error {
 	ownerErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	if ownerErr == nil {
 		return nil
@@ -220,8 +221,8 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	if s.Materialized {
 		kind, label = materializedViewRelation, "materialized view"
 	}
-	refs := make([]ObjectRef, 0, len(s.Names))
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	refs := make([]ids.ObjectRef, 0, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	var notices []sqlstate.Error
 	for _, name := range s.Names {
 		ref, err := e.resolveRelationReference(auth, name, true)
@@ -311,7 +312,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	targets := make([]ObjectAddress, len(refs))
+	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
 		if err := stage.Remove(ref); err != nil {
@@ -322,7 +323,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.
-	cascade := make([]ObjectRef, 0, len(stage.removals))
+	cascade := make([]ids.ObjectRef, 0, len(stage.removals))
 	for address, removal := range stage.removals {
 		if address.ClassID != RelationClassID {
 			continue

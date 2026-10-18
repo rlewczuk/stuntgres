@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -20,7 +21,7 @@ func TestObjectAddressAuthority(t *testing.T) {
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			for _, sub := range relation.attributes {
-				column, err := identifyAddress(view, roles, nil, ObjectAddress{1259, address.ObjectID, sub})
+				column, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1259, address.ObjectID, sub})
 				if err != nil || !column.found || len(column.names) != 3 {
 					t.Fatal("column authority", address, sub, column, err)
 				}
@@ -31,21 +32,21 @@ func TestObjectAddressAuthority(t *testing.T) {
 		t.Fatal("released routine count", len(builtinRoutineIdentities))
 	}
 	for _, routine := range builtinRoutineIdentities {
-		identity, err := identifyAddress(view, roles, nil, ObjectAddress{1255, routine.id, 0})
+		identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.id, 0})
 		if err != nil || !identity.found || len(identity.names) != 2 || identity.names[1] != routine.name {
 			t.Fatal("lookup-only routine authority", routine, identity, err)
 		}
 	}
 	for i := range sqltype.CastMetadataCount() {
 		fact, _ := sqltype.CastMetadataAt(i)
-		identity, err := identifyAddress(view, roles, nil, ObjectAddress{2605, OID(fact.OID), 0})
+		identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{2605, ids.OID(fact.OID), 0})
 		if err != nil || !identity.found || len(identity.names) != 1 || len(identity.args) != 1 {
 			t.Fatal("cast owner", fact, identity, err)
 		}
 	}
 	for i := range sqltype.IndexClassMetadataCount() {
 		fact, _ := sqltype.IndexClassMetadataAt(i)
-		for _, a := range []ObjectAddress{{2616, OID(fact.OID), 0}, {2753, OID(fact.Family), 0}} {
+		for _, a := range []ids.ObjectAddress{{2616, ids.OID(fact.OID), 0}, {2753, ids.OID(fact.Family), 0}} {
 			identity, err := identifyAddress(view, roles, nil, a)
 			if err != nil || !identity.found || len(identity.names) != 3 {
 				t.Fatal("index owner", fact, a, identity, err)
@@ -60,7 +61,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	view := e.CatalogRead()
 	view.state = cloneCatalog(view.state)
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &relationDescriptor{address: ObjectAddress{1259, 48001, 0}, namespace: ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, attributes: []int32{1, 3}, attributeHighWater: 3, droppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
+	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, attributes: []int32{1, 3}, attributeHighWater: 3, droppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
 	view.state.descriptors[d.address] = d
 	view.state.names[descriptorNameKey(d)] = d.address
 	return e, view, d
@@ -72,7 +73,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 		sub  int32
 		name string
 	}{{1, "a"}, {3, "c"}, {2, "........pg.dropped.2........"}, {65538, "........pg.dropped.2........"}, {2147483647, "ctid"}, {-6, "tableoid"}} {
-		identity, err := identifyAddress(view, roles, []ObjectAddress{d.namespace}, ObjectAddress{1259, d.address.ObjectID, tc.sub})
+		identity, err := identifyAddress(view, roles, []ids.ObjectAddress{d.namespace}, ids.ObjectAddress{1259, d.address.ObjectID, tc.sub})
 		if err != nil || !identity.found || identity.names[2] != tc.name || identity.name != "address_unit" {
 			t.Fatal(tc, identity, err)
 		}
@@ -88,10 +89,10 @@ func TestObjectAddressIdentity(t *testing.T) {
 	d.policies = []policyDefinition{{OID: 48019, Name: "policy_unit"}}
 	d.view = &viewDefinition{rule: 48022}
 	for _, tc := range []struct {
-		class, id OID
+		class, id ids.OID
 		name      string
 	}{{2606, 48010, "nn"}, {2606, 48011, "ck"}, {2606, 48012, "uk"}, {2606, 48013, "pk"}, {2606, 48014, "fk"}, {2606, 48015, "ex"}, {2604, 48016, "a"}, {2604, 48017, "c"}, {2618, 48018, "rule_unit"}, {3256, 48019, "policy_unit"}, {2618, 48022, "_RETURN"}} {
-		a := ObjectAddress{tc.class, tc.id, 0}
+		a := ids.ObjectAddress{tc.class, tc.id, 0}
 		identity, err := identifyAddress(view, roles, nil, a)
 		if err != nil || !identity.found || identity.names[2] != tc.name || ownedAddressByName(d, tc.class, tc.name) != tc.id {
 			t.Fatal("owned definition roundtrip", tc, identity, err)
@@ -105,7 +106,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	}
 	typ := &typeDescriptor{typ: domain, namespace: d.namespace, domainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
 	view.state.descriptors[typ.Address()] = typ
-	identity, err := identifyAddress(view, roles, nil, ObjectAddress{2606, 48021, 0})
+	identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0})
 	if err != nil || !identity.found || identity.kind != "domain constraint" || !reflect.DeepEqual(identity.args, []string{"domain_ck"}) {
 		t.Fatal(identity, err)
 	}
@@ -113,7 +114,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 func TestObjectAddressLookup(t *testing.T) {
 	for _, tc := range []struct {
 		kind  string
-		class OID
+		class ids.OID
 	}{{"table column", 1259}, {"function", 1255}, {"aggregate", 1255}, {"procedure", 1255}, {"type", 1247}, {"domain constraint", 2606}, {"operator family", 2753}, {"default value", 2604}} {
 		class, err := objectInputClass(tc.kind)
 		if err != nil || class != tc.class {
@@ -178,7 +179,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if err != nil || rendered != "pg_catalog."+name+"(NULL, NULL, NULL)" {
 			t.Fatal("stored renderer", rendered, err)
 		}
-		mapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+		mapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || mapped.(objectAddressExpression).validateStored() != nil {
 			t.Fatal("stored remap", mapped, err)
 		}

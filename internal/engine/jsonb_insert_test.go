@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -79,7 +80,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 					t.Fatal("descriptor remapping", i)
 				}
 			}
-			mapped, err := remapBoundExpression(r, func(ref ObjectRef) ObjectRef { return ref }, nil)
+			mapped, err := remapBoundExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 			if err != nil || !sameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}

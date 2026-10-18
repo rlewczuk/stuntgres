@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 type viewPresentation struct {
 	deparse, pretty    bool
 	wrap               int64
-	path               []ObjectAddress
+	path               []ids.ObjectAddress
 	columns            []ColumnDescriptor
 	output             sqltype.OutputEnvironment
 	nonstandardStrings bool
@@ -548,7 +549,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
 	}
 	if column.ruleSide != 0 {
-		d, ok := catalog.state.descriptors[ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID}].(*relationDescriptor)
+		d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID}].(*relationDescriptor)
 		if !ok {
 			return "", ErrCatalogReplaced
 		}

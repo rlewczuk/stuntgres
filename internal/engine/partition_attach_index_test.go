@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -67,7 +68,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.indexRoots = map[ObjectAddress]*logicalIndexRoot{local.address: oldRoot}
+			f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.address: oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.entries)
 			beforeCatalog, beforeRoots := f.e.state, maps.Clone(f.e.indexRoots)
@@ -106,7 +107,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 					t.Fatal("physical attribute mapping or INCLUDE uniqueness changed", entry)
 				}
 			}
-			if backing.sqlIndex.partitionParent != f.parent.address || local.sqlIndex.partitionParent != (ObjectAddress{}) {
+			if backing.sqlIndex.partitionParent != f.parent.address || local.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 				t.Fatal("new backing lost ancestry or hijacked unrelated local index")
 			}
 		})

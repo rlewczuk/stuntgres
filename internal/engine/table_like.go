@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -59,13 +60,13 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 }
 
 type createLikeInput struct {
-	ref         ObjectRef
+	ref         ids.ObjectRef
 	source      *relationDescriptor
 	sourceType  *typeDescriptor
 	offset      int
 	targetSlots []int
 	options     tableLikeMask
-	rowRef      func(ObjectRef) ObjectRef
+	rowRef      func(ids.ObjectRef) ids.ObjectRef
 	slots       map[int32]int
 }
 
@@ -78,7 +79,7 @@ func (in createLikeInput) targetSlot(slot int) int {
 
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
 // references are never imported; row owners and stable attributes are mapped.
-func (in createLikeInput) rowMapper(destination *relationDescriptor, authority CatalogRead) (func(ObjectRef) ObjectRef, map[int32]int) {
+func (in createLikeInput) rowMapper(destination *relationDescriptor, authority CatalogRead) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
 	attributes := make(map[int32]int32, len(in.source.attributes))
 	slots := make(map[int32]int, len(in.source.attributes))
 	for slot, attribute := range in.source.attributes {
@@ -89,7 +90,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
 	target := authority.owner.domain.Ref(authority.Epoch(), destination.address)
-	return func(ref ObjectRef) ObjectRef {
+	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0
 		if address == in.source.address {
@@ -160,7 +161,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					options.persistence = "logged"
 					read := e.stageRead(stage)
 					name := ownedSequenceName(destination.name, destination.columns[in.targetSlot(slot)].Name, func(n string) bool {
-						return n == destination.name || len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: destination.namespace, Name: n})) != 0
+						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: destination.namespace, Name: n})) != 0
 					})
 					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.mode, options, nil); err != nil {
 						return err
@@ -270,7 +271,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 				return err
 			}
 			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, ordinal: ordinal, expression: node}
-			var dependencies []ObjectRef
+			var dependencies []ids.ObjectRef
 			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}

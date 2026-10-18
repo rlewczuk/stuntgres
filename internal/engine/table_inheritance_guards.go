@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -16,10 +17,10 @@ func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) e
 		}
 		return nil
 	}
-	return inheritanceViewTargetGuard(catalog, relation, make(map[ObjectAddress]bool))
+	return inheritanceViewTargetGuard(catalog, relation, make(map[ids.ObjectAddress]bool))
 }
 
-func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ObjectAddress]bool) error {
+func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ids.ObjectAddress]bool) error {
 	if relation.view == nil {
 		return inheritanceTargetGuard(catalog, relation)
 	}
@@ -43,7 +44,7 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 // Dependency mutation sees the private descriptor authority, not stale base
 // edges. Scan the overlay directly rather than allocating a second catalog.
 func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
-	descriptors := func(yield func(ObjectAddress, Descriptor) bool) {
+	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		for address, descriptor := range stage.base.state.descriptors {
 			if !yield(address, descriptor) {
 				return
@@ -57,10 +58,10 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescripto
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ObjectAddress) Descriptor { return stage.descriptors[address] }, func(address ObjectAddress) bool { _, removed := stage.removals[address]; return removed }, relation)
+	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.removals[address]; return removed }, relation)
 }
 
-func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ObjectAddress, Descriptor], replacement func(ObjectAddress) Descriptor, removed func(ObjectAddress) bool, relation *relationDescriptor) error {
+func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, Descriptor], replacement func(ids.ObjectAddress) Descriptor, removed func(ids.ObjectAddress) bool, relation *relationDescriptor) error {
 	if removed(relation.address) {
 		return nil
 	}

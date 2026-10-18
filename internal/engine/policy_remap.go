@@ -1,8 +1,11 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
-func remapPolicies(view CatalogRead, d *relationDescriptor, mapping map[ObjectAddress]ObjectAddress, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
+func remapPolicies(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
 	if len(d.policies) == 0 {
 		return d, nil
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -34,7 +35,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.name), Detail: "This operation is not supported for sequences."})
 	}
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
-	var backing ObjectAddress
+	var backing ids.ObjectAddress
 	kind := byte(0)
 	for _, c := range parent.notNullConstraints {
 		if c.Name == raw.Constraint.Text {
@@ -76,17 +77,17 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	if backing != (ObjectAddress{}) {
+	if backing != (ids.ObjectAddress{}) {
 		index, ok := auth.catalog.state.descriptors[backing].(*relationDescriptor)
 		if !ok {
 			e.DiscardCatalogStage(stage)
 			return fail(ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}]; exists {
+		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}]; exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}
-		if index.revision == DefinitionRevision(^uint64(0)) {
+		if index.revision == ids.DefinitionRevision(^uint64(0)) {
 			e.DiscardCatalogStage(stage)
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
@@ -172,7 +173,7 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 			return nil, err
 		}
 	}
-	if parent.revision == DefinitionRevision(^uint64(0)) {
+	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
 		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent

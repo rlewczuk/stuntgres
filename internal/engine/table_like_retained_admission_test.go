@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
@@ -146,13 +148,13 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if allocationErr != nil {
 						t.Fatal(allocationErr)
 					}
-					replacement.address = ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+					replacement.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 					replacement.revision = 1
 					change := e.BeginCatalogStage(e.CatalogRead())
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.sequence.start, generation: replacement.revision}}
+					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.sequence.start, generation: replacement.revision}}
 					queryCreatePublish(t, e, change)
 					if replacement.address == provider.address {
 						t.Fatal("recreated provider reused old identity")

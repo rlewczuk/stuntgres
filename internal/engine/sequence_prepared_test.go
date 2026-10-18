@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -234,8 +235,8 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
-		var ref ObjectRef
-		if a, ok := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]; ok {
+		var ref ids.ObjectRef
+		if a, ok := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]; ok {
 			ref = e.domain.Ref(e.state.epoch, a)
 		} else {
 			ref = roleTableRef(t, e, name)
@@ -446,7 +447,7 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	if e.state != original || e.roles != roles || e.nextRevision != frontier {
 		t.Fatal("canceled ACL update published authority")
 	}
-	e.nextRevision = DefinitionRevision(^uint64(0))
+	e.nextRevision = ids.DefinitionRevision(^uint64(0))
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err == nil {
 		t.Fatal("exhausted stamp allocator accepted ACL publication")
 	}
@@ -462,7 +463,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		sessionSQL(t, s, "CREATE SCHEMA a")
 		ref := schemaRef(t, e, "a")
 		// Namespace ACLs do not need a new descriptor definition token.
-		e.nextRevision = DefinitionRevision(^uint64(0))
+		e.nextRevision = ids.DefinitionRevision(^uint64(0))
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal("descriptor exhaustion rejected namespace ACL", err)
 		}

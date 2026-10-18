@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -56,7 +57,7 @@ func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorE
 			return err
 		}
 		formalLeft, formalRight := comparisonFormalID(left), comparisonFormalID(right)
-		selected := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, OID(formalLeft), OID(formalRight)}]
+		selected := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(formalLeft), ids.OID(formalRight)}]
 		if declaration != nil && declaration == selected && rowBTreeFormalPair(formalLeft, formalRight) {
 			continue
 		}

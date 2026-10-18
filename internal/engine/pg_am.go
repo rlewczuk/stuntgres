@@ -3,10 +3,11 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-const pgAMOID OID = 2601
+const pgAMOID ids.OID = 2601
 
 // Released identities for implemented logical methods, not physical storage
 // algorithms or an inventory of currently instantiated user indexes.
@@ -22,7 +23,7 @@ var pgAMMethods = [...]struct {
 	{783, "gist", 332, "i"},
 }
 
-func capturePGAM(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGAM(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

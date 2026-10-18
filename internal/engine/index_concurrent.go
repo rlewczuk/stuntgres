@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -61,7 +62,7 @@ func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.Cr
 	return Result{}, nil
 }
 
-func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *parser.CreateIndex, address ObjectAddress) (*relationDescriptor, *relationDescriptor, AuthorizationView, error) {
+func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*relationDescriptor, *relationDescriptor, AuthorizationView, error) {
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		return nil, nil, AuthorizationView{}, err
 	}
@@ -86,7 +87,7 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	return index, parent, auth, nil
 }
 
-func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parser.CreateIndex, address ObjectAddress, first bool) (uint64, error) {
+func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
 	for {
 		e.mu.Lock()
 		index, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
@@ -132,7 +133,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
+		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
 		namespace := auth.catalog.state.descriptors[parent.namespace].Name()
 		e.mu.Unlock()
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
@@ -145,7 +146,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexCandidates = map[ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+		stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
@@ -173,7 +174,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 	}
 }
 
-func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *parser.CreateIndex, address ObjectAddress) error {
+func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) error {
 	for {
 		e.mu.Lock()
 		index, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
@@ -199,7 +200,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
+		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {

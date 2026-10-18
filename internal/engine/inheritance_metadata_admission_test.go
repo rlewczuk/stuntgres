@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -134,7 +135,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 		err = e.schemaTableLocked(op, auth, stage, raw, parent.namespace, owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		address := stage.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}]
+		address := stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}]
 		child, _ = stage.descriptors[address].(*relationDescriptor)
 		if child == nil {
 			err = errors.New("authentic CREATE provider did not stage the descendant")

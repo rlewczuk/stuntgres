@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -184,7 +185,7 @@ func TestNotNullAlterScanFailureAndPreparedUtility(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE t ALTER a SET NOT NULL")
 }
 
-func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *relationDescriptor) {
+func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *relationDescriptor) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
 	old := e.state.descriptors[ref.Address].(*relationDescriptor)

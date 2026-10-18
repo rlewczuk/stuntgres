@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 type installedUUIDOsspFunctionExpression struct {
 	functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (BoundExpr, error) {

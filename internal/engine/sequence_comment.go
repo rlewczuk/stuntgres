@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -11,7 +12,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(scope.op)
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	if err == nil {
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 	}

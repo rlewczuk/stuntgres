@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -11,13 +12,13 @@ import (
 // A granted identity owns both the immutable descriptor and its physical store.
 // Virtual partition roots have no store but participate in locks and closure.
 type truncateRelation struct {
-	ref       ObjectRef
+	ref       ids.ObjectRef
 	relation  *relationDescriptor
 	storage   *relationStorage
 	privilege bool
 }
 
-func checkTruncate(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, privilege, only bool) error {
+func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, privilege, only bool) error {
 	if guardedCatalogRelation(d) {
 		return guardedCatalogMutationError(auth, d, true)
 	}
@@ -55,12 +56,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	if !s.op.commandAdmission {
 		s.op.snapshotNoticeThreshold()
 	}
-	selected := make(map[ObjectAddress]int)
+	selected := make(map[ids.ObjectAddress]int)
 	s.truncateSelected = selected
 	s.truncateRestart = stmt.RestartIdentity
-	expanded := make(map[ObjectAddress]bool)
-	var open func(ObjectRef, *truncateName, bool, bool, bool, bool) error
-	open = func(ref ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
+	expanded := make(map[ids.ObjectAddress]bool)
+	var open func(ids.ObjectRef, *truncateName, bool, bool, bool, bool) error
+	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var before *relationDescriptor
@@ -188,7 +189,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		observation := truncateName{name: target.Name}
 		if err == nil && s.txRef.Epoch() != e.state.epoch {
 			err = ErrCatalogReplaced
@@ -238,7 +239,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 
 type truncateReferencer struct{ relation, parent *relationDescriptor }
 
-func compareTruncateAddress(a, b ObjectAddress) int {
+func compareTruncateAddress(a, b ids.ObjectAddress) int {
 	if a.ObjectID < b.ObjectID {
 		return -1
 	}
@@ -249,7 +250,7 @@ func compareTruncateAddress(a, b ObjectAddress) int {
 }
 
 // FK definitions alone decide closure, including empty referencing tables.
-func truncateReferencers(catalog CatalogRead, selected map[ObjectAddress]int) []truncateReferencer {
+func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
 	var result []truncateReferencer
 	for address, descriptor := range catalog.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)

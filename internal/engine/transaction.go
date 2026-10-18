@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -53,7 +54,7 @@ type rowVersion struct {
 	values []sqltype.Value
 	// Private admission captures index readiness; committed rows clear this pin.
 	indexAdmission *catalogState
-	indexOutputs   map[ObjectAddress]indexRowOutput // Private, immutable produced index data.
+	indexOutputs   map[ids.ObjectAddress]indexRowOutput // Private, immutable produced index data.
 }
 
 type transactionOwner struct {
@@ -68,8 +69,8 @@ type transactionOwner struct {
 	ref             TxRef
 	next            TxID
 	command         CommandID
-	writes          map[ObjectAddress][]rowVersion
-	deletes         map[ObjectAddress]*privateDeletionRoot
+	writes          map[ids.ObjectAddress][]rowVersion
+	deletes         map[ids.ObjectAddress]*privateDeletionRoot
 	start           time.Time
 	isolation       Isolation
 	readOnly        bool
@@ -79,7 +80,7 @@ type transactionOwner struct {
 	entryDeferrable bool
 	snapshotSet     bool
 	frontier        CommitSeq
-	roots           map[ObjectAddress]transactionRoot
+	roots           map[ids.ObjectAddress]transactionRoot
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
 	sequenceCatalog     *catalogState
 	catalog             *catalogChanges
@@ -309,7 +310,7 @@ type StatementScope struct {
 	replacementRead                bool
 	ticket                         *relationTicket
 	multiEvents                    []multiEvent
-	viewCreationNamespace          ObjectRef
+	viewCreationNamespace          ids.ObjectRef
 	viewPersistence                string
 	viewBinding                    binding
 	viewChanges                    *catalogChanges
@@ -322,12 +323,12 @@ type StatementScope struct {
 	foreignCursor                  *sqlCursor
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
-	activeViews                    []ObjectAddress
+	activeViews                    []ids.ObjectAddress
 	txRef                          TxRef
 	command                        CommandID
-	ownWrites                      map[ObjectAddress][]rowVersion
-	ownDeletes                     map[ObjectAddress]*privateDeletionRoot
-	existingIndexOutputs           map[ObjectAddress]map[indexRowIdentity]indexRowOutput
+	ownWrites                      map[ids.ObjectAddress][]rowVersion
+	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
+	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
 	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
@@ -338,14 +339,14 @@ type StatementScope struct {
 	truncateSequences              []truncateSequence
 	truncateRestart                bool
 	truncateNames                  []truncateName
-	truncateSelected               map[ObjectAddress]int
+	truncateSelected               map[ids.ObjectAddress]int
 	Expected                       *StatementDescription
 	preparedReuse                  *preparedAnalysis
 	preparedInvalid                bool
 	preparedPath                   sequenceEnvironment
 	preparedNamespace              uint64
 	preparedPrivate                *catalogChanges
-	preparedEpoch                  CatalogEpoch
+	preparedEpoch                  ids.CatalogEpoch
 	preparedChangedDuringAdmission bool
 	admissionWaited                bool
 	implicit                       bool
@@ -374,9 +375,9 @@ type StatementScope struct {
 	catalog                     *catalogChanges
 	catalogAuthority            *catalogAuthority
 	projectedRoots              bool
-	foreignKeyTargets           []ObjectRef
+	foreignKeyTargets           []ids.ObjectRef
 	alterForeignKeys            []alterForeignKeyAdmission
-	foreignActionAdmissions     map[ObjectAddress]*foreignActionAdmission
+	foreignActionAdmissions     map[ids.ObjectAddress]*foreignActionAdmission
 	foreignActionTransitions    []foreignActionTransition
 	foreignActionsSettling      bool
 	foreignActionExclusionAdded bool // a new event admitted while settling actions
@@ -388,25 +389,25 @@ type StatementScope struct {
 	deparseAuth                 AuthorizationView
 	visibilityCatalog           CatalogRead
 	visibilityDemand            bool
-	visibilityRelationPath      []ObjectAddress
-	visibilityOtherPath         []ObjectAddress
+	visibilityRelationPath      []ids.ObjectAddress
+	visibilityOtherPath         []ids.ObjectAddress
 	conversionDefaults          map[[2]int]conversionDefault
 	regprocOutput               map[uint32]string
 	regprocedureOutput          map[uint32]string
 	identity                    identitySnapshot
 	currentSchemaResult         sqltype.Value
-	deparsePath                 []ObjectAddress
+	deparsePath                 []ids.ObjectAddress
 	operatorOutput              map[operatorOutputKey]string
 	operatorGroups              operatorGroups
-	collationPath               []ObjectAddress
+	collationPath               []ids.ObjectAddress
 	regTSOutput                 map[regTSOutputKey]string
 }
 
 type WriteStage struct {
 	self      *WriteStage
 	scope     *StatementScope
-	rows      map[ObjectAddress][]rowVersion
-	deletes   map[ObjectAddress]*privateDeletionRoot
+	rows      map[ids.ObjectAddress][]rowVersion
+	deletes   map[ids.ObjectAddress]*privateDeletionRoot
 	replacing bool
 }
 
@@ -578,7 +579,7 @@ func (s *StatementScope) Writes() *WriteStage { return &s.stage }
 
 // Apply takes immutable payload ownership only after provenance and capacity
 // checks. The binder supplied the original ObjectRef, not a reconstructed name.
-func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
+func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -599,7 +600,7 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
-func (w *WriteStage) applyValidated(ref ObjectRef, batch indexWriteBatch) error {
+func (w *WriteStage) applyValidated(ref ids.ObjectRef, batch indexWriteBatch) error {
 	rows := batch.values
 	s := w.scope
 	if err := s.active(); err != nil {
@@ -694,7 +695,7 @@ retry:
 		}
 	}
 	if w.rows == nil {
-		w.rows = make(map[ObjectAddress][]rowVersion)
+		w.rows = make(map[ids.ObjectAddress][]rowVersion)
 	}
 	if len(w.rows[ref.Address]) == 0 {
 		w.rows[ref.Address] = versions
@@ -1013,11 +1014,11 @@ func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *ca
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.
-func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion, replacing bool) map[ObjectAddress][]rowVersion {
+func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]rowVersion, replacing bool) map[ids.ObjectAddress][]rowVersion {
 	if len(staged) == 0 {
 		return previous
 	}
-	next := make(map[ObjectAddress][]rowVersion, len(previous)+len(staged))
+	next := make(map[ids.ObjectAddress][]rowVersion, len(previous)+len(staged))
 	for a, rows := range previous {
 		next[a] = rows
 	}

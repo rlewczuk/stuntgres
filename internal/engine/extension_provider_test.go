@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -41,13 +42,13 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *extensionDescri
 	t.Cleanup(done)
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	a := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+	a := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 	return e, op, e.state.descriptors[a].(*extensionDescriptor)
 }
 func TestExtensionProviderIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
-	seen := map[ObjectAddress]bool{}
+	seen := map[ids.ObjectAddress]bool{}
 	registry := &Engine{}
 	registration := registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, provider: stockUnaccent}
 	if err := registry.registerExtension("unaccent", registration); err != nil {
@@ -64,7 +65,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if proc.signature != signature {
 			t.Fatal("declared signature", i, proc.signature)
 		}
-		vol, strict, result := Stable, true, OID(25)
+		vol, strict, result := Stable, true, ids.OID(25)
 		if i >= 2 {
 			vol, strict, result = Volatile, false, 2281
 		}
@@ -95,11 +96,11 @@ func TestExtensionProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	key := NameKey{ClassID: ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}
+	key := ids.NameKey{ClassID: ProcedureClassID, Namespace: ext.targetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}
 	text := view.state.names[key]
 	key.Signature = string(unaccentDictionarySignature)
 	dictionary := view.state.names[key]
-	if text == (ObjectAddress{}) || dictionary == (ObjectAddress{}) || text == dictionary {
+	if text == (ids.ObjectAddress{}) || dictionary == (ids.ObjectAddress{}) || text == dictionary {
 		t.Fatal("overloads collapsed")
 	}
 	edges, err := collectPGDepend(context.Background(), view)
@@ -143,7 +144,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal("captured provider identity")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), node)
-	if err != nil || !reflect.DeepEqual(refs, []ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
 	n.arg = literalExpression{expressionInfo: expressionInfo{usage: node.ResultUsage()}, value: sqltype.Null(node.ResultUsage().Type)}
@@ -178,30 +179,30 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.descriptors[source.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.descriptors[source.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
 				n := *source.descriptors[ext.members[index]].(*procedureDescriptor)
-				n.extension = ObjectAddress{}
-				n.dictionary = ObjectAddress{}
+				n.extension = ids.ObjectAddress{}
+				n.dictionary = ids.ObjectAddress{}
 				conflict = &n
 				if err := loose.Create(conflict); err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				catalogNS := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+				catalogNS := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
 					n := *source.descriptors[ext.members[i]].(*procedureDescriptor)
-					n.extension = ObjectAddress{}
+					n.extension = ids.ObjectAddress{}
 					n.namespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
 				}
 				tmpl := *source.descriptors[ext.members[4]].(*tsTemplateDescriptor)
-				tmpl.extension = ObjectAddress{}
+				tmpl.extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.namespace = catalogNS
 				}
@@ -211,7 +212,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				conflict = &tmpl
 				if kind == "dictionary" {
 					dict := *source.descriptors[ext.members[5]].(*tsDictionaryDescriptor)
-					dict.extension = ObjectAddress{}
+					dict.extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {
 						t.Fatal(err)
@@ -244,7 +245,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal("helper diagnostics", diagnostic)
 				}
 			}
-			if e.state != before || e.state.descriptors[conflict.Address()] != conflict || e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ObjectAddress{}) {
+			if e.state != before || e.state.descriptors[conflict.Address()] != conflict || e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("partial failed installation")
 			}
 		})
@@ -266,7 +267,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ObjectAddress{}) {
+			if e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("private installation leaked")
 			}
 			if reason == "competing" {
@@ -292,7 +293,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.state = cloneCatalog(e.state)
 				e.state.descriptors[currentDatabaseAddress] = &next
 			case "namespace":
-				a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+				a := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 				next := *e.state.descriptors[a].(*namespaceDescriptor)
 				next.revision++
 				e.state = cloneCatalog(e.state)

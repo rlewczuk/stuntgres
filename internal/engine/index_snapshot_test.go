@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -91,7 +92,7 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	malformed := *original
 	malformed.entries = slices.Clone(original.entries)
 	malformed.entries[0].position = len(f.store.versions)
-	roots := map[ObjectAddress]*logicalIndexRoot{f.index.address: &malformed}
+	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.address: &malformed}
 	previous := f.e.indexRoots
 	f.e.indexRoots = roots
 	if _, err := captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, roots, f.e.commitSeq); !errors.Is(err, ErrCatalogReplaced) {

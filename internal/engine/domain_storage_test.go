@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -14,7 +15,7 @@ func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *relation
 	auth, err := e.authorizationLocked(op)
 	stage := e.BeginCatalogStage(auth.catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, raw, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -22,7 +23,7 @@ func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *relation
 	}
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	addresses := view.Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text})
+	addresses := view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text})
 	if len(addresses) != 1 {
 		t.Fatal(addresses)
 	}
@@ -124,12 +125,12 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
-	storage := map[ObjectAddress]*relationStorage{table.address: original}
+	storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
 	next := cloneCatalog(e.CatalogRead().state)
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
-	builtin := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Numeric)}
+	builtin := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
 	next.descriptors[builtin] = &typeDescriptor{typ: physical}
-	mapping := map[ObjectAddress]ObjectAddress{a.Address(): {ClassID: TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: TypeClassID, ObjectID: 60002}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): {ClassID: TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: TypeClassID, ObjectID: 60002}}
 	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
@@ -176,7 +177,7 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 	}
 	domain := domainUnitType(t, e.CatalogRead(), "a")
 	array, ok := e.CatalogRead().LookupArray(domain.typ)
-	if !ok || len(dependencies) != 4 || !dependencies[0].automatic || dependencies[0].address.ObjectID != OID(array.ID()) {
+	if !ok || len(dependencies) != 4 || !dependencies[0].automatic || dependencies[0].address.ObjectID != ids.OID(array.ID()) {
 		t.Fatal("missing automatic array lifetime dependency", dependencies)
 	}
 	dependencies = dependencies[1:]

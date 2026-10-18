@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -33,7 +34,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 				}
 			}
 		}
-		if p, exists := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: fact.id}]; exists {
+		if p, exists := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: fact.id}]; exists {
 			procedure, ok := p.(*procedureDescriptor)
 			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ProcedureClassID}).Validate(view, procedure) != nil {
 				t.Fatal("invalid genuine catalog declaration", p, fact)
@@ -41,7 +42,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 		}
 	}
 	for _, witness := range []struct {
-		id        OID
+		id        ids.OID
 		name      string
 		signature procedureSignature
 	}{
@@ -52,7 +53,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 			t.Fatal("release witness", got, witness)
 		}
 	}
-	path := namespaceSelection{path: []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}}
+	path := namespaceSelection{path: []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}}
 	for _, name := range []string{"abs", "lower"} {
 		if _, count := selectRoutine(view, path, name, nil); count != 2 {
 			t.Fatal("released overload ambiguity", name, count)
@@ -63,9 +64,9 @@ func TestRoutineReleaseInventory(t *testing.T) {
 func TestRoutinePathCandidateMasking(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	public := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
@@ -77,7 +78,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	path := []ObjectAddress{public, catalog}
+	path := []ids.ObjectAddress{public, catalog}
 	if _, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)
 	}
@@ -110,11 +111,11 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := remapRoutineDatum(original, func(id OID) OID { return id })
+	unchanged, err := remapRoutineDatum(original, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != original {
 		t.Fatal("unchanged immutable array copied", err)
 	}
-	remapped, err := remapRoutineDatum(original, func(id OID) OID {
+	remapped, err := remapRoutineDatum(original, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}
@@ -134,8 +135,8 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 	if err != nil || !strings.Contains(text, "[-2:1]") || !strings.Contains(text, "pg_catalog.abs(integer)") || !strings.Contains(text, "::regprocedure::regproc") || !strings.Contains(text, "4294967295") {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}
-	var refs []ObjectAddress
-	if err := walkRoutineReferences(view, original, func(address ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ObjectAddress{{ClassID: ProcedureClassID, ObjectID: 1397}}) {
+	var refs []ids.ObjectAddress
+	if err := walkRoutineReferences(view, original, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{{ClassID: ProcedureClassID, ObjectID: 1397}}) {
 		t.Fatal("genuine builtin dependency or lookup-only isolation lost", refs, err)
 	}
 }
@@ -161,11 +162,11 @@ func TestRoutineDomainCompositeRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unchanged, err := remapRoutineDatum(row, func(id OID) OID { return id })
+	unchanged, err := remapRoutineDatum(row, func(id ids.OID) ids.OID { return id })
 	if err != nil || unchanged != row {
 		t.Fatal("unchanged composite copied", err)
 	}
-	remapped, err := remapRoutineDatum(row, func(id OID) OID {
+	remapped, err := remapRoutineDatum(row, func(id ids.OID) ids.OID {
 		if id == 90000 {
 			return 90001
 		}

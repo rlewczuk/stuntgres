@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,9 +63,9 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	if err == nil {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
-	var refs []ObjectRef
+	var refs []ids.ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth, auth.state.CurrentUser, b.querySources, []ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
+		refs, err = e.queryTableRefsLocked(auth, auth.state.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
 	}
 	if err == nil {
 		_, err = scope.acquireDataViewsLocked(e, refs)

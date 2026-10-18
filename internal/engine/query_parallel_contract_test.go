@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -172,7 +173,7 @@ func parallelOpenFailureProof(t *testing.T) {
 	t.Helper()
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
 	project := query.Root.(*projectNode)
-	project.child.(*sourceNode).ref = ObjectRef{}
+	project.child.(*sourceNode).ref = ids.ObjectRef{}
 	rows, n, err := finalizeParallelQuery(context.Background(), project, nil, source, nil, 2)
 	if rows != nil || n != 0 || err == nil || err.Error() != "stuntgres: invalid query source target" || source.view != nil {
 		t.Fatal("failed worker open exposed output/retained pin", rows, n, err)

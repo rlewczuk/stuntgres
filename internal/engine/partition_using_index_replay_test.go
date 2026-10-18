@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,10 +16,10 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
 	child.relationKind = tableRelation
 	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.partition.children = []ObjectAddress{child.address}
+	parent.partition.children = []ids.ObjectAddress{child.address}
 	parent.partition.defaultChild = child.address
 	class, _ := sqltype.DefaultIndexClass(child.columns[0].Usage.Type)
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, owner: child.owner, relationKind: indexRelation, columns: slices.Clone(child.columns), attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: child.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, owner: child.owner, relationKind: indexRelation, columns: slices.Clone(child.columns), attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: child.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}}
 	index.columns[0].OriginTable = uint32(index.address.ObjectID)
 	index.columns[0].OriginAttribute = 1
 	child.hasIndexes = true

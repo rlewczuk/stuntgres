@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -11,9 +12,9 @@ import (
 
 // Graph addresses are immutable identities, not definition revision pins.
 type inheritanceOrigin struct {
-	parent     ObjectAddress
+	parent     ids.ObjectAddress
 	attribute  int32
-	constraint OID
+	constraint ids.OID
 }
 type inheritedColumn struct {
 	local              bool
@@ -27,17 +28,17 @@ type inheritedConstraint struct {
 	retired []retiredInheritanceOrigin
 }
 type tableInheritance struct {
-	parents []ObjectAddress
+	parents []ids.ObjectAddress
 	columns map[int32]inheritedColumn
 	checks  map[string]inheritedConstraint
 	notNull map[int32]inheritedConstraint
 }
 type createInheritanceInput struct {
-	ref    ObjectRef
+	ref    ids.ObjectRef
 	source *relationDescriptor
 }
 
-func inheritanceHasChildren(v CatalogRead, parent ObjectAddress) bool {
+func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.state.descriptors {
 		if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
 			return true
@@ -46,7 +47,7 @@ func inheritanceHasChildren(v CatalogRead, parent ObjectAddress) bool {
 	return false
 }
 
-func inheritanceChildren(v CatalogRead, parent ObjectAddress) []*relationDescriptor {
+func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
 	var children []*relationDescriptor
 	for address := range v.state.descriptors {
 		if address.ClassID != RelationClassID {
@@ -113,7 +114,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	var merged []ColumnDescriptor
 	b.createLocalColumns = localNames
 	index := make(map[string]int)
-	seen := make(map[ObjectAddress]bool)
+	seen := make(map[ids.ObjectAddress]bool)
 	generated := make(map[string]bool)
 	kinds := make(map[string]generationKind)
 	for _, name := range syntax.Parents {
@@ -148,7 +149,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, err
 		}
 		parentNS := auth.catalog.state.descriptors[source.namespace].(*namespaceDescriptor)
-		if parentNS.temporary != (SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ObjectAddress{}) {
+		if parentNS.temporary != (SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.name))
 		}
 		if seen[ref.Address] {

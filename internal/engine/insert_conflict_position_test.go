@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -150,12 +151,12 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.descriptors[index.address] = &index
 			stores := maps.Clone(f.e.storage)
 			stores[parent.address] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.state, &nextCatalog, stores, f.e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
 			insertConflictWantHints(t, prepared[index.address], &shaped, want)
-			changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
+			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.address: &index}, originals: map[ids.ObjectAddress]Descriptor{index.address: f.index}}
 			if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
@@ -219,7 +220,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	}
 	index := *f.index
 	index.revision++
-	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
+	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.address: &index}, originals: map[ids.ObjectAddress]Descriptor{index.address: f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}

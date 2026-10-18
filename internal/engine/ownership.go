@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -21,7 +22,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 func ownershipDatabaseCreate(auth AuthorizationView) error {
 	return auth.CheckCreate(auth.engine.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress))
 }
-func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ObjectAddress) error {
+func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return err
@@ -34,7 +35,7 @@ func ownershipEligibility(auth AuthorizationView, target authorization.Principal
 	}
 	targetAuth := auth
 	targetAuth.state.CurrentUser = target
-	if namespace == (ObjectAddress{}) {
+	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
 	return targetAuth.CheckCreate(auth.engine.domain.Ref(auth.catalog.Epoch(), namespace))
@@ -58,12 +59,12 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	case *namespaceDescriptor:
 		return t.temporary == (SessionToken{}) && t.address.ObjectID != PGCatalogNamespaceOID && t.address.ObjectID != PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
-		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ObjectAddress{}))
+		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:
 		if !t.typ.IsUserDefined() || t.typ.IsArray() {
 			return false
 		}
-		if t.owningRelation == (ObjectAddress{}) {
+		if t.owningRelation == (ids.ObjectAddress{}) {
 			return true
 		}
 		r, ok := catalog.state.descriptors[t.owningRelation].(*relationDescriptor)
@@ -149,7 +150,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.array != 0 {
-			array, ok := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.array)}].(*typeDescriptor)
+			array, ok := stage.base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.array)}].(*typeDescriptor)
 			if !ok || !array.typ.IsArray() || array.typ.Element().ID() != old.typ.ID() {
 				return CatalogConflict{}
 			}
@@ -157,7 +158,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 				return err
 			}
 		}
-		if old.owningRelation != (ObjectAddress{}) && !old.typ.IsArray() {
+		if old.owningRelation != (ids.ObjectAddress{}) && !old.typ.IsArray() {
 			r, ok := stage.base.state.descriptors[old.owningRelation].(*relationDescriptor)
 			if !ok || r.rowType != old.typ.ID() {
 				return CatalogConflict{}
@@ -280,7 +281,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if old.sequence != nil && old.sequence.owned != (ObjectAddress{}) {
+	if old.sequence != nil && old.sequence.owned != (ids.ObjectAddress{}) {
 		parent := old.sequence.owned
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.catalog.state.descriptors[parent].(*relationDescriptor), false))
@@ -292,7 +293,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.base, []ObjectAddress{old.address}) {
+		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.address}) {
 			if a == old.address {
 				continue
 			}
@@ -334,8 +335,8 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	}
 	var old *typeDescriptor
 	for i := range path.count() {
-		a := auth.catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text}]
-		if a != (ObjectAddress{}) {
+		a := auth.catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text}]
+		if a != (ids.ObjectAddress{}) {
 			old = auth.catalog.state.descriptors[a].(*typeDescriptor)
 			break
 		}
@@ -349,11 +350,11 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(sqlError("42809", display+" is not a domain"))
 	}
 	if old.typ.IsArray() {
-		element := auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.typ.Element().ID())}].(*typeDescriptor)
+		element := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.typ.Element().ID())}].(*typeDescriptor)
 		elementName := typeDiagnosticNameAt(auth.catalog, element, diagnosticPath)
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."})
 	}
-	if old.owningRelation != (ObjectAddress{}) {
+	if old.owningRelation != (ids.ObjectAddress{}) {
 		r := auth.catalog.state.descriptors[old.owningRelation].(*relationDescriptor)
 		if r.relationKind != compositeRelation {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
@@ -382,7 +383,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.base, []ObjectAddress{old.Address()}) {
+		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
 			if err = scope.acquireSequence(e.domain.Ref(stage.base.Epoch(), a), accessExclusive, true); err != nil {
 				break
 			}

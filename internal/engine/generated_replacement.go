@@ -2,12 +2,13 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, mapping map[ObjectAddress]ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
 	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
@@ -91,7 +92,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if err == nil {
 		err = recomputeRemappedGenerations(ctx, candidate, storage, mapping, evaluation, changed)
 	}
-	var moved map[ObjectAddress]bool
+	var moved map[ids.ObjectAddress]bool
 	if err == nil {
 		moved, err = repairRemappedHashPartitions(ctx, &evaluation, storage, auth, indexes)
 	}

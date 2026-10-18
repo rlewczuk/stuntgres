@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,20 +31,20 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDe
 		}
 	}
 	e.mu.Unlock()
-	root.partition.children = []ObjectAddress{mid.address}
+	root.partition.children = []ids.ObjectAddress{mid.address}
 	root.partition.defaultChild = mid.address
 	mid.membership = &partitionMembership{parent: root.address, defaultBound: true}
-	mid.partition.children = []ObjectAddress{leaf.address}
+	mid.partition.children = []ids.ObjectAddress{leaf.address}
 	mid.partition.defaultChild = leaf.address
 	leaf.membership = &partitionMembership{parent: mid.address, defaultBound: true}
 	class, _ := sqltype.DefaultIndexClass(mid.columns[0].Usage.Type)
-	index := func(table *relationDescriptor, id OID, name string, parent ObjectAddress, valid bool) *relationDescriptor {
+	index := func(table *relationDescriptor, id ids.OID, name string, parent ids.ObjectAddress, valid bool) *relationDescriptor {
 		columns := slices.Clone(table.columns)
 		columns[0].OriginTable = uint32(id)
 		columns[0].OriginAttribute = 1
-		return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: table.namespace, owner: table.owner, name: name, revision: 1, relationKind: indexRelation, columns: columns, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: table.address, partitionParent: parent, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, valid: valid, ready: true, live: true}}
+		return &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: table.namespace, owner: table.owner, name: name, revision: 1, relationKind: indexRelation, columns: columns, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: table.address, partitionParent: parent, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, valid: valid, ready: true, live: true}}
 	}
-	ri := index(root, 47203, "unique_replay_root_plain", ObjectAddress{}, false)
+	ri := index(root, 47203, "unique_replay_root_plain", ids.ObjectAddress{}, false)
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.address, true)
 	li := index(leaf, 47205, "unique_replay_leaf_plain", mi.address, true)
 	partitionAttachUnitInstall(t, e, root, mid, leaf, ri, mi, li)
@@ -143,7 +144,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if !rootIndex.sqlIndex.valid || childIndex.sqlIndex.partitionParent != rootIndex.address || childIndex.sqlIndex.constraint.Index != child.uniqueConstraints[0].Index || childIndex.sqlIndex.constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
-				if e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 47204}] != before.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 47204}] || e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 47205}] != before.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 47205}] {
+				if e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 47204}] != before.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 47204}] || e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 47205}] != before.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 47205}] {
 					t.Fatal("attached plain tree consumed")
 				}
 				if len(child.notNullConstraints) != len(leaf.notNullConstraints) || len(current.notNullConstraints) != len(mid.notNullConstraints) {
@@ -184,13 +185,13 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if partitionReplayUsingIndex(view, local) || partitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
-	provider, err := dumpPredecessor(view, child.address, ObjectAddress{})
+	provider, err := dumpPredecessor(view, child.address, ids.ObjectAddress{})
 	if err != nil || provider != local.address.ObjectID {
 		t.Fatal("subordinate provider is not the real ADD", provider, err)
 	}
 	graph := make(map[dumpEventKey][]dumpEventKey)
 	var tables []dumpRelation
-	indices := make(map[OID]int)
+	indices := make(map[ids.OID]int)
 	for _, descriptor := range view.state.descriptors {
 		r, ok := descriptor.(*relationDescriptor)
 		if !ok || r.address.ObjectID < 47200 || r.address.ObjectID > 47205 {
@@ -209,12 +210,12 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	}
 	graph[dumpEventKey{oid: local.address.ObjectID}] = []dumpEventKey{{oid: mid.address.ObjectID}}
 	indices[local.address.ObjectID] = len(indices)
-	regclass := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regclass)}].(*typeDescriptor).typ
-	consumer := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 47206}, namespace: mid.namespace, owner: mid.owner, name: "unique_replay_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"ref": 0, "leaf_ref": 1}}
+	regclass := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
+	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 47206}, namespace: mid.namespace, owner: mid.owner, name: "unique_replay_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.address.ObjectID), 10))
 	state := *view.state
-	state.descriptors = make(map[ObjectAddress]Descriptor, len(view.state.descriptors)+1)
+	state.descriptors = make(map[ids.ObjectAddress]Descriptor, len(view.state.descriptors)+1)
 	for address, descriptor := range view.state.descriptors {
 		state.descriptors[address] = descriptor
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,15 +11,15 @@ import (
 func TestPGLanguageCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: pgLanguageOID}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgLanguageOID}
 	source := catalog.state.descriptors[address].(*relationDescriptor)
 	checkTypeLinks := func(catalog CatalogRead, relation *relationDescriptor) {
 		t.Helper()
 		if relation.rowType != 10021 {
 			t.Fatal("native row type identity", relation.rowType)
 		}
-		row := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10021}].(*typeDescriptor)
-		array := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10020}].(*typeDescriptor)
+		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10021}].(*typeDescriptor)
+		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10020}].(*typeDescriptor)
 		ownedRow, rowOK := catalog.LookupType(10021)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || ownedRow != row.typ || ownedArray != array.typ || row.array != 10020 || array.typ.Element() != row.typ || row.owningRelation != relation.address || array.owningRelation != relation.address || row.owner != relation.owner || array.owner != relation.owner {

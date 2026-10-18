@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,7 +54,10 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { t.Fatal("current leaf invented relation reference", ref); return ref }, nil)
+		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+			t.Fatal("current leaf invented relation reference", ref)
+			return ref
+		}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

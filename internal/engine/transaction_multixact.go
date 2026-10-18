@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // The existing manager arbitrates by RowID. History additionally identifies the
@@ -383,7 +385,7 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 	m.multiNext = next
 	return nil
 }
-func (s *StatementScope) physicalRowEvent(ref ObjectRef, row rowVersion, mode multiMode, successor VersionID) error {
+func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode multiMode, successor VersionID) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	err := e.assignTransactionXIDLocked(s.txRef)

@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // The SQL source owns disclosure, not the ACL-neutral structural projections.
 // Authorization and deparsing both read the exact immutable statement capture.
-func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth AuthorizationView, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth AuthorizationView, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

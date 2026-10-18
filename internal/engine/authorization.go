@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -88,13 +89,13 @@ func (op *Operation) RoleState() authorization.RoleState {
 }
 
 type AccessRequirement struct {
-	Object     ObjectRef
+	Object     ids.ObjectRef
 	Privileges authorization.Privileges
 	OwnerOnly  bool
 	OwnerNoun  string // Utility diagnostic context; never changes authority.
 }
 type AuthorizationStamp struct {
-	Catalog        CatalogEpoch
+	Catalog        ids.CatalogEpoch
 	Roles, Session uint64
 }
 type AuthorizationView struct {
@@ -113,11 +114,11 @@ type AuthorizationView struct {
 	revision         uint64
 	settings         *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
-	pathPrefix ObjectAddress
+	pathPrefix ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
 	// An owned TEMP table builder may see its namespace before session publication.
-	stagedTemporary        ObjectAddress
+	stagedTemporary        ids.ObjectAddress
 	session                *Session
 	materializedPopulation bool
 	// Only command admission can retain an actually installed, unnamed role ID.
@@ -279,34 +280,34 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
 func classPrivileges(d Descriptor) authorization.Privileges {
-	if d.Kind() == ForeignWrapperObject || d.Kind() == ForeignServerObject {
+	if d.Kind() == ids.ForeignWrapperObject || d.Kind() == ids.ForeignServerObject {
 		return authorization.UsagePrivilege
 	}
-	if d.Kind() == ForeignMappingObject {
+	if d.Kind() == ids.ForeignMappingObject {
 		return 0
 	}
-	if d.Kind() == DatabaseObject {
+	if d.Kind() == ids.DatabaseObject {
 		return authorization.DatabasePrivileges
 	}
-	if d.Kind() == ProcedureObject {
+	if d.Kind() == ids.ProcedureObject {
 		return authorization.ExecutePrivilege
 	}
-	if d.Kind() == ParameterObject {
+	if d.Kind() == ids.ParameterObject {
 		return authorization.SetPrivilege | authorization.AlterSystemPrivilege
 	}
-	if d.Kind() == TablespaceObject {
+	if d.Kind() == ids.TablespaceObject {
 		return authorization.CreatePrivilege
 	}
-	if d.Kind() == CollationObject || d.Kind() == ConversionObject {
+	if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 		return 0
 	}
-	if d.Kind() == ExtensionObject || d.Kind() == TSDictionaryObject || d.Kind() == TSTemplateObject {
+	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject {
 		return 0
 	}
-	if d.Kind() == TypeObject {
+	if d.Kind() == ids.TypeObject {
 		return authorization.UsagePrivilege
 	}
-	if d.Kind() == NamespaceObject {
+	if d.Kind() == ids.NamespaceObject {
 		return authorization.UsagePrivilege | authorization.CreatePrivilege
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
@@ -314,11 +315,11 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	}
 	return authorization.TableGrantPrivileges
 }
-func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
+func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
 	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.Domain() != v.engine.domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
-	d, ok := v.catalog.Descriptor(ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
+	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
 	if !ok || ref.Address.SubID < 0 {
 		return nil, fmt.Errorf("stuntgres: invalid authorization object")
 	}
@@ -334,7 +335,7 @@ func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	}
 	return d, nil
 }
-func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authorization.Privileges, error) {
+func (v AuthorizationView) Effective(ref ids.ObjectRef, grantOptions bool) (authorization.Privileges, error) {
 	d, err := v.object(ref)
 	if err != nil {
 		return 0, err
@@ -375,13 +376,13 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 		}
 	}
 	rights := authorization.ACLRights(acl, owner, principals, mask, grantOptions)
-	if d.Kind() == DatabaseObject && !acl.Explicit && !grantOptions {
+	if d.Kind() == ids.DatabaseObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.DatabasePublicPrivileges
 	}
-	if d.Kind() == ProcedureObject && !acl.Explicit && !grantOptions {
+	if d.Kind() == ids.ProcedureObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.ExecutePrivilege
 	}
-	if d.Kind() == TypeObject && !acl.Explicit && !grantOptions {
+	if d.Kind() == ids.TypeObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.UsagePrivilege
 	}
 	if ref.Address.SubID > 0 {
@@ -398,7 +399,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		return err
 	}
 	if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && !req.OwnerOnly && req.Privileges == authorization.UsagePrivilege {
-		req.Object.Address.ObjectID = OID(t.typ.Element().ID())
+		req.Object.Address.ObjectID = ids.OID(t.typ.Element().ID())
 		return v.Check(req)
 	}
 	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
@@ -427,21 +428,21 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			path, _ := v.engine.referencePath(v)
 			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.catalog, t, path))
 		}
-		if d.Kind() == NamespaceObject {
+		if d.Kind() == ids.NamespaceObject {
 			kind = "schema"
-		} else if d.Kind() == CollationObject {
+		} else if d.Kind() == ids.CollationObject {
 			kind = "collation"
-		} else if d.Kind() == ConversionObject {
+		} else if d.Kind() == ids.ConversionObject {
 			kind = "conversion"
-		} else if d.Kind() == OperatorObject {
+		} else if d.Kind() == ids.OperatorObject {
 			kind = "operator"
-		} else if d.Kind() == ProcedureObject {
+		} else if d.Kind() == ids.ProcedureObject {
 			kind = "function"
-		} else if d.Kind() == DatabaseObject {
+		} else if d.Kind() == ids.DatabaseObject {
 			kind = "database"
-		} else if d.Kind() == ForeignWrapperObject {
+		} else if d.Kind() == ids.ForeignWrapperObject {
 			kind = "foreign-data wrapper"
-		} else if d.Kind() == ForeignServerObject {
+		} else if d.Kind() == ids.ForeignServerObject {
 			kind = "foreign server"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			kind = "sequence"
@@ -457,7 +458,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind == indexRelation {
 			kind = "index"
 		}
-		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
+		if req.Object.Address.SubID > 0 && d.Kind() == ids.RelationObject {
 			kind = "relation"
 		}
 		if req.OwnerNoun != "" {
@@ -488,17 +489,17 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		path, _ := v.engine.referencePath(v)
 		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
 	}
-	if d.Kind() == NamespaceObject {
+	if d.Kind() == ids.NamespaceObject {
 		kind = "schema"
-	} else if d.Kind() == DatabaseObject {
+	} else if d.Kind() == ids.DatabaseObject {
 		kind = "database"
-	} else if d.Kind() == TablespaceObject {
+	} else if d.Kind() == ids.TablespaceObject {
 		kind = "tablespace"
-	} else if d.Kind() == ProcedureObject {
+	} else if d.Kind() == ids.ProcedureObject {
 		kind = "function"
-	} else if d.Kind() == ForeignWrapperObject {
+	} else if d.Kind() == ids.ForeignWrapperObject {
 		kind = "foreign-data wrapper"
-	} else if d.Kind() == ForeignServerObject {
+	} else if d.Kind() == ids.ForeignServerObject {
 		kind = "foreign server"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
@@ -512,15 +513,15 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "materialized view"
 	}
 	name := d.Name()
-	if d.Kind() == DatabaseObject {
+	if d.Kind() == ids.DatabaseObject {
 		name = dependencyIdentifier(name)
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, name))
 }
-func (v AuthorizationView) CanUse(ref ObjectRef) error {
+func (v AuthorizationView) CanUse(ref ids.ObjectRef) error {
 	return v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege})
 }
-func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
+func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
 	return v.Check(AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege})
 }
 func validateACL(r authorization.Read, d Descriptor) error {
@@ -782,7 +783,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 }
 
 // SetObjectACL publishes an owned immutable ACL payload for internal features.
-func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorization.ACLValue) error {
+func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch {

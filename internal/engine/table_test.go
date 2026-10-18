@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -97,7 +98,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	state(t, err, "2BP01")
 	owner, _ := e.Roles().Lookup("schema_owner")
 	replacement := cloneCatalog(e.CatalogRead().state)
-	nsaddr := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	nsaddr := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	ns := *replacement.descriptors[nsaddr].(*namespaceDescriptor)
 	ns.owner = owner.Ref
 	replacement.descriptors[nsaddr] = &ns
@@ -125,8 +126,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 		t.Run(tc.identifier, func(t *testing.T) {
 			e := New()
 			var winner CatalogRead
-			var winnerRef ObjectRef
-			var loser ObjectAddress
+			var winnerRef ids.ObjectRef
+			var loser ids.ObjectAddress
 			e.providers[RelationClassID] = &publicationConflictProvider{
 				CatalogProvider: e.providers[RelationClassID],
 				publishWinner: func(d Descriptor) {

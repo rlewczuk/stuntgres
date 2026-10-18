@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 		t.Fatal(err)
 	}
 	typ := &typeDescriptor{typ: domain, namespace: d.namespace, revision: 1, owner: d.owner}
-	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: d.namespace, name: "consumer", revision: 1, owner: d.owner, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, attributes: []int32{1, 7}, attributeHighWater: 7, index: map[string]int{"id": 0, "v": 1}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: d.namespace, name: "consumer", revision: 1, owner: d.owner, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, attributes: []int32{1, 7}, attributeHighWater: 7, index: map[string]int{"id": 0, "v": 1}}
 	for _, descriptor := range []Descriptor{d, typ, table} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
@@ -33,7 +34,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	}
 	snapshot := e.stageRead(stage)
 	closureStage := e.BeginCatalogStage(snapshot)
-	edges, err := domainDependencyClosure(context.Background(), closureStage, []ObjectAddress{d.Address()})
+	edges, err := domainDependencyClosure(context.Background(), closureStage, []ids.ObjectAddress{d.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = domainDependencyClosure(ctx, closureStage, []ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
+	if _, err = domainDependencyClosure(ctx, closureStage, []ids.ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("closure ignored cancellation", err)
 	}
 }

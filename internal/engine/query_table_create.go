@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
 	if _, exists := auth.catalog.state.names[key]; exists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
@@ -100,7 +101,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 			dependencyType = dependencyType.Element()
 		}
 		if dependencyType.IsUserDefined() {
-			address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(dependencyType.ID())}
+			address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
 			if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
@@ -190,7 +191,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if err != nil {
 		return err
 	}
-	stage.initialTables = map[ObjectAddress]*relationStorage{d.address: {versions: versions}}
+	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.address: {versions: versions}}
 	stage.initialTx = ref
 	return nil
 }

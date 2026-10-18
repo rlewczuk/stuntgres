@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -80,7 +81,10 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { t.Fatal("identity leaf invented a catalog reference", ref); return ref }, nil)
+			remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef {
+				t.Fatal("identity leaf invented a catalog reference", ref)
+				return ref
+			}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

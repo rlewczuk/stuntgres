@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	boolean, _ := catalog.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
 	literal := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref}, value: sqltype.String(regclass, "10000")}
-	definition := columnDefault{expression: literal, dependencies: []ObjectRef{ref}}
+	definition := columnDefault{expression: literal, dependencies: []ids.ObjectRef{ref}}
 	if !defaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
 	}

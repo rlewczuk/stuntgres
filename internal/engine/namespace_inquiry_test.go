@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			var carried *namespaceDescriptor
 			if prior {
 				scope.catalog = newCatalogChanges()
-				carried = &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 999999}, name: "private_carried", owner: e.authorizationDomain.Principal(10), revision: 1}
+				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 999999}, name: "private_carried", owner: e.authorizationDomain.Principal(10), revision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.address, carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)
@@ -41,7 +42,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			}
 			id := temporaryNamespace(auth)
 			candidate := scope.catalog
-			if id == (ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.state != base || s.temporaryNamespace != (ObjectAddress{}) {
+			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) {
 				e.mu.Unlock()
 				t.Fatal("private first-use candidate", id, path)
 			}
@@ -57,7 +58,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			}
 			oidType, _ := auth.catalog.LookupType(sqltype.Oid)
 			boolType, _ := auth.catalog.LookupType(sqltype.Bool)
-			var toast ObjectAddress
+			var toast ids.ObjectAddress
 			for a, d := range candidate.descriptors {
 				if n, ok := d.(*namespaceDescriptor); ok && n.temporaryToast && n.temporary == s.token {
 					toast = a
@@ -70,11 +71,11 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				t.Fatal(err)
 			}
 			got, err := value.OID()
-			if err != nil || OID(got) != id.ObjectID {
+			if err != nil || ids.OID(got) != id.ObjectID {
 				t.Fatal("getter missed statement overlay", got, err)
 			}
 			input, err := sqltype.OIDValue(oidType, uint32(toast.ObjectID))
-			if err != nil || toast == (ObjectAddress{}) {
+			if err != nil || toast == (ids.ObjectAddress{}) {
 				t.Fatal("TOAST pair", err)
 			}
 			classifier := namespaceInquiryExpression{expressionInfo: expressionInfo{usage: boolType.Usage(), properties: ExprProperties{Volatility: Stable}}, kind: otherTempNamespace, arg: literalExpression{expressionInfo: expressionInfo{usage: oidType.Usage()}, value: input}}
@@ -89,7 +90,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err := scope.Finish(failure); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
-			if e.state != base || s.temporaryNamespace != (ObjectAddress{}) || s.transactions.catalog != nil {
+			if e.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || s.transactions.catalog != nil {
 				t.Fatal("Finish veto published namespace")
 			}
 		})

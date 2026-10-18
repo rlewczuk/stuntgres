@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -77,7 +78,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if walked != 1 || !sameGroupExpression(original, original) {
 		t.Fatal("closed child traversal", walked)
 	}
-	copy, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+	copy, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !sameGroupExpression(original, copy) {
 		t.Fatal(copy, err)
 	}

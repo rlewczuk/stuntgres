@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,14 +14,14 @@ import (
 func TestTimezoneSourceDescriptors(t *testing.T) {
 	e := New()
 	for _, tc := range []struct {
-		oid   OID
+		oid   ids.OID
 		names []string
 		types []sqltype.ID
 	}{
 		{12005, []string{"name", "abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Interval, sqltype.Bool}},
 		{12004, []string{"abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Interval, sqltype.Bool}},
 	} {
-		d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
+		d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
 		if !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != len(tc.names) {
 			t.Fatal(d)
 		}
@@ -56,7 +57,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 
 func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	e := New()
-	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12005}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12005}].(*relationDescriptor)
 	ref := e.domain.Ref(e.state.epoch, d.address)
 	boundary := time.Date(2024, 3, 10, 7, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
@@ -126,14 +127,14 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 	session.settings.mu.Unlock()
 	for range 2 {
 		for _, tc := range []struct {
-			oid    OID
+			oid    ids.OID
 			label  string
 			offset int64
 		}{
 			{12005, "America/New_York", -18000000000},
 			{12004, "IST", 7200000000},
 		} {
-			d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
+			d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
 			ref := e.domain.Ref(e.state.epoch, d.address)
 			e.mu.Lock()
 			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil, nil)

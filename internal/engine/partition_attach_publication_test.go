@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,7 +31,7 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*relationD
 	}
 }
 
-func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id OID) *relationDescriptor {
+func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *relationDescriptor {
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
 	d.relationKind = partitionedRelation
@@ -49,7 +50,7 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, catalog CatalogRead, pare
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	p, c := *parent, *child
 	definition := *p.partition
-	definition.children = append(append([]ObjectAddress(nil), definition.children...), child.address)
+	definition.children = append(append([]ids.ObjectAddress(nil), definition.children...), child.address)
 	definition.defaultChild = child.address
 	p.partition = &definition
 	p.revision++
@@ -108,7 +109,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			store := e.storage[child.address]
 			stage.partitionReads = []partitionReadFence{{address: child.address, storage: store, length: len(store.versions), ends: store.ends, generation: store.generation}}
 			// A real captured type provider is an exact publication predecessor.
-			providerAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Int4)}
+			providerAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 			stage.domainBases = append(stage.domainBases, e.state.descriptors[providerAddress])
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

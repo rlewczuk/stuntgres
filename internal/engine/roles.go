@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -154,10 +155,10 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 }
 
 type roleDependency struct {
-	address     ObjectAddress
+	address     ids.ObjectAddress
 	kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
 	description string
-	policyTable ObjectAddress
+	policyTable ids.ObjectAddress
 	policyName  string
 }
 
@@ -168,14 +169,14 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
 				if !role.public && role.ref == ref {
-					if recordRoleDependency(deps, roleDependency{address: ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
+					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
 						return true
 					}
 				}
 			}
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
+	if typ, ok := d.(*typeDescriptor); ok && typ.owningRelation != (ids.ObjectAddress{}) {
 		// Dependent row/array ownership belongs to the relation; independent
 		// composite types still carry their own named ACL dependency.
 		if !typ.typ.IsComposite() {
@@ -211,7 +212,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 	return false
 }
 
-func aclRoleDependencies(address ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	for _, entry := range acl.Entries {
 		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
 			return recordRoleDependency(deps, roleDependency{address: address, kind: 'a'})
@@ -277,16 +278,16 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 	return relationDiagnosticNameAt(auth.catalog, relation, path)
 }
 
-func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) bool {
+func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
-		if a, ok := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
+		if a, ok := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
 			return a == relation.address
 		}
 	}
 	return false
 }
 
-func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) string {
+func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) string {
 	name := dependencyIdentifier(relation.name)
 	if relationVisibleAt(catalog, relation, path) {
 		return name
@@ -334,7 +335,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.state.descriptors[foreign.server].Name())
 		}
 	}
-	if d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject {
+	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
 		path, _ := auth.engine.referencePath(auth)
 		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)
 	}
@@ -353,7 +354,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		}
 		if relation.relationKind == compositeRelation {
 			path, _ := auth.engine.referencePath(auth)
-			typ := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+			typ := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,37 +13,37 @@ import (
 type sequenceDeletePublicationSnapshot struct {
 	state                   *catalogState
 	catalog                 catalogState
-	descriptors             map[ObjectAddress]Descriptor
-	names                   map[NameKey]ObjectAddress
+	descriptors             map[ids.ObjectAddress]Descriptor
+	names                   map[ids.NameKey]ids.ObjectAddress
 	storageID, generatorsID uintptr
-	stores                  map[ObjectAddress]*relationStorage
-	generators              map[ObjectAddress]*sequenceGenerator
-	generatorValues         map[ObjectAddress]sequenceGenerator
+	stores                  map[ids.ObjectAddress]*relationStorage
+	generators              map[ids.ObjectAddress]*sequenceGenerator
+	generatorValues         map[ids.ObjectAddress]sequenceGenerator
 	store                   *relationStorage
 	root                    []rowVersion
 	rows                    []rowVersion
 	ends                    *deletionRoot
 	endValues               map[RowID]rowEnd
 	frontier                CommitSeq
-	temporary, last         ObjectAddress
+	temporary, last         ids.ObjectAddress
 	memoryID                uintptr
-	memory                  map[ObjectAddress]*sequenceMemory
-	memoryValues            map[ObjectAddress]sequenceMemory
+	memory                  map[ids.ObjectAddress]*sequenceMemory
+	memoryValues            map[ids.ObjectAddress]sequenceMemory
 }
 
-func captureSequenceDeletePublication(e *Engine, s *Session, table ObjectAddress) sequenceDeletePublicationSnapshot {
+func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
 		state: e.state, catalog: *e.state,
-		descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress),
+		descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
 		storageID:       uintptr(reflect.ValueOf(e.storage).UnsafePointer()),
 		generatorsID:    uintptr(reflect.ValueOf(e.sequences).UnsafePointer()),
-		stores:          make(map[ObjectAddress]*relationStorage),
-		generators:      make(map[ObjectAddress]*sequenceGenerator),
-		generatorValues: make(map[ObjectAddress]sequenceGenerator),
+		stores:          make(map[ids.ObjectAddress]*relationStorage),
+		generators:      make(map[ids.ObjectAddress]*sequenceGenerator),
+		generatorValues: make(map[ids.ObjectAddress]sequenceGenerator),
 		store:           e.storage[table], frontier: e.commitSeq,
 		temporary: s.temporaryNamespace, last: s.lastSequence,
 		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
-		memory:   make(map[ObjectAddress]*sequenceMemory), memoryValues: make(map[ObjectAddress]sequenceMemory),
+		memory:   make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
 	}
 	for a, d := range e.state.descriptors {
 		p.descriptors[a] = d
@@ -107,7 +108,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	}
 }
 
-func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ObjectAddress, firstTemp bool) {
+func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ids.ObjectAddress, firstTemp bool) {
 	t.Helper()
 	tx := s.transactions
 	if tx.state != TxActive || len(tx.writes[table]) != 2 || tx.deletes[table] == nil || len(tx.deletes[table].rows) != 3 || tx.catalog == nil {
@@ -118,7 +119,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		t.Fatal("fixture must contain a private restarted generator")
 	}
 	if firstTemp {
-		if s.temporaryNamespace != (ObjectAddress{}) {
+		if s.temporaryNamespace != (ids.ObjectAddress{}) {
 			t.Fatal("fixture reused a published TEMP namespace")
 		}
 		var namespaces, temps int

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestTableLikeSourceAdmission(t *testing.T)          { tableLikeAdmission(t, "source") }
@@ -92,7 +94,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					for _, dependency := range index.sqlIndex.predicate.dependencies {
 						retained = retained || dependency == ref
 					}
-					var executionDependencies []ObjectRef
+					var executionDependencies []ids.ObjectRef
 					if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), index.sqlIndex.predicate.execution); err != nil {
 						t.Fatal(err)
 					}
@@ -201,7 +203,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				if outcome == "cancel" && ctx.Err() != context.Canceled {
 					t.Fatal(err)
 				}
-				if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "clone"})) != 0 {
+				if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "clone"})) != 0 {
 					t.Fatal("partial clone published")
 				}
 			}

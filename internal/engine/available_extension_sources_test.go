@@ -7,19 +7,20 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func availableUnitSource(e *Engine, oid OID) (*relationDescriptor, ObjectRef) {
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 	return e.state.descriptors[a].(*relationDescriptor), e.domain.Ref(e.state.epoch, a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	e, foreign := New(), New()
 	for _, spec := range []struct {
-		oid, row, array OID
+		oid, row, array ids.OID
 		names           []string
 		ids             []sqltype.ID
 		collations      []uint32
@@ -50,8 +51,8 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		row := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
-		array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
+		row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
+		array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
 		ownedArray, ok := e.CatalogRead().LookupArray(row.typ)
 		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
@@ -69,7 +70,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version any, installed bool) {
 	t.Helper()
 	comment := "text search dictionary that removes accents"
-	for _, oid := range []OID{12081, 12085} {
+	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureAvailableExtensions(context.Background(), e.extensions, catalog, ref, d)
 		if err != nil || source == nil || source.count() != 6 || source.ref != ref {
@@ -137,7 +138,7 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	state := *e.state
 	state.descriptors = maps.Clone(e.state.descriptors)
 	state.names = maps.Clone(e.state.names)
-	address := state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+	address := state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 	ext := *state.descriptors[address].(*extensionDescriptor)
 	ext.version = "available-unknown"
 	state.descriptors[address] = &ext
@@ -147,7 +148,7 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	unavailable.address.ObjectID++
 	unavailable.name = "unavailable-component-fixture"
 	state.descriptors[unavailable.address] = &unavailable
-	state.names[NameKey{ClassID: ExtensionClassID, Name: unavailable.name}] = unavailable.address
+	state.names[ids.NameKey{ClassID: ExtensionClassID, Name: unavailable.name}] = unavailable.address
 	availableUnitExpected(t, e, CatalogRead{owner: e, state: &state}, "available-unknown", false)
 }
 
@@ -157,7 +158,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	empty, schema := "", "fixed_control_schema"
 	metadata := registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &empty, schema: &schema, requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
-	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{version: "1.1", targetNamespace: ObjectAddress{ObjectID: 999}}, d)
+	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{version: "1.1", targetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}

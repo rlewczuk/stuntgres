@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,9 +43,9 @@ func TestPreparedRebindValidity(t *testing.T) {
 	if cell == nil || len(cell.sources) != 2 {
 		t.Fatal("occurrences were collapsed", cell)
 	}
-	var source ObjectRef
+	var source ids.ObjectRef
 	for _, occurrence := range cell.sources {
-		if source == (ObjectRef{}) {
+		if source == (ids.ObjectRef{}) {
 			source = occurrence.ref
 		}
 		if occurrence.ref != source || occurrence.query == nil {
@@ -135,7 +136,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		reader, _ := engine.Roles().Lookup("acl_reader")
 		usage := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege}}}
 		early, late := schemaRef(t, engine, "a"), schemaRef(t, engine, "b")
-		set := func(ref ObjectRef, acl authorization.ACLValue) {
+		set := func(ref ids.ObjectRef, acl authorization.ACLValue) {
 			t.Helper()
 			if err := engine.SetObjectACL(context.Background(), ref, acl); err != nil {
 				t.Fatal(err)
@@ -150,7 +151,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		if description.analysis == nil || len(description.analysis.sources) != 1 || qualified.analysis == nil || len(qualified.analysis.sources) != 1 {
 			t.Fatal("missing initial prepared namespace identities")
 		}
-		bound := engine.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: late.Address, Name: "t"})[0]
+		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: late.Address, Name: "t"})[0]
 		for _, source := range description.analysis.sources {
 			if source.ref.Address != bound {
 				t.Fatal("inaccessible early schema participated in initial resolution")
@@ -166,7 +167,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			t.Fatal(err)
 		}
 		result.Rows.Close()
-		bound = engine.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: early.Address, Name: "t"})[0]
+		bound = engine.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: early.Address, Name: "t"})[0]
 		if description.analysis == initial {
 			t.Fatal("schema-USAGE invalidation did not publish a new identity cell")
 		}
@@ -215,7 +216,7 @@ func TestPreparedRebindDependencyManifest(t *testing.T) {
 		"MERGE INTO t USING outer_view AS src ON t.v=src.v WHEN NOT MATCHED THEN INSERT(v) VALUES(src.v)",
 	} {
 		_, description := sequencePreparedDescription(t, e, s, query)
-		seen := make(map[ObjectAddress]bool)
+		seen := make(map[ids.ObjectAddress]bool)
 		for _, dependency := range description.analysis.dependencies {
 			seen[dependency.ref.Address] = true
 		}
@@ -248,7 +249,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := engine.describe(op.ctx, ast, auth, ObjectRef{}, input, op, expected, nil)
+			bound, err := engine.describe(op.ctx, ast, auth, ids.ObjectRef{}, input, op, expected, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

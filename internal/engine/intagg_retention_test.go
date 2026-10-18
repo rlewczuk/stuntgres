@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		b, err := e.describe(op.Context(), raw, auth, ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
+		b, err := e.describe(op.Context(), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -39,7 +40,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace.address, name: name, revision: revision, owner: namespace.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace.address, name: name, revision: revision, owner: namespace.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 		definition.consumer = d.address
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {

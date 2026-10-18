@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -93,7 +94,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	if err := partitionPhysicalDescendants(catalog, candidate, capture); err != nil {
 		return err
 	}
-	refs := make([]ObjectRef, 0, len(jobs))
+	refs := make([]ids.ObjectRef, 0, len(jobs))
 	for _, job := range jobs {
 		if job.exclude {
 			if err := capture(job.leaf); err != nil {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -55,7 +56,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func (s *StatementScope) acceptInsertReturning(ref ObjectRef, candidate *indexWriteCandidate, evaluation *EvalContext) (bool, error) {
+func (s *StatementScope) acceptInsertReturning(ref ids.ObjectRef, candidate *indexWriteCandidate, evaluation *EvalContext) (bool, error) {
 	row := candidate.values
 	if s.insertConflict != nil && s.insertConflict.update != nil {
 		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
@@ -91,7 +92,7 @@ func (s *StatementScope) acceptInsertReturning(ref ObjectRef, candidate *indexWr
 
 // The same catalog/index authority as canonical batch staging performs the
 // final gate. One immutable row is appended to amortized stage storage.
-func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, candidate *indexWriteCandidate) (bool, bool, error) {
+func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWriteCandidate) (bool, bool, error) {
 	row := candidate.values
 	s := w.scope
 	if err := s.active(); err != nil {
@@ -168,19 +169,19 @@ func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, candidate *indexWriteCa
 		}
 	}
 	if w.rows == nil {
-		w.rows = make(map[ObjectAddress][]rowVersion)
+		w.rows = make(map[ids.ObjectAddress][]rowVersion)
 	}
 	w.rows[ref.Address] = append(w.rows[ref.Address], version)
 	return true, false, nil
 }
-func (s *StatementScope) partitionReturningGroup(ref ObjectRef) *partitionInsertGroup {
+func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
 	address := state.destination.address
 	group := state.groups[address]
 	if group == nil {
 		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
-			state.groups = make(map[ObjectAddress]*partitionInsertGroup)
+			state.groups = make(map[ids.ObjectAddress]*partitionInsertGroup)
 		}
 		state.groups[address] = group
 		state.order = append(state.order, group)

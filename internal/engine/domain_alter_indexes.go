@@ -1,9 +1,11 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Engine.mu is held. Reuse the native snapshot scalar/key transport, retaining
 // every version and every produced predicate/expression result. ALTER must not
 // turn a metadata generation change into another CHECK or index truth event.
-func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ObjectAddress]*relationStorage) error {
+func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ids.ObjectAddress]*relationStorage) error {
 	for address, store := range stores {
 		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.base.state, next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
@@ -11,11 +13,11 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 		stores[address] = rebound
 	}
-	sources := make(map[ObjectAddress]*relationStorage, len(stores))
+	sources := make(map[ids.ObjectAddress]*relationStorage, len(stores))
 	for address := range stores {
 		sources[address] = e.stageStorageLocked(stage, address)
 	}
-	sourceRoots := make(map[ObjectAddress]*logicalIndexRoot)
+	sourceRoots := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for address, descriptor := range stage.base.state.descriptors {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && sources[index.sqlIndex.parent] != nil {
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
@@ -32,7 +34,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if len(snapshot.sources) == 0 {
 		return nil
 	}
-	positions := make(map[ObjectAddress]map[indexRowIdentity]int)
+	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int)
 	for _, source := range snapshot.sources {
 		address := source.parent.address
 		if positions[address] != nil {
@@ -50,10 +52,10 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		return err
 	}
 	if stage.indexCandidates == nil {
-		stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate, len(roots))
+		stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
 	}
 	if stage.domainIndexRoots == nil {
-		stage.domainIndexRoots = make(map[ObjectAddress]*logicalIndexRoot, len(roots))
+		stage.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(roots))
 	}
 	for address, root := range roots {
 		index := next.descriptors[address].(*relationDescriptor)

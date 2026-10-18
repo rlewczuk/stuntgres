@@ -6,13 +6,14 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 2396}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2396}
 	d, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
@@ -171,8 +172,8 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 	if err != nil || len(pgShDescriptionUnitBag(t, captured)) != 0 {
 		t.Fatal("no invented bootstrap comment", err)
 	}
-	class := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ObjectRef{}, class)
+	class := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +235,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	catalog := cloneCatalog(e.state)
-	local := ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
+	local := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
 	catalog.descriptors[local] = &relationDescriptor{address: local, comment: "local collision"}
 	read := CatalogRead{owner: e, state: catalog}
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
@@ -284,7 +285,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	replacement.Comment = "new"
 	putFixtureRole(updated, replacement)
 	e.roles = updated
-	open := func(scope *StatementScope, ref ObjectRef) *querySource {
+	open := func(scope *StatementScope, ref ids.ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
 		source, err := e.openRelationSourceLocked(scope, ref, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
@@ -297,10 +298,10 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		t.Fatal("opening resampled live roles")
 	}
 	// Construct typed immutable nested views, then use the actual relocking seam.
-	addView := func(id OID, name string, leaf ObjectRef) ObjectRef {
+	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ObjectAddress{ClassID: RelationClassID, ObjectID: id}
-		view.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		view.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+		view.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 		view.name, view.relationKind = name, viewRelation
 		viewRef := e.domain.Ref(e.state.epoch, view.address)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}

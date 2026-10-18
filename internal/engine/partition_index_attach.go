@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,11 +37,11 @@ func (provider *dropProvider) partitionIndexCoverageComplete(index *relationDesc
 	return true
 }
 
-func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ObjectAddress) error {
+func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ids.ObjectAddress) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).partitionIndexValidity(promote)
 }
 
-func (provider *dropProvider) partitionIndexValidity(promote ObjectAddress) error {
+func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) error {
 	// Only explicit ATTACH INDEX can promote that index and its ancestors.
 	// Table edge changes preserve invalidity even when coverage becomes complete.
 	// Each pass resolves another level; the catalog validator rejects cycles.
@@ -66,7 +67,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ObjectAddress) erro
 			if index.sqlIndex.valid == valid {
 				continue
 			}
-			if index.revision == DefinitionRevision(^uint64(0)) {
+			if index.revision == ids.DefinitionRevision(^uint64(0)) {
 				return fmt.Errorf("stuntgres: definition revision exhausted")
 			}
 			next, definition := *index, *index.sqlIndex
@@ -85,12 +86,12 @@ func (provider *dropProvider) partitionIndexValidity(promote ObjectAddress) erro
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
 }
 
-func partitionIndexPromotionPath(view CatalogRead, start, target ObjectAddress) bool {
+func partitionIndexPromotionPath(view CatalogRead, start, target ids.ObjectAddress) bool {
 	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
 }
 
-func (provider *dropProvider) partitionIndexPromotionPath(start, target ObjectAddress) bool {
-	for remaining := provider.descriptorCount(); start != (ObjectAddress{}) && remaining > 0; remaining-- {
+func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.ObjectAddress) bool {
+	for remaining := provider.descriptorCount(); start != (ids.ObjectAddress{}) && remaining > 0; remaining-- {
 		if start == target {
 			return true
 		}
@@ -121,7 +122,7 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 	if child.sqlIndex.partitionParent == parent.address {
 		return nil
 	}
-	if child.sqlIndex.partitionParent != (ObjectAddress{}) {
+	if child.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.name))
 	}
 	if parent.sqlIndex.isExclusion() || child.sqlIndex.isExclusion() {
@@ -194,7 +195,7 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 	if err := partitionUniqueCoverage(table, d); err != nil {
 		return err
 	}
-	if d.partitionParent == (ObjectAddress{}) {
+	if d.partitionParent == (ids.ObjectAddress{}) {
 		for _, c := range table.uniqueConstraints {
 			if c.Index == index.address && c.Parent != 0 {
 				return fmt.Errorf("stuntgres: orphan partition constraint ancestry")
@@ -230,7 +231,7 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 		return fmt.Errorf("stuntgres: inconsistent partition index definition")
 	}
 	remaining := len(view.state.descriptors)
-	for address := d.partitionParent; address != (ObjectAddress{}); remaining-- {
+	for address := d.partitionParent; address != (ids.ObjectAddress{}); remaining-- {
 		if remaining == 0 || address == index.address {
 			return fmt.Errorf("stuntgres: cyclic partition index ancestry")
 		}
@@ -244,7 +245,7 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 		return fmt.Errorf("stuntgres: missing partition constraint backing")
 	}
 	if d.constraint != nil {
-		expected := OID(0)
+		expected := ids.OID(0)
 		if parent.sqlIndex.constraint != nil {
 			expected = parent.sqlIndex.constraint.OID
 		}
@@ -295,7 +296,7 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 			return false
 		}
 		table, ok := auth.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		if !ok || table.partition == nil && index.sqlIndex.partitionParent == (ObjectAddress{}) {
+		if !ok || table.partition == nil && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			return false
 		}
 	}

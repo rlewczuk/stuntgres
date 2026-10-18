@@ -8,17 +8,18 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func schemaRef(t *testing.T, e *Engine, name string) ObjectRef {
+func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
-	a := v.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
-	if a == (ObjectAddress{}) {
+	a := v.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]
+	if a == (ids.ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}
 	return e.domain.Ref(v.Epoch(), a)
@@ -305,7 +306,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		t.Helper()
 		ns := schemaRef(t, e, "mixed")
 		empty := schemaRef(t, e, "empty")
-		for _, a := range []ObjectAddress{ns.Address, empty.Address} {
+		for _, a := range []ids.ObjectAddress{ns.Address, empty.Address} {
 			d := e.state.descriptors[a].(*namespaceDescriptor)
 			if d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
 				t.Fatal("namespace owner/ACL", d)

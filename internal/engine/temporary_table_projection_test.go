@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -46,7 +47,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	indexes, err := e.prepareTemporarySessionIndexes(stage)
@@ -59,7 +60,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 func temporaryProjectionInstall(e *Engine, owner *Session, provider *relationDescriptor, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.installTemporarySessionStageLocked(owner, stage, []ObjectAddress{provider.namespace}, indexes)
+	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.namespace}, indexes)
 }
 
 func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
@@ -69,7 +70,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			oldRows := e.storage[survivor.address].versions
 			stage, indexes := temporaryProjectionStage(t, e, provider)
 			captured := e.state
-			var unrelated ObjectAddress
+			var unrelated ids.ObjectAddress
 			var unrelatedRoot *logicalIndexRoot
 			switch mode {
 			case "CurrentRows":
@@ -145,9 +146,9 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	originalStore := e.storage[survivor.address]
 	retained := originalStore.versions
 	maximum := *survivor
-	maximum.revision = DefinitionRevision(^uint64(0))
+	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	maximumIndex := *index
-	maximumIndex.revision = DefinitionRevision(^uint64(0))
+	maximumIndex.revision = ids.DefinitionRevision(^uint64(0))
 	maximumStore := *originalStore
 	maximumStore.generation = ^uint64(0)
 	e.state = cloneCatalog(original)
@@ -215,7 +216,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape(a INT,g BOOL GENERATED ALWAYS AS('private_shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)")
 	sessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
 	before := cloneCatalogChanges(owner.transactions.catalog)
-	var address ObjectAddress
+	var address ids.ObjectAddress
 	for a, d := range before.descriptors {
 		if relation, ok := d.(*relationDescriptor); ok && relation.name == "private_shape" {
 			address = a
@@ -256,13 +257,13 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 			e.state = cloneCatalog(original)
 			switch counter {
 			case "Table":
-				maximum.revision = DefinitionRevision(^uint64(0))
+				maximum.revision = ids.DefinitionRevision(^uint64(0))
 				e.state.descriptors[survivor.address] = &maximum
 			case "Storage":
 				maximumStore.generation = ^uint64(0)
 				e.storage[survivor.address] = &maximumStore
 			case "Index":
-				maximumIndex.revision = DefinitionRevision(^uint64(0))
+				maximumIndex.revision = ids.DefinitionRevision(^uint64(0))
 				e.state.descriptors[index.address] = &maximumIndex
 			}
 			captured := e.state
@@ -273,10 +274,10 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 				}
 			})
 			stage := e.BeginCatalogStage(e.CatalogRead())
-			err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{})
+			err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
 			if err == nil {
 				e.mu.Lock()
-				err = e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil)
+				err = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 				e.mu.Unlock()
 			}
 			want := map[string]string{"Table": "stuntgres: definition revision exhausted", "Storage": "stuntgres: storage generation exhausted", "Index": "stuntgres: index revision exhausted"}[counter]

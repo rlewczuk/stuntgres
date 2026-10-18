@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -41,7 +42,7 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor
 	name := r.identifier(parent.name)
 	visible := false
 	for _, namespace := range path {
-		if a, ok := view.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
+		if a, ok := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
 			visible = a == parent.address
 			break
 		}
@@ -105,11 +106,11 @@ func foreignKeyActionSQL(action parser.ForeignKeyAction) (string, error) {
 // Column retirement already owns local AUTO definitions and shape projection.
 // Consume only FK metadata edges from shared discovery; never reenter the
 // whole-provider projection controller before the column's own pruning.
-func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, target ObjectAddress, mode parser.DropMode, scope *StatementScope) ([]domainDependency, error) {
+func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, target ids.ObjectAddress, mode parser.DropMode, scope *StatementScope) ([]domainDependency, error) {
 	return stageDropProvider(ctx, stage, scope, nil, nil).foreignKeyColumnDependencies(target, mode)
 }
 
-func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
+func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
 	scope := provider.scope
 	present := false
 	for address, descriptor := range provider.inputDescriptors() {
@@ -124,7 +125,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress,
 	if !present {
 		return nil, nil
 	}
-	discovered, err := provider.dependencyClosure([]ObjectAddress{target})
+	discovered, err := provider.dependencyClosure([]ids.ObjectAddress{target})
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress,
 		}
 	}
 	if scope != nil && mode == parser.DropCascade {
-		var owners []ObjectRef
+		var owners []ids.ObjectRef
 		for _, edge := range foreign {
 			if edge.automatic {
 				continue
@@ -157,7 +158,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress,
 				owners = append(owners, ref)
 			}
 		}
-		slices.SortFunc(owners, func(a, b ObjectRef) int {
+		slices.SortFunc(owners, func(a, b ids.ObjectRef) int {
 			if a.Address.ObjectID < b.Address.ObjectID {
 				return -1
 			}
@@ -289,8 +290,8 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 	return parent, nil
 }
 
-func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, address ObjectAddress) error {
-	var refs []ObjectRef
+func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, address ids.ObjectAddress) error {
+	var refs []ids.ObjectRef
 	e := s.op.session.Engine()
 	for _, descriptor := range view.state.descriptors {
 		child, ok := descriptor.(*relationDescriptor)
@@ -301,7 +302,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 			if child.address != address && f.Target != address {
 				continue
 			}
-			for _, a := range []ObjectAddress{child.address, f.Target} {
+			for _, a := range []ids.ObjectAddress{child.address, f.Target} {
 				ref := e.domain.Ref(view.Epoch(), a)
 				if !slices.Contains(refs, ref) {
 					refs = append(refs, ref)
@@ -309,7 +310,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 			}
 		}
 	}
-	slices.SortFunc(refs, func(a, b ObjectRef) int {
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int {
 		if a.Address.ObjectID < b.Address.ObjectID {
 			return -1
 		}
@@ -326,7 +327,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 	return nil
 }
 
-func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ObjectAddress) error {
+func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.ObjectAddress) error {
 	auth, err := s.op.Authorization()
 	if err != nil {
 		return err
@@ -349,7 +350,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 			if err != nil {
 				return err
 			}
-			children, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), child.address), ObjectAddress{})
+			children, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
 			if err != nil {
 				return err
 			}
@@ -368,7 +369,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 // Nested CREATE SCHEMA definitions share the normal candidate. Newly created
 // providers need no live grant; external parents retain the canonical DDL mode.
 func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStage) error {
-	var refs []ObjectRef
+	var refs []ids.ObjectRef
 	for address, descriptor := range stage.descriptors {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
@@ -393,7 +394,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	if len(refs) == 0 {
 		return nil
 	}
-	slices.SortFunc(refs, func(a, b ObjectRef) int {
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int {
 		if a.Address.ObjectID < b.Address.ObjectID {
 			return -1
 		}

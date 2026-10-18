@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -110,7 +111,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 	}
 }
 
-func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *typeDescriptor, ObjectAddress) {
+func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *typeDescriptor, ids.ObjectAddress) {
 	t.Helper()
 	e, owner, finishOwner, memberAddress := typedReviewACLFixture(t)
 	if member {
@@ -120,7 +121,7 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 	}
 	backing := roleTableRef(t, e, "pair")
 	sourceRelation := e.CatalogRead().state.descriptors[backing.Address].(*relationDescriptor)
-	source := e.CatalogRead().state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sourceRelation.rowType)}].(*typeDescriptor)
+	source := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)}].(*typeDescriptor)
 	reader, done := roleOperation(t, e, "typed_reader")
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)

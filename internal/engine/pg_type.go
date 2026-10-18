@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-const pgTypeOID OID = 1247
+const pgTypeOID ids.OID = 1247
 
 var pgTypeColumnIDs = [...]sqltype.ID{26, 19, 26, 26, 21, 16, 18, 18, 16, 16, 18, 26, 24, 26, 26, 24, 24, 24, 24, 24, 24, 24, 18, 18, 16, 26, 23, 23, 26, 194, 25, 1034}
 
@@ -19,10 +20,10 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 		return false
 	}
 	if d.typ.IsArray() {
-		element, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}].(*typeDescriptor)
+		element, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}].(*typeDescriptor)
 		return ok && element.typ == d.typ.Element() && element.array == d.typ.ID() && pgTypeAdmitted(catalog, element)
 	}
-	if d.owningRelation != (ObjectAddress{}) {
+	if d.owningRelation != (ids.ObjectAddress{}) {
 		r, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
 		return ok && r.rowType == d.typ.ID()
 	}
@@ -32,7 +33,7 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 
 func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata, error) {
 	if d.typ.IsArray() {
-		element, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}].(*typeDescriptor)
+		element, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}].(*typeDescriptor)
 		if !ok || element.typ != d.typ.Element() || element.array != d.typ.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign type array authority")
 		}
@@ -44,7 +45,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 	}
 	if d.typ.IsDomain() && d.typ.Concrete() {
 		usage := d.typ.DomainBase()
-		base, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}].(*typeDescriptor)
+		base, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(usage.Type.ID())}].(*typeDescriptor)
 		if !ok || base.typ != usage.Type {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign domain base authority")
 		}
@@ -54,7 +55,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 		}
 		return d.typ.PGTypeDomainMetadata(fact), nil
 	}
-	if d.owningRelation != (ObjectAddress{}) {
+	if d.owningRelation != (ids.ObjectAddress{}) {
 		relation, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
 		if !ok || relation.rowType != d.typ.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign row type authority")
@@ -87,11 +88,11 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ObjectAddress{ClassID: RelationClassID, ObjectID: pgTypeOID}) || source.relationKind != catalogRelation || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgTypeOID}) || source.relationKind != catalogRelation || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.columns) != len(pgTypeColumnIDs) {

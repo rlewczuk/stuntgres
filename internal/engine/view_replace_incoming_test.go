@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -88,7 +89,7 @@ func TestDropViewIndexWrongKindAtomicity(t *testing.T) {
 					roleExecute(t, e, op, q)
 				}
 				before := e.CatalogRead().state
-				refs := []ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "ix"), roleTableRef(t, e, "v")}
+				refs := []ids.ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "ix"), roleTableRef(t, e, "v")}
 				stmt := statement(t, query)
 				if prepared {
 					if _, err := e.Describe(op, stmt); err != nil {

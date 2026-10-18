@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
@@ -23,8 +25,8 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 2)
 	want.IndNatts = 5
 	want.IndKey = []int16{2, 3, 4, 4, 5}
-	want.IndClass = []OID{1981, 10004}
-	want.IndCollation = []OID{0, 950}
+	want.IndClass = []ids.OID{1981, 10004}
+	want.IndCollation = []ids.OID{0, 950}
 	want.IndOption = []int16{1, 2}
 	if !reflect.DeepEqual(got, want) || names.IndexDef != `CREATE INDEX decorated ON public.t USING btree (n oid_ops DESC NULLS LAST, s COLLATE "C" bpchar_ops NULLS FIRST) INCLUDE (p, p, j)` {
 		t.Fatal("actual classes, key-only vectors or include attributes lost", got, names, want)
@@ -131,12 +133,12 @@ func TestIndexMaintenanceMetadataAliasAndPatternClasses(t *testing.T) {
 			name                string
 			natts, nkeys        int16
 			attrs               []int16
-			classes, collations []OID
+			classes, collations []ids.OID
 			options             []int16
 			definition          string
 		}{
-			{"mixed", 5, 3, []int16{0, 4, 2, 6, 6}, []OID{4217, 10044, 1978}, []OID{951, 100, 0}, []int16{0, 0, 3}, `CREATE INDEX mixed ON public.t USING btree (lower(s) COLLATE "POSIX" text_pattern_ops, v varchar_ops, n DESC) INCLUDE (p, p)`},
-			{"patterns", 2, 2, []int16{4, 5}, []OID{4218, 4219}, []OID{950, 951}, []int16{0, 0}, `CREATE INDEX patterns ON public.t USING btree (v COLLATE "C" varchar_pattern_ops, b COLLATE "POSIX" bpchar_pattern_ops)`},
+			{"mixed", 5, 3, []int16{0, 4, 2, 6, 6}, []ids.OID{4217, 10044, 1978}, []ids.OID{951, 100, 0}, []int16{0, 0, 3}, `CREATE INDEX mixed ON public.t USING btree (lower(s) COLLATE "POSIX" text_pattern_ops, v varchar_ops, n DESC) INCLUDE (p, p)`},
+			{"patterns", 2, 2, []int16{4, 5}, []ids.OID{4218, 4219}, []ids.OID{950, 951}, []int16{0, 0}, `CREATE INDEX patterns ON public.t USING btree (v COLLATE "C" varchar_pattern_ops, b COLLATE "POSIX" bpchar_pattern_ops)`},
 		} {
 			t.Run(phase+"/"+c.name, func(t *testing.T) {
 				index, _ := btreeRoot(t, e, c.name)

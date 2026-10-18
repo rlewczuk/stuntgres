@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					provider := &typeDescriptor{typ: domain, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), revision: 1}
+					provider := &typeDescriptor{typ: domain, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), revision: 1}
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.attributes, p.attributeHighWater, p.index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
@@ -32,7 +33,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					case "column":
 						p.columns[0].Usage = domain.Usage()
 					case "default":
-						p.defaults = map[int32]columnDefault{3: {OID: 29003, dependencies: []ObjectRef{ref}}}
+						p.defaults = map[int32]columnDefault{3: {OID: 29003, dependencies: []ids.ObjectRef{ref}}}
 					case "check":
 						p.checkConstraints = []checkConstraint{{OID: 29003, Name: "authority_check", dependencies: []expressionDependency{{ref: ref}}}}
 					}
@@ -47,7 +48,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					base := e.CatalogRead()
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
-					remove := func(address ObjectAddress) {
+					remove := func(address ids.ObjectAddress) {
 						if err := stage.Remove(e.domain.Ref(base.Epoch(), address)); err != nil {
 							t.Fatal(err)
 						}
@@ -75,9 +76,9 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					roots := []ObjectAddress{provider.Address()}
+					roots := []ids.ObjectAddress{provider.Address()}
 					if authority == "unchanged" {
-						roots = []ObjectAddress{c.address}
+						roots = []ids.ObjectAddress{c.address}
 					}
 					if authority == "whole" {
 						remove(p.address)
@@ -95,7 +96,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						return nil
 					}
 					if definition == "column" || authority == "whole" {
-						err = stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ObjectAddress{})
+						err = stageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ids.ObjectAddress{})
 					} else if definition == "default" {
 						var edges []defaultDependencyEdge
 						edges, err = stageDefaultDependents(stage, roots, mode)
@@ -165,8 +166,8 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			c.attributes, c.attributeHighWater, c.index = []int32{1}, 1, map[string]int{"a": 0}
 			ref := e.domain.Ref(e.state.epoch, q.address)
 			if definition == "default" {
-				p.defaults = map[int32]columnDefault{1: {OID: 29103, dependencies: []ObjectRef{ref}}}
-				c.defaults = map[int32]columnDefault{1: {OID: 29104, dependencies: []ObjectRef{ref}}}
+				p.defaults = map[int32]columnDefault{1: {OID: 29103, dependencies: []ids.ObjectRef{ref}}}
+				c.defaults = map[int32]columnDefault{1: {OID: 29104, dependencies: []ids.ObjectRef{ref}}}
 			} else {
 				p.checkConstraints = []checkConstraint{{OID: 29103, Name: "provider_check", dependencies: []expressionDependency{{ref: ref}}}}
 				c.checkConstraints = []checkConstraint{{OID: 29104, Name: "provider_check", dependencies: []expressionDependency{{ref: ref}}}}
@@ -191,7 +192,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if err := stage.Remove(ref); err != nil {
 				t.Fatal(err)
 			}
-			if err := stageExpressionDependencies(op.Context(), stage, []ObjectAddress{q.address}, parser.DropCascade, scope, nil, nil, ObjectAddress{}); err != nil {
+			if err := stageExpressionDependencies(op.Context(), stage, []ids.ObjectAddress{q.address}, parser.DropCascade, scope, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			if stage.removals[q.address].descriptor != q || stage.removals[c.address].descriptor != c {

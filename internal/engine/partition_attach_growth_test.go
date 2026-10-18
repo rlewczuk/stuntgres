@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 	return &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: lo}}, upper: []partitionDatum{{value: hi}}}
 }
 
-func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ObjectRef, mode relationLockMode) {
+func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode relationLockMode) {
 	t.Helper()
 	request, err := scope.op.session.Engine().locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{nowait: true})
 	if err != nil || request != nil {
@@ -33,7 +34,7 @@ func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ObjectRef
 	}
 }
 
-func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ObjectRef, waiter *relationTicket, mode relationLockMode) {
+func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waiter *relationTicket, mode relationLockMode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -95,7 +96,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
 			old.relationKind = tableRelation
 			old.membership = partitionAttachUnitRange(t, parent, 20, 30)
-			parent.partition.children = []ObjectAddress{old.address}
+			parent.partition.children = []ids.ObjectAddress{old.address}
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
@@ -117,7 +118,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			p, c := *parent, *candidate
 			definition := *parent.partition
-			definition.children = []ObjectAddress{old.address, candidate.address}
+			definition.children = []ids.ObjectAddress{old.address, candidate.address}
 			p.partition = &definition
 			p.revision++
 			c.membership = partitionAttachUnitRange(t, parent, 1, 3)
@@ -165,14 +166,14 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal(err)
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
-			var admitted, fresh []ObjectAddress
+			var admitted, fresh []ids.ObjectAddress
 			if err := partitionPhysicalDescendants(captured, captured.state.descriptors[parent.address].(*relationDescriptor), func(d *relationDescriptor) error { admitted = append(admitted, d.address); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *relationDescriptor) error { fresh = append(fresh, d.address); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if !slices.Equal(admitted, []ObjectAddress{old.address}) || !slices.Equal(fresh, []ObjectAddress{old.address, candidate.address}) {
+			if !slices.Equal(admitted, []ids.ObjectAddress{old.address}) || !slices.Equal(fresh, []ids.ObjectAddress{old.address, candidate.address}) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			e.locks.mu.Lock()
@@ -195,7 +196,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
 			leaf.relationKind = tableRelation
 			leaf.membership = &partitionMembership{parent: target.address, defaultBound: true}
-			target.partition.children = []ObjectAddress{leaf.address}
+			target.partition.children = []ids.ObjectAddress{leaf.address}
 			target.partition.defaultChild = leaf.address
 			view := inheritanceUnitView(e, parent, target, leaf)
 			usage, boolean := target.columns[0].Usage, testUsage(e, sqltype.Bool)
@@ -224,7 +225,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			}
 			if mode != "default_unproven" {
 				check := checkConstraint{OID: 46113, Name: "frontier_proof", expression: proof}
-				var dependencies []ObjectRef
+				var dependencies []ids.ObjectRef
 				if _, err := (scalarRenderer{owner: target, dependencies: &dependencies}).sql(context.Background(), view, proof); err != nil {
 					t.Fatal(err)
 				}

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
@@ -37,7 +39,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		checkRename(t, e, "restored")
 	})
 	for _, foreign := range []bool{false, true} {
-		for _, frontier := range []DefinitionRevision{50, 500} {
+		for _, frontier := range []ids.DefinitionRevision{50, 500} {
 			t.Run(fmt.Sprintf("import_frontier/foreign_%t/frontier_%d", foreign, frontier), func(t *testing.T) {
 				e := New()
 				source := e
@@ -64,7 +66,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				old, _ := before.Descriptor(ref.Address)
 				run(t, e, "ALTER SCHEMA imported RENAME TO advanced")
 				fresh, _ := e.CatalogRead().Descriptor(ref.Address)
-				want := DefinitionRevision(201)
+				want := ids.DefinitionRevision(201)
 				if frontier > want {
 					want = frontier
 				}
@@ -79,8 +81,8 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			})
 		}
 	}
-	maximum := DefinitionRevision(^uint64(0))
-	for _, revision := range []DefinitionRevision{maximum, maximum - 1, maximum - 2} {
+	maximum := ids.DefinitionRevision(^uint64(0))
+	for _, revision := range []ids.DefinitionRevision{maximum, maximum - 1, maximum - 2} {
 		t.Run(fmt.Sprintf("terminal_import/%d", revision), func(t *testing.T) {
 			e, source := New(), New()
 			run(t, source, "CREATE SCHEMA terminal")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -85,10 +86,10 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	next := &relationDescriptor{columns: []ColumnDescriptor{{Name: "new", Usage: u}}, attributes: []int32{2}, attributeHighWater: 2}
 	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
 	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
 	shape := catalogStorageChange{original: original, root: original.versions, relation: next, replacement: &relationStorage{}, fills: map[int32]sqltype.Value{2: seven}}
-	catalog := &catalogChanges{storage: map[ObjectAddress]catalogStorageChange{address: shape}}
-	roots := map[ObjectAddress]transactionRoot{address: {storage: original, relation: old, versions: historical}}
+	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
+	roots := map[ids.ObjectAddress]transactionRoot{address: {storage: original, relation: old, versions: historical}}
 	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)
 	if err != nil || projected == catalog || !projected.storage[address].hasSnapshot || catalog.storage[address].hasSnapshot {
 		t.Fatal(projected, err)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -40,14 +41,14 @@ func TestNominalTypeRestorePublicNamespaceAuthority(t *testing.T) {
 	read, finish := roleOperation(t, e, "postgres")
 	defer finish()
 	catalog := e.CatalogRead()
-	public := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	address := catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: public, Name: "namespace_domain"}]
+	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	address := catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: public, Name: "namespace_domain"}]
 	domain, ok := catalog.state.descriptors[address].(*typeDescriptor)
 	if !ok || domain.owner != e.Roles().LookupRef("namespace_domain_owner") || !domain.typ.IsDomain() {
 		t.Fatal("restore changed domain owner or identity", domain)
 	}
 	for _, name := range []string{"namespace_enum", "namespace_record"} {
-		address := catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: public, Name: name}]
+		address := catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: public, Name: name}]
 		typ, ok := catalog.state.descriptors[address].(*typeDescriptor)
 		if !ok || typ.owner != e.Roles().LookupRef("namespace_domain_owner") {
 			t.Fatal("restore changed nominal type owner or identity", name, typ)

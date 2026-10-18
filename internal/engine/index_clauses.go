@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -47,7 +48,7 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 		return sqltype.IndexClass{}, indexSemanticError(err)
 	}
 	for i := range path.count() {
-		if path.at(i) == (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
+		if path.at(i) == (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
 			if c, ok := method.lookupClass(raw.Parts[len(raw.Parts)-1].Text); ok {
 				return c, nil
 			}
@@ -67,7 +68,7 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
 		}
 		key.collation = id
-		d := auth.catalog.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+		d := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
 		key.collationRef, err = d.usage()
 		if err != nil {
 			return key, err

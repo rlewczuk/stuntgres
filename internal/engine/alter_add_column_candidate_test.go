@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	u := testUsage(e, sqltype.Int4)
-	old := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, owner: auth.state.CurrentUser, columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, attributes: []int32{1}, attributeHighWater: 3, index: map[string]int{"a": 0}}
+	old := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, owner: auth.state.CurrentUser, columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, attributes: []int32{1}, attributeHighWater: 3, index: map[string]int{"a": 0}}
 	return e, scope, auth, old
 }
 
@@ -129,8 +130,8 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		{row: 3, version: 3, born: 1, values: []sqltype.Value{one}},
 		{row: 4, version: 4, born: 1, values: []sqltype.Value{one}},
 	}, ends: &deletionRoot{rows: map[RowID]rowEnd{2: {version: 2, end: 2}}}}
-	scope.ownWrites = map[ObjectAddress][]rowVersion{old.address: {{row: 3, version: 5, base: 3, values: []sqltype.Value{one}}, {row: 5, version: 6, values: []sqltype.Value{one}}}}
-	scope.ownDeletes = map[ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {{row: 3, version: 5, base: 3, values: []sqltype.Value{one}}, {row: 5, version: 6, values: []sqltype.Value{one}}}}
+	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
 	if err != nil {

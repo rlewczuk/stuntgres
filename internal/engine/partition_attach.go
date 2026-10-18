@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -60,7 +61,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// PostgreSQL demands incumbent DEFAULT AX before candidate AX. Its proof
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
-	if !bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
+	if !bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 		ref := e.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
 		if err = scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
@@ -159,7 +160,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = pending.validateBounds(scope); err != nil {
 		return Result{}, err
 	}
-	if bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
+	if bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 		old := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
 		return Result{}, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
 	}
@@ -179,7 +180,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = partitionAttachValidateRows(scope, auth.catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
-	if parent.revision == DefinitionRevision(^uint64(0)) || next.revision == DefinitionRevision(^uint64(0)) {
+	if parent.revision == ids.DefinitionRevision(^uint64(0)) || next.revision == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next.membership = bound
@@ -205,7 +206,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		}
 	}
 	if err == nil {
-		err = e.stagePartitionIndexValidity(stage, ObjectAddress{})
+		err = e.stagePartitionIndexValidity(stage, ids.ObjectAddress{})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -220,7 +221,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	return Result{}, err
 }
 
-func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ObjectRef) error {
+func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
 	current, err := e.resolveRelationReference(auth, name, true)
 	if err != nil || current != held {
 		return ErrCatalogReplaced
@@ -228,7 +229,7 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 	return nil
 }
 
-func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ObjectRef) (CatalogRead, *relationDescriptor, error) {
+func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (CatalogRead, *relationDescriptor, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(scope.owner.catalog)

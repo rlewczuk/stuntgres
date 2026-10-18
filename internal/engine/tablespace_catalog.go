@@ -4,31 +4,32 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // These are real builtin identities; no physical location/provider is implied.
 var builtinTablespaces = [...]struct {
-	oid  OID
+	oid  ids.OID
 	name string
 }{{1663, "pg_default"}, {1664, "pg_global"}}
 
 type tablespaceDescriptor struct {
-	address  ObjectAddress
-	revision DefinitionRevision
+	address  ids.ObjectAddress
+	revision ids.DefinitionRevision
 	name     string
 	owner    authorization.PrincipalRef
 	acl      authorization.ACLValue
 }
 
-func (d *tablespaceDescriptor) Address() ObjectAddress       { return d.address }
-func (d *tablespaceDescriptor) Revision() DefinitionRevision { return d.revision }
-func (*tablespaceDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
-func (d *tablespaceDescriptor) Name() string                 { return d.name }
-func (*tablespaceDescriptor) Kind() ObjectKind               { return TablespaceObject }
+func (d *tablespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
+func (d *tablespaceDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (*tablespaceDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
+func (d *tablespaceDescriptor) Name() string                     { return d.name }
+func (*tablespaceDescriptor) Kind() ids.ObjectKind               { return ids.TablespaceObject }
 
 type tablespaceProvider struct{}
 
-func (tablespaceProvider) ClassID() OID { return TablespaceClassID }
+func (tablespaceProvider) ClassID() ids.OID { return TablespaceClassID }
 func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*tablespaceDescriptor)
 	if !ok || d == nil || v.state == nil || v.state.descriptors[d.address] != d {
@@ -47,16 +48,16 @@ func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
-		d := &tablespaceDescriptor{address: ObjectAddress{ClassID: TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
+		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
 		e.state.descriptors[d.address] = d
 		e.state.names[descriptorNameKey(d)] = d.address
 	}
 }
 
-func resolveGrantTablespace(v AuthorizationView, name string) (ObjectRef, error) {
-	address := v.catalog.state.names[NameKey{ClassID: TablespaceClassID, Name: name}]
-	if address == (ObjectAddress{}) {
-		return ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
+func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, error) {
+	address := v.catalog.state.names[ids.NameKey{ClassID: TablespaceClassID, Name: name}]
+	if address == (ids.ObjectAddress{}) {
+		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}
 	return v.engine.domain.Ref(v.catalog.Epoch(), address), nil
 }

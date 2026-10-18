@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -74,11 +75,11 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		// Match PostgreSQL's resolve-and-act order without publishing any of
 		// these private updates until every creator/schema action succeeds.
 		for i := range schemaCount {
-			var schema ObjectAddress
+			var schema ids.ObjectAddress
 			if schemas != nil {
 				name := schemas[i].Text
-				schema = v.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
-				if schema == (ObjectAddress{}) {
+				schema = v.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]
+				if schema == (ids.ObjectAddress{}) {
 					return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 				}
 				if class == authorization.DefaultSchemas || class == authorization.DefaultLargeObjects {
@@ -100,7 +101,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if old != nil {
 				acl = old.acl
 			} else {
-				acl = authorization.DefaultBaseline(creator, class, schema != (ObjectAddress{}))
+				acl = authorization.DefaultBaseline(creator, class, schema != (ids.ObjectAddress{}))
 			}
 			next, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, acl, creator, creator, grantees, mask, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
@@ -112,7 +113,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if updates == nil {
 				updates = make(map[defaultACLKey]*defaultACLRecord)
 			}
-			if authorization.MatchesDefaultBaseline(next, creator, class, schema != (ObjectAddress{})) {
+			if authorization.MatchesDefaultBaseline(next, creator, class, schema != (ids.ObjectAddress{})) {
 				updates[key] = nil
 			} else {
 				updates[key] = &defaultACLRecord{acl: next}
@@ -148,7 +149,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		changes := cloneCatalogChanges(op.session.transactions.catalog)
 		// Default utilities use the selected private DB authority, but their
 		// retained effects must fence its exact committed predecessor.
-		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ObjectRef{}, nil), changes); err != nil {
+		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
 			return Result{}, err
 		}
 		for key, record := range updates {

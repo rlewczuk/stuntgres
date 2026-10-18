@@ -7,12 +7,13 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef, authorization.PrincipalRef, authorization.PrincipalRef, ObjectAddress) {
+func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectAddress) {
 	t.Helper()
 	e, op, reader, address := objectGrantUnitFixture(t)
 	target := roleAttributeCreate(t, e, op, "revoke_target", true, parser.RoleOptions{}).Ref

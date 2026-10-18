@@ -5,15 +5,16 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 type capturedRegTSInput struct {
 	auth      AuthorizationView
 	database  string
-	temporary ObjectAddress
-	path      []ObjectAddress
-	qualified *[]ObjectAddress
+	temporary ids.ObjectAddress
+	path      []ids.ObjectAddress
+	qualified *[]ids.ObjectAddress
 	resolved  *[]expressionDependency
 }
 
@@ -67,11 +68,11 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	}
 	selection := namespaceSelection{path: r.path}
 	if len(parts) == 2 {
-		ns := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		ns := r.auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
 		if parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
-		if ns != (ObjectAddress{}) {
+		if ns != (ids.ObjectAddress{}) {
 			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
@@ -83,7 +84,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	}
 	for i := range selection.count() {
 		ns := selection.at(i)
-		address := r.auth.catalog.state.names[NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
+		address := r.auth.catalog.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
 		if d, ok := r.auth.catalog.state.descriptors[address].(*tsDictionaryDescriptor); ok {
 			if r.resolved != nil {
 				ref := r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), d.address)

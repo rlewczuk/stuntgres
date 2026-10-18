@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			valid := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive && entry.holders[holder.transactions.ticket].mode == heldMode
 			if valid {
 				ticket := entry.pending[0].ticket
-				for _, ref := range []ObjectRef{p, q, ps} {
+				for _, ref := range []ids.ObjectRef{p, q, ps} {
 					prefix := e.locks.entries[lockResource{ObjectRef: ref}]
 					valid = valid && prefix != nil && prefix.holders[ticket].mode == accessExclusive
 				}
@@ -191,7 +192,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		expected := make(map[string]bool, 2)
 		for _, edge := range []struct {
 			waiter, blocker *relationTicket
-			ref             ObjectRef
+			ref             ids.ObjectRef
 			mode            string
 		}{
 			{holderTicket, resetTicket, p, "AccessShareLock"},

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ObjectRef, error) {
+func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ids.ObjectRef, error) {
 	lookup := name
 	if len(name.Parts) == 2 {
 		parts := [2]parser.Identifier{name.Parts[0], name.Parts[1]}
@@ -18,10 +19,10 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 	}
 	path, err := e.lookupNamespaces(auth, lookup, typeLookup)
 	if err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}
@@ -42,7 +43,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		}
 		return d, ref, nil
 	}
-	return nil, ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
+	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
 }
 
 func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
@@ -53,7 +54,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var original *typeDescriptor
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	if err == nil {
 		original, ref, err = e.resolveAlterDomainLocked(auth, raw.Name)
 	}
@@ -67,7 +68,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	e.mu.Lock()
 	auth, err = e.authorizationLocked(op)
 	var old *typeDescriptor
-	var current ObjectRef
+	var current ids.ObjectRef
 	if err == nil {
 		old, current, err = e.resolveAlterDomainLocked(auth, raw.Name)
 	}
@@ -134,7 +135,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			err = stage.replaceDescriptor(&next, false)
 		}
 	}
-	var diagnosticPath []ObjectAddress
+	var diagnosticPath []ids.ObjectAddress
 	if err == nil && validating {
 		diagnosticPath, err = e.referencePath(auth)
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -14,7 +15,7 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, authorization.PrincipalRef, Descriptor, *catalogChanges) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, Descriptor, *catalogChanges) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
 	roles := cloneRoleFixture(e.roles)
@@ -166,8 +167,8 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				for i := range rows {
 					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
 				}
-				generators := make(map[ObjectAddress]*sequenceGenerator, len(e.sequences))
-				generatorValues := make(map[ObjectAddress]sequenceGenerator, len(e.sequences))
+				generators := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.sequences))
+				generatorValues := make(map[ids.ObjectAddress]sequenceGenerator, len(e.sequences))
 				for address, g := range e.sequences {
 					generators[address], generatorValues[address] = g, *g
 				}

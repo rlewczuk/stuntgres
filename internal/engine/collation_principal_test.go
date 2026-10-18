@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // The baseline has no public role-rename SQL. This fixture follows the existing
@@ -104,7 +106,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	assertOwner("C")
 	assertOwner("coll_bootstrap_capture")
 	for _, catalog := range []CatalogRead{beforeCatalog, e.CatalogRead()} {
-		d, _ := catalog.Descriptor(ObjectAddress{ClassID: CollationClassID, ObjectID: 950})
+		d, _ := catalog.Descriptor(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 950})
 		if d.(*collationDescriptor).owner != bootstrap {
 			t.Fatal("seed ownership mutated", d)
 		}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -72,7 +73,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	provider, root := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{provider.address})
+	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider.address})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,10 +87,10 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if err := stage.Remove(e.domain.Ref(base.Epoch(), provider.address)); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"rp_retire_provider", "rp_retire_root", "rp_retire_mid", "rp_retire_leaf", "rp_retire_other", "rp_retire_leaf_v_key", "rp_retire_other_v_key", "rp_retire_index", "rp_retire_other_index", "rp_retire_seq", "rp_retire_leaf_seq", "rp_retire_other_seq", "rp_retire_view"} {
@@ -155,7 +156,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if deletes[provider.address] == nil {
 		t.Fatal("fixture has no actual committed-provider deletion root")
 	}
-	beforeWrites := make(map[ObjectAddress][]rowVersion, len(writes))
+	beforeWrites := make(map[ids.ObjectAddress][]rowVersion, len(writes))
 	for a, rows := range writes {
 		beforeWrites[a] = append([]rowVersion(nil), rows...)
 	}
@@ -176,7 +177,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if next == changes || !reflect.DeepEqual(writes, beforeWrites) || !reflect.DeepEqual(deletes, beforeDeletes) || owner.catalog != changes {
 		t.Fatal("retirement preparation mutated original transaction state")
 	}
-	removed := make(map[ObjectAddress]bool)
+	removed := make(map[ids.ObjectAddress]bool)
 	for a, d := range next.descriptors {
 		if d != nil {
 			continue
@@ -220,15 +221,15 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	provider, _ := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	peerDescriptors := make(map[ObjectAddress]Descriptor)
-	peerStorage := make(map[ObjectAddress]*relationStorage)
-	peerIndexes := make(map[ObjectAddress]*logicalIndexRoot)
+	peerDescriptors := make(map[ids.ObjectAddress]Descriptor)
+	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
+	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for a, d := range base.state.descriptors {
 		if ns, ok := base.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary == peer.token {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage[a], e.indexRoots[a]

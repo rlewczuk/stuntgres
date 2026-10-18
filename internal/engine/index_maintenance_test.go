@@ -5,18 +5,19 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 type indexMaintenanceSnapshot struct {
 	catalog *catalogState
-	roots   map[ObjectAddress]*logicalIndexRoot
-	stores  map[ObjectAddress]*relationStorage
+	roots   map[ids.ObjectAddress]*logicalIndexRoot
+	stores  map[ids.ObjectAddress]*relationStorage
 }
 
 func indexMaintenanceCapture(e *Engine) indexMaintenanceSnapshot {
-	s := indexMaintenanceSnapshot{catalog: e.state, roots: make(map[ObjectAddress]*logicalIndexRoot, len(e.indexRoots)), stores: make(map[ObjectAddress]*relationStorage, len(e.storage))}
+	s := indexMaintenanceSnapshot{catalog: e.state, roots: make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.indexRoots)), stores: make(map[ids.ObjectAddress]*relationStorage, len(e.storage))}
 	for a, r := range e.indexRoots {
 		s.roots[a] = r
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -104,8 +105,8 @@ func (s *StatementScope) Finish(err error) error {
 				t.mu.Lock()
 			}
 		} else if !s.sessionCompleted {
-			var deletes map[ObjectAddress]*privateDeletionRoot
-			var writes map[ObjectAddress][]rowVersion
+			var deletes map[ids.ObjectAddress]*privateDeletionRoot
+			var writes map[ids.ObjectAddress][]rowVersion
 			if s.projectedRoots {
 				writes, deletes = s.stage.rows, s.stage.deletes
 			} else {
@@ -231,7 +232,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.inheritanceCatalog = CatalogRead{}
 	s.ticket = nil
 	s.indexMaintenance = nil
-	s.viewCreationNamespace = ObjectRef{}
+	s.viewCreationNamespace = ids.ObjectRef{}
 	s.viewPersistence = ""
 	s.viewBinding = binding{}
 	s.viewChanges = nil

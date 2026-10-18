@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -48,7 +49,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 	_, _, foreign := strictNullUnitBind(t, other, otherOp, otherScope, "1")
 	for _, tc := range []struct {
 		name, expression, signature             string
-		oid, result                             OID
+		oid, result                             ids.OID
 		strict, set, anonymous, populate, valid bool
 	}{
 		{"populate", "jsonb_populate_record(NULL::strict_null_rows,'{}'::jsonb)", "2283,3802", 3209, 2283, false, false, false, true, false},
@@ -90,9 +91,9 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing original descriptor", captured, err)
 			}
-			address := ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
 			d := captured.builtin
-			if captured.address != address || captured.namespace != (ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != call.Name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("released identity", captured)
 			}
 			if d.kind != functionRoutine || d.result != tc.result || d.strict != tc.strict || d.volatility != Stable || d.parallel != 's' || d.returnsSet != tc.set || d.variadic != 0 || d.defaults != 0 || d.providers&jsonRoutineProvider == 0 {
@@ -388,7 +389,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 		t.Fatal("real constructor failure", err)
 	}
 	for _, dependency := range b.dependencies {
-		if dependency.ref.Address == (ObjectAddress{ProcedureClassID, 3209, 0}) {
+		if dependency.ref.Address == (ids.ObjectAddress{ProcedureClassID, 3209, 0}) {
 			t.Fatal("failed constructor captured outer routine", dependency)
 		}
 	}
@@ -511,7 +512,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			t.Fatal(err)
 		}
 		original := append([]expressionDependency(nil), binder.dependencies...)
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		for _, dependency := range original {
 			if dependency.ref.Address == captured.address {
 				ref = dependency.ref

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 // publication completes after the first source opens and before the next opens.
 // All three choices of first occurrence must retain the statement's old frontier.
 func TestAvailableExtensionsStatementFrontier(t *testing.T) {
-	for _, first := range []OID{12081, 12085, ExtensionClassID} {
+	for _, first := range []ids.OID{12081, 12085, ExtensionClassID} {
 		t.Run(fmt.Sprint(first), func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
@@ -32,7 +33,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				}
 				return s
 			}
-			open := func(s *StatementScope, oid OID) *querySource {
+			open := func(s *StatementScope, oid ids.OID) *querySource {
 				t.Helper()
 				d, ref := availableUnitSource(e, oid)
 				e.mu.Lock()
@@ -52,7 +53,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 			old := capture()
 			before := old.commentCatalog.state
-			sources := map[OID]*querySource{first: open(old, first)}
+			sources := map[ids.OID]*querySource{first: open(old, first)}
 			retained := make([][]sqltype.Value, len(sources[first].anonymous))
 			for i, row := range sources[first].anonymous {
 				retained[i] = append([]sqltype.Value(nil), row...)
@@ -64,7 +65,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if fresh.commentCatalog.state == before || old.commentCatalog.state != before {
 				t.Fatal("publication did not advance only the fresh statement frontier")
 			}
-			for _, oid := range []OID{12081, 12085, ExtensionClassID} {
+			for _, oid := range []ids.OID{12081, 12085, ExtensionClassID} {
 				if oid != first {
 					sources[oid] = open(old, oid)
 				}
@@ -72,7 +73,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if !reflect.DeepEqual(retained, sources[first].anonymous) {
 				t.Fatal("publication mutated already-opened rows")
 			}
-			assertAvailable := func(source *querySource, oid OID, installed bool) {
+			assertAvailable := func(source *querySource, oid ids.OID, installed bool) {
 				t.Helper()
 				var unaccentVersion any
 				if installed {
@@ -131,7 +132,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if sources[ExtensionClassID].count() != 0 {
 				t.Error("old statement pg_extension must have no installed row")
 			}
-			for _, oid := range []OID{12081, 12085, ExtensionClassID} {
+			for _, oid := range []ids.OID{12081, 12085, ExtensionClassID} {
 				source := open(fresh, oid)
 				if oid != ExtensionClassID {
 					assertAvailable(source, oid, true)

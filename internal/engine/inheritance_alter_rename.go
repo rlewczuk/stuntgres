@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -33,7 +34,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	selected := make(map[ObjectAddress]bool, len(targets))
+	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
 		selected[old.address] = true
 	}
@@ -54,7 +55,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 				return Result{}, err
 			}
 		}
-		if old.revision == DefinitionRevision(^uint64(0)) {
+		if old.revision == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.revision = old.revision + 1
@@ -120,7 +121,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	selected := make(map[ObjectAddress]bool, len(targets))
+	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
 		selected[old.address] = true
 	}
@@ -174,7 +175,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescriptor, recurse bool) ([]*relationDescriptor, AuthorizationView, error) {
 	e := scope.op.session.Engine()
 	epoch := scope.lockedRef.Epoch
-	captured := map[ObjectAddress]*relationDescriptor{root.address: root}
+	captured := map[ids.ObjectAddress]*relationDescriptor{root.address: root}
 	fail := func(err error) ([]*relationDescriptor, AuthorizationView, error) {
 		e.mu.Unlock()
 		return nil, AuthorizationView{}, err

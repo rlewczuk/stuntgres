@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -112,6 +113,6 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		e.catalogChangeLocked(changes, d.address, &next)
 	}
 	scope.catalog = changes
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return Result{}, nil
 }

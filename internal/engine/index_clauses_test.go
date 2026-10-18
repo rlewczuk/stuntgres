@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,11 +24,11 @@ func indexClausesTypes() map[sqltype.ID]*sqltype.Descriptor {
 func indexClausesFixture(t *testing.T) (*relationDescriptor, *relationDescriptor, *catalogState, map[sqltype.ID]*sqltype.Descriptor) {
 	t.Helper()
 	types := indexClausesTypes()
-	parent := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20, 30}, attributeHighWater: 30, columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20, 30}, attributeHighWater: 30, columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	def := &indexDefinition{parent: parent.address, keys: []indexKey{{attribute: 10, class: c}, {attribute: 20, class: c, desc: true, nullsFirst: true}}, include: []int32{30}, ready: true, valid: true, live: true}
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "cover", revision: 1, relationKind: indexRelation, sqlIndex: def, columns: append([]ColumnDescriptor(nil), parent.columns...), attributes: []int32{1, 2, 3}, attributeHighWater: 3, index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	catalog := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: index}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "cover", revision: 1, relationKind: indexRelation, sqlIndex: def, columns: append([]ColumnDescriptor(nil), parent.columns...), attributes: []int32{1, 2, 3}, attributeHighWater: 3, index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	catalog := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{parent.address: parent, index.address: index}}
 	if err := validateIndexDefinition(CatalogRead{state: catalog}, index); err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +223,7 @@ func TestIndexClausesEvolution(t *testing.T) {
 		t.Fatal("included DROP retained dependency", removed, err)
 	}
 	moved := *parent
-	moved.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 23000}
+	moved.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 23000}
 	movedIndex, err := evolveIndex(index, parent, &moved, nil)
 	if err != nil || movedIndex.sqlIndex != index.sqlIndex {
 		t.Fatal("schema move reconstructed options", err)
@@ -328,13 +329,13 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.nextVersion = 200
 	e.state = catalog
 	e.storage[parent.address] = source
-	e.indexRoots = map[ObjectAddress]*logicalIndexRoot{index.address: original}
+	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}
 	e.commitSeq = 1
-	snapshot, err := captureIndexSnapshot(ctx, CatalogRead{owner: e, state: catalog}, map[ObjectAddress]*relationStorage{parent.address: source}, map[ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
+	snapshot, err := captureIndexSnapshot(ctx, CatalogRead{owner: e, state: catalog}, map[ids.ObjectAddress]*relationStorage{parent.address: source}, map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ObjectAddress]*relationStorage{parent.address: destination}, snapshot)
+	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ids.ObjectAddress]*relationStorage{parent.address: destination}, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +347,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ObjectAddress]*relationStorage{parent.address: destination}, snapshot); !errors.Is(err, context.Canceled) {
+	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*relationStorage{parent.address: destination}, snapshot); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.nextRow != 100 || e.nextVersion != 200 {
@@ -360,7 +361,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := map[ObjectAddress]*relationStorage{parent.address: {versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}}
+	storage := map[ids.ObjectAddress]*relationStorage{parent.address: {versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}}
 	e := New()
 	// This is a deliberately reduced but valid key-construction catalogue:
 	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
@@ -374,7 +375,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	definition.keys = append([]indexKey(nil), index.sqlIndex.keys...)
 	definition.keys[0].attribute = 999
 	broken.sqlIndex = &definition
-	invalid := &catalogState{descriptors: map[ObjectAddress]Descriptor{parent.address: parent, index.address: &broken}}
+	invalid := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{parent.address: parent, index.address: &broken}}
 	for _, materialize := range []bool{false, true} {
 		if _, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, catalog, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
@@ -456,7 +457,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			}
 			auth.catalog = e.stageRead(setup)
 			auth.recaptureCatalog(auth.catalog)
-			bind := func(name, query string, oid OID) *relationDescriptor {
+			bind := func(name, query string, oid ids.OID) *relationDescriptor {
 				raw, err := parser.Parse(query)
 				if err != nil {
 					t.Fatal(err)
@@ -467,7 +468,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, owner: parent.owner, name: name, revision: 1, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, attributeHighWater: int32(len(columns)), index: labels}
+				index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, owner: parent.owner, name: name, revision: 1, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, attributeHighWater: int32(len(columns)), index: labels}
 				if err := setup.Create(index); err != nil {
 					t.Fatal(err)
 				}
@@ -541,7 +542,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := layout.Replace(&compacted); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(layout, ObjectAddress{}, nil); err != nil {
+			if err := e.evolveStageIndexesLocked(layout, ids.ObjectAddress{}, nil); err != nil {
 				t.Fatal(err)
 			}
 			compactedView := e.stageRead(layout)
@@ -600,7 +601,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				dependent := false
 				for _, dependency := range key.derived.dependencies {
-					if dependency.Address == (ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
+					if dependency.Address == (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
 						dependent = true
 					}
 				}

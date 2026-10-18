@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"sort"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // structuralNull only recognizes transparent coercions of a literal NULL.
@@ -84,7 +86,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	return nil
 }
 
-func definitionOIDUsed(descriptor Descriptor, id OID) bool {
+func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
@@ -156,7 +158,7 @@ func definitionOIDUsed(descriptor Descriptor, id OID) bool {
 
 // Descriptor and owned-definition OIDs share one identity space. Replacement
 // must reserve both before allocating any collision replacement.
-func reserveDefinitionOIDs(reserved map[OID]bool, descriptor Descriptor) {
+func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
@@ -204,11 +206,11 @@ func reserveDefinitionOIDs(reserved map[OID]bool, descriptor Descriptor) {
 }
 
 func validateDefinitionOIDs(view CatalogRead) error {
-	used := make(map[OID]bool)
+	used := make(map[ids.OID]bool)
 	for address := range view.state.descriptors {
 		used[address.ObjectID] = true
 	}
-	claim := func(id OID) error {
+	claim := func(id ids.OID) error {
 		if id == 0 || used[id] {
 			return fmt.Errorf("stuntgres: invalid stored definition identity")
 		}
@@ -291,7 +293,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 // Replacement retains temporary objects and imports persistent definitions.
 // Reserve the entire candidate before allocating collision replacements.
 func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
-	reserved := make(map[OID]bool)
+	reserved := make(map[ids.OID]bool)
 	var relations []*relationDescriptor
 	var domains []*typeDescriptor
 	for address, descriptor := range next.descriptors {
@@ -309,7 +311,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
-	claimed := make(map[OID]bool)
+	claimed := make(map[ids.OID]bool)
 	for address, descriptor := range next.descriptors {
 		claimed[address.ObjectID] = true
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
@@ -352,7 +354,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 		}
 	}
-	remint := func(id OID) (OID, error) {
+	remint := func(id ids.OID) (ids.OID, error) {
 		if id == 0 {
 			return 0, fmt.Errorf("stuntgres: invalid imported definition identity")
 		}
@@ -392,16 +394,16 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			next.descriptors[domain.Address()] = &copy
 		}
 	}
-	uniqueMapping := make(map[OID]OID)
-	var constraintMapping map[ObjectAddress]ObjectAddress
-	recordConstraint := func(old, next OID) {
+	uniqueMapping := make(map[ids.OID]ids.OID)
+	var constraintMapping map[ids.ObjectAddress]ids.ObjectAddress
+	recordConstraint := func(old, next ids.OID) {
 		if old == next {
 			return
 		}
 		if constraintMapping == nil {
-			constraintMapping = make(map[ObjectAddress]ObjectAddress)
+			constraintMapping = make(map[ids.ObjectAddress]ids.ObjectAddress)
 		}
-		constraintMapping[ObjectAddress{ClassID: 2606, ObjectID: old}] = ObjectAddress{ClassID: 2606, ObjectID: next}
+		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
 	for _, old := range relations {
 		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
@@ -600,7 +602,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			changed.uniqueConstraints[i].Parent = parent
 		}
 		for i, constraint := range table.exclusionConstraints {
-			parent, exists := constraintMapping[ObjectAddress{ClassID: 2606, ObjectID: constraint.Parent}]
+			parent, exists := constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.Parent}]
 			if !exists || parent.ObjectID == constraint.Parent {
 				continue
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func validateMergeReachability(s *parser.Merge) error {
 	return nil
 }
 
-func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ObjectRef, s *parser.Merge) error {
+func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, s *parser.Merge) error {
 	ref, err := e.admittedReference(auth, s.Name, requiredRef)
 	if err != nil {
 		return err
@@ -95,7 +96,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	}
 	for _, q := range source.qualifiers {
 		t := target.qualifiers[0]
-		if t.name == q.name && (t.alias != "" || q.alias != "" || t.ref == q.ref || q.ref == (ObjectRef{})) {
+		if t.name == q.name && (t.alias != "" || q.alias != "" || t.ref == q.ref || q.ref == (ids.ObjectRef{})) {
 			d := sqlError("42712", fmt.Sprintf(`name "%s" specified more than once`, t.name)).(*sqlstate.Error)
 			d.Detail = "The name is used both as MERGE target table and data source."
 			return d

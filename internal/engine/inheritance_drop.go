@@ -3,11 +3,13 @@ package engine
 import (
 	"iter"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Admission precedes dependency discovery. Repeat after grants so a descendant
 // gaining a child while its AX grant was queued becomes part of the same drop.
-func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, roots []ObjectAddress) error {
+func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, roots []ids.ObjectAddress) error {
 	provider := stageDropProvider(nil, stage, scope, nil, nil)
 	catalog, err := admitInheritanceDropClosure(scope, stage.base, roots, provider.removalDescriptors())
 	stage.base = catalog
@@ -16,7 +18,7 @@ func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, root
 
 // admitInheritanceDropClosure reconciles actual captures without a stage. The
 // incumbent execution wrapper alone installs its returned catalog as stage base.
-func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roots []ObjectAddress, removals iter.Seq2[ObjectAddress, Descriptor]) (CatalogRead, error) {
+func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, Descriptor]) (CatalogRead, error) {
 	if scope == nil {
 		return catalog, nil
 	}
@@ -33,12 +35,12 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 	if !participates {
 		return catalog, nil
 	}
-	locked := make(map[ObjectAddress]bool)
+	locked := make(map[ids.ObjectAddress]bool)
 	for {
-		var tables []ObjectAddress
-		seen := make(map[ObjectAddress]bool)
-		var visit func(ObjectAddress)
-		visit = func(address ObjectAddress) {
+		var tables []ids.ObjectAddress
+		seen := make(map[ids.ObjectAddress]bool)
+		var visit func(ids.ObjectAddress)
+		visit = func(address ids.ObjectAddress) {
 			if seen[address] {
 				return
 			}
@@ -55,7 +57,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		for _, root := range roots {
 			visit(root)
 		}
-		slices.SortFunc(tables, func(a, b ObjectAddress) int {
+		slices.SortFunc(tables, func(a, b ids.ObjectAddress) int {
 			if a.ObjectID < b.ObjectID {
 				return -1
 			}

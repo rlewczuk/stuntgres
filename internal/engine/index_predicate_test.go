@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -21,13 +22,13 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	parent := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20}, attributeHighWater: 20, columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, index: map[string]int{"k": 0, "active": 1}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20}, attributeHighWater: 20, columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, index: map[string]int{"k": 0, "active": 1}}
 	ref := e.domain.Ref(e.state.epoch, parent.address)
 	ref.Address.SubID = 20
 	column := columnExpression{expressionInfo: expressionInfo{usage: boolean.Usage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 1, origin: ref}
-	predicate := &indexPredicate{definition: column, execution: column, attributes: parent.attributes, dependencies: []ObjectRef{ref}}
+	predicate := &indexPredicate{definition: column, execution: column, attributes: parent.attributes, dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "pi", revision: 1, relationKind: indexRelation, columns: []ColumnDescriptor{parent.columns[0]}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, ready: true, valid: true, live: true, keys: []indexKey{{attribute: 10, class: class}}, predicate: predicate}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: parent.namespace, name: "pi", revision: 1, relationKind: indexRelation, columns: []ColumnDescriptor{parent.columns[0]}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}, sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, ready: true, valid: true, live: true, keys: []indexKey{{attribute: 10, class: class}}, predicate: predicate}}
 	store := &relationStorage{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)
@@ -46,7 +47,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.indexRoots = map[ObjectAddress]*logicalIndexRoot{index.address: root}
+	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: root}
 	return partialIndexFixture{e, parent, index, column, store}
 }
 
@@ -187,7 +188,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	idx := *f.index
 	idx.sqlIndex = &def
 	f.e.state.descriptors[idx.address] = &idx
-	scope.stage.rows = map[ObjectAddress][]rowVersion{f.parent.address: {f.store.versions[1], f.store.versions[2]}}
+	scope.stage.rows = map[ids.ObjectAddress][]rowVersion{f.parent.address: {f.store.versions[1], f.store.versions[2]}}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
 	}
@@ -352,7 +353,7 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, que
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.domain.Ref(f.e.state.epoch, f.parent.address), relation: f.parent, storage: f.store, partialCandidate: f.index}
-	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.commitSeq, committed: map[ObjectAddress][]rowVersion{f.parent.address: f.store.versions}, singleGeneration: f.store}
+	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.commitSeq, committed: map[ids.ObjectAddress][]rowVersion{f.parent.address: f.store.versions}, singleGeneration: f.store}
 	view := newVisibilityView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
@@ -413,20 +414,20 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "private catalog":
 				scope.owner.catalog = &catalogChanges{}
 			case "own insert":
-				data.own = map[ObjectAddress][]rowVersion{a: {f.store.versions[1]}}
+				data.own = map[ids.ObjectAddress][]rowVersion{a: {f.store.versions[1]}}
 			case "own update":
 				row := f.store.versions[0]
 				row.base = row.version
 				row.version = 100
-				data.own = map[ObjectAddress][]rowVersion{a: {row}}
+				data.own = map[ids.ObjectAddress][]rowVersion{a: {row}}
 			case "own delete":
-				data.deleted = map[ObjectAddress]*privateDeletionRoot{a: {}}
+				data.deleted = map[ids.ObjectAddress]*privateDeletionRoot{a: {}}
 			case "historical":
 				scope.owner.isolation = RepeatableRead
 			case "frontier":
 				f.e.commitSeq++
 			case "rewrite":
-				data.rewrittenFrontiers = map[ObjectAddress]CommitSeq{a: 0}
+				data.rewrittenFrontiers = map[ids.ObjectAddress]CommitSeq{a: 0}
 			case "generation":
 				data.singleGeneration = &relationStorage{}
 			case "prefix":
@@ -523,7 +524,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.state, map[ObjectAddress]*relationStorage{f.parent.address: destination}, snapshot)
+	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.state, map[ids.ObjectAddress]*relationStorage{f.parent.address: destination}, snapshot)
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}

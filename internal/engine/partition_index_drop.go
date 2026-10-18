@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -20,7 +21,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
-		if table := auth.catalog.state.descriptors[address].(*relationDescriptor); table.partition != nil || index.sqlIndex.partitionParent != (ObjectAddress{}) {
+		if table := auth.catalog.state.descriptors[address].(*relationDescriptor); table.partition != nil || index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 			g.partition = true
 		}
 		g.descriptors[address] = auth.catalog.state.descriptors[address].(*relationDescriptor)
@@ -30,7 +31,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		for _, target := range g.targets {
 			index := g.descriptors[target.Address]
 			table := auth.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-			if table.partition != nil || index.sqlIndex.partitionParent != (ObjectAddress{}) {
+			if table.partition != nil || index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 				selected = true
 				break
 			}
@@ -48,7 +49,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		}
 	}
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.address.ObjectID, b.address.ObjectID) })
-	roots := make(map[ObjectAddress]bool)
+	roots := make(map[ids.ObjectAddress]bool)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, target := range g.targets {
 			roots[target.Address] = true
@@ -63,7 +64,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 				grew = true
 				if index.sqlIndex.constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
-					for !slices.ContainsFunc(g.targets, func(target ObjectRef) bool { return target.Address == root.address }) {
+					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.address }) {
 						root = auth.catalog.state.descriptors[root.sqlIndex.partitionParent].(*relationDescriptor)
 					}
 					table := auth.catalog.state.descriptors[index.sqlIndex.parent]
@@ -78,7 +79,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		// Capture the parent tree's validity frontier and each sibling descriptor
 		// before taking any lock. No names are resolved after a wait.
 		root := g.descriptors[g.targets[0].Address]
-		for root.sqlIndex.partitionParent != (ObjectAddress{}) {
+		for root.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 			root = auth.catalog.state.descriptors[root.sqlIndex.partitionParent].(*relationDescriptor)
 		}
 		roots[root.address] = true
@@ -94,7 +95,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 				break
 			}
 		}
-		if g.attach != (ObjectRef{}) {
+		if g.attach != (ids.ObjectRef{}) {
 			roots[g.attach.Address] = true
 		}
 	} else {
@@ -122,7 +123,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 	return stage.Remove(e.domain.Ref(stage.base.Epoch(), index.address))
 }
 
-func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid OID) error {
+func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
 	view := e.stageRead(stage)
 	for _, descriptor := range view.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
@@ -157,7 +158,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid OID) erro
 }
 
 func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) error {
-	if index.sqlIndex.partitionParent == (ObjectAddress{}) {
+	if index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}
 	parent, exists := view.Descriptor(index.sqlIndex.partitionParent)
@@ -254,11 +255,11 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, err
 			}
 		}
-		roots := make([]ObjectAddress, 0, len(stage.removals))
+		roots := make([]ids.ObjectAddress, 0, len(stage.removals))
 		for address := range stage.removals {
 			roots = append(roots, address)
 		}
-		slices.SortFunc(roots, func(a, b ObjectAddress) int {
+		slices.SortFunc(roots, func(a, b ids.ObjectAddress) int {
 			if a.ObjectID < b.ObjectID {
 				return -1
 			}

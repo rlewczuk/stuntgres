@@ -2,14 +2,15 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-const pgCursorsOID OID = 12077
+const pgCursorsOID ids.OID = 12077
 
 // Session admission protects this registry. Only registry membership determines
 // visibility: producer teardown and HOLD promotion do not remove metadata.
-func capturePGCursors(ctx context.Context, ref ObjectRef, d *relationDescriptor, cursors *cursorRegistry) (*querySource, error) {
+func capturePGCursors(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, cursors *cursorRegistry) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

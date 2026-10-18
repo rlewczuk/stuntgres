@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSessionTimeoutPendingGrantRace(t *testing.T) {
@@ -107,7 +109,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		break
 	}
 	manager.mu.Unlock()
-	if resource.ObjectRef == (ObjectRef{}) {
+	if resource.ObjectRef == (ids.ObjectRef{}) {
 		t.Fatal("holder lacks actual relation resource")
 	}
 	op := timeoutPendingOperation(t, holder)

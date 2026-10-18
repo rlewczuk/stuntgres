@@ -1,11 +1,13 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Released oprcode associations for genuine callable provider families.
 // Comparison selection resolves actual formals before recording this identity.
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat
 var builtinOperatorRoutineAssociations = [...]struct {
-	operator OID
-	routine  OID
+	operator ids.OID
+	routine  ids.OID
 }{
 	{15, 852},    // = (23,20)
 	{36, 853},    // <> (23,20)

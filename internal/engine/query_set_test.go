@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -199,7 +200,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(op.ctx, ast, auth, ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
+	b, err := e.describe(op.ctx, ast, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +255,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	}
 	typ := n.Schema()[0].Usage.Type
 	destination := *typ
-	mapped, err := remapViewQuery(New().CatalogRead(), project, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(New().CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == typ {
 			return &destination
 		}

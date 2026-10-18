@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ func materializedUnitStage(t *testing.T, e *Engine) (*Operation, func(), *Catalo
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(context.Background(), s, auth, ObjectRef{}, input, op, nil, nil)
+	b, err := e.describe(context.Background(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

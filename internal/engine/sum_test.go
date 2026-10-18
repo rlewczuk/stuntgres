@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := sumUnitProvider(source, id)
 		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
-		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := restored.CatalogRead().LookupType(old.ID())
 			return typ
 		})

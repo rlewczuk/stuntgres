@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,7 +21,7 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 	view := e.CatalogRead()
 	root := view.state.descriptors[table.address].(*relationDescriptor)
 	backing := view.state.descriptors[source.address].(*relationDescriptor)
-	childAddress := view.state.names[NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: "child"}]
+	childAddress := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: "child"}]
 	child := view.state.descriptors[childAddress].(*relationDescriptor)
 	for _, relation := range []*relationDescriptor{backing, root, child} {
 		if len(relation.columns) != 2 || relation.columns[0].Name != "id" || relation.columns[1].Name != "label" || relation.columns[0].Usage.Type.ID() != sqltype.Int8 || relation.columns[1].Usage.Type.ID() != sqltype.Text {
@@ -44,8 +45,8 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
-	typ := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}].(*typeDescriptor)
-	array := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.array)}].(*typeDescriptor)
+	typ := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}].(*typeDescriptor)
+	array := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.array)}].(*typeDescriptor)
 	holder := inheritanceUnitRelation(e, "holder", 22003, "v")
 	holder.columns[0].Usage = array.typ.Usage()
 	state := cloneCatalog(view.state)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,13 +29,13 @@ type catalogStorageChange struct {
 
 type catalogDependencyObservation struct {
 	base    *catalogState
-	targets []ObjectAddress
+	targets []ids.ObjectAddress
 }
 
 type catalogAuthority struct {
 	session                                *Session
 	authorization, roles                   uint64
-	ref                                    ObjectRef
+	ref                                    ids.ObjectRef
 	descriptor                             Descriptor
 	databaseAuthority, databasePredecessor Descriptor
 	// Immutable consulted providers captured by the statement's catalog stage.
@@ -42,7 +43,7 @@ type catalogAuthority struct {
 }
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
-func (v AuthorizationView) catalogAuthorityLocked(ref ObjectRef, descriptor Descriptor) *catalogAuthority {
+func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor Descriptor) *catalogAuthority {
 	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.state.descriptors[currentDatabaseAddress], databasePredecessor: v.databasePredecessor}
 }
 
@@ -91,7 +92,7 @@ func sameVersionRoot(a, b []rowVersion) bool {
 }
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
-func (e *Engine) privateStorageLocked(c *catalogChanges, a ObjectAddress) *relationStorage {
+func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *relationStorage {
 	if c != nil {
 		if shape, ok := c.storage[a]; ok {
 			return shape.replacement
@@ -100,7 +101,7 @@ func (e *Engine) privateStorageLocked(c *catalogChanges, a ObjectAddress) *relat
 	return e.storage[a]
 }
 
-func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ObjectAddress) *relationStorage {
+func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *relationStorage {
 	if auth.session != nil && auth.session.transactions != nil {
 		return e.privateStorageLocked(auth.session.transactions.catalog, a)
 	}
@@ -190,7 +191,7 @@ func projectDeletions(root *privateDeletionRoot, store *relationStorage) *privat
 
 // Savepoint marks may predate first snapshot establishment. Clone only the
 // immutable shape map when attaching the matching projection to such a mark.
-func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ObjectAddress]transactionRoot) (*catalogChanges, error) {
+func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ids.ObjectAddress]transactionRoot) (*catalogChanges, error) {
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]
@@ -208,7 +209,7 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 		if next == nil {
 			copy := *catalog
 			next = &copy
-			next.storage = make(map[ObjectAddress]catalogStorageChange, len(catalog.storage))
+			next.storage = make(map[ids.ObjectAddress]catalogStorageChange, len(catalog.storage))
 			for a, entry := range catalog.storage {
 				next.storage[a] = entry
 			}

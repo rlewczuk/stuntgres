@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -33,9 +34,9 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 		}
 		return d
 	}
-	released := map[OID][]string{}
+	released := map[ids.OID][]string{}
 	for _, row := range pgOperatorReleaseRows(t, "pg-operator-pg18-supported.tsv", 15) {
-		for _, oid := range []OID{349, 374, 375, 2779, 2780} {
+		for _, oid := range []ids.OID{349, 374, 375, 2779, 2780} {
 			if row[0] == strconv.FormatUint(uint64(oid), 10) {
 				released[oid] = row
 			}
@@ -43,7 +44,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name                                                       string
-		oid                                                        OID
+		oid                                                        ids.OID
 		inputLeft, inputRight, selectedLeft, selectedRight, result sqltype.ID
 		declaredLeft, declaredRight, declaredResult                string
 		array                                                      bool
@@ -64,7 +65,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 			if len(row) != 15 || row[7] != tc.declaredLeft || row[8] != tc.declaredRight || row[9] != tc.declaredResult {
 				t.Fatal("released generic identity", tc, row)
 			}
-			identity := catalog.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: tc.oid}].(*operatorDescriptor)
+			identity := catalog.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: tc.oid}].(*operatorDescriptor)
 			if strconv.FormatUint(uint64(identity.left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.right), 10) != tc.declaredRight {
 				t.Fatal("identity became a concrete overload", identity)
 			}

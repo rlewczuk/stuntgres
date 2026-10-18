@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"stuntgres/internal/engine/ids"
 )
 
 const partitionReplayStem = "__stuntgres_partition_replay_"
@@ -39,7 +41,7 @@ func partitionPreservedReplayChild(view CatalogRead, table *relationDescriptor) 
 }
 
 func partitionPreservedReplayBacking(view CatalogRead, index *relationDescriptor) bool {
-	if index.sqlIndex.constraint != nil || index.sqlIndex.partitionParent == (ObjectAddress{}) {
+	if index.sqlIndex.constraint != nil || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 		return false
 	}
 	parent := view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
@@ -54,7 +56,7 @@ func partitionPreservedReplayBacking(view CatalogRead, index *relationDescriptor
 // Unattached local unique providers must not steal a saved attached backing
 // during the one table reattachment that preserves complete-invalid validity.
 func partitionPreservedReplayLocal(view CatalogRead, index *relationDescriptor) bool {
-	if !index.sqlIndex.unique || index.sqlIndex.partitionParent != (ObjectAddress{}) {
+	if !index.sqlIndex.unique || index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 		return false
 	}
 	table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
@@ -115,10 +117,10 @@ func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEv
 // Existing declaration/data/attachment events remain the single replay scheduler.
 // Manual complete-invalid trees use one real valid child. ONLY exclusions use
 // a scratch gap even with saved children, avoiding non-adoptable EXCLUDE clones.
-func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, indexIndices map[OID]int) map[OID]partitionInvalidReplay {
-	groups := make(map[ObjectAddress][]*relationDescriptor)
+func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, indexIndices map[ids.OID]int) map[ids.OID]partitionInvalidReplay {
+	groups := make(map[ids.ObjectAddress][]*relationDescriptor)
 	for oid := range indexIndices {
-		index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		index := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		if partitionIndexPreservedInvalid(view, index) {
 			groups[index.sqlIndex.parent] = append(groups[index.sqlIndex.parent], index)
 		}
@@ -131,11 +133,11 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 		tables = append(tables, view.state.descriptors[address].(*relationDescriptor))
 	}
 	slices.SortFunc(tables, func(a, b *relationDescriptor) int { return partitionReplayNameCompare(view, a, b) })
-	reserved := make(map[NameKey]bool, len(view.state.names))
+	reserved := make(map[ids.NameKey]bool, len(view.state.names))
 	for key := range view.state.names {
 		reserved[key] = true
 	}
-	result := make(map[OID]partitionInvalidReplay, len(tables))
+	result := make(map[ids.OID]partitionInvalidReplay, len(tables))
 	ordinal := 0
 	for _, table := range tables {
 		oid := table.address.ObjectID
@@ -154,7 +156,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 			for {
 				ordinal++
 				name := fmt.Sprintf("%s%d", partitionReplayStem, ordinal)
-				key := NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name}
+				key := ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name}
 				if !reserved[key] {
 					reserved[key] = true
 					item.scratch = name
@@ -222,7 +224,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 			// Incomplete manual indexes must appear only after reattachment;
 			// otherwise ATTACH would generate unwanted backings for their gaps.
 			for indexOID := range indexIndices {
-				index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
+				index := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
 				if index.sqlIndex.parent == table.address && !index.sqlIndex.valid && !partitionIndexPreservedInvalid(view, index) {
 					addDumpDependency(graph, dumpEventKey{oid: indexOID}, finish)
 				}

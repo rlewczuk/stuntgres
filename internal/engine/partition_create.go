@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,11 +20,11 @@ type pendingPartitionDefinition struct {
 	rawBounds              parser.PartitionBound
 	auth                   AuthorizationView
 	view                   *VisibilityView
-	defaultLeaves          []ObjectRef
+	defaultLeaves          []ids.ObjectRef
 	unsupportedCombination bool
 }
 
-func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ObjectAddress) (*pendingPartitionDefinition, error) {
+func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
 	op := scope.op
 	for _, element := range syntax.Elements {
 		foreign := element.ForeignKey != nil
@@ -70,7 +71,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 	}
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
-	address := stage.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	address := stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
 	child := stage.descriptors[address].(*relationDescriptor)
 	keyAuth := auth
 	keyAuth.catalog = e.stageRead(stage)
@@ -97,11 +98,11 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 		child.membership = pending.bound
 		stage.domainBases = append(stage.domainBases, parent)
-		if pending.bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
+		if pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 			existing := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
 			return nil, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.name), syntax.PartitionOf.Bound.Pos)
 		}
-		if !pending.bound.defaultBound && parent.partition.defaultChild != (ObjectAddress{}) {
+		if !pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 			defaultRelation := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
 			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *relationDescriptor) error {
 				ref := e.domain.Ref(auth.catalog.Epoch(), leaf.address)
@@ -216,7 +217,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p.unsupportedCombination {
 		return sqlError("0A000", "partitioned table constraint combination is unsupported")
 	}
-	if p.parent.revision == DefinitionRevision(^uint64(0)) {
+	if p.parent.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	parent := *p.parent
@@ -265,7 +266,7 @@ func partitionTupleSQL(ctx context.Context, tuple []partitionDatum) (string, err
 }
 
 type partitionReadFence struct {
-	address    ObjectAddress
+	address    ids.ObjectAddress
 	storage    *relationStorage
 	length     int
 	ends       *deletionRoot
@@ -326,7 +327,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		return p.checkHashOverlap(scope)
 	}
 	count := len(p.parent.partition.children)
-	if p.parent.partition.defaultChild != (ObjectAddress{}) {
+	if p.parent.partition.defaultChild != (ids.ObjectAddress{}) {
 		count--
 	}
 	if count == 0 {

@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 3079}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 3079}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_extension")
@@ -45,8 +46,8 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	if d.rowType != 10074 {
 		t.Fatal("existing native rowtype", d.rowType)
 	}
-	row := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10074}].(*typeDescriptor)
-	array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10073}].(*typeDescriptor)
+	row := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10074}].(*typeDescriptor)
+	array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10073}].(*typeDescriptor)
 	ownedRow, ok := e.CatalogRead().LookupType(10074)
 	ownedArray, arrayOK := e.CatalogRead().LookupArray(ownedRow)
 	if !ok || !arrayOK || ownedRow != row.typ || ownedArray != array.typ || row.array != 10073 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
@@ -65,8 +66,8 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
-	class := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ObjectRef{}, class)
+	class := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d); err != nil || rows == nil || rows.count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
-	delete(state.descriptors, ObjectAddress{ClassID: TypeClassID, ObjectID: 1028})
+	delete(state.descriptors, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 1028})
 	if rows, err := captureExtensionCatalog(context.Background(), view, ref, d); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}
@@ -204,7 +205,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	defer done()
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
+	address := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 	ext := e.state.descriptors[address].(*extensionDescriptor)
 	d = pgExtensionUnitShape(t, e)
 	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ref, d)
@@ -212,7 +213,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
 	row := captured.anonymous[0]
-	for i, expected := range []OID{ext.address.ObjectID, OID(ext.owner.ID()), ext.targetNamespace.ObjectID} {
+	for i, expected := range []ids.OID{ext.address.ObjectID, ids.OID(ext.owner.ID()), ext.targetNamespace.ObjectID} {
 		actual, err := row[[]int{0, 2, 3}[i]].OID()
 		if err != nil || actual != uint32(expected) {
 			t.Fatal("descriptor-derived identity", i, actual, expected, err)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -38,7 +39,7 @@ func (s querySchema) Schema() []ColumnDescriptor { return s }
 
 type sourceNode struct {
 	querySchema
-	ref           ObjectRef
+	ref           ids.ObjectRef
 	occurrence    int
 	presenceSlot  int
 	rangeName     string
@@ -60,10 +61,10 @@ type filterNode struct {
 type sortKey struct {
 	expression       BoundExpr
 	comparison       sqltype.Comparison
-	equalityRoutine  ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
-	position         int       // Original ORDER reference character position, not reused output syntax.
-	outputOrdinal    int       // One-based resolved output occurrence; zero is a SQL expression.
-	targetIdentity   int       // Resolved ON/ORDER target, independent of physical cache sharing.
+	equalityRoutine  ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
+	position         int           // Original ORDER reference character position, not reused output syntax.
+	outputOrdinal    int           // One-based resolved output occurrence; zero is a SQL expression.
+	targetIdentity   int           // Resolved ON/ORDER target, independent of physical cache sharing.
 	slot, cache      int
 	desc, nullsFirst bool
 	output           bool // This cache slot supplies a visible projection.
@@ -490,10 +491,10 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
 	view *VisibilityView
-	ref  ObjectRef
+	ref  ids.ObjectRef
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
-	storedRef        ObjectRef
+	storedRef        ids.ObjectRef
 	committed, own   []rowVersion
 	partialMask      *logicalIndexRoot
 	singleton        bool
@@ -547,7 +548,7 @@ type querySource struct {
 	presenceConstant, presenceFlat []bool
 }
 
-func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *relationDescriptor) (*querySource, error) {
 	g := e.sequenceGeneratorLocked(scope, ref.Address)
 	if g == nil {
 		return nil, fmt.Errorf("stuntgres: sequence state missing")
@@ -1053,7 +1054,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			}
 			source = source.sources[n.occurrence]
 		}
-		if source == nil || source.ref != n.ref && (source.storedRef == (ObjectRef{}) || source.storedRef != n.ref) {
+		if source == nil || source.ref != n.ref && (source.storedRef == (ids.ObjectRef{}) || source.storedRef != n.ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
 		establishSourcePresence(source, n.presenceSlot)
@@ -1388,7 +1389,7 @@ type finalRows struct {
 	regroleOutput      map[uint32]string
 	operatorOutput     map[operatorOutputKey]string
 	operatorGroups     operatorGroups
-	regobjectOutput    map[ObjectAddress]string
+	regobjectOutput    map[ids.ObjectAddress]string
 	regTSOutput        map[regTSOutputKey]string
 	aclAuthority       *sqltype.ACLAuthority
 	aclitemOutput      map[uint32]string

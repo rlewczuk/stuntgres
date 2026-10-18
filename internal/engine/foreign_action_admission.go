@@ -4,13 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // This authority is private to one statement and one captured physical child.
 // It never substitutes for the initiating target's admission or candidate view.
 type foreignActionAdmission struct {
-	ref               ObjectRef
+	ref               ids.ObjectRef
 	storage           *relationStorage
 	relation          *relationDescriptor
 	tx                TxRef
@@ -19,12 +20,12 @@ type foreignActionAdmission struct {
 }
 
 type foreignActionTransition struct {
-	relation  ObjectAddress
+	relation  ids.ObjectAddress
 	old, next rowVersion
 	owner     authorization.PrincipalRef // zero means the initiating statement's actor
 }
 
-func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ObjectRef) error {
+func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRef) error {
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	return auth, nil
 }
 
-func (s *StatementScope) admitForeignAction(ref ObjectRef, job *foreignKeyJob, writable bool) error {
+func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
 	e := s.op.session.Engine()
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref}]
@@ -102,7 +103,7 @@ func (s *StatementScope) admitForeignAction(ref ObjectRef, job *foreignKeyJob, w
 		return err
 	}
 	if s.foreignActionAdmissions == nil {
-		s.foreignActionAdmissions = make(map[ObjectAddress]*foreignActionAdmission)
+		s.foreignActionAdmissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
 	}
 	if previous := s.foreignActionAdmissions[ref.Address]; previous != nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
@@ -124,7 +125,7 @@ func (s *StatementScope) admitForeignAction(ref ObjectRef, job *foreignKeyJob, w
 
 // Locate the latest live physical row after the row grant, including this
 // statement's replacements. Stable snapshots use the ordinary conflict seam.
-func (s *StatementScope) foreignActionRow(ref ObjectRef, candidate rowVersion) (rowVersion, bool, error) {
+func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate rowVersion) (rowVersion, bool, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -148,7 +149,7 @@ func (s *StatementScope) foreignActionRow(ref ObjectRef, candidate rowVersion) (
 	return rowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
 
-func (w *WriteStage) deleteForeignAction(ref ObjectRef, old rowVersion) (err error) {
+func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err error) {
 	s := w.scope
 	defer func() {
 		if err == nil {
@@ -194,7 +195,7 @@ func (w *WriteStage) deleteForeignAction(ref ObjectRef, old rowVersion) (err err
 	return nil
 }
 
-func (s *StatementScope) recordForeignActionReplacement(ref ObjectRef, old, next rowVersion) {
+func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next rowVersion) {
 	if !s.foreignActionsSettling {
 		return
 	}
@@ -222,8 +223,8 @@ func foreignActionSameKey(comparisons []foreignKeyComparison, old, next []sqltyp
 // Borrow both current and retained images under stable isolation. Current
 // matches discover new/moved-in children; retained matches preserve moved-away
 // successor conflicts. Neither image creates another snapshot or copies values.
-func (s *StatementScope) captureForeignActionRows(ref ObjectRef) (foreignKeyRows, foreignKeyRows, error) {
-	rows, err := s.captureForeignKeyRows(ref, ObjectAddress{})
+func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKeyRows, foreignKeyRows, error) {
+	rows, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		return rows, foreignKeyRows{}, err
 	}

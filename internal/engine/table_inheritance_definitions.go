@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -114,7 +115,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				continue
 			}
 			copied := checkConstraint{Name: old.Name, ordinal: len(d.checkConstraints), expression: node}
-			var dependencies []ObjectRef
+			var dependencies []ids.ObjectRef
 			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.commentSnapshot, visibilitySnapshot: &copied.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}

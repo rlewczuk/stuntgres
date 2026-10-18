@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func concurrentUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(context.Background(), stmt, auth, ObjectRef{}, input, op, nil, nil)
+	b, err := e.describe(context.Background(), stmt, auth, ids.ObjectRef{}, input, op, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
@@ -121,7 +122,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		columns[i].OriginTable = uint32(oid)
 		columns[i].OriginAttribute = int16(i + 1)
 	}
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition, attributeHighWater: int32(len(attributes))}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition, attributeHighWater: int32(len(attributes))}
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = stage.Create(index)
 	e.mu.Unlock()
@@ -388,7 +389,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			if phase == "revision" {
-				d.revision = DefinitionRevision(math.MaxUint64)
+				d.revision = ids.DefinitionRevision(math.MaxUint64)
 				if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, TxRef{}); err == nil {
 					t.Fatal("revision overflow accepted")
 				}
@@ -500,7 +501,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
-	maintenance.indexSets = map[ObjectAddress]int{d.address: 1}
+	maintenance.indexSets = map[ids.ObjectAddress]int{d.address: 1}
 	if err := maintenance.validateIndexMaintenance(e.state); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}

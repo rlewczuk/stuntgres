@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*roleCatalog, error) {
@@ -179,7 +180,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			if !changed {
 				continue
 			}
-			if !authorization.MatchesDefaultBaseline(acl, key.creator, key.class, key.schema != (ObjectAddress{})) {
+			if !authorization.MatchesDefaultBaseline(acl, key.creator, key.class, key.schema != (ids.ObjectAddress{})) {
 				next = &defaultACLRecord{acl: acl}
 			}
 		}
@@ -226,7 +227,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	for _, descriptor := range stage.base.state.descriptors {
 		relation, ok := descriptor.(*relationDescriptor)
 		if ok && relation.relationKind == sequenceRelation && relation.sequence != nil &&
-			relation.sequence.owned != (ObjectAddress{}) && sources[relation.owner] {
+			relation.sequence.owned != (ids.ObjectAddress{}) && sources[relation.owner] {
 			return true
 		}
 	}

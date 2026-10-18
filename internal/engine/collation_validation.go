@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,7 +16,7 @@ func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqlty
 	if u.Collation.ID == 0 {
 		return nil
 	}
-	descriptor, _ := definitionDescriptorAt(view, reader, ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)})
+	descriptor, _ := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
 	d, ok := descriptor.(*collationDescriptor)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")
@@ -29,7 +30,7 @@ func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqlty
 
 // Captured provider manifests may outlive a descriptor revision, but never
 // authorize a missing identity, an attribute address, or an unavailable provider.
-func validateCollationProvider(view CatalogRead, ref ObjectRef) error {
+func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
@@ -46,7 +47,7 @@ func validateCollationProvider(view CatalogRead, ref ObjectRef) error {
 // Catalog-valued REGCOLLATION constants retain identity, not a comparison
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.
-func validateStoredCollationDependency(view CatalogRead, ref ObjectRef, node BoundExpr) error {
+func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node BoundExpr) error {
 	err := validateCollationProvider(view, ref)
 	if err == nil {
 		return nil
@@ -60,14 +61,14 @@ func validateStoredCollationDependency(view CatalogRead, ref ObjectRef, node Bou
 	identity, comparison := false, false
 	walkBoundExpression(node, func(child BoundExpr) {
 		usage := child.ResultUsage()
-		if OID(usage.Collation.ID) == ref.Address.ObjectID {
+		if ids.OID(usage.Collation.ID) == ref.Address.ObjectID {
 			comparison = true
 		}
 		literal, ok := child.(literalExpression)
 		if !ok || literal.value.IsNull() || literal.value.Type() == nil || literal.value.Type().ID() != sqltype.Regcollation || usage.Type == nil || usage.Type.ID() != sqltype.Regcollation {
 			return
 		}
-		if id, failure := literal.value.ObjectOID(); failure == nil && OID(id) == ref.Address.ObjectID {
+		if id, failure := literal.value.ObjectOID(); failure == nil && ids.OID(id) == ref.Address.ObjectID {
 			identity = true
 		}
 	})

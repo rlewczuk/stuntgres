@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -22,7 +23,7 @@ func catalogAuthorization(e *Engine, view CatalogRead) AuthorizationView {
 	return AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.roles, catalog: view, roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}
 }
 
-func roleTableRef(t *testing.T, e *Engine, name string) ObjectRef {
+func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -114,7 +115,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
-	namespace := e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
@@ -442,7 +443,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace := e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	original := e.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{

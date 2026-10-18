@@ -1,9 +1,11 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Independent release expectations shared with the public reference scenarios,
 // never constructed from production inventories or native output.
 type pgDescriptionExpectedSeed struct {
-	oid  OID
+	oid  ids.OID
 	text string
 }
 

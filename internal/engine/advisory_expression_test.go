@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -186,7 +187,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(advisoryExpression)
-		column := columnExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := columnExpression{expressionInfo: expressionInfo{usage: node.args[0].ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.args = []BoundExpr{node.args[0], column}
 		node.properties.RowDependent = true
 		visits := 0
@@ -212,7 +213,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("group identity ignored argument order")
 		}
-		remapped, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+		remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 func (e *Engine) initializeRoles() {
@@ -28,7 +29,7 @@ func (e *Engine) nextRolePrincipalLocked() (authorization.PrincipalRef, error) {
 
 func predefinedPrivileges(d Descriptor, principals []authorization.PrincipalRef) authorization.Privileges {
 	rights := authorization.PredefinedPrivileges(principals)
-	if d.Kind() == NamespaceObject {
+	if d.Kind() == ids.NamespaceObject {
 		if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege) != 0 {
 			return authorization.UsagePrivilege
 		}

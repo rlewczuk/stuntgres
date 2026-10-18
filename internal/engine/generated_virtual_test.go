@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -165,7 +166,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	next := cloneCatalog(view.state)
 	next.epoch++
 	next.descriptors[d.address] = d
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ObjectAddress]*relationStorage{d.address: store}, map[ObjectAddress]ObjectAddress{original: d.address}, EvalContext{}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.address: store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.address}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.versions[0].values[1].IsNull() {
@@ -173,7 +174,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	}
 	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: store.versions[0].values}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
-	if owner, e := v.OID(); err != nil || e != nil || OID(owner) != d.address.ObjectID {
+	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.address.ObjectID {
 		t.Fatal(v, err, e)
 	}
 }

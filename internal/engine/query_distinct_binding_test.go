@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	root, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	root, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +193,7 @@ func TestQueryDistinctPhysicalACL(t *testing.T) {
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1
-			grant := func(ref ObjectRef, rights authorization.Privileges) {
+			grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 				t.Helper()
 				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)

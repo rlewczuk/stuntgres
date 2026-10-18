@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -141,7 +142,7 @@ func TestSequenceGenericRenameStampExhaustion(t *testing.T) {
 			before := e.state.descriptors[ref.Address]
 			generator := e.sequences[ref.Address]
 			state := *generator
-			e.nextRevision = DefinitionRevision(^uint64(0))
+			e.nextRevision = ids.DefinitionRevision(^uint64(0))
 			err := sequenceOwnerCommand(t, e, op, "ALTER TABLE s RENAME TO identity", prepared)
 			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 				t.Fatalf("stamp exhaustion error=%v", err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -613,7 +614,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 				t.Fatal("genuine contextual template root rejected", err)
 			}
 			for range 2 {
-				mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ObjectRef) ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+				mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -666,7 +667,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 			t.Fatal("valid identity scalar reservation rejected", err)
 		}
 		for range 2 {
-			mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ObjectRef) ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+			mapped, err := remapViewQuery(b.bindingCatalog(), stage, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -697,7 +698,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		if err != nil || changed || !reflect.DeepEqual(mapped, unknown) {
 			t.Fatal("contextual analysis changed during retag", mapped, changed, err)
 		}
-		captured, err := remapBoundExpression(unknown, func(ref ObjectRef) ObjectRef {
+		captured, err := remapBoundExpression(unknown, func(ref ids.ObjectRef) ids.ObjectRef {
 			t.Fatal("contextual analysis invented a captured reference", ref)
 			return ref
 		}, nil)

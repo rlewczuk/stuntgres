@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -16,7 +17,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 	_, _, foreign := strictNullUnitBind(t, other, otherOp, otherScope, "1")
 	for _, tc := range []struct {
 		name, expression, signature string
-		oid                         OID
+		oid                         ids.OID
 		arity                       int
 	}{
 		{"short", "generate_series(0.10::numeric,2.10::numeric)", "1700,1700", 3260, 2},
@@ -34,9 +35,9 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
-			address := ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.signature) != tc.signature || captured.result != 1700 || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Immutable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {

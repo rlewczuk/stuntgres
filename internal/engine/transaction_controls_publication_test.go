@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -75,7 +76,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			for _, q := range []string{"INSERT INTO t VALUES(7)", "INSERT INTO t VALUES(8)", "INSERT INTO t VALUES(10)", "INSERT INTO u VALUES(70)"} {
 				sessionSQL(t, b, q)
 			}
-			addresses := [2]ObjectAddress{catalogRef(t, e, e.CatalogRead(), "t").Address, catalogRef(t, e, e.CatalogRead(), "u").Address}
+			addresses := [2]ids.ObjectAddress{catalogRef(t, e, e.CatalogRead(), "t").Address, catalogRef(t, e, e.CatalogRead(), "u").Address}
 			stores := [2]*relationStorage{e.storage[addresses[0]], e.storage[addresses[1]]}
 			roots := [2][]rowVersion{stores[0].versions, stores[1].versions}
 			if len(roots[0]) != 3 || cap(roots[0]) != 4 || len(roots[1]) != 1 || cap(roots[1]) != 1 {

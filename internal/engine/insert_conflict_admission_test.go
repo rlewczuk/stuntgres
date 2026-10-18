@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	f.e.indexRoots[f.index.address] = root
 	return f
 }
-func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ObjectRef) {
+func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ids.ObjectRef) {
 	t.Helper()
 	op, done := roleOperation(t, f.e, "postgres")
 	t.Cleanup(done)
@@ -232,7 +233,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 	class, _ := sqltype.DefaultIndexClass(f.predicate.usage.Type)
 	for i := range 2 {
 		index := *f.index
-		index.address.ObjectID += OID(i + 1)
+		index.address.ObjectID += ids.OID(i + 1)
 		index.name = []string{"mixed_a", "mixed_b"}[i]
 		definition := *f.index.sqlIndex
 		definition.keys = []indexKey{{derived: &derivedIndexKey{definition: expression, execution: expression, attributes: f.parent.attributes}, class: class}, {attribute: 10, class: f.index.sqlIndex.keys[0].class, desc: i == 1}}

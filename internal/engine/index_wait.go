@@ -1,8 +1,10 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Capturing granted holders is not an acquisition of Share: later writers stay
 // admissible and cannot be appended to this exact transaction cohort.
-func (m *relationLockManager) indexWriters(ticket *relationTicket, parent ObjectRef) ([]*relationTicket, error) {
+func (m *relationLockManager) indexWriters(ticket *relationTicket, parent ids.ObjectRef) ([]*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(ticket) || parent.Epoch != ticket.ref.Epoch() {
@@ -33,21 +35,21 @@ type indexBuildWait struct {
 
 // Engine.mu is held. This observes a frozen coordinator cohort, not registration
 // of an individual lock-manager request.
-func (e *Engine) admitIndexBuildWaitLocked(index ObjectAddress, owner TxRef, kind indexBuildWaitKind) error {
-	if index == (ObjectAddress{}) {
+func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner TxRef, kind indexBuildWaitKind) error {
+	if index == (ids.ObjectAddress{}) {
 		return nil
 	}
 	if owner.Domain() != domainOf(e) || owner.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if e.indexBuildWaits == nil {
-		e.indexBuildWaits = make(map[ObjectAddress]indexBuildWait)
+		e.indexBuildWaits = make(map[ids.ObjectAddress]indexBuildWait)
 	}
 	e.indexBuildWaits[index] = indexBuildWait{owner: owner, kind: kind}
 	return nil
 }
 
-func (e *Engine) clearIndexBuildWait(index ObjectAddress, owner TxRef, kind indexBuildWaitKind) {
+func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner TxRef, kind indexBuildWaitKind) {
 	e.mu.Lock()
 	if e.indexBuildWaits[index] == (indexBuildWait{owner: owner, kind: kind}) {
 		delete(e.indexBuildWaits, index)
@@ -79,7 +81,7 @@ func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completio
 	return err
 }
 
-func (s *StatementScope) waitIndexWriters(index ObjectAddress) error {
+func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
 	e := s.op.session.Engine()
 	owners, err := e.locks.indexWriters(s.ticket, s.lockedRef)
 	if err != nil {

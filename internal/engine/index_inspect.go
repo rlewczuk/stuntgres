@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // InspectIndex projects authoritative immutable descriptor flags without
@@ -13,12 +15,12 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 	}
 	e.mu.Lock()
 	catalog := CatalogRead{owner: e, state: e.state}
-	namespace, ok := catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: schema}]
+	namespace, ok := catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: schema}]
 	if !ok {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index schema %s does not exist", quoteIdentifier(schema))
 	}
-	address, ok := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	address, ok := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
 	if !ok {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", quoteIdentifier(schema), quoteIdentifier(name))

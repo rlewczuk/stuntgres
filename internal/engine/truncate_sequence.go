@@ -2,20 +2,21 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Counters remain mutable and nontransactional within one generator binding.
 // These observations fence the binding/descriptor, never a snapshot of counters.
 type truncateSequence struct {
-	ref       ObjectRef
+	ref       ids.ObjectRef
 	relation  *relationDescriptor
 	generator *sequenceGenerator
 	committed *sequenceGenerator
 }
 
-func truncateOwnsSequence(d *relationDescriptor, selected map[ObjectAddress]int) bool {
-	if d.relationKind != sequenceRelation || d.sequence.owned == (ObjectAddress{}) {
+func truncateOwnsSequence(d *relationDescriptor, selected map[ids.ObjectAddress]int) bool {
+	if d.relationKind != sequenceRelation || d.sequence.owned == (ids.ObjectAddress{}) {
 		return false
 	}
 	a := d.sequence.owned
@@ -70,11 +71,11 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 // Caller holds Engine.mu. Stage fresh bindings with the same catalog candidate
 // as table/index roots. Rollback discards these bindings, not counter mutations
 // made on the original generator before reset.
-func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ObjectAddress]*sequenceGenerator, error) {
+func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*sequenceGenerator, error) {
 	e := s.op.session.Engine()
-	var observed map[ObjectAddress]*sequenceGenerator
+	var observed map[ids.ObjectAddress]*sequenceGenerator
 	if len(s.truncateSequences) != 0 {
-		observed = make(map[ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
+		observed = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
@@ -96,7 +97,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		}
 	}
 	if len(s.truncateSequences) != 0 {
-		stage.generators = make(map[ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
+		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		rev, err := e.revisionLocked()
@@ -112,7 +113,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {
-		session.sequences = make(map[ObjectAddress]*sequenceMemory, len(s.truncateSequences))
+		session.sequences = make(map[ids.ObjectAddress]*sequenceMemory, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
@@ -128,6 +129,6 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		m.remaining = 0
 		m.analysisStamp = stage.descriptors[a].(*relationDescriptor).sequencePlanStamp
 	}
-	s.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
+	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil
 }

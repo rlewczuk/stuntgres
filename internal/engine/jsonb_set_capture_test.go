@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -104,7 +105,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		}
 	}
 	assertRows(node, b.typ(sqltype.Text))
-	mapped, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

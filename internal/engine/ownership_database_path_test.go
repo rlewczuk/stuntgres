@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	successor := e.authorizationDomain.Principal(100001)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
 	before := cloneCatalog(auth.catalog.state)
-	address := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	address := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	namespace := *before.descriptors[address].(*namespaceDescriptor)
 	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.owner, Grantee: authorization.ACLGrantee{Role: namespace.owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	before.descriptors[address] = &namespace

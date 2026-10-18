@@ -4,12 +4,13 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type operatorSignature struct{ left, right OID }
+type operatorSignature struct{ left, right ids.OID }
 type operatorGroups map[string][]*operatorDescriptor
 
 func collectOperatorGroups(view CatalogRead) operatorGroups {
@@ -24,7 +25,7 @@ func collectOperatorGroups(view CatalogRead) operatorGroups {
 }
 
 // Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups operatorGroups, path []ObjectAddress, name string) []*operatorDescriptor {
+func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*operatorDescriptor {
 	var result []*operatorDescriptor
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
@@ -44,9 +45,9 @@ func visibleOperators(groups operatorGroups, path []ObjectAddress, name string) 
 
 type capturedOperatorInput struct {
 	types     capturedRegtypeInput
-	path      []ObjectAddress
+	path      []ids.ObjectAddress
 	groups    operatorGroups
-	qualified *[]ObjectAddress
+	qualified *[]ids.ObjectAddress
 	operands  *[]expressionDependency
 }
 
@@ -104,11 +105,11 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 	}
 	path := r.path
 	if len(parts) == 2 {
-		ns := r.types.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		ns := r.types.auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
 		if parts[0].Text == "pg_temp" {
 			ns = r.types.temporary
 		}
-		if ns == (ObjectAddress{}) {
+		if ns == (ids.ObjectAddress{}) {
 			return nil, nil
 		}
 		if err := r.types.auth.CanUse(r.types.auth.engine.domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
@@ -117,7 +118,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
 			*r.qualified = append(*r.qualified, ns)
 		}
-		path = []ObjectAddress{ns}
+		path = []ids.ObjectAddress{ns}
 	}
 	return visibleOperators(r.groups, path, parts[len(parts)-1].Text), nil
 }
@@ -148,7 +149,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 		return n, err
 	}
 	var name string
-	var oids [2]OID
+	var oids [2]ids.OID
 	count := 0
 	types := r.types
 	types.qualified = r.qualified
@@ -176,7 +177,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 			return sqlError("54023", "too many arguments")
 		}
 		if count < len(oids) {
-			oids[count] = OID(id)
+			oids[count] = ids.OID(id)
 		}
 		count++
 		return nil

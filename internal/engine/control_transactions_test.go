@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestControlTransactionsEndMatrix(t *testing.T) {
@@ -124,7 +126,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			// targets installation, not admission or the live-row scan.
 			replacement := source.CatalogRead()
 			sourceRoles, targetRoles := source.Roles(), target.Roles()
-			preparedStorage := make(map[ObjectAddress]*relationStorage)
+			preparedStorage := make(map[ids.ObjectAddress]*relationStorage)
 			source.mu.Lock()
 			for address, relation := range source.storage {
 				preparedStorage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}

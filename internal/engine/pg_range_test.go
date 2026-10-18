@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 3541}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 3541}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_range")
@@ -86,8 +87,8 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal("PUBLIC read", d.acl)
 		}
-		row := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10101}].(*typeDescriptor)
-		array := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 10100}].(*typeDescriptor)
+		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10101}].(*typeDescriptor)
+		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 10100}].(*typeDescriptor)
 		ownedRow, rowOK := catalog.LookupType(10101)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10100 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.owner || array.owner != d.owner {

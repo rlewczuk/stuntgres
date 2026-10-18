@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		name, typ, declaration string
 		declared, canonical    sqltype.ID
-		operator               OID
+		operator               ids.OID
 		first, second          string
 	}{
 		{"cidr", "CIDR", "", sqltype.Cidr, sqltype.Inet, 1201, "192.0.2.0/24", "198.51.100.0/24"},
@@ -101,7 +102,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 				t.Fatal("operator vector shape", operators)
 			}
 			id, err := operators.ArrayElement(0).OID()
-			if err != nil || OID(id) != tc.operator {
+			if err != nil || ids.OID(id) != tc.operator {
 				t.Fatal("captured canonical exclusion operator", id, tc.operator, err)
 			}
 			if got := pgConstraintUnitText(t, rows["pc_exunit_ck"][20]); got != "{1}" {

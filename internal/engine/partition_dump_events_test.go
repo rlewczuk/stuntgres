@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	regclass := f.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regclass)}].(*typeDescriptor).typ
+	regclass := f.view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
 	for _, table := range []*relationDescriptor{f.root, f.leaf} {
 		table.columns = append(slices.Clone(table.columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.attributes = append(slices.Clone(table.attributes), 99)
@@ -22,7 +23,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	other.address.ObjectID = 90001
 	other.name = "unit_other"
 	other.membership = &partitionMembership{parent: f.root.address}
-	f.root.partition.children = []ObjectAddress{other.address, f.leaf.address}
+	f.root.partition.children = []ids.ObjectAddress{other.address, f.leaf.address}
 	f.child.sqlIndex.partitionParent = f.parent.address
 	good, goodDefinition := *f.parent, *f.parent.sqlIndex
 	good.address.ObjectID = 90002
@@ -43,7 +44,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 		f.view.state.descriptors[d.address] = d
 		f.view.state.names[descriptorNameKey(d)] = d.address
 	}
-	boolean := f.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Bool)}].(*typeDescriptor).typ
+	boolean := f.view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Bool)}].(*typeDescriptor).typ
 	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.columns))
 	for i, column := range f.leaf.columns {
@@ -55,7 +56,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			rowValues[len(rowValues)-1] = sqltype.String(regclass, strconv.FormatUint(uint64(reference.address.ObjectID), 10))
 			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.columns, attributes: f.leaf.attributes, versions: []rowVersion{{row: 1, version: 1, values: rowValues}}}}
 			graph := make(map[dumpEventKey][]dumpEventKey)
-			indices := make(map[OID]int)
+			indices := make(map[ids.OID]int)
 			for _, table := range tables {
 				graph[dumpEventKey{oid: table.descriptor.address.ObjectID}] = nil
 			}
@@ -71,7 +72,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {
 				t.Fatal(err)
 			}
-			order, err := viewDumpOrder(context.Background(), graph, map[OID]OID{good.address.ObjectID: 1})
+			order, err := viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{good.address.ObjectID: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,7 +112,7 @@ func TestPartitionAttachDumpPhaseScheduler(t *testing.T) {
 	data := dumpEventKey{oid: 20, phase: dumpRows}
 	check := dumpEventKey{oid: 20, phase: dumpInvalidConstraints}
 	graph := map[dumpEventKey][]dumpEventKey{definition: {membership}, membership: nil, data: {definition}, check: {data}}
-	order, err := viewDumpOrder(context.Background(), graph, map[OID]OID{90: 1})
+	order, err := viewDumpOrder(context.Background(), graph, map[ids.OID]ids.OID{90: 1})
 	if err != nil || !slices.Equal(order, []dumpEventKey{membership, definition, data, check}) {
 		t.Fatal("source priority bypassed a membership/name/data/origin predecessor", order, err)
 	}

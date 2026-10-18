@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -73,7 +74,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 					}
 				}
 			}()
-			go func() { result <- lockInheritanceDropClosure(scope, stage, []ObjectAddress{parent.address}) }()
+			go func() { result <- lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{parent.address}) }()
 			lockPending(t, e, 1)
 			if cancelWait {
 				cancel()
@@ -108,10 +109,10 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if stage.base.state == base.state || len(inheritanceChildren(stage.base, firstChild.address)) != 1 {
 					t.Fatal("late child omitted")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err == nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 					t.Fatal("late child did not block RESTRICT")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{parent.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 					t.Fatal(err)
 				}
 				if len(stage.removals) != 3 {
@@ -169,7 +170,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := lockInheritanceDropClosure(scope, stage, []ObjectAddress{table.address}); err != nil {
+	if err := lockInheritanceDropClosure(scope, stage, []ids.ObjectAddress{table.address}); err != nil {
 		t.Fatal("standalone DROP attempted an extra root grant", err)
 	}
 	e.locks.mu.Lock()

@@ -6,14 +6,15 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 const restoreRetiredBoundary = "restore accepts only paired canonical retired constraint origins"
 
 type restoredHistoricalFact struct {
-	ref                 ObjectRef
-	oid                 OID
+	ref                 ids.ObjectRef
+	oid                 ids.OID
 	name                string
 	check               bool
 	attributes          []int32
@@ -27,7 +28,7 @@ type retiredRepairRow struct {
 	parent             parser.ObjectName
 	text, column, name string
 	attribute          int32
-	constraint         OID
+	constraint         ids.OID
 	lifetime, archive  uint64
 	check              bool
 }
@@ -41,9 +42,9 @@ type retiredRepair struct {
 	parents                   []string
 }
 type retiredSourceIdentity struct {
-	parent            ObjectRef
+	parent            ids.ObjectRef
 	archive, lifetime uint64
-	constraint        OID
+	constraint        ids.OID
 }
 type retiredSourceDescription struct {
 	column, name string
@@ -51,7 +52,7 @@ type retiredSourceDescription struct {
 	check        bool
 }
 type restoredHistoryAuthority struct {
-	facts       map[OID]restoredHistoricalFact
+	facts       map[ids.OID]restoredHistoricalFact
 	archives    map[uint64]uint64
 	sources     map[retiredSourceIdentity]retiredSourceDescription
 	nextArchive uint64
@@ -87,7 +88,7 @@ func constraintAttributeKeys(table *relationDescriptor, expression BoundExpr) []
 	return keys
 }
 
-func captureHistoricalRelation(view CatalogRead, ref ObjectRef, facts map[OID]restoredHistoricalFact) {
+func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	table, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || table.inheritance == nil {
 		return
@@ -118,7 +119,7 @@ func captureHistoricalRelation(view CatalogRead, ref ObjectRef, facts map[OID]re
 	}
 }
 
-func (e *Engine) captureHistoricalFacts(refs map[ObjectAddress]ObjectRef, facts map[OID]restoredHistoricalFact) {
+func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	view := e.CatalogRead()
 	for _, ref := range refs {
 		captureHistoricalRelation(view, ref, facts)
@@ -347,7 +348,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		}
 		records = append(records, record)
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
@@ -404,9 +405,9 @@ func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEve
 			continue
 		}
 		event := dumpEventKey{oid: table.address.ObjectID, phase: dumpRetiredConstraints}
-		seen := make(map[ObjectAddress]bool)
-		var ready func(ObjectAddress)
-		ready = func(address ObjectAddress) {
+		seen := make(map[ids.ObjectAddress]bool)
+		var ready func(ids.ObjectAddress)
+		ready = func(address ids.ObjectAddress) {
 			if seen[address] {
 				return
 			}

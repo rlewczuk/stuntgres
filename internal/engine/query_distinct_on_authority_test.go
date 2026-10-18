@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1
-			grant := func(ref ObjectRef, rights authorization.Privileges) {
+			grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 				t.Helper()
 				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)

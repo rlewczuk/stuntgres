@@ -1,8 +1,12 @@
 package engine
 
-import "errors"
+import (
+	"errors"
 
-func (e *Engine) serializableEligibleLocked(ref ObjectRef, catalog *catalogChanges) bool {
+	"stuntgres/internal/engine/ids"
+)
+
+func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogChanges) bool {
 	d, ok := e.privateCatalogLocked(catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || d.relationKind != tableRelation {
 		return false
@@ -11,7 +15,7 @@ func (e *Engine) serializableEligibleLocked(ref ObjectRef, catalog *catalogChang
 	return ok && ns.temporary == (SessionToken{}) && d.namespace.ObjectID != PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 
-func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error {
+func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
 	if ref.Domain() != e.domain || ref.Address.SubID != 0 {
 		return errors.New("stuntgres: foreign SSI relation")
 	}
@@ -51,7 +55,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error 
 	return nil
 }
 
-func (e *Engine) serializableWriteLocked(s *StatementScope, ref ObjectRef, events []serializableWrite) error {
+func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []serializableWrite) error {
 	if ref.Domain() != e.domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}

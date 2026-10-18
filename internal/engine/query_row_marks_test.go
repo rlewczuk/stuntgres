@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -72,7 +73,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SEQUENCE s")
 	reader, _ := e.Roles().Lookup("mark_reader")
 	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	grant := func(ref ObjectRef, rights authorization.Privileges) {
+	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true}
 		if rights != 0 {
@@ -148,7 +149,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
-	view := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}].(*relationDescriptor)
+	view := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 12048}].(*relationDescriptor)
 	table := &relationDescriptor{relationKind: tableRelation}
 	requested := queryRowMark{mode: rowUpdate, wait: parser.RowLockNowait, diagnosticMode: rowUpdate, order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{

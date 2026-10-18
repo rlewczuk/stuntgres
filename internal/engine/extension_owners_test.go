@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -112,9 +113,9 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 func TestPgcryptoControlRemap(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	before := e.CatalogRead()
-	mapping := map[ObjectAddress]ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.members {
-		mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900001 + i)}
+		mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
@@ -158,15 +159,15 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := bound.(installedCryptoFunctionExpression)
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{
 		address:  address,
-		defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ObjectRef{call.ref}}},
+		defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}},
 		generations: map[int32]columnGeneration{2: {
-			kind: generationStored, expression: call, planned: call, dependencies: []ObjectRef{call.ref},
+			kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref},
 		}},
 		sqlIndex: &indexDefinition{keys: []indexKey{{derived: &derivedIndexKey{
-			definition: call, execution: call, dependencies: []ObjectRef{call.ref},
+			definition: call, execution: call, dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
 	next.descriptors[address] = consumer
@@ -195,7 +196,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	assertCall(relocated.generations[2].planned)
 	assertCall(relocated.sqlIndex.keys[0].derived.definition)
 	assertCall(relocated.sqlIndex.keys[0].derived.execution)
-	for _, dependency := range []ObjectRef{
+	for _, dependency := range []ids.ObjectRef{
 		relocated.defaults[1].dependencies[0],
 		relocated.generations[2].dependencies[0],
 		relocated.sqlIndex.keys[0].derived.dependencies[0],
@@ -208,7 +209,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		querySchema: querySchema{{Name: "hmac", Usage: call.ResultUsage()}},
 		child:       &valuesNode{}, expressions: []BoundExpr{call},
 	}
-	ref := func(ref ObjectRef) ObjectRef {
+	ref := func(ref ids.ObjectRef) ids.ObjectRef {
 		if target, ok := mapping[ref.Address]; ok {
 			ref.Address = target
 		}

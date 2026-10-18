@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -88,7 +89,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	constraint := ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID}
+	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID}
 	want := []pgDependEdge{{dependent: index.address, referenced: constraint, deptype: 'i'}}
 	for _, attribute := range []int32{1, 2} {
 		column := parent.address

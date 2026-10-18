@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -56,7 +57,7 @@ func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *relationDescript
 
 func primaryKeyUnitRelation(t *testing.T, e *Engine, name string) *relationDescriptor {
 	t.Helper()
-	address, ok := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]
+	address, ok := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]
 	if !ok {
 		t.Fatal("missing relation", name)
 	}

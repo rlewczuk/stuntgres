@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,7 +18,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 		columns[i] = ColumnDescriptor{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
-	d, err := e.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
+	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
 	if err == nil {
 		err = stage.Create(d)
@@ -29,8 +30,8 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	return stage, d
 }
 
-func queryCreateTypes(e *Engine) map[ObjectAddress]Descriptor {
-	types := make(map[ObjectAddress]Descriptor)
+func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
+	types := make(map[ids.ObjectAddress]Descriptor)
 	for address, descriptor := range e.CatalogRead().state.descriptors {
 		if address.ClassID == TypeClassID {
 			types[address] = descriptor
@@ -39,7 +40,7 @@ func queryCreateTypes(e *Engine) map[ObjectAddress]Descriptor {
 	return types
 }
 
-func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ObjectAddress]Descriptor) {
+func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]Descriptor) {
 	t.Helper()
 	got := queryCreateTypes(e)
 	if len(got) != len(want) {
@@ -58,8 +59,8 @@ func queryCreateAssertAbsent(t *testing.T, e *Engine, d *relationDescriptor) {
 	if _, ok := view.Descriptor(d.address); ok || e.storage[d.address] != nil {
 		t.Fatal("partial descriptor/storage publication")
 	}
-	for _, class := range []OID{RelationClassID, TypeClassID} {
-		if len(view.Lookup(NameKey{ClassID: class, Namespace: d.namespace, Name: d.name})) != 0 {
+	for _, class := range []ids.OID{RelationClassID, TypeClassID} {
+		if len(view.Lookup(ids.NameKey{ClassID: class, Namespace: d.namespace, Name: d.name})) != 0 {
 			t.Fatal("partial name/type publication", class)
 		}
 	}

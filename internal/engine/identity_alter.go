@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -84,7 +85,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 
 // Both identity SET and TYPE AS use the sequence owner's migration/state rules.
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
-func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress, raw []parser.SequenceOption) error {
+func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
 	if err := e.refreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
@@ -130,13 +131,13 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		replacement.called = false
 	}
 	if stage.generators == nil {
-		stage.generators = make(map[ObjectAddress]*sequenceGenerator)
+		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}
 	stage.generators[address] = &replacement
 	return nil
 }
 
-func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress, usage sqltype.Usage) error {
+func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
 	ref := e.domain.Ref(stage.base.Epoch(), address)
 	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
 		return err
@@ -160,7 +161,7 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 }
 
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
-func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress) error {
+func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress) error {
 	fresh, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return err
@@ -176,7 +177,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		return err
 	}
 	if stage.identityOriginals == nil {
-		stage.identityOriginals = make(map[ObjectAddress]Descriptor)
+		stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
 	}
 	if _, captured := stage.identityOriginals[address]; !captured {
 		stage.identityOriginals[address] = e.state.descriptors[address]

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -88,7 +89,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if parser.HasModifyingCTE(query) {
 				analysis = query
 			}
-			b, err := e.describeWithRule(scope.op.Context(), analysis, auth, ObjectRef{}, scope.input, scope.op, nil, nil, &ruleNamespace{relation: old, ref: ref, event: "SELECT"})
+			b, err := e.describeWithRule(scope.op.Context(), analysis, auth, ids.ObjectRef{}, scope.input, scope.op, nil, nil, &ruleNamespace{relation: old, ref: ref, event: "SELECT"})
 			if err != nil {
 				return fail(err)
 			}

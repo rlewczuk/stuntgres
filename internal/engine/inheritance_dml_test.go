@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -57,7 +58,7 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 	if len(refs) != 4 {
 		t.Fatal("diamond was not deduplicated", refs)
 	}
-	seen := map[ObjectRef]bool{}
+	seen := map[ids.ObjectRef]bool{}
 	e.locks.mu.Lock()
 	for _, ref := range refs {
 		if seen[ref] {
@@ -85,7 +86,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := func(d *relationDescriptor) ObjectRef {
+	ref := func(d *relationDescriptor) ids.ObjectRef {
 		return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}

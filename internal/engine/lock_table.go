@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -29,7 +30,7 @@ func explicitLockMode(mode parser.TableLockMode) relationLockMode {
 	return 0
 }
 
-func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, mode relationLockMode) error {
+func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, mode relationLockMode) error {
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != viewRelation {
 		return tableKind(d, "lock")
 	}
@@ -70,7 +71,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		if err == nil && s.txRef.Epoch() != e.state.epoch {
 			err = ErrCatalogReplaced
 		}
@@ -91,7 +92,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 
 // Bound view sources never repeat namespace lookup. Each grant retains the
 // original identity and rechecks the principal against grant-time metadata.
-func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker authorization.PrincipalRef, ancestors []ObjectRef, only bool) error {
+func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids.ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker authorization.PrincipalRef, ancestors []ids.ObjectRef, only bool) error {
 	for _, ancestor := range ancestors {
 		if ancestor == ref {
 			return nil

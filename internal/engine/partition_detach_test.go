@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,7 +29,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	def := inheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
 	def.relationKind = tableRelation
 	def.membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.partition.children = []ObjectAddress{child.address, def.address}
+	parent.partition.children = []ids.ObjectAddress{child.address, def.address}
 	parent.partition.defaultChild = def.address
 	relations := []*relationDescriptor{parent, child, def}
 	leaf := child
@@ -36,7 +37,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 		leaf = inheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
 		leaf.relationKind = tableRelation
 		leaf.membership = &partitionMembership{parent: child.address, defaultBound: true}
-		child.partition.children = []ObjectAddress{leaf.address}
+		child.partition.children = []ids.ObjectAddress{leaf.address}
 		child.partition.defaultChild = leaf.address
 		relations = append(relations, leaf)
 	}
@@ -74,7 +75,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if p.revision != f.parent.revision+1 || c.revision != child.revision+1 {
 				t.Fatal("revision invalidation missing")
 			}
-			if (p.partition.defaultChild == (ObjectAddress{})) != (kind == "default") {
+			if (p.partition.defaultChild == (ids.ObjectAddress{})) != (kind == "default") {
 				t.Fatal("wrong DEFAULT pointer")
 			}
 			if f.e.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.partition.children) != 2 || child.membership == nil {
@@ -123,7 +124,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			view := f.e.stageRead(stage)
 			index := view.state.descriptors[f.child.address].(*relationDescriptor)
 			table := view.state.descriptors[f.leaf.address].(*relationDescriptor)
-			if index.sqlIndex.partitionParent != (ObjectAddress{}) || index.sqlIndex.constraint != f.child.sqlIndex.constraint || index.sqlIndex.valid != f.child.sqlIndex.valid || table.uniqueConstraints[0].Parent != 0 || !table.uniqueConstraints[0].IsLocal || !table.notNullConstraints[0].partitionLocal {
+			if index.sqlIndex.partitionParent != (ids.ObjectAddress{}) || index.sqlIndex.constraint != f.child.sqlIndex.constraint || index.sqlIndex.valid != f.child.sqlIndex.valid || table.uniqueConstraints[0].Parent != 0 || !table.uniqueConstraints[0].IsLocal || !table.notNullConstraints[0].partitionLocal {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
 			if table.uniqueConstraints[0].OID != childKey.OID || table.notNullConstraints[0].OID != 46602 || f.leaf.uniqueConstraints[0].Parent != rootKey.OID || f.child.sqlIndex.partitionParent != f.parent.address {
@@ -217,7 +218,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 	// Exhaustion must not mutate any live descriptor or allocate a new identity.
 	f := partitionConstraintDescriptors(t)
 	f.child.sqlIndex.partitionParent = f.parent.address
-	f.child.revision = DefinitionRevision(^uint64(0))
+	f.child.revision = ids.DefinitionRevision(^uint64(0))
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err == nil || f.leaf.membership == nil || len(f.root.partition.children) != 1 {
@@ -238,7 +239,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 	next := f.e.stageRead(stage)
 	delete(next.state.descriptors, f.child.address)
 	delete(next.state.descriptors, f.leaf.address)
-	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.address] != nil || f.parent.sqlIndex.valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)
 	}

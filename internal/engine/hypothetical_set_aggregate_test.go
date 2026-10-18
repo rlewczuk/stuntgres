@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -205,7 +206,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			}
 			// Every direct/key/result descriptor must belong to the destination catalog.
 			destination := New().CatalogRead()
-			remapped, err := remapViewQuery(destination, aggregate, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			remapped, err := remapViewQuery(destination, aggregate, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == nil {
 					return nil
 				}

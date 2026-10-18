@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestTruncateGraphPartitions(t *testing.T) {
 	if len(scope.truncateRelations) != 4 || len(scope.catalog.storage) != 2 || e.storage[root.Address] != nil || e.storage[nested.Address] != nil {
 		t.Fatal("virtual authorities became physical stores or a real leaf was omitted")
 	}
-	for _, ref := range []ObjectRef{root, nested, left, right} {
+	for _, ref := range []ids.ObjectRef{root, nested, left, right} {
 		e.locks.mu.Lock()
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
 		var hold relationHold
@@ -157,7 +158,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
 	base := e.CatalogRead()
-	destination := base.state.names[NameKey{ClassID: NamespaceClassID, Name: "other"}]
+	destination := base.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "other"}]
 	stage := e.BeginCatalogStage(base)
 	// The same genuine group construction used by SET SCHEMA moves the table,
 	// backing index and synchronized row/array types, without reminting storage.

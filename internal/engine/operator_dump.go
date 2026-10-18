@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,7 +16,7 @@ func operatorSQLName(view CatalogRead, d *operatorDescriptor) string {
 }
 func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
-	for i, id := range [...]OID{d.left, d.right} {
+	for i, id := range [...]ids.OID{d.left, d.right} {
 		if id == 0 {
 			continue
 		}
@@ -31,12 +32,12 @@ func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, erro
 	}
 	return operatorSQLName(view, d) + " (" + arguments[0] + ", " + arguments[1] + ")", nil
 }
-func operatorRoutineSQLName(view CatalogRead, id OID) (string, error) {
+func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
 	identity, ok := routineIdentityByOID(view, id)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
-	namespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: identity.namespace}]
+	namespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: identity.namespace}]
 	if namespace == nil {
 		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
 	}
@@ -57,8 +58,8 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 
 // Reciprocal links between defined custom operators are established only after
 // both declarations. Shell targets must instead be created by a forward link.
-func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id OID) bool {
-	peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id ids.OID) bool {
+	peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 	if peer == nil || peer.function == 0 || peer.seeded() {
 		return false
 	}
@@ -71,7 +72,7 @@ func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind
 
 func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor, keepForwardLinks bool) (dumpDomain, error) {
 	options := make([]string, 0, 10)
-	for i, id := range [...]OID{d.left, d.right} {
+	for i, id := range [...]ids.OID{d.left, d.right} {
 		if id == 0 {
 			continue
 		}
@@ -91,11 +92,11 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		return dumpDomain{}, err
 	}
 	options = append(options, "FUNCTION = "+routine)
-	for i, id := range [...]OID{d.commutator, d.negator} {
+	for i, id := range [...]ids.OID{d.commutator, d.negator} {
 		if id == 0 {
 			continue
 		}
-		peer, ok := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		peer, ok := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 		if !ok {
 			return dumpDomain{}, fmt.Errorf("stuntgres: missing operator link")
 		}
@@ -108,7 +109,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		options = append(options, key+" = OPERATOR("+operatorSQLName(view, peer)+")")
 	}
-	for i, id := range [...]OID{d.restriction, d.join} {
+	for i, id := range [...]ids.OID{d.restriction, d.join} {
 		if id == 0 {
 			continue
 		}
@@ -130,8 +131,8 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 	}
 	text := "CREATE OPERATOR " + operatorSQLName(view, d) + " (" + strings.Join(options, ", ") + ");\n"
 	owners := []*operatorDescriptor{d}
-	for _, id := range [...]OID{d.commutator, d.negator} {
-		peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+	for _, id := range [...]ids.OID{d.commutator, d.negator} {
+		peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 		if peer != nil && peer.function == 0 {
 			owners = append(owners, peer)
 		}
@@ -168,11 +169,11 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 	negator := false
 	for key, declaration := range builtinOperatorRoutineByDeclaration {
 		comm := shell.left != 0 && key.left == shell.right && key.right == shell.left
-		neg := key.left == shell.left && key.right == shell.right && declaration.result == OID(sqltype.Bool)
+		neg := key.left == shell.left && key.right == shell.right && declaration.result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
 			continue
 		}
-		candidate, _ := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id}].(*procedureDescriptor)
+		candidate, _ := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id}].(*procedureDescriptor)
 		if candidate != nil && (routine == nil || candidate.address.ObjectID < routine.address.ObjectID) {
 			routine = candidate
 			negator = !comm
@@ -198,7 +199,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 		if negator {
 			left, right = shell.left, shell.right
 		}
-		key := operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID}, namespace: shell.namespace, name: symbol, left: left, right: right}
+		key := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, namespace: shell.namespace, name: symbol, left: left, right: right}
 		if _, exists := view.state.names[descriptorNameKey(&key)]; !exists {
 			name = symbol
 			break
@@ -241,8 +242,8 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 			continue
 		}
 		declaration := dumpEventKey{oid: source.address.ObjectID}
-		for kind, id := range [...]OID{source.commutator, source.negator} {
-			peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		for kind, id := range [...]ids.OID{source.commutator, source.negator} {
+			peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 			if peer == nil || peer.function == 0 || peer.seeded() {
 				continue
 			}
@@ -261,7 +262,7 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 
 func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) {
 	for event, predecessors := range graph {
-		_, operator := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor)
+		_, operator := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor)
 		structural := event.phase == dumpOperatorLinks || operator && event.phase == dumpDeclaration
 		unique := predecessors[:0]
 		for _, predecessor := range predecessors {
@@ -281,11 +282,11 @@ func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey]
 
 func operatorDumpLinks(view CatalogRead, source *operatorDescriptor) (string, error) {
 	var options []string
-	for kind, id := range [...]OID{source.commutator, source.negator} {
+	for kind, id := range [...]ids.OID{source.commutator, source.negator} {
 		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {
 			continue
 		}
-		peer := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		peer := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
 		key := "COMMUTATOR"
 		if kind == 1 {
 			key = "NEGATOR"

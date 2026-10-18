@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,7 +25,7 @@ func TestExpressionArithmeticDeleteAuthorization(t *testing.T) {
 				ref := roleTableRef(t, e, "t")
 				owner := op.RoleState().CurrentUser
 				reader, _ := e.Roles().Lookup("reader")
-				grant := func(object ObjectRef, mask authorization.Privileges) {
+				grant := func(object ids.ObjectRef, mask authorization.Privileges) {
 					t.Helper()
 					if err := e.SetObjectACL(context.Background(), object, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}}); err != nil {
 						t.Fatal(err)

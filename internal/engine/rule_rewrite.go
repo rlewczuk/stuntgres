@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ type ruleProgram struct {
 }
 
 type ruleAncestry struct {
-	ref   ObjectRef
+	ref   ids.ObjectRef
 	event string
 }
 

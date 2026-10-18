@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -75,7 +76,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 
 // Only the represented builtins are classified here. catalogRelation is a
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
-func representedSummaryTable(oid OID) bool {
+func representedSummaryTable(oid ids.OID) bool {
 	switch oid {
 	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ParameterClassID:
 		return true
@@ -83,7 +84,7 @@ func representedSummaryTable(oid OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
+func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, value) }
@@ -154,7 +155,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 // and PostgreSQL18.0 pg_views reconstruction. These are not native executable
 // stored definitions: absent catalogs/functions are not implemented by this text.
 // In particular native pg_indexes retains its separately documented ACL policy.
-func representedSummaryViewDefinition(oid OID) string {
+func representedSummaryViewDefinition(oid ids.OID) string {
 	switch oid {
 	case 12081:
 		return ` SELECT e.name,

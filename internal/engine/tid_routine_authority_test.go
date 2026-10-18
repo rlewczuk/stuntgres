@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 func TestTIDRoutineAuthority(t *testing.T) {
 	for _, test := range []struct {
 		operator, name string
-		id             OID
+		id             ids.OID
 	}{
 		{"=", "tideq", 1292},
 		{"<>", "tidne", 1265},
@@ -57,8 +58,8 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if declaration.identity != wantIdentity || declaration.result != 16 || declaration.kind != functionRoutine || !declaration.strict || declaration.volatility != Immutable || declaration.parallel != 's' || declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
-			address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.state.descriptors[address] != outer || outer.address != address || outer.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
+			address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: test.id}
+			if auth.catalog.state.descriptors[address] != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.body) != 0 {

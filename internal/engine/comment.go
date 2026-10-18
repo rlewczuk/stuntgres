@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Comment reads immutable metadata without applying an ACL to its text.
-func (r CatalogRead) Comment(ref ObjectRef) (string, bool, error) {
+func (r CatalogRead) Comment(ref ids.ObjectRef) (string, bool, error) {
 	if r.owner == nil {
 		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -96,10 +97,10 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		e.installOperationRolesLocked(op, &roleCatalog{root: next, revision: auth.roleRecord.revision + 1})
 		return nil, nil
 	}
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
-		a, ok := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: s.Name.Parts[0].Text}]
+		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: s.Name.Parts[0].Text}]
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}

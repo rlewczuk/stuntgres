@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -14,7 +15,7 @@ func truncateRestartUnitAST(names ...string) *parser.Truncate {
 	return s
 }
 
-func truncateRestartUnitFixture(t *testing.T) (*Engine, *Session, ObjectRef, ObjectRef, ObjectRef, ObjectRef) {
+func truncateRestartUnitFixture(t *testing.T) (*Engine, *Session, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -47,7 +48,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 				t.Fatal("owned sequences not deduplicated")
 			}
 			for _, test := range []struct {
-				ref   ObjectRef
+				ref   ids.ObjectRef
 				old   *sequenceGenerator
 				d     *relationDescriptor
 				start int64
@@ -145,7 +146,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "GeneratorBinding":
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				replacement := *oldPS
-				stage.generators = map[ObjectAddress]*sequenceGenerator{ps.Address: &replacement}
+				stage.generators = map[ids.ObjectAddress]*sequenceGenerator{ps.Address: &replacement}
 				truncateUnitPublish(t, e, stage)
 			case "Storage":
 				base := e.CatalogRead()
@@ -193,7 +194,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 		oldPD, oldQD := e.state.descriptors[ps.Address], e.state.descriptors[qs.Address]
 		// First reset can reserve a fresh revision, but the second cannot.
 		// Neither partial candidate nor local source/cache event may escape.
-		e.nextRevision = DefinitionRevision(^uint64(0)) - 1
+		e.nextRevision = ids.DefinitionRevision(^uint64(0)) - 1
 		scope, _ := truncateUnitScope(t, e, s, context.Background())
 		_, err := scope.Execute(truncateRestartUnitAST("p", "q"), 0, nil)
 		if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
@@ -226,7 +227,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) {
 					options := *d.sequence
 					if change == "Removed" {
-						options.owned = ObjectAddress{}
+						options.owned = ids.ObjectAddress{}
 					} else {
 						options.owned = q.Address
 						options.owned.SubID = 1

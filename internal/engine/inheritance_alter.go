@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -15,17 +16,17 @@ type inheritanceAlterState struct {
 	changes    *catalogChanges
 	root       *relationDescriptor
 	targets    []*relationDescriptor
-	selected   map[ObjectAddress]bool
+	selected   map[ids.ObjectAddress]bool
 	graph      *tableInheritance
 	descendant bool
 	only       bool
 	actions    []parser.AlterTableAction
-	events     map[ObjectAddress][]inheritanceAlterEvent
+	events     map[ids.ObjectAddress][]inheritanceAlterEvent
 	validating map[string]bool
 	preparing  bool
 	definition inheritanceDefinitionReader
-	prepared   map[ObjectAddress]*inheritancePreparedNode
-	tablespace ObjectRef              // Prepared root-only destination; never propagated.
+	prepared   map[ids.ObjectAddress]*inheritancePreparedNode
+	tablespace ids.ObjectRef          // Prepared root-only destination; never propagated.
 	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 }
 
@@ -43,7 +44,7 @@ func cloneInheritance(graph *tableInheritance) *tableInheritance {
 
 // Unlike the OF-type entry, ordinary propagation includes its named root.
 func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*relationDescriptor {
-	selected := map[ObjectAddress]*relationDescriptor{}
+	selected := map[ids.ObjectAddress]*relationDescriptor{}
 	var collect func(*relationDescriptor)
 	collect = func(d *relationDescriptor) {
 		if selected[d.address] != nil {
@@ -56,7 +57,7 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 	}
 	collect(root)
 	var result []*relationDescriptor
-	seen := map[ObjectAddress]bool{}
+	seen := map[ids.ObjectAddress]bool{}
 	var visit func(*relationDescriptor)
 	visit = func(d *relationDescriptor) {
 		if seen[d.address] {
@@ -72,11 +73,11 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 		}
 		result = append(result, d)
 	}
-	addresses := make([]ObjectAddress, 0, len(selected))
+	addresses := make([]ids.ObjectAddress, 0, len(selected))
 	for address := range selected {
 		addresses = append(addresses, address)
 	}
-	slices.SortFunc(addresses, func(a, b ObjectAddress) int {
+	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
 		}
@@ -186,7 +187,7 @@ func inheritanceOnlyActions(root *relationDescriptor, children bool, actions []p
 	return next, nil
 }
 
-func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ObjectRef, types []alterTypePreparation) (Result, error) {
+func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []alterTypePreparation) (Result, error) {
 	root := scope.lockedDescriptor.(*relationDescriptor)
 	actions := raw.Actions
 	if err := inheritanceAlterActionsGuard(auth.catalog, root, actions); err != nil {
@@ -222,7 +223,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	}
 	original := scope.statementMutation
 	var stage *CatalogStage
-	state := &inheritanceAlterState{changes: cloneCatalogChanges(scope.owner.catalog), root: root, targets: targets, selected: map[ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ObjectAddress][]inheritanceAlterEvent)}
+	state := &inheritanceAlterState{changes: cloneCatalogChanges(scope.owner.catalog), root: root, targets: targets, selected: map[ids.ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 	state.tablespace = tablespace
 	state.types = types
 	scope.inheritanceAlter = state
@@ -239,8 +240,8 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			return Result{}, err
 		}
 	}
-	state.events = make(map[ObjectAddress][]inheritanceAlterEvent)
-	state.selected = make(map[ObjectAddress]bool)
+	state.events = make(map[ids.ObjectAddress][]inheritanceAlterEvent)
+	state.selected = make(map[ids.ObjectAddress]bool)
 	e.mu.Lock()
 	current := e.privateCatalogLocked(scope.owner.catalog)
 	stage = e.BeginCatalogStage(current)
@@ -510,7 +511,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 	return actions, graph, nil
 }
 
-func inheritedNotNull(view CatalogRead, parents []ObjectAddress, name string) *notNullConstraint {
+func inheritedNotNull(view CatalogRead, parents []ids.ObjectAddress, name string) *notNullConstraint {
 	for _, address := range parents {
 		parent := view.state.descriptors[address].(*relationDescriptor)
 		if slot, exists := parent.index[name]; exists {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,7 +24,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
 	auth.stagedTemporary = table.namespace
-	b, err := e.describe(op.Context(), raw, auth, ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
+	b, err := e.describe(op.Context(), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
@@ -33,7 +34,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20007}, namespace: table.namespace, name: "candidate_view", revision: 1, owner: table.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	definition.consumer = d.address
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = e.stageRowTypeLocked(stage, d)
@@ -54,7 +55,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.state != before || op.session.temporaryNamespace != (ObjectAddress{}) || e.state.descriptors[view.address] != nil {
+	if e.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.state.descriptors[view.address] != nil {
 		t.Fatal("private namespace/view escaped validation")
 	}
 	candidate := cloneCatalogChanges(changes)
@@ -68,12 +69,12 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(view.rowType)}
+	rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(view.rowType)}
 	row, ok := catalog.state.descriptors[rowAddress].(*typeDescriptor)
 	if !ok || row.owningRelation != view.address || row.array == 0 {
 		t.Fatal("missing real associated rowtype", row)
 	}
-	arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}
+	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}
 	if catalog.state.descriptors[arrayAddress] == nil || e.state.descriptors[rowAddress] != nil || e.state.descriptors[arrayAddress] != nil || e.storage[view.address] != nil {
 		t.Fatal("type/storage publication escaped private stage")
 	}
@@ -83,7 +84,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	retired := e.stageRead(removal)
-	for _, address := range []ObjectAddress{view.address, rowAddress, arrayAddress} {
+	for _, address := range []ids.ObjectAddress{view.address, rowAddress, arrayAddress} {
 		if retired.state.descriptors[address] != nil {
 			t.Fatal("drop left associated artifact", address)
 		}
@@ -106,7 +107,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := map[ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
+	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
 	_, _, next, err := e.prepareTemporaryCommit(op, (*Domain)(nil).Tx(SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +152,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	op.ctx = ctx
 	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.state != before || e.state.descriptors[view.address] != nil || op.session.temporaryNamespace != (ObjectAddress{}) || e.storage[view.address] != nil {
+	if !errors.Is(err, context.Canceled) || e.state != before || e.state.descriptors[view.address] != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage[view.address] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)
 	}
 }
@@ -183,7 +184,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ObjectRef{New().domain.Ref(ref.Epoch, ref.Address), e.domain.Ref(next.epoch+1, ref.Address), e.domain.Ref(ref.Epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
+	for _, bad := range []ids.ObjectRef{New().domain.Ref(ref.Epoch, ref.Address), e.domain.Ref(next.epoch+1, ref.Address), e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
@@ -249,7 +250,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: view.view.syntax}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
-	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.state != before || op.session.temporaryNamespace != (ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.state.descriptors[view.address] != nil {
+	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.state.descriptors[view.address] != nil {
 		t.Fatal("utility Describe analyzed/published TEMP", description, err)
 	}
 }

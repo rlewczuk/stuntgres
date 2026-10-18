@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 type installedMetaphoneFunctionExpression struct {
 	functions.Metaphone[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (BoundExpr, error) {

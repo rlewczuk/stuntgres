@@ -4,11 +4,12 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
 
-func assertTemporaryNamespacePair(t *testing.T, e *Engine, token SessionToken, table ObjectAddress) ObjectAddress {
+func assertTemporaryNamespacePair(t *testing.T, e *Engine, token SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.state.descriptors[table].(*namespaceDescriptor)
 	if !ok || ns.temporary != token || ns.temporaryToast || ns.owner.ID() != 10 || ns.acl.Explicit || len(ns.acl.Entries) != 0 {
@@ -18,7 +19,7 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token SessionToken, t
 	if !ok {
 		t.Fatal(ns.name)
 	}
-	var toast ObjectAddress
+	var toast ids.ObjectAddress
 	count := 0
 	for a, d := range e.state.descriptors {
 		other, ok := d.(*namespaceDescriptor)
@@ -36,7 +37,7 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token SessionToken, t
 			t.Fatal("TEMP name identity", other)
 		}
 	}
-	if count != 2 || toast == (ObjectAddress{}) {
+	if count != 2 || toast == (ids.ObjectAddress{}) {
 		t.Fatal("TEMP pair cardinality", count, toast)
 	}
 	return toast
@@ -51,7 +52,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
-	object := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: table, Name: "namespace_table"}]].(*relationDescriptor)
+	object := e.state.descriptors[e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: table, Name: "namespace_table"}]].(*relationDescriptor)
 	actor := e.Roles().LookupRef("namespace_actor")
 	if object.owner != actor || object.owner.ID() == 10 {
 		t.Fatal("namespace owner replaced object actor", object.owner)
@@ -65,7 +66,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	for _, a := range []ObjectAddress{table, toast} {
+	for _, a := range []ids.ObjectAddress{table, toast} {
 		ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
 		rights, err := auth.Effective(e.domain.Ref(auth.catalog.Epoch(), a), false)
 		want := authorization.Privileges(0)
@@ -82,8 +83,8 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		op.Done()
 		t.Fatal("toast impersonated active table namespace")
 	}
-	s.temporaryNamespace = ObjectAddress{}
-	if temporaryNamespace(auth) != (ObjectAddress{}) {
+	s.temporaryNamespace = ids.ObjectAddress{}
+	if temporaryNamespace(auth) != (ids.ObjectAddress{}) {
 		op.Done()
 		t.Fatal("abandoned pointer regained table authority")
 	}
@@ -94,11 +95,11 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if s.temporaryNamespace != (ObjectAddress{}) || e.state.descriptors[object.address] != nil {
+	if s.temporaryNamespace != (ids.ObjectAddress{}) || e.state.descriptors[object.address] != nil {
 		t.Fatal("physical cleanup left active object authority")
 	}
 	assertTemporaryNamespacePair(t, e, s.token, table)
-	for _, id := range []ObjectAddress{table, toast} {
+	for _, id := range []ids.ObjectAddress{table, toast} {
 		namespaceUnitRow(t, retained, uint32(id.ObjectID))
 		namespaceUnitRow(t, namespaceUnitCapture(t, e, e.CatalogRead()), uint32(id.ObjectID))
 	}
@@ -148,7 +149,7 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 			}
 		}
 	}
-	if peer.temporaryNamespace != (ObjectAddress{}) {
+	if peer.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("peer acquired creator table namespace")
 	}
 }
@@ -160,7 +161,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
 	sessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
-	address := e.state.names[NameKey{ClassID: CollationClassID, Namespace: table, Name: "namespace_collation"}]
+	address := e.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: table, Name: "namespace_collation"}]
 	s.RequestEnd(CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
@@ -195,16 +196,16 @@ func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 		base := e.state
 		e.mu.Lock()
 		if identity {
-			e.nextOID = ^OID(0)
+			e.nextOID = ^ids.OID(0)
 		} else {
-			e.nextRevision = DefinitionRevision(^uint64(0)) - 1
+			e.nextRevision = ids.DefinitionRevision(^uint64(0)) - 1
 		}
 		changes := &catalogChanges{}
 		name := statement(t, "CREATE TEMP TABLE allocation_failure(i INT)").(*parser.CreateTable).Name
 		ref, err := e.relationCreationNamespaceLocked(auth, name, "temporary", changes)
 		e.mu.Unlock()
 		op.Done()
-		if err == nil || ref != (ObjectRef{}) || e.state != base || s.temporaryNamespace != (ObjectAddress{}) || len(changes.descriptors) != 0 || len(changes.names) != 0 {
+		if err == nil || ref != (ids.ObjectRef{}) || e.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || len(changes.descriptors) != 0 || len(changes.names) != 0 {
 			t.Fatal("partial TEMP pair on second allocation failure", identity, ref, err, changes)
 		}
 		if namespaceUnitCapture(t, e, e.CatalogRead()).count() != 4 {
@@ -222,7 +223,7 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TEMP VIEW owned_temp AS SELECT 1 AS v")
 	namespace := op.session.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
-	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "owned_temp"}]
+	address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "owned_temp"}]
 	view, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok || view.owner != e.Roles().LookupRef("namespace_view_creator") || view.namespace != namespace || view.relationKind != viewRelation || view.view == nil {
 		t.Fatal("physical creator did not own staged TEMP view", view)

@@ -4,43 +4,44 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals           map[ObjectAddress]Descriptor
-	descriptors         map[ObjectAddress]Descriptor
-	names               map[NameKey]ObjectAddress
+	originals           map[ids.ObjectAddress]Descriptor
+	descriptors         map[ids.ObjectAddress]Descriptor
+	names               map[ids.NameKey]ids.ObjectAddress
 	defaultACLs         map[defaultACLKey]*defaultACLRecord
 	defaultOriginals    map[defaultACLKey]*defaultACLRecord
 	defaultReads        map[defaultACLKey]*defaultACLRecord
-	generators          map[ObjectAddress]*sequenceGenerator
-	storage             map[ObjectAddress]catalogStorageChange
-	uniqueRoots         map[ObjectAddress]*logicalIndexRoot
-	indexCandidates     map[ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
+	generators          map[ids.ObjectAddress]*sequenceGenerator
+	storage             map[ids.ObjectAddress]catalogStorageChange
+	uniqueRoots         map[ids.ObjectAddress]*logicalIndexRoot
+	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
 	extensionAuthority  []extensionAuthorityObservation
 	cachedBase          *catalogState
 	cached              CatalogRead
-	enumCreated         map[ObjectAddress]bool // CREATE at top transaction level only.
-	enumUnsafe          map[int64]bool         // Globally nonreused member identities.
+	enumCreated         map[ids.ObjectAddress]bool // CREATE at top transaction level only.
+	enumUnsafe          map[int64]bool             // Globally nonreused member identities.
 	rolesBase           *roleCatalog
 	roles               *roleCatalog
 	retiredRoles        map[authorization.PrincipalRef]struct{}
-	indexRebuilds       map[ObjectAddress]*relationDescriptor
+	indexRebuilds       map[ids.ObjectAddress]*relationDescriptor
 	indexFences         []catalogIndexFence
 	namespaceFences     []catalogNamespaceFence
 	readFences          []partitionReadFence
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
 	domainValidations   []*domainValidationFence
-	domainIndexRoots    map[ObjectAddress]*logicalIndexRoot
+	domainIndexRoots    map[ids.ObjectAddress]*logicalIndexRoot
 	domainChanged       bool
 }
 
 func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{originals: map[ObjectAddress]Descriptor{}, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}, generators: map[ObjectAddress]*sequenceGenerator{}, storage: map[ObjectAddress]catalogStorageChange{}}
+	return &catalogChanges{originals: map[ids.ObjectAddress]Descriptor{}, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*sequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
 }
 func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
@@ -49,7 +50,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	}
 	cloneDefaultChanges(c, n)
 	if c.enumCreated != nil {
-		n.enumCreated = make(map[ObjectAddress]bool, len(c.enumCreated))
+		n.enumCreated = make(map[ids.ObjectAddress]bool, len(c.enumCreated))
 		for a, v := range c.enumCreated {
 			n.enumCreated[a] = v
 		}
@@ -76,13 +77,13 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		n.storage[a] = shape
 	}
 	if c.uniqueRoots != nil {
-		n.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
+		n.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
 		for a, root := range c.uniqueRoots {
 			n.uniqueRoots[a] = root
 		}
 	}
 	if c.indexCandidates != nil {
-		n.indexCandidates = make(map[ObjectAddress]indexRootCandidate, len(c.indexCandidates))
+		n.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(c.indexCandidates))
 		for a, candidate := range c.indexCandidates {
 			n.indexCandidates[a] = candidate
 		}
@@ -98,7 +99,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	}
 	n.domainChanged = c.domainChanged
 	if c.indexRebuilds != nil {
-		n.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(c.indexRebuilds))
+		n.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(c.indexRebuilds))
 		for a, d := range c.indexRebuilds {
 			n.indexRebuilds[a] = d
 		}
@@ -110,7 +111,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
 	n.domainValidations = append(n.domainValidations, c.domainValidations...)
 	if c.domainIndexRoots != nil {
-		n.domainIndexRoots = make(map[ObjectAddress]*logicalIndexRoot, len(c.domainIndexRoots))
+		n.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.domainIndexRoots))
 		for address, root := range c.domainIndexRoots {
 			n.domainIndexRoots[address] = root
 		}
@@ -155,7 +156,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	c.cachedBase, c.cached = e.state, CatalogRead{e, n}
 	return c.cached
 }
-func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descriptor) {
+func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d Descriptor) {
 	if _, ok := c.originals[a]; !ok {
 		c.originals[a] = e.state.descriptors[a]
 	}
@@ -179,7 +180,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descr
 	c.cachedBase = nil
 	c.cached = CatalogRead{}
 }
-func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ObjectAddress) *sequenceGenerator {
+func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *sequenceGenerator {
 	if s.catalog != nil {
 		if descriptor, exists := s.catalog.descriptors[a]; exists && descriptor == nil {
 			return nil
@@ -198,7 +199,7 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ObjectAddress) *se
 	}
 	return e.sequences[a]
 }
-func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch CatalogEpoch) (*catalogState, error) {
+func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch ids.CatalogEpoch) (*catalogState, error) {
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
@@ -255,7 +256,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	// the central publication-conflict contract.
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
-			if key.ClassID == ExtensionClassID && original == (ObjectAddress{}) && e.state.names[key] != original {
+			if key.ClassID == ExtensionClassID && original == (ids.ObjectAddress{}) && e.state.names[key] != original {
 				return extensionNameConflict(key.Name)
 			}
 		}
@@ -307,7 +308,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 // Inspect only committed descriptors changed since a captured retirement.
 // Candidate overrides matter: an owner removed or rewired by this transaction
 // must not impersonate a surviving edge into an absent provider.
-func catalogDependencyPreflight(current, candidate *catalogState, observations []catalogDependencyObservation, originals map[ObjectAddress]Descriptor) error {
+func catalogDependencyPreflight(current, candidate *catalogState, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]Descriptor) error {
 	for _, observation := range observations {
 		if current == observation.base {
 			continue
@@ -337,7 +338,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 				switch owner := owner.(type) {
 				case *foreignDescriptor:
 					for _, dependency := range foreignDependencyAddresses(owner) {
-						if dependency != (ObjectAddress{}) && dependency == target {
+						if dependency != (ids.ObjectAddress{}) && dependency == target {
 							return CatalogConflict{}
 						}
 					}

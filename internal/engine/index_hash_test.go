@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -170,7 +171,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		attribute        int16
-		class, collation OID
+		class, collation ids.OID
 		definition       string
 	}{
 		{"hn", 2, 10020, 0, "CREATE INDEX hn ON public.t USING hash (n)"}, {"hs", 0, 10037, 100, "CREATE INDEX hs ON public.t USING hash (lower(s))"},
@@ -179,8 +180,8 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		got, names := indexMaintenanceMetadata(t, source, source.CatalogRead(), tc.name)
 		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
 		want.IndKey = []int16{tc.attribute}
-		want.IndClass = []OID{tc.class}
-		want.IndCollation = []OID{tc.collation}
+		want.IndClass = []ids.OID{tc.class}
+		want.IndCollation = []ids.OID{tc.collation}
 		want.IndOption = []int16{0}
 		if tc.attribute == 0 {
 			want.IndexExpressions = []BoundExpr{index.sqlIndex.keys[0].derived.definition}
@@ -258,9 +259,9 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if err := e.prepareRowPublication(&p, TxRef{}, materialize); err != nil {
 				t.Fatal(err)
 			}
-			var intents map[ObjectAddress]*relationDescriptor
+			var intents map[ids.ObjectAddress]*relationDescriptor
 			if rebuild {
-				intents = map[ObjectAddress]*relationDescriptor{index.address: index}
+				intents = map[ids.ObjectAddress]*relationDescriptor{index.address: index}
 			}
 			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {

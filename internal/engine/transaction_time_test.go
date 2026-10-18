@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -113,7 +114,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { t.Fatal("leaf invented dependency", ref); return ref }, nil)
+		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

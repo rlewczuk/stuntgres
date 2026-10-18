@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
@@ -56,7 +58,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 					t.Fatal("exhausted namespace accepted combined publication", err)
 				}
-				if e.state != before || b.temporaryNamespace != (ObjectAddress{}) {
+				if e.state != before || b.temporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("failed commit published catalog/session namespace")
 				}
 				if got := tuples(sessionSQL(t, a, "SELECT v FROM public.sentinel")); len(got) != 0 {
@@ -100,7 +102,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	sessionSQL(t, c, "CREATE TEMP SEQUENCE peer_temp START 40")
 	state := cloneCatalog(e.state)
 	state.namespaceGeneration = ^uint64(0)
-	state.epoch = CatalogEpoch(^uint64(0))
+	state.epoch = ids.CatalogEpoch(^uint64(0))
 	e.state = state
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
 	owned := bd.sequences.constants[0].ref.Address

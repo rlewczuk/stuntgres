@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -81,11 +82,11 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err := op.Context().Err(); err != nil {
 			return nil, err
 		}
-		addr := v.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Text}]
+		addr := v.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Text}]
 		if name.Text == "pg_temp" {
 			addr = temporaryNamespace(v)
 		}
-		if addr == (ObjectAddress{}) {
+		if addr == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Text))
 		}
 		ref := e.domain.Ref(v.catalog.Epoch(), addr)
@@ -210,13 +211,13 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		return Result{}, err
 	}
 	var candidate *catalogState
-	changed := make(map[ObjectAddress]objectGrantChange)
+	changed := make(map[ids.ObjectAddress]objectGrantChange)
 	for _, target := range targets {
 		address := target.Address()
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		if target.Kind() != RelationObject {
+		if target.Kind() != ids.RelationObject {
 			d := target
 			if prior := changed[address].descriptor; prior != nil {
 				d = prior
@@ -443,7 +444,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		changes := cloneCatalogChanges(op.session.transactions.catalog)
 		// Completed grant utilities retain their consulted DB predecessor in
 		// the candidate, not a scope authority with a pre-advance role revision.
-		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ObjectRef{}, nil), changes); err != nil {
+		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
 			return Result{}, err
 		}
 		for address, change := range changed {

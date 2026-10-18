@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 	"time"
 )
@@ -19,7 +20,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	owner, _ := e.Roles().Lookup("view_owner")
 	reader, _ := e.Roles().Lookup("view_reader")
 	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	grant := func(ref ObjectRef, entries ...authorization.ACLEntry) {
+	grant := func(ref ids.ObjectRef, entries ...authorization.ACLEntry) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)
@@ -36,7 +37,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	grant(table, entry(owner.Ref, authorization.SelectPrivilege))
-	namespace := e.domain.Ref(e.state.epoch, e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s"}])
+	namespace := e.domain.Ref(e.state.epoch, e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s"}])
 	grant(namespace, entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
 	for _, name := range []string{"s.owned", "s.invoker", "s.nested", "s.stored"} {
 		grant(roleTableRef(t, e, name), entry(owner.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege), entry(reader.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege))

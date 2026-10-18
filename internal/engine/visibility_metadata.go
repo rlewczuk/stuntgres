@@ -3,15 +3,16 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 type collationDescriptor struct {
-	oid                                    OID
+	oid                                    ids.OID
 	name                                   string
 	encoding                               int32
-	namespace                              ObjectAddress
-	revision                               DefinitionRevision
+	namespace                              ids.ObjectAddress
+	revision                               ids.DefinitionRevision
 	owner                                  authorization.PrincipalRef
 	provider                               string
 	deterministic                          bool
@@ -19,40 +20,40 @@ type collationDescriptor struct {
 	semantics                              uint32
 }
 type conversionDescriptor struct {
-	oid                 OID
+	oid                 ids.OID
 	name                string
-	namespace           ObjectAddress
-	revision            DefinitionRevision
+	namespace           ids.ObjectAddress
+	revision            ids.DefinitionRevision
 	owner               authorization.PrincipalRef
 	source, destination int
-	handler             ObjectAddress
+	handler             ids.ObjectAddress
 	defaultConversion   bool
 }
 
-func (d *collationDescriptor) Address() ObjectAddress {
-	return ObjectAddress{ClassID: CollationClassID, ObjectID: d.oid}
+func (d *collationDescriptor) Address() ids.ObjectAddress {
+	return ids.ObjectAddress{ClassID: CollationClassID, ObjectID: d.oid}
 }
-func (d *collationDescriptor) Revision() DefinitionRevision {
+func (d *collationDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
 		return 1
 	}
 	return d.revision
 }
-func (d *collationDescriptor) Namespace() ObjectAddress {
-	if d.namespace != (ObjectAddress{}) {
+func (d *collationDescriptor) Namespace() ids.ObjectAddress {
+	if d.namespace != (ids.ObjectAddress{}) {
 		return d.namespace
 	}
-	return ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	return ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 }
-func (d *collationDescriptor) Name() string   { return d.name }
-func (*collationDescriptor) Kind() ObjectKind { return CollationObject }
-func (d *conversionDescriptor) Address() ObjectAddress {
-	return ObjectAddress{ClassID: ConversionClassID, ObjectID: d.oid}
+func (d *collationDescriptor) Name() string       { return d.name }
+func (*collationDescriptor) Kind() ids.ObjectKind { return ids.CollationObject }
+func (d *conversionDescriptor) Address() ids.ObjectAddress {
+	return ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: d.oid}
 }
-func (d *conversionDescriptor) Revision() DefinitionRevision { return d.revision }
-func (d *conversionDescriptor) Namespace() ObjectAddress     { return d.namespace }
-func (d *conversionDescriptor) Name() string                 { return d.name }
-func (*conversionDescriptor) Kind() ObjectKind               { return ConversionObject }
+func (d *conversionDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *conversionDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
+func (d *conversionDescriptor) Name() string                     { return d.name }
+func (*conversionDescriptor) Kind() ids.ObjectKind               { return ids.ConversionObject }
 
 func collationText(s string) *string { return &s }
 
@@ -81,8 +82,8 @@ func (d *collationDescriptor) usage() (sqltype.CollationRef, error) {
 type collationProvider struct{}
 type conversionProvider struct{}
 
-func (collationProvider) ClassID() OID  { return CollationClassID }
-func (conversionProvider) ClassID() OID { return ConversionClassID }
+func (collationProvider) ClassID() ids.OID  { return CollationClassID }
+func (conversionProvider) ClassID() ids.OID { return ConversionClassID }
 func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*collationDescriptor)
 	if !ok || d == nil {
@@ -157,7 +158,7 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 }
 func validateInquiryIdentity(view CatalogRead, d Descriptor) error {
 	namespace, ok := view.Descriptor(d.Namespace())
-	if !ok || namespace.Kind() != NamespaceObject {
+	if !ok || namespace.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: inquiry namespace is missing")
 	}
 	if view.state.names[descriptorNameKey(d)] != d.Address() {
@@ -169,8 +170,8 @@ func validateInquiryIdentity(view CatalogRead, d Descriptor) error {
 // A namespace's usable exact encoding beats its fallback. Callers visit
 // namespaces in path order, so an earlier fallback beats a later exact entry.
 // This helper also covers synthetic multi-encoding candidates.
-func selectCollation(candidates []collationCandidate, encoding int32) ObjectAddress {
-	var fallback ObjectAddress
+func selectCollation(candidates []collationCandidate, encoding int32) ids.ObjectAddress {
+	var fallback ids.ObjectAddress
 	for _, candidate := range candidates {
 		if candidate.encoding == encoding {
 			return candidate.address
@@ -183,21 +184,21 @@ func selectCollation(candidates []collationCandidate, encoding int32) ObjectAddr
 }
 
 type collationCandidate struct {
-	address  ObjectAddress
+	address  ids.ObjectAddress
 	encoding int32
 }
 
 // Native fixed names are unique. Keep the encoding-bearing lookup inline,
 // avoiding an index copy, catalog scan or allocation during row evaluation.
-func visibleCollation(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
+func visibleCollation(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
-		a := view.state.names[NameKey{ClassID: CollationClassID, Namespace: namespace, Name: d.Name()}]
+		a := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: namespace, Name: d.Name()}]
 		candidate, ok := view.state.descriptors[a].(*collationDescriptor)
 		if !ok {
 			continue
 		}
 		one := [1]collationCandidate{{a, candidate.encoding}}
-		if selected := selectCollation(one[:], 6); selected != (ObjectAddress{}) {
+		if selected := selectCollation(one[:], 6); selected != (ids.ObjectAddress{}) {
 			return selected == d.Address()
 		}
 	}

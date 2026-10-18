@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // PostgreSQL REL_18_0 declarations associated with successful existing native
 // selectors. This finite table does not dispatch execution or promote lookup-only
 // routines. Exact formals, including polymorphic/default/variadic declarations,
@@ -1244,8 +1246,8 @@ var builtinRoutineDeclarations = [...]builtinRoutineDeclaration{
 
 var builtinRoutineByOID = indexBuiltinRoutineDeclarations()
 
-func indexBuiltinRoutineDeclarations() map[OID]*builtinRoutineDeclaration {
-	byOID := make(map[OID]*builtinRoutineDeclaration, len(builtinRoutineDeclarations))
+func indexBuiltinRoutineDeclarations() map[ids.OID]*builtinRoutineDeclaration {
+	byOID := make(map[ids.OID]*builtinRoutineDeclaration, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		d := &builtinRoutineDeclarations[i]
 		byOID[d.identity.id] = d

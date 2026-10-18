@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -21,7 +22,7 @@ func TestUpdateCoreColumnAuthority(t *testing.T) {
 	role, _ := e.Roles().Lookup("update_reader")
 	column := ref
 	column.Address.SubID = 1
-	grant := func(ref ObjectRef, privileges authorization.Privileges) {
+	grant := func(ref ids.ObjectRef, privileges authorization.Privileges) {
 		t.Helper()
 		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
 		if err != nil {

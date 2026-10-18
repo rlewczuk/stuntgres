@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -21,17 +22,17 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	eventRef := catalogRef(t, e, view, "event_v")
 	baseRef := catalogRef(t, e, view, "base")
 	event := view.state.descriptors[eventRef.Address].(*relationDescriptor)
-	var provider ObjectAddress
+	var provider ids.ObjectAddress
 	for address, descriptor := range view.state.descriptors {
 		if address.ClassID == TypeClassID && descriptor.Name() == "rule_domain" {
 			provider = address
 			break
 		}
 	}
-	if provider == (ObjectAddress{}) {
+	if provider == (ids.ObjectAddress{}) {
 		t.Fatal("missing analyzed domain fixture")
 	}
-	var ruleOID OID
+	var ruleOID ids.OID
 	for _, rule := range event.rules {
 		if rule.Name == "r" {
 			ruleOID = rule.OID
@@ -43,15 +44,15 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if viewDepends(event, provider) {
 		t.Fatal("domain entered the view's unrelated SELECT definition")
 	}
-	closure := func(target ObjectAddress) []domainDependency {
+	closure := func(target ids.ObjectAddress) []domainDependency {
 		t.Helper()
-		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(view), []ObjectAddress{target})
+		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(view), []ids.ObjectAddress{target})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return edges
 	}
-	ruleAddress := ObjectAddress{ClassID: 2618, ObjectID: ruleOID}
+	ruleAddress := ids.ObjectAddress{ClassID: 2618, ObjectID: ruleOID}
 	found := false
 	for _, edge := range closure(provider) {
 		if edge.address == event.address {
@@ -78,7 +79,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
 	stage := e.BeginCatalogStage(view)
-	if err := stageRuleDependents(stage, []ObjectAddress{provider}, parser.DropCascade); err != nil {
+	if err := stageRuleDependents(stage, []ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	current := e.stageRead(stage).state.descriptors[event.address].(*relationDescriptor)

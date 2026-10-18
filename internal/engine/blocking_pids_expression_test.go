@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -74,7 +75,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if n.validateStored() != nil {
 			t.Fatal("retag mutated original")
 		}
-		column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
+		column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 		n.arg = column
 		n.properties.RowDependent = true
 		visited := 0
@@ -93,7 +94,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if _, ok := grouped.(blockingInquiryExpression).arg.(groupExpression); !ok {
 			t.Fatal("aggregate child not reconstructed")
 		}
-		remapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
+		remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 		if err != nil {
 			t.Fatal(err)
 		}

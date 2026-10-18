@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 2616}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2616}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_opclass")
@@ -154,7 +155,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		id           sqltype.ID
 		class, input string
 		method       indexMethod
-		oid          OID
+		oid          ids.OID
 	}{
 		{sqltype.Int4, "int4_ops", "1", btreeMethod, 1978},
 		{sqltype.Int4, "int4_ops", "1", hashMethod, 10020},
@@ -176,8 +177,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &relationDescriptor{address: ObjectAddress{RelationClassID, OID(48100 + i*2), 0}, namespace: ObjectAddress{NamespaceClassID, PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
-		index := &relationDescriptor{address: ObjectAddress{RelationClassID, OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
+		parent := &relationDescriptor{address: ids.ObjectAddress{RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{NamespaceClassID, PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
+		index := &relationDescriptor{address: ids.ObjectAddress{RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
 		e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
@@ -189,7 +190,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		catalog := e.CatalogRead()
 		m, _, err := projectIndexMetadata(context.Background(), catalog, e.domain.Ref(catalog.Epoch(), index.address))
-		if err != nil || !reflect.DeepEqual(m.IndClass, []OID{tc.oid}) {
+		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}
 		d, ref := pgOpclassUnitSource(t, e)

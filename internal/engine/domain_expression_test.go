@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -141,7 +142,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	}
 	// Use a coherent path that does not expose the domain's namespace, so
 	// canonical presentation must spell the current qualified identity.
-	renderer.presentation = viewPresentation{deparse: true, pretty: true, path: []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}}
+	renderer.presentation = viewPresentation{deparse: true, pretty: true, path: []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}}
 	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
 	if err != nil || text != "7::moved.a" {
 		t.Fatal("renamed domain canonical cast", text, err)

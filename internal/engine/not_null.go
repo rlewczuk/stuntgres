@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -196,8 +197,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var pendingIndexes []alterTypeIndex
 	var typeChecks []checkConstraint
 	var addedChecks []checkConstraint
-	var addedIndexes []ObjectAddress
-	var addedForeignKeys []OID
+	var addedIndexes []ids.ObjectAddress
+	var addedForeignKeys []ids.OID
 	var additions []addedColumn
 	var replacements []int32
 	var attachments []usingIndexAttachment
@@ -456,7 +457,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, nil
 	}
 	if next != old {
-		if old.revision == DefinitionRevision(^uint64(0)) {
+		if old.revision == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.revision = old.revision + 1
@@ -573,7 +574,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		fkIndex++
 	}
 	if hasForeignKeys && next.revision == old.revision {
-		if old.revision == DefinitionRevision(^uint64(0)) {
+		if old.revision == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.revision = old.revision + 1
@@ -772,7 +773,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err := validateAlterTablespaceMove(destination); err != nil {
 		return Result{}, err
 	}
-	var dependencyTargets []ObjectAddress
+	var dependencyTargets []ids.ObjectAddress
 	for _, attribute := range old.attributes {
 		if !next.hasAttribute(attribute) {
 			target := ref.Address

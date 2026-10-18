@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
 func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
+	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
 	}
@@ -85,7 +86,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 }
 
 func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view CatalogRead) error {
-	var roots []ObjectAddress
+	var roots []ids.ObjectAddress
 	for a, d := range view.state.descriptors {
 		if _, ok := d.(*collationDescriptor); !ok {
 			continue
@@ -104,7 +105,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 		return err
 	}
 	for _, edge := range edges {
-		d := view.state.descriptors[ObjectAddress{ClassID: edge.address.ClassID, ObjectID: edge.address.ObjectID}]
+		d := view.state.descriptors[ids.ObjectAddress{ClassID: edge.address.ClassID, ObjectID: edge.address.ObjectID}]
 		if edge.relation != nil {
 			d = edge.relation
 		}

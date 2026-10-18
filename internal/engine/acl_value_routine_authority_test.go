@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,7 +16,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 	_, _, foreign := strictNullUnitBind(t, other, otherOp, otherScope, "1")
 	for _, tc := range []struct {
 		name, expression, signature string
-		oid, result                 OID
+		oid, result                 ids.OID
 		kind                        aclValueKind
 		volatility                  Volatility
 		set                         bool
@@ -38,7 +39,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("physical coerced IN type", i, call.args[i].ResultUsage(), formal)
 				}
 			}
-			if got := OID(call.ResultUsage().Type.ID()); got != tc.result {
+			if got := ids.OID(call.ResultUsage().Type.ID()); got != tc.result {
 				t.Fatalf("physical result ID: got %d, want %d", got, tc.result)
 			}
 			if got := call.Properties().Volatility; got != tc.volatility {
@@ -76,13 +77,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil || captured.builtin == nil {
 				t.Fatal("missing selected original declaration", captured, err)
 			}
-			address := ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
 			identity := routineIdentity{tc.oid, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
 			if declaration.identity != identity || declaration.kind != functionRoutine || declaration.result != tc.result || !declaration.strict || declaration.volatility != tc.volatility || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.defaults != 0 || declaration.variadic != 0 || declaration.providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.address != address || captured.namespace != (ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.state.descriptors[address] != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.state.descriptors[address] != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)

@@ -3,13 +3,14 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(ctx context.Context, registry map[string]registeredExtension, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureAvailableExtensions(ctx context.Context, registry map[string]registeredExtension, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -35,7 +36,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]registe
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		address := catalog.state.names[NameKey{ClassID: ExtensionClassID, Name: name}]
+		address := catalog.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: name}]
 		installed, _ := catalog.state.descriptors[address].(*extensionDescriptor)
 		row, err := projectAvailableExtension(name, registration, installed, source)
 		if err != nil {

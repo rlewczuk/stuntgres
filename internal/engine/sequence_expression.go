@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,16 +14,16 @@ import (
 
 type sequenceConstant struct {
 	offset      int
-	ref         ObjectRef
+	ref         ids.ObjectRef
 	temporary   SessionToken
-	stamp       DefinitionRevision
+	stamp       ids.DefinitionRevision
 	represented bool
 }
 type sequenceCallExpression struct {
 	expressionInfo
 	name      string
 	args      []BoundExpr
-	ref       ObjectRef
+	ref       ids.ObjectRef
 	temporary SessionToken
 	identity  bool
 }
@@ -88,7 +89,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 	if name == "nextval" || name == "setval" {
 		properties.Volatility = Volatile
 	}
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	for i, raw := range r.Args {
 		var node BoundExpr
 		var err error
@@ -96,7 +97,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			if b.defaultConsumer {
 				node, ref, err = b.bindRegclass(raw)
 				literal, ok := node.(literalExpression)
-				if err == nil && (!ok || literal.value.IsNull() || ref == (ObjectRef{})) {
+				if err == nil && (!ok || literal.value.IsNull() || ref == (ids.ObjectRef{})) {
 					return nil, expressionError("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
 				}
 			} else {
@@ -151,16 +152,16 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 	}
 	return sequenceCallExpression{expressionInfo: info, name: name, args: args, ref: ref, temporary: temporary}, nil
 }
-func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, error) {
+func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectRef, error) {
 	if err := qualifiedCastChild(raw); err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	if cast, ok := raw.(parser.RegclassExpr); ok {
 		return b.bindRegclass(cast.Child)
 	}
 	typ := b.typ(sqltype.Regclass)
 	if literal, ok := raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue {
-		ref := ObjectRef{}
+		ref := ids.ObjectRef{}
 		found := false
 		var temporary SessionToken
 		auth, err := b.bindingAuthorization()
@@ -188,7 +189,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 				}
 			}
 		}
-		var stamp DefinitionRevision
+		var stamp ids.DefinitionRevision
 		// Capture the provider stamp from the same authority as its name and
 		// temporary lifetime, never from a different published catalog.
 		d, represented := auth.definitionRelation(ref.Address)
@@ -207,23 +208,23 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 	// inputs. New contextual inquiry coercions must not widen its public boundary.
 	node, err := b.bind(raw, expressionPolicy{context: functionArgumentContext, expected: typ.Usage(), mode: sqltype.Implicit, deferAssignment: true})
 	if err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	if node.ResultUsage().BaseUsage().Type != typ {
-		return nil, ObjectRef{}, sqlError("42804", "incompatible source and destination types")
+		return nil, ids.ObjectRef{}, sqlError("42804", "incompatible source and destination types")
 	}
 	if node.ResultUsage() == typ.Usage() {
-		return node, ObjectRef{}, nil
+		return node, ids.ObjectRef{}, nil
 	}
 	plan, err := sqltype.PlanCoercion(node.ResultUsage(), typ.Usage(), sqltype.Implicit)
 	if err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, plan)), node)
 	if err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Implicit, false}, ObjectRef{}, nil
+	return coercionExpression{info, node, plan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
 }
 
 // Explicit casts share name input with sequence consumers but use the ordinary
@@ -288,17 +289,17 @@ func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error)
 	return n, true, err
 }
 
-func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
+func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.ObjectRef, error) {
 	typ, _ := auth.definitionType(sqltype.Oid)
 	if oid, numeric, err := regclassNumeric(text, typ); numeric {
 		if err != nil {
-			return ObjectRef{}, err
+			return ids.ObjectRef{}, err
 		}
-		return e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}), nil
+		return e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
-		return ObjectRef{}, sqlError("42602", "invalid name syntax")
+		return ids.ObjectRef{}, sqlError("42602", "invalid name syntax")
 	}
 	database := ""
 	if auth.session != nil {
@@ -306,7 +307,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef,
 	}
 	name, err = regclassQualifiedName(name, text, database)
 	if err != nil {
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	return e.resolveRelationReference(auth, name, false)
 }
@@ -328,8 +329,8 @@ func regclassQualifiedName(name parser.ObjectName, text, database string) (parse
 // already-selected relation path. It never locks or consults a later catalog.
 type capturedRegclassInput struct {
 	auth      AuthorizationView
-	path      []ObjectAddress
-	temporary ObjectAddress
+	path      []ids.ObjectAddress
+	temporary ids.ObjectAddress
 	token     SessionToken
 	database  string
 }
@@ -366,11 +367,11 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	}
 	path := r.path
 	if len(name.Parts) == 2 {
-		ns := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
+		ns := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
-		if ns == (ObjectAddress{}) {
+		if ns == (ids.ObjectAddress{}) {
 			path = nil
 		} else {
 			namespace, _ := r.auth.definitionNamespace(ns)
@@ -380,11 +381,11 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
-			path = []ObjectAddress{ns}
+			path = []ids.ObjectAddress{ns}
 		}
 	}
 	for _, ns := range path {
-		if address := r.auth.definitionLookup(NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ObjectAddress{}) {
+		if address := r.auth.definitionLookup(ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
 			descriptor, _ := r.auth.definitionDescriptor(address)
 			if _, ok := descriptor.(*relationDescriptor); !ok {
 				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
@@ -428,13 +429,13 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = e.domain.Ref(scope.txRef.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)})
+		ref = e.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)})
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()
 		ref = e.domain.Ref(e.state.epoch, scope.op.session.lastSequence)
 		e.mu.Unlock()
-		if ref.Address == (ObjectAddress{}) {
+		if ref.Address == (ids.ObjectAddress{}) {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
 		}
 	}
@@ -516,7 +517,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: sequence state missing")
 	}
 	if session.sequences == nil {
-		session.sequences = make(map[ObjectAddress]*sequenceMemory)
+		session.sequences = make(map[ids.ObjectAddress]*sequenceMemory)
 	}
 	m := session.sequences[ref.Address]
 	if m == nil {

@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func indexHasTableOID(index *indexDefinition) bool {
@@ -31,11 +33,11 @@ func (snapshot *indexSnapshot) needsOwnerRepair() bool {
 
 // Track only generated cells that can invalidate a captured index. False means
 // observed unchanged so far, not a missing dependency or a cached SQL result.
-func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ObjectAddress]map[int32]bool {
+func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.ObjectAddress]map[int32]bool {
 	if snapshot == nil {
 		return nil
 	}
-	var changed map[ObjectAddress]map[int32]bool
+	var changed map[ids.ObjectAddress]map[int32]bool
 	for _, source := range snapshot.sources {
 		address := snapshot.destination(source.parent.address)
 		if address == source.parent.address {
@@ -50,7 +52,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[Object
 				continue
 			}
 			if changed == nil {
-				changed = make(map[ObjectAddress]map[int32]bool)
+				changed = make(map[ids.ObjectAddress]map[int32]bool)
 			}
 			if changed[address] == nil {
 				changed[address] = make(map[int32]bool)
@@ -64,11 +66,11 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[Object
 // This is part of the existing admitted restore-repair statement, before its
 // Finish. Only genuinely changed inputs or owner-dependent expressions produce
 // new entries; all other snapshots retain their original produced data.
-func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ObjectAddress]*relationStorage, changed map[ObjectAddress]map[int32]bool, moved map[ObjectAddress]bool, auth AuthorizationView) error {
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
 	if snapshot == nil {
 		return nil
 	}
-	var repairedStores map[ObjectAddress]relationStorage
+	var repairedStores map[ids.ObjectAddress]relationStorage
 	for address, source := range snapshot.sources {
 		parentAddress := snapshot.destination(source.parent.address)
 		affected := moved[parentAddress] || parentAddress != source.parent.address && indexHasTableOID(source.index.sqlIndex)
@@ -109,7 +111,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 			captured = *store
 			captured.versions = slices.Clone(store.versions)
 			if repairedStores == nil {
-				repairedStores = make(map[ObjectAddress]relationStorage)
+				repairedStores = make(map[ids.ObjectAddress]relationStorage)
 			}
 			repairedStores[parentAddress] = captured
 		}

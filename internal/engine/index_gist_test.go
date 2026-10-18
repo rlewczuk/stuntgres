@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -105,10 +106,10 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 		t.Run(map[bool]string{false: "prepare", true: "materialize"}[materialize], func(t *testing.T) {
 			e := New()
 			parent, index, row := logicalGiSTFixture(t)
-			parent.address = ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
-			parent.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			parent.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
+			parent.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 			parent.relationKind = tableRelation
-			index.address = ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}
+			index.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}
 			index.namespace = parent.namespace
 			index.relationKind = indexRelation
 			index.columns = append([]ColumnDescriptor(nil), parent.columns...)
@@ -132,7 +133,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.storage[parent.address] = store
-			e.indexRoots = map[ObjectAddress]*logicalIndexRoot{index.address: root}
+			e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: root}
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
 			entriesBefore := append([]logicalIndexEntry(nil), root.entries...)
@@ -151,7 +152,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			roots, err := e.prepareIndexPublication(
 				&EvalContext{Context: context.Background(), Scope: 1, Frame: 1},
 				e.state, e.state, captured, e.indexRoots,
-				map[ObjectAddress]bool{parent.address: true}, nil, nil,
+				map[ids.ObjectAddress]bool{parent.address: true}, nil, nil,
 				materialize, sqltype.OutputEnvironment{}, nil, nil, nil,
 			)
 			indexMaintenanceUnchanged(t, e, before)

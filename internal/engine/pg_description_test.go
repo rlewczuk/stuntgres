@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 2609}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2609}
 	d, ok := e.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing catalog descriptor")
@@ -20,9 +21,9 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, Obje
 	return d, e.domain.Ref(e.state.epoch, address)
 }
 
-func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ObjectAddress]string {
+func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
 	t.Helper()
-	bag := make(map[ObjectAddress]string)
+	bag := make(map[ids.ObjectAddress]string)
 	for _, row := range source.anonymous {
 		if len(row) != 4 {
 			t.Fatal("description width", row)
@@ -43,7 +44,7 @@ func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ObjectAddress]s
 		if err != nil || text == "" {
 			t.Fatal("description payload", text, err)
 		}
-		key := ObjectAddress{ClassID: OID(class), ObjectID: OID(object), SubID: int32(sub)}
+		key := ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(sub)}
 		if _, exists := bag[key]; exists {
 			t.Fatal("duplicate address", key)
 		}
@@ -100,8 +101,8 @@ func TestPGDescriptionShape(t *testing.T) {
 			}
 		})
 	}
-	class := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ObjectRef{}, class)
+	class := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,8 +130,8 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	oldState := *e.state
 	oldState.descriptors = maps.Clone(e.state.descriptors)
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}
-	relation := ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}
+	relation := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{address: relation, attributes: []int32{1, 3}, comment: "whole", columnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
 	oldState.descriptors[namespace] = &namespaceDescriptor{address: namespace, comment: "namespace"}
 	oldState.descriptors[relation] = d
@@ -140,16 +141,16 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	bag := pgDescriptionUnitBag(t, captured)
-	want := map[ObjectAddress]string{namespace: "namespace", relation: "whole", {ClassID: RelationClassID, ObjectID: 20000, SubID: 3}: "third"}
+	want := map[ids.ObjectAddress]string{namespace: "namespace", relation: "whole", {ClassID: RelationClassID, ObjectID: 20000, SubID: 3}: "third"}
 	for key, text := range want {
 		if bag[key] != text {
 			t.Fatal(key, bag[key], text)
 		}
 	}
-	if _, ok := bag[ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 2}]; ok {
+	if _, ok := bag[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 2}]; ok {
 		t.Fatal("stale map entry projected")
 	}
-	if _, ok := bag[ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 1}]; ok {
+	if _, ok := bag[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000, SubID: 1}]; ok {
 		t.Fatal("empty row projected")
 	}
 	if !reflect.DeepEqual(d.attributes, []int32{1, 3}) || d.columnComments[2] != "stale dropped" {
@@ -187,7 +188,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.state, {descriptors: map[ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{e.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
 		captured, err := capturePGDescription(ctx, CatalogRead{owner: e, state: state}, ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
@@ -203,13 +204,13 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 		t.Fatal(err)
 	}
 	bag := pgDescriptionUnitBag(t, captured)
-	expected := map[ObjectAddress]string{
+	expected := map[ids.ObjectAddress]string{
 		{ClassID: NamespaceClassID, ObjectID: 11}:   "system catalog schema",
 		{ClassID: NamespaceClassID, ObjectID: 99}:   "reserved schema for TOAST tables",
 		{ClassID: NamespaceClassID, ObjectID: 2200}: "standard public schema",
 	}
 	for _, group := range []struct {
-		class OID
+		class ids.OID
 		seeds []pgDescriptionExpectedSeed
 	}{
 		{TypeClassID, pgDescriptionExpectedTypes},
@@ -217,13 +218,13 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 		{ConversionClassID, pgDescriptionExpectedConversions},
 	} {
 		for _, seed := range group.seeds {
-			expected[ObjectAddress{ClassID: group.class, ObjectID: seed.oid}] = seed.text
+			expected[ids.ObjectAddress{ClassID: group.class, ObjectID: seed.oid}] = seed.text
 		}
 	}
 	if len(bag) != 166 || !reflect.DeepEqual(bag, expected) {
 		t.Fatal("complete independent baseline", bag, expected)
 	}
-	for _, oid := range []OID{4401, 4450, 4451, 4532} {
+	for _, oid := range []ids.OID{4401, 4450, 4451, 4532} {
 		if conversionDescription(oid) != "" {
 			t.Fatal("conversion hole or boundary", oid)
 		}
@@ -236,7 +237,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			}
 		}
 	}
-	if _, exists := bag[ObjectAddress{ClassID: TypeClassID, ObjectID: 1003}]; exists {
+	if _, exists := bag[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 1003}]; exists {
 		t.Fatal("array inherited description")
 	}
 }

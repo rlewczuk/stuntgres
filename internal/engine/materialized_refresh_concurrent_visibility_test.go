@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	view, err := scope.acquireDataViewsLocked(e, []ObjectRef{ref, ref})
+	view, err := scope.acquireDataViewsLocked(e, []ids.ObjectRef{ref, ref})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

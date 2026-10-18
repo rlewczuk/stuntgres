@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -96,7 +97,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { return ref }, nil)
+		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

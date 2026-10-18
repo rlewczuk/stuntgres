@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func inheritedRestoreFixture(t *testing.T) (*Engine, *Operation, map[string]ObjectRef, map[restoredGenerationKey]restoredGenerationRecipe) {
+func inheritedRestoreFixture(t *testing.T) (*Engine, *Operation, map[string]ids.ObjectRef, map[restoredGenerationKey]restoredGenerationRecipe) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")
@@ -22,7 +23,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *Operation, map[string]Obje
 		"CREATE TABLE public.c(CONSTRAINT local_nn NOT NULL a) INHERITS(public.p,public.q)",
 		"CREATE TABLE public.unrelated(a INT)",
 	}
-	refs := make(map[string]ObjectRef)
+	refs := make(map[string]ids.ObjectRef)
 	origins := make(map[restoredGenerationKey]restoredGenerationRecipe)
 	for _, sql := range declarations {
 		raw := statement(t, sql).(*parser.CreateTable)

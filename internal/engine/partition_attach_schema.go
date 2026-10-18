@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if child.membership != nil {
 		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.name))
 	}
-	if child.ofType != (ObjectAddress{}) {
+	if child.ofType != (ids.ObjectAddress{}) {
 		return sqlError("42809", "cannot attach a typed table as partition")
 	}
 	if child.inheritance != nil && len(child.inheritance.parents) != 0 {

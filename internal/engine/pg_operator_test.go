@@ -9,13 +9,14 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
+func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 2617}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2617}
 	d, ok := e.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_operator")
@@ -116,7 +117,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
-		row := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
+		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		if row.owningRelation != d.address || row.owner != d.owner {
 			t.Fatal("row/array ownership", id, row)
 		}

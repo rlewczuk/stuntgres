@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type advisoryScopeOutcome struct{ err, finish error }
@@ -69,7 +71,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	source := New()
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
-	storage := make(map[ObjectAddress]*relationStorage)
+	storage := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
 	for address, relation := range source.storage {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}

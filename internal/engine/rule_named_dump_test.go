@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -61,7 +62,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					}
 					original := conflict(stored)
 					frozen := *original
-					intendedAddress := ObjectAddress{ClassID: 2606, ObjectID: intended.OID}
+					intendedAddress := ids.ObjectAddress{ClassID: 2606, ObjectID: intended.OID}
 					if original.constraint != intendedAddress || original.namedIndex != intended.Index {
 						t.Fatal("creation did not bind the actual named constraint and physical id provider")
 					}
@@ -148,7 +149,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					}
 					// Match actual current parent metadata by provider identity, not
 					// creation spelling or a source-text assertion on the export.
-					var oid OID
+					var oid ids.OID
 					for _, constraint := range parent.uniqueConstraints {
 						if constraint.Index == provider {
 							oid = constraint.OID
@@ -182,7 +183,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						}
 					}
 					if importedProvider.OID == 0 ||
-						importedConflict.constraint != (ObjectAddress{ClassID: 2606, ObjectID: importedProvider.OID}) ||
+						importedConflict.constraint != (ids.ObjectAddress{ClassID: 2606, ObjectID: importedProvider.OID}) ||
 						importedConflict.namedIndex != importedProvider.Index ||
 						len(importedProvider.Attributes) != 1 || importedProvider.Attributes[0] != importedParent.attributes[0] {
 						t.Fatal("actual native import lost the named id constraint/backing relationship")

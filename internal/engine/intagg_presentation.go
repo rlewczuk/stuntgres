@@ -3,18 +3,19 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Occurrences use the same normalized structural paths as frozen literal and
 // column presentation. The captured reference comes from binding, never a later
 // lookup by the written name or the renderer's current search_path.
-func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *procedureDescriptor, ref ObjectRef, name string) error {
+func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *procedureDescriptor, ref ids.ObjectRef, name string) error {
 	if err := validateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
 	if b.viewIntaggRefs == nil {
-		b.viewIntaggRefs = make(map[viewLiteralPath]ObjectRef)
+		b.viewIntaggRefs = make(map[viewLiteralPath]ids.ObjectRef)
 	}
 	if old, exists := b.viewIntaggRefs[path]; exists && old != ref {
 		return fmt.Errorf("stuntgres: conflicting frozen intagg occurrence")

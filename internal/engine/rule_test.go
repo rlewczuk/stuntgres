@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,8 +21,8 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	if !ok {
 		t.Fatal("INT4 unavailable")
 	}
-	makeRelation := func(id OID, name string) *relationDescriptor {
-		return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
+	makeRelation := func(id ids.OID, name string) *relationDescriptor {
+		return &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := cloneCatalog(e.state)
@@ -31,7 +32,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	return e, AuthorizationView{engine: e, catalog: CatalogRead{owner: e, state: next}}, src, sink
 }
 
-func ruleUnitRef(e *Engine, d *relationDescriptor) ObjectRef {
+func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
 	return e.domain.Ref(e.state.epoch, d.address)
 }
 func ruleUnitInt(d *relationDescriptor, n int64) BoundExpr {
@@ -426,7 +427,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	s.self = s
 	s.stage.self = &s.stage
 	s.stage.scope = s
-	s.stage.rows = map[ObjectAddress][]rowVersion{src.address: {{row: 1, version: 1}}}
+	s.stage.rows = map[ids.ObjectAddress][]rowVersion{src.address: {{row: 1, version: 1}}}
 	before := s.ruleScratch()
 	stageRows := s.stage.rows
 	s.installRuleScratch(ruleCommandScratch{ref: ruleUnitRef(e, sink), descriptor: sink})
@@ -465,7 +466,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []ObjectAddress{ref.Address, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 1}, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 2}} {
+	for _, want := range []ids.ObjectAddress{ref.Address, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 1}, {ClassID: RelationClassID, ObjectID: sink.address.ObjectID, SubID: 2}} {
 		if !slices.Contains(refs, want) {
 			t.Fatalf("missing dependency %v in %v", want, refs)
 		}
@@ -476,14 +477,14 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := ObjectAddress{ClassID: 2618, ObjectID: r.OID}
+	owner := ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}
 	if !slices.Contains(edges, pgDependEdge{owner, src.address, 'a'}) {
 		t.Fatal("rule lacks AUTO event edge")
 	}
 	t.Run("mixed_drop_closure", func(t *testing.T) {
 		stage := e.BeginCatalogStage(auth.catalog)
 		defer e.DiscardCatalogStage(stage)
-		dependents, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{sink.address})
+		dependents, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{sink.address})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -497,7 +498,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 			t.Fatal("normal rule target absent from central mixed DROP closure")
 		}
 	})
-	reserved := make(map[OID]bool)
+	reserved := make(map[ids.OID]bool)
 	reserveDefinitionOIDs(reserved, src)
 	if !reserved[r.OID] || !definitionOIDUsed(src, r.OID) {
 		t.Fatal("rule OID omitted from identity space")
@@ -508,15 +509,15 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
+	src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
 	newSrc, newSink := *src, *sink
 	newSrc.address.ObjectID += 10
 	newSink.address.ObjectID += 10
 	next := cloneCatalog(auth.catalog.state)
 	next.descriptors[newSrc.address] = &newSrc
 	next.descriptors[newSink.address] = &newSink
-	mapping := map[ObjectAddress]ObjectAddress{src.address: newSrc.address, sink.address: newSink.address}
-	ref := func(old ObjectRef) ObjectRef {
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.address: newSrc.address, sink.address: newSink.address}
+	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		whole := old.Address
 		whole.SubID = 0
 		if a, ok := mapping[whole]; ok {

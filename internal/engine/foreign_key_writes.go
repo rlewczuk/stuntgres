@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ type foreignKeyRows struct {
 	priorDeletes, currentDeletes *privateDeletionRoot
 	shadow                       map[RowID]uint8
 	frontier                     CommitSeq
-	index                        ObjectAddress
+	index                        ids.ObjectAddress
 	root                         *logicalIndexRoot
 }
 
@@ -62,7 +63,7 @@ func (r foreignKeyRows) previous(id RowID) (rowVersion, bool) {
 	return rowVersion{}, false
 }
 
-func (s *StatementScope) captureForeignKeyRows(ref ObjectRef, index ObjectAddress) (foreignKeyRows, error) {
+func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.ObjectAddress) (foreignKeyRows, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -79,7 +80,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ObjectRef, index ObjectAddres
 	}
 	r := foreignKeyRows{storage: storage, committed: storage.versions, ends: storage.ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.commitSeq}
 	r.index = index
-	if index != (ObjectAddress{}) {
+	if index != (ids.ObjectAddress{}) {
 		r.root = e.indexRoots[index]
 		if changes != nil && changes.uniqueRoots[index] != nil {
 			r.root = changes.uniqueRoots[index]
@@ -104,7 +105,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ObjectRef, index ObjectAddres
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ObjectRef, row RowID, mode relationLockMode, storage *relationStorage) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row RowID, mode relationLockMode, storage *relationStorage) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
@@ -154,7 +155,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
 	temporary := raw.Persistence == "temporary" || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == "pg_temp"
-	var destination ObjectAddress
+	var destination ids.ObjectAddress
 	if temporary {
 		destination = temporaryNamespace(auth)
 	} else {
@@ -166,12 +167,12 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		destination = ns.Address
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if raw.IfNotExists && destination != (ObjectAddress{}) && auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: destination, Name: name}] != (ObjectAddress{}) {
+	if raw.IfNotExists && destination != (ids.ObjectAddress{}) && auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: destination, Name: name}] != (ids.ObjectAddress{}) {
 		e.mu.Unlock()
 		return nil
 	}
-	var refs []ObjectRef
-	targets := make([]ObjectRef, len(declarations))
+	var refs []ids.ObjectRef
+	targets := make([]ids.ObjectRef, len(declarations))
 	for i, f := range declarations {
 		// Follow the candidate's search order, including a prospective TEMP
 		// namespace, rather than comparing differently qualified SQL names.
@@ -191,7 +192,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 						self = true
 						break
 					}
-					if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}] != (ObjectAddress{}) {
+					if auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}] != (ids.ObjectAddress{}) {
 						break
 					}
 				}
@@ -212,7 +213,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	}
 	e.mu.Unlock()
 	s.foreignKeyTargets = targets
-	slices.SortFunc(refs, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		if err := s.foreignKeyGrant(ref, 0, shareRowExclusive, nil); err != nil {
 			return err
@@ -274,7 +275,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		if err != nil {
 			return err
 		}
-		children, err := s.captureForeignKeyRows(childRef, ObjectAddress{})
+		children, err := s.captureForeignKeyRows(childRef, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
@@ -370,7 +371,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	return s.op.Context().Err()
 }
 
-func (s *StatementScope) foreignKeyParentExists(ref ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lock bool) (bool, error) {
+func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lock bool) (bool, error) {
 	if err := prepareForeignKeyChild(s.op.Context(), job.comparisons, child, job.childKey, s.input); err != nil {
 		return false, err
 	}
@@ -402,7 +403,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ObjectRef, job foreignKeyJob
 	}
 }
 
-func (s *StatementScope) refreshForeignKeyRows(ref ObjectRef, rows *foreignKeyRows) error {
+func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignKeyRows) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()

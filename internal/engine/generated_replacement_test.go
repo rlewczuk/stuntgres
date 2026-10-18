@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -41,11 +42,11 @@ type generatedRepairFixture struct {
 	session    *Session
 	op         *Operation
 	next       *catalogState
-	storage    map[ObjectAddress]*relationStorage
-	sequences  map[ObjectAddress]*sequenceGenerator
-	mapping    map[ObjectAddress]ObjectAddress
-	imported   ObjectAddress
-	temp       ObjectAddress
+	storage    map[ids.ObjectAddress]*relationStorage
+	sequences  map[ids.ObjectAddress]*sequenceGenerator
+	mapping    map[ids.ObjectAddress]ids.ObjectAddress
+	imported   ids.ObjectAddress
+	temp       ids.ObjectAddress
 	source     []sqltype.Value
 	tempValues []sqltype.Value
 	gate       *generatedRepairSource
@@ -93,10 +94,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	next := cloneCatalog(view.state)
 	next.epoch++
 	next.descriptors[d.address] = d
-	next.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	next.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	// Retain a real TEMP namespace and row vector in the target generation.
-	tempNamespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 27000}
-	tempAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 27001}
+	tempNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 27000}
+	tempAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 27001}
 	temp := *d
 	temp.address, temp.namespace, temp.name = tempAddress, tempNamespace, "retained"
 	temp.generations, temp.checkConstraints = nil, nil
@@ -119,7 +120,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
 	session.random.rand = *rand.New(gate)
 	session.random.initialized = true
-	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ObjectAddress]*relationStorage{d.address: {versions: []rowVersion{{values: source}}}}, sequences: map[ObjectAddress]*sequenceGenerator{{ClassID: RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ObjectAddress]ObjectAddress{oldAddress: d.address}, imported: d.address, temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
+	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.address: {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}, imported: d.address, temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
 		session.RequestEnd(CleanClose)
@@ -245,8 +246,8 @@ func awaitGeneratedRepairEval(t *testing.T, source *generatedRepairSource, resul
 	}
 }
 
-func cloneGeneratedRepairStorage(source map[ObjectAddress]*relationStorage) map[ObjectAddress]*relationStorage {
-	out := make(map[ObjectAddress]*relationStorage, len(source))
+func cloneGeneratedRepairStorage(source map[ids.ObjectAddress]*relationStorage) map[ids.ObjectAddress]*relationStorage {
+	out := make(map[ids.ObjectAddress]*relationStorage, len(source))
 	for address, rows := range source {
 		copy := *rows
 		copy.versions = append([]rowVersion(nil), rows.versions...)

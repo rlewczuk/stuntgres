@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -103,10 +104,10 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	if err != nil || changed || retained.(comparisonExpression).left.(literalExpression).value != sameDescriptor {
 		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
 	}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 45002}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 45002}
 	next.descriptors[address] = &relationDescriptor{address: address, columns: []ColumnDescriptor{{Name: "a", Usage: d.Usage()}}}
 	original := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{value}}}}
-	stores := map[ObjectAddress]*relationStorage{address: original}
+	stores := map[ids.ObjectAddress]*relationStorage{address: original}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +150,7 @@ func TestACLItemRestoreFence(t *testing.T) {
 	}
 	aclUnitRoles(freshSource, "acl_missing_target")
 	freshSource.mu.Lock()
-	public := freshSource.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
+	public := freshSource.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
 	copy := *public
 	role, _ := freshSource.roleRead(CatalogRead{freshSource, freshSource.state}, freshSource.roles).Lookup("acl_missing_target")
 	copy.owner = role.Ref

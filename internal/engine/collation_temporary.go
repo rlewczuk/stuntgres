@@ -5,18 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage *CatalogStage, name parser.ObjectName) (ObjectRef, error) {
+func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage *CatalogStage, name parser.ObjectName) (ids.ObjectRef, error) {
 	var changes catalogChanges
 	ref, err := e.creationNamespaceStagedLocked(*auth, name, false, &changes, true)
 	if err != nil {
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	for _, d := range changes.descriptors {
 		if err := stage.Create(d); err != nil {
-			return ObjectRef{}, err
+			return ids.ObjectRef{}, err
 		}
 	}
 	if len(changes.descriptors) != 0 {
@@ -30,10 +31,10 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
-			return ObjectRef{}, err
+			return ids.ObjectRef{}, err
 		}
 		if !actor.Superuser {
-			return ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.name)
+			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.name)
 		}
 	}
 	return ref, nil
@@ -59,12 +60,12 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		}
 		if len(namespaces) == 0 {
 			source.sequences = nil
-			source.lastSequence = ObjectAddress{}
-			source.temporaryNamespace = ObjectAddress{}
+			source.lastSequence = ids.ObjectAddress{}
+			source.temporaryNamespace = ids.ObjectAddress{}
 			e.mu.Unlock()
 			return nil
 		}
-		owned := make(map[ObjectAddress]bool, len(namespaces))
+		owned := make(map[ids.ObjectAddress]bool, len(namespaces))
 		for _, ns := range namespaces {
 			owned[ns.address] = true
 		}
@@ -92,14 +93,14 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		}
 		e.mu.Lock()
 		source.sequences = nil
-		source.lastSequence = ObjectAddress{}
-		source.temporaryNamespace = ObjectAddress{}
+		source.lastSequence = ids.ObjectAddress{}
+		source.temporaryNamespace = ids.ObjectAddress{}
 		e.mu.Unlock()
 		return nil
 	}
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ObjectAddress, token SessionToken) (stale bool, err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ids.ObjectAddress, token SessionToken) (stale bool, err error) {
 	var stage *CatalogStage
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.
@@ -157,7 +158,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	if err = scope.stageOwnedSequences(stage, children, parser.DropCascade, nil); err != nil {
 		return false, err
 	}
-	var relations []ObjectAddress
+	var relations []ids.ObjectAddress
 	for a := range stage.removals {
 		if a.ClassID == RelationClassID {
 			relations = append(relations, a)

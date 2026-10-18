@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -25,8 +26,8 @@ type indexKey struct {
 }
 type indexDefinition struct {
 	method             indexMethod
-	parent             ObjectAddress
-	partitionParent    ObjectAddress
+	parent             ids.ObjectAddress
+	partitionParent    ids.ObjectAddress
 	keys               []indexKey
 	include            []int32
 	unique             bool
@@ -610,11 +611,11 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				}
 			}
 			name = generatedRelationName(parent.name, addition.String(), "idx", func(n string) bool {
-				_, ok := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: n}]
+				_, ok := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: n}]
 				return ok
 			})
 		}
-		key := NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}
+		key := ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}
 		if _, exists := auth.catalog.state.names[key]; exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
@@ -654,7 +655,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginTable = uint32(oid)
 			columns[i].OriginAttribute = int16(i + 1)
 		}
-		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
 		d.attributeHighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
 			definition.ready, definition.valid = false, false

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -473,7 +474,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return nil
 		case selectedOperatorExpression:
 			if b.viewOperatorRefs == nil {
-				b.viewOperatorRefs = make(map[viewLiteralPath]ObjectRef)
+				b.viewOperatorRefs = make(map[viewLiteralPath]ids.ObjectRef)
 			}
 			b.viewOperatorRefs[path] = n.ref
 			var operands []BoundExpr
@@ -1240,7 +1241,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if !validExpressionUsage(catalog, usage) {
 				return fmt.Errorf("stuntgres: foreign view literal type")
 			}
-			if ref := literal.regclassRef; ref != (ObjectRef{}) {
+			if ref := literal.regclassRef; ref != (ids.ObjectRef{}) {
 				consumer, _ := catalog.state.descriptors[v.consumer].(*relationDescriptor)
 				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.value.IsNull() {
 					return fmt.Errorf("stuntgres: invalid view regclass literal authority")
@@ -1362,7 +1363,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		if !ok {
 			return fmt.Errorf("stuntgres: missing frozen view collation")
 		}
-		d, ok := catalog.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+		d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing view collation identity")
 		}

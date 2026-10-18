@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,7 +19,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
-	c.inheritance = &tableInheritance{parents: []ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	c.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
 		t.Fatal(err)
 	}

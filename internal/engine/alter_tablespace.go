@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type alterTablePreparation struct {
 	actions     []parser.AlterTableAction
-	destination ObjectRef
+	destination ids.ObjectRef
 	types       []alterTypePreparation
 }
 
@@ -18,7 +19,7 @@ type alterTablePreparation struct {
 // Engine.mu is held by the caller.
 // On completion error only, the result retains the admitted TYPE prefix for
 // sequence AS; that error-path result must never reach a descriptor candidate.
-func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, ref ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
+func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
 	prepared := alterTablePreparation{actions: actions}
 	fail := func(err error) (alterTablePreparation, error) {
 		return alterTablePreparation{}, err
@@ -71,7 +72,7 @@ func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, 
 	return prepared, nil
 }
 
-func validateAlterTablespaceMove(destination ObjectRef) error {
+func validateAlterTablespaceMove(destination ids.ObjectRef) error {
 	if destination.Address.ObjectID == 1664 {
 		return sqlError("22023", "only shared relations can be placed in pg_global tablespace")
 	}
@@ -108,7 +109,7 @@ func alterTableActionKind(original *relationDescriptor, action parser.AlterTable
 	return tableKind(original, label)
 }
 
-func checkAlterTablespaceCreate(auth AuthorizationView, ref ObjectRef) error {
+func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error {
 	if ref.Address.ObjectID == 1663 {
 		return nil
 	}

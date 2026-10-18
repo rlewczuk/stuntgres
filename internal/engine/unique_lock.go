@@ -3,11 +3,12 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 type uniqueLockBucket struct {
-	ObjectRef
+	ids.ObjectRef
 	hash uint64
 }
 type uniqueLockBucketState struct {
@@ -62,7 +63,7 @@ func uniqueKeyHash(ctx context.Context, ordering indexOrdering, grouping []sqlty
 // Providers run outside every manager/engine/session metadata mutex. Pinning
 // reserves the exact interned resource across startAcquire; its normal entry
 // owns checkpoint, queue, timeout, deadlock, outcome and epoch lifetimes.
-func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
+func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ids.ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
 	hash, err := uniqueKeyHash(ctx, ordering, grouping, values)
 	if err != nil {
 		return lockResource{}, nil, err
@@ -138,7 +139,7 @@ func (m *relationLockManager) pinUniqueKey(ctx context.Context, ticket *relation
 	}
 }
 
-func (s *StatementScope) acquireUnique(ref ObjectRef, bound *uniqueBoundKey, key []sqltype.Value) error {
+func (s *StatementScope) acquireUnique(ref ids.ObjectRef, bound *uniqueBoundKey, key []sqltype.Value) error {
 	e := s.op.session.Engine()
 	resource, unpin, err := e.locks.pinUniqueKey(s.op.Context(), s.ticket, ref, bound.ordering, bound.grouping, key)
 	if err != nil {

@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 const checkReview2SchemaCreate = "CREATE SCHEMA checked CREATE TABLE earlier(a INT CHECK(a=1)) CREATE TABLE t(a INT CONSTRAINT c CHECK(nextval('public.s')>0))"
@@ -26,7 +28,7 @@ func checkReview2SchemaAbsent(t *testing.T, e *Engine) {
 
 // Observe the actual manager queue before canceling. The completion channel also
 // makes a bypass fail immediately instead of waiting for a guessed delay.
-func checkReview2SchemaQueued(t *testing.T, e *Engine, holder *Session, ref ObjectRef, done <-chan error) {
+func checkReview2SchemaQueued(t *testing.T, e *Engine, holder *Session, ref ids.ObjectRef, done <-chan error) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

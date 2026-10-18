@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -188,7 +189,7 @@ func TestMaterializedRefreshPublicationCounters(t *testing.T) {
 			case "version":
 				e.nextVersion = math.MaxUint64
 			case "revision":
-				d.revision = DefinitionRevision(math.MaxUint64)
+				d.revision = ids.DefinitionRevision(math.MaxUint64)
 			case "generation":
 				store.generation = math.MaxUint64
 			}

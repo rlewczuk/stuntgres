@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestVisibilityInquiryCollationSelection(t *testing.T) {
-	address := func(id OID) ObjectAddress { return ObjectAddress{ClassID: CollationClassID, ObjectID: id} }
+	address := func(id ids.OID) ids.ObjectAddress { return ids.ObjectAddress{ClassID: CollationClassID, ObjectID: id} }
 	for _, tc := range []struct {
 		name       string
 		candidates []collationCandidate
-		want       ObjectAddress
+		want       ids.ObjectAddress
 	}{
 		{"exact-first", []collationCandidate{{address(1), 6}, {address(2), -1}, {address(3), 8}}, address(1)},
 		{"fallback-first", []collationCandidate{{address(2), -1}, {address(3), 8}, {address(1), 6}}, address(1)},
 		{"fallback-only", []collationCandidate{{address(2), -1}}, address(2)},
-		{"wrong-only", []collationCandidate{{address(3), 8}}, ObjectAddress{}},
+		{"wrong-only", []collationCandidate{{address(3), 8}}, ids.ObjectAddress{}},
 		{"wrong-and-fallback", []collationCandidate{{address(3), 8}, {address(2), -1}}, address(2)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -29,23 +30,23 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	}
 	// Exercise the actual namespace-first inquiry path with independently built
 	// name candidates, without admitting unsupported native collation DDL.
-	a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20001}
-	b := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20002}
+	a := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20001}
+	b := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20002}
 	first := &collationDescriptor{oid: 1, name: "same", encoding: -1}
 	second := &collationDescriptor{oid: 2, name: "same", encoding: 6}
-	state := &catalogState{descriptors: map[ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[NameKey]ObjectAddress{
+	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: CollationClassID, Namespace: b, Name: "same"}: second.Address(),
 	}}
 	view := CatalogRead{state: state}
-	if !visibleCollation(view, []ObjectAddress{a, b}, first) || visibleCollation(view, []ObjectAddress{a, b}, second) {
+	if !visibleCollation(view, []ids.ObjectAddress{a, b}, first) || visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("later exact beat earlier fallback")
 	}
 	first.encoding = 8
-	if visibleCollation(view, []ObjectAddress{a, b}, first) || !visibleCollation(view, []ObjectAddress{a, b}, second) {
+	if visibleCollation(view, []ids.ObjectAddress{a, b}, first) || !visibleCollation(view, []ids.ObjectAddress{a, b}, second) {
 		t.Fatal("wrong encoding shadowed later usable candidate")
 	}
-	if visibleCollation(view, []ObjectAddress{a}, first) {
+	if visibleCollation(view, []ids.ObjectAddress{a}, first) {
 		t.Fatal("ineligible subject became visible")
 	}
 }
@@ -58,18 +59,18 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		t.Fatal("fixed inventory cardinality")
 	}
 	for _, d := range view.state.descriptors {
-		if d.Kind() == CollationObject || d.Kind() == ConversionObject {
+		if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 			if err := e.providers[d.Address().ClassID].Validate(view, d); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	bad := *view.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: 950}].(*collationDescriptor)
+	bad := *view.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: 950}].(*collationDescriptor)
 	bad.encoding = 8
 	if err := (collationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("invalid fixed collation accepted")
 	}
-	conversion := *view.state.descriptors[ObjectAddress{ClassID: ConversionClassID, ObjectID: 4402}].(*conversionDescriptor)
+	conversion := *view.state.descriptors[ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: 4402}].(*conversionDescriptor)
 	conversion.name = "made_up"
 	if err := (conversionProvider{}).Validate(view, &conversion); err == nil {
 		t.Fatal("invalid conversion accepted")
@@ -188,7 +189,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	reader, _ := e.Roles().Lookup("visibility_reader")
 	ns := schemaRef(t, e, "visible")
 	view := e.CatalogRead()
-	address := view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "t"}]
+	address := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "t"}]
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)
 	for _, rights := range []authorization.Privileges{authorization.UsagePrivilege, 0, authorization.UsagePrivilege} {
 		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

@@ -2,13 +2,14 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 const restoreInheritedOwnerBoundary = "restore accepts only immediately paired inherited declaration ownership"
 
 type restoredInheritedOwner struct {
-	ref     ObjectRef
+	ref     ids.ObjectRef
 	owner   authorization.PrincipalRef
 	creator authorization.PrincipalRef
 }
@@ -16,7 +17,7 @@ type restoredInheritedOwner struct {
 // A genuine named owner directive followed immediately by the bootstrap context
 // carries the captured role identity. CREATE/OWNER must be the next exact pair;
 // no input can retarget an existing relation or choose an unrelated owner.
-func (e *Engine) captureInheritedOwner(op *Operation, created ObjectRef, owner authorization.PrincipalRef) (restoredInheritedOwner, error) {
+func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (restoredInheritedOwner, error) {
 	if err := op.Context().Err(); err != nil {
 		return restoredInheritedOwner{}, err
 	}
@@ -60,7 +61,7 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 		return err
 	}
 	reject := func() error { return sqlError("0A000", restoreInheritedOwnerBoundary) }
-	if raw.Kind != "table" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.ref == (ObjectRef{}) {
+	if raw.Kind != "table" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.ref == (ids.ObjectRef{}) {
 		return reject()
 	}
 	auth, err := op.Authorization()

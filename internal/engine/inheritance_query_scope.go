@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
 
 // Closure is physical-identity deduplication within one SQL occurrence. A foreign
 // session's temporary branch is not admitted, even through a persistent ancestor.
@@ -12,7 +15,7 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 	if len(children) == 0 {
 		return nil
 	}
-	seen := map[ObjectAddress]bool{root.address: true}
+	seen := map[ids.ObjectAddress]bool{root.address: true}
 	var walk func([]*relationDescriptor) error
 	walk = func(children []*relationDescriptor) error {
 		for _, child := range children {
@@ -42,7 +45,7 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 // Called under Engine.mu. Stored views expose their named source's scan mode,
 // not a flattened set of leaves or the mode of an unrelated SQL occurrence.
 func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token SessionToken, visit func(queryLeaf) error) error {
-	var active []ObjectAddress
+	var active []ids.ObjectAddress
 	var walk func(queryLeaf) error
 	walk = func(leaf queryLeaf) error {
 		d, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
@@ -95,7 +98,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token Sessio
 // growth after every wait, then freeze one immutable topology for this statement.
 // Previously admitted identities must survive; a same-name replacement is never
 // a substitute. No manager wait is performed under Engine.mu.
-func (s *StatementScope) acquireInheritanceSources(grants map[ObjectRef]relationLockMode) error {
+func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]relationLockMode) error {
 	e := s.op.session.Engine()
 	roots := s.querySources
 	if s.materializedRefresh {
@@ -163,7 +166,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ObjectRef]relation
 			leaf.storage = e.privateStorageLocked(s.owner.catalog, leaf.ref.Address)
 			pending = append(pending, leaf)
 			if grants == nil {
-				grants = make(map[ObjectRef]relationLockMode)
+				grants = make(map[ids.ObjectRef]relationLockMode)
 			}
 			grants[leaf.ref] = leaf.mark.mode
 			return nil

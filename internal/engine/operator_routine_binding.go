@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 type builtinOperatorRoutineKey struct {
 	name        string
-	left, right OID
+	left, right ids.OID
 }
 
 // Join immutable released declarations once. Comparison selection and coercion
@@ -37,7 +38,7 @@ func (b *expressionBinder) builtinOperatorRoutineInfo(info expressionInfo, name 
 	if name == "!=" {
 		name = "<>"
 	}
-	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, OID(left), OID(right)}]
+	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(left), ids.OID(right)}]
 	if declaration == nil {
 		return expressionInfo{}, fmt.Errorf("stuntgres: missing successful operator routine association for %s (%d,%d)", name, left, right)
 	}
@@ -52,7 +53,7 @@ func (b *expressionBinder) comparisonRoutineDeclaration(name string, left, right
 		name = "<>"
 	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
-	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, OID(formal.Left), OID(formal.Right)}]
+	declaration := builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{name, ids.OID(formal.Left), ids.OID(formal.Right)}]
 	if declaration == nil {
 		return nil, sqltype.EqualitySignature{}, fmt.Errorf("stuntgres: missing successful comparison routine association for %s (%d,%d)", name, formal.Left, formal.Right)
 	}

@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -65,7 +66,7 @@ func copyForeignCells(cells []driver.Value) []driver.Value {
 
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
-func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *relationDescriptor, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
 	if mark.mode != 0 {
 		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
 	}

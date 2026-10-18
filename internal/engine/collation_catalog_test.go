@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,9 +23,9 @@ func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	}
 }
 
-func collationUnitDefinition(e *Engine, id OID, name string) *collationDescriptor {
+func collationUnitDefinition(e *Engine, id ids.OID, name string) *collationDescriptor {
 	owner, _ := e.Roles().Lookup("postgres")
-	return &collationDescriptor{oid: id, name: name, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: owner.Ref, provider: "c", deterministic: true, encoding: -1, collate: collationText("C"), ctype: collationText("C"), semantics: 950}
+	return &collationDescriptor{oid: id, name: name, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: owner.Ref, provider: "c", deterministic: true, encoding: -1, collate: collationText("C"), ctype: collationText("C"), semantics: 950}
 }
 
 func TestCollationCatalogAuthority(t *testing.T) {
@@ -166,7 +167,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}, name: "private", revision: 1, owner: actor.Ref}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}, name: "private", revision: 1, owner: actor.Ref}
 	d := collationUnitDefinition(e, 90001, "owned")
 	d.namespace, d.owner = ns.address, actor.Ref
 	for _, descriptor := range []Descriptor{ns, d} {

@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // The actual installed aggregate owns these lookup-only aliases. They are not
 // descriptors, extension members, executable functions, or pg_proc SQL rows.
@@ -9,14 +13,14 @@ type ownedAggregate struct {
 	helpers    [2]routineIdentity
 }
 
-func intaggDefinition(function, transition, final OID) aggregateDefinition {
-	return aggregateDefinition{function: function, kind: "n", functions: [8]OID{transition, final}, finalModify: "r", movingFinalModify: "r", transitionType: 2281}
+func intaggDefinition(function, transition, final ids.OID) aggregateDefinition {
+	return aggregateDefinition{function: function, kind: "n", functions: [8]ids.OID{transition, final}, finalModify: "r", movingFinalModify: "r", transitionType: 2281}
 }
 
 // A helper's dependencies are dependencies on this real aggregate descriptor,
 // never invented ObjectRefs for metadata-only identities.
-func routineDescriptorOwner(view CatalogRead, id OID) *procedureDescriptor {
-	if p, ok := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
+func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
+	if p, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
 		return p
 	}
 	for _, d := range view.state.descriptors {
@@ -66,21 +70,21 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 				}
 			}
 		}
-		if view.state.names[NameKey{ClassID: ProcedureClassID, Namespace: proc.namespace, Name: helper.name, Signature: string(helper.signature)}] != (ObjectAddress{}) {
+		if view.state.names[ids.NameKey{ClassID: ProcedureClassID, Namespace: proc.namespace, Name: helper.name, Signature: string(helper.signature)}] != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}
 	return nil
 }
 
-func remapOwnedAggregate(owned *ownedAggregate, owner, namespace ObjectAddress, mapping map[ObjectAddress]ObjectAddress) *ownedAggregate {
+func remapOwnedAggregate(owned *ownedAggregate, owner, namespace ids.ObjectAddress, mapping map[ids.ObjectAddress]ids.ObjectAddress) *ownedAggregate {
 	if owned == nil {
 		return nil
 	}
 	n := *owned
 	n.definition.function = owner.ObjectID
 	for i, helper := range owned.helpers {
-		if destination, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}]; ok {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}]; ok {
 			helper.id = destination.ObjectID
 		}
 		helper.namespace = namespace.ObjectID

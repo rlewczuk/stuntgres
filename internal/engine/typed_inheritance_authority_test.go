@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -31,7 +32,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			column := inheritedColumn{local: kind != "other_parent", origins: []inheritanceOrigin{{parent: parent.address, attribute: 1}}}
 			nn := inheritedConstraint{local: kind == "local", origins: []inheritanceOrigin{{parent: parent.address, attribute: 1, constraint: 23000}}}
 			check := inheritedConstraint{local: kind == "local", origins: []inheritanceOrigin{{parent: parent.address, constraint: 23002}}}
-			parents := []ObjectAddress{parent.address}
+			parents := []ids.ObjectAddress{parent.address}
 			var other *relationDescriptor
 			if kind == "other_parent" {
 				other = inheritanceUnitRelation(e, "q", 22002, "id")
@@ -92,8 +93,8 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	for i, attribute := range child.attributes {
 		child.columns[i].OriginTable, child.columns[i].OriginAttribute = uint32(child.address.ObjectID), int16(attribute)
 	}
-	child.inheritance = &tableInheritance{parents: []ObjectAddress{table.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: table.address, attribute: 1}}}, 8: {origins: []inheritanceOrigin{{parent: table.address, attribute: 7}}}}}
-	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ObjectAddress]map[int32]bool{table.address: {1: true}})
+	child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{table.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: table.address, attribute: 1}}}, 8: {origins: []inheritanceOrigin{{parent: table.address, attribute: 7}}}}}
+	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.address: {1: true}})
 	if err != nil || len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)
 	}

@@ -1,14 +1,18 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 type catalogIndexFence struct {
-	parent  ObjectAddress
-	indexes map[ObjectAddress]bool
+	parent  ids.ObjectAddress
+	indexes map[ids.ObjectAddress]bool
 }
 type catalogNamespaceFence struct {
-	namespace ObjectAddress
-	members   map[ObjectAddress]Descriptor
+	namespace ids.ObjectAddress
+	members   map[ids.ObjectAddress]Descriptor
 }
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalogState {
@@ -17,7 +21,7 @@ func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalogState {
 	}
 	return e.state
 }
-func (e *Engine) stageStorageLocked(s *CatalogStage, a ObjectAddress) *relationStorage {
+func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relationStorage {
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateStorageLocked(s.authSession.transactions.catalog, a)
 	}
@@ -86,7 +90,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return err
 		}
 	}
-	observe := func(a ObjectAddress, d Descriptor) error {
+	observe := func(a ids.ObjectAddress, d Descriptor) error {
 		if current.descriptors[a] != d {
 			return CatalogConflict{}
 		}
@@ -118,7 +122,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return err
 		}
 	}
-	observeNamespace := func(ns ObjectAddress) error {
+	observeNamespace := func(ns ids.ObjectAddress) error {
 		if d := s.base.state.descriptors[ns]; d != nil {
 			// TEMP creation can add its namespace to the candidate before
 			// constructing the ordinary stage. That exact creation intent is
@@ -126,9 +130,9 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			// Its committed absence/name fences already belong to c.
 			if current.descriptors[ns] == nil {
 				original, created := c.originals[ns]
-				key := NameKey{ClassID: NamespaceClassID, Name: d.Name()}
+				key := ids.NameKey{ClassID: NamespaceClassID, Name: d.Name()}
 				_, named := c.names[key]
-				if created && original == nil && c.descriptors[ns] == d && named && current.names[key] == (ObjectAddress{}) {
+				if created && original == nil && c.descriptors[ns] == d && named && current.names[key] == (ids.ObjectAddress{}) {
 					return nil
 				}
 			}
@@ -192,7 +196,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return err
 		}
 		if c.indexRebuilds == nil {
-			c.indexRebuilds = map[ObjectAddress]*relationDescriptor{}
+			c.indexRebuilds = map[ids.ObjectAddress]*relationDescriptor{}
 		}
 		c.indexRebuilds[a] = d
 	}
@@ -213,7 +217,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 				}
 			}
 		}
-		f := catalogIndexFence{parent: parent, indexes: map[ObjectAddress]bool{}}
+		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
 		for a, d := range e.state.descriptors {
 			r, ok := d.(*relationDescriptor)
 			if ok && r.sqlIndex != nil && r.sqlIndex.parent == parent {
@@ -224,7 +228,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	for a := range s.removals {
 		if a.ClassID == NamespaceClassID {
-			f := catalogNamespaceFence{namespace: a, members: map[ObjectAddress]Descriptor{}}
+			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]Descriptor{}}
 			for address, d := range e.state.descriptors {
 				if d.Namespace() == a {
 					f.members[address] = d
@@ -233,7 +237,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			c.namespaceFences = append(c.namespaceFences, f)
 		}
 	}
-	captureStorage := func(a ObjectAddress) {
+	captureStorage := func(a ids.ObjectAddress) {
 		store := e.storage[a]
 		f := partitionReadFence{address: a, storage: store}
 		if store != nil {

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -66,7 +67,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if err != nil || !strings.Contains(rendered, "uuid_generate_v4") || !strings.Contains(rendered, "public") || strings.Contains(rendered, "pg_catalog") {
 		t.Fatal("installed renderer", rendered, err)
 	}
-	mapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { ref.Epoch++; return ref }, nil)
+	mapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := remapExtensionDescriptor(n.procedure, map[ObjectAddress]ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
 	if proc.uuidOssp != stockUUIDOssp || proc.signature != "" || proc.result != 2950 || proc.address == n.procedure.address {
 		t.Fatal(proc)
 	}
@@ -82,7 +83,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		func(x *installedUUIDOsspFunctionExpression) { x.Name = "gen_random_uuid" },
 		func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
 		func(x *installedUUIDOsspFunctionExpression) {
-			x.RoutineReference = view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+			x.RoutineReference = view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
 		},
 		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
 		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
@@ -177,7 +178,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal("retagging legitimate grouped leaf", err)
 	}
-	mapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal("remapping legitimate grouped leaf", err)
 	}
@@ -293,7 +294,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if boundExpressionInfo(grafted).routineRecipe != recipe || boundExpressionInfo(node).routineRecipe != nil {
 		t.Fatal("graft lost ancestry or mutated original")
 	}
-	mapping := map[ObjectAddress]ObjectAddress{
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		ext.address:   {ClassID: ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ProcedureClassID, ObjectID: 900001},
 	}
@@ -309,7 +310,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	state.epoch++
 	view := CatalogRead{owner: e, state: state}
-	remap := func(ref ObjectRef) ObjectRef {
+	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.epoch
 		if dest, ok := mapping[ref.Address]; ok {
 			ref.Address = dest
@@ -342,7 +343,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("transferred original authority rejected", err)
 	}
 	foreignView := other.CatalogRead()
-	foreignNode, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef {
+	foreignNode, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
 		ref = other.domain.Ref(foreignView.Epoch(), ref.Address)
 		return ref
 	}, nil)

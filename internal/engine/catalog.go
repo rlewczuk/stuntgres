@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -38,16 +39,16 @@ type relationStorage struct {
 }
 
 type Descriptor interface {
-	Address() ObjectAddress
-	Revision() DefinitionRevision
-	Namespace() ObjectAddress
+	Address() ids.ObjectAddress
+	Revision() ids.DefinitionRevision
+	Namespace() ids.ObjectAddress
 	Name() string
-	Kind() ObjectKind
+	Kind() ids.ObjectKind
 }
 type namespaceDescriptor struct {
-	address        ObjectAddress
+	address        ids.ObjectAddress
 	name           string
-	revision       DefinitionRevision
+	revision       ids.DefinitionRevision
 	owner          authorization.PrincipalRef
 	acl            authorization.ACLValue
 	comment        string
@@ -55,17 +56,17 @@ type namespaceDescriptor struct {
 	temporaryToast bool
 }
 
-func (d *namespaceDescriptor) Address() ObjectAddress       { return d.address }
-func (d *namespaceDescriptor) Revision() DefinitionRevision { return d.revision }
-func (*namespaceDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
-func (d *namespaceDescriptor) Name() string                 { return d.name }
-func (*namespaceDescriptor) Kind() ObjectKind               { return NamespaceObject }
+func (d *namespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
+func (d *namespaceDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (*namespaceDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
+func (d *namespaceDescriptor) Name() string                     { return d.name }
+func (*namespaceDescriptor) Kind() ids.ObjectKind               { return ids.NamespaceObject }
 
 type relationDescriptor struct {
-	address, namespace   ObjectAddress
+	address, namespace   ids.ObjectAddress
 	name                 string
-	revision             DefinitionRevision
-	sequencePlanStamp    DefinitionRevision
+	revision             ids.DefinitionRevision
+	sequencePlanStamp    ids.DefinitionRevision
 	columns              []ColumnDescriptor
 	index                map[string]int
 	attributes           []int32
@@ -95,26 +96,26 @@ type relationDescriptor struct {
 	hasIndexes           bool                // Sticky publication history; removing an index does not clear it.
 	hasSubclasses        bool                // Sticky inheritance/table/index partition publication history.
 	subclassPredecessor  *relationDescriptor // Exact first-subclass marker publication only.
-	subclassPublication  DefinitionRevision
+	subclassPublication  ids.DefinitionRevision
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
 	view                 *viewDefinition
-	populated            bool            // Independent of stored row count, including populated-empty MVs.
-	autoExtensions       []ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
+	populated            bool                // Independent of stored row count, including populated-empty MVs.
+	autoExtensions       []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
 	virtualView          bool
 	sqlIndex             *indexDefinition
 	partition            *partitionDefinition
 	membership           *partitionMembership
 	rowType              sqltype.ID
-	ofType               ObjectAddress
+	ofType               ids.ObjectAddress
 	foreign              *foreignTableDefinition
 }
 
-func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
-func (d *relationDescriptor) Revision() DefinitionRevision { return d.revision }
-func (d *relationDescriptor) Namespace() ObjectAddress     { return d.namespace }
-func (d *relationDescriptor) Name() string                 { return d.name }
-func (*relationDescriptor) Kind() ObjectKind               { return RelationObject }
+func (d *relationDescriptor) Address() ids.ObjectAddress       { return d.address }
+func (d *relationDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *relationDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
+func (d *relationDescriptor) Name() string                     { return d.name }
+func (*relationDescriptor) Kind() ids.ObjectKind               { return ids.RelationObject }
 
 func (d *relationDescriptor) hasAttribute(sub int32) bool {
 	for _, live := range d.attributes {
@@ -126,7 +127,7 @@ func (d *relationDescriptor) hasAttribute(sub int32) bool {
 }
 
 type notNullConstraint struct {
-	OID            OID
+	OID            ids.OID
 	Name           string
 	Attribute      int32
 	NotValid       bool
@@ -135,15 +136,15 @@ type notNullConstraint struct {
 }
 
 type catalogState struct {
-	epoch               CatalogEpoch
+	epoch               ids.CatalogEpoch
 	namespaceGeneration uint64
-	descriptors         map[ObjectAddress]Descriptor
-	names               map[NameKey]ObjectAddress
+	descriptors         map[ids.ObjectAddress]Descriptor
+	names               map[ids.NameKey]ids.ObjectAddress
 	operatorNames       *operatorNameIndex
 	defaultACLs         map[defaultACLKey]*defaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
-	dumpPriorities map[ObjectAddress]OID
+	dumpPriorities map[ids.ObjectAddress]ids.OID
 	// Replacement-candidate-only translation, cleared before publication.
 	// Keys are exact source codecs, never numeric identity coincidences.
 	scalarImports map[*sqltype.Descriptor]*sqltype.Descriptor
@@ -154,20 +155,20 @@ type CatalogRead struct {
 	state *catalogState
 }
 
-func (r CatalogRead) Epoch() CatalogEpoch {
+func (r CatalogRead) Epoch() ids.CatalogEpoch {
 	if r.state == nil {
 		return 0
 	}
 	return r.state.epoch
 }
-func (r CatalogRead) Descriptor(a ObjectAddress) (Descriptor, bool) {
+func (r CatalogRead) Descriptor(a ids.ObjectAddress) (Descriptor, bool) {
 	if r.state == nil {
 		return nil, false
 	}
 	d, ok := r.state.descriptors[a]
 	return d, ok
 }
-func (r CatalogRead) Lookup(k NameKey) []ObjectAddress {
+func (r CatalogRead) Lookup(k ids.NameKey) []ids.ObjectAddress {
 	if r.state == nil {
 		return nil
 	}
@@ -175,16 +176,16 @@ func (r CatalogRead) Lookup(k NameKey) []ObjectAddress {
 	if !ok {
 		return nil
 	}
-	return []ObjectAddress{a}
+	return []ids.ObjectAddress{a}
 }
 
 type CatalogProvider interface {
-	ClassID() OID
+	ClassID() ids.OID
 	Validate(CatalogRead, Descriptor) error
 }
 type namespaceProvider struct{}
 
-func (namespaceProvider) ClassID() OID { return NamespaceClassID }
+func (namespaceProvider) ClassID() ids.OID { return NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
 	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
@@ -196,7 +197,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	a := d.Address()
 	key := descriptorNameKey(d)
 	found := v.Lookup(key)
-	if d.Kind() != NamespaceObject || a.ClassID != NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ObjectAddress{}) || len(found) != 1 || found[0] != a {
+	if d.Kind() != ids.NamespaceObject || a.ClassID != NamespaceClassID || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || d.Namespace() != (ids.ObjectAddress{}) || len(found) != 1 || found[0] != a {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor")
 	}
 	return nil
@@ -204,20 +205,20 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 
 type relationProvider struct{}
 
-func (relationProvider) ClassID() OID { return RelationClassID }
+func (relationProvider) ClassID() ids.OID { return RelationClassID }
 func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	r, ok := d.(*relationDescriptor)
-	if !ok || d.Kind() != RelationObject || d.Address().ClassID != RelationClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
+	if !ok || d.Kind() != ids.RelationObject || d.Address().ClassID != RelationClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
 		return fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	ns, ok := v.Descriptor(r.namespace)
-	if !ok || ns.Kind() != NamespaceObject {
+	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
 	if r.onCommit > parser.OnCommitDrop || r.onCommit != parser.OnCommitUnspecified && (r.relationKind != tableRelation || ns.(*namespaceDescriptor).temporary == (SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
-	found := v.Lookup(NameKey{ClassID: RelationClassID, Namespace: r.namespace, Name: r.name})
+	found := v.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: r.namespace, Name: r.name})
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
@@ -243,7 +244,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 	}
 	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation || r.relationKind == foreignRelation {
-		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
+		types := v.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
 			if len(types) != 1 || !ok || row.owningRelation != r.address || row.typ.ID() != r.rowType {
@@ -339,10 +340,10 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if _, _, err := bindSequenceOptions(r.sequence, sequenceGenerator{last: r.sequence.start}, nil); err != nil {
 			return err
 		}
-		if r.sequence.identity && r.sequence.owned == (ObjectAddress{}) {
+		if r.sequence.identity && r.sequence.owned == (ids.ObjectAddress{}) {
 			return fmt.Errorf("stuntgres: identity sequence lacks ownership")
 		}
-		if owned := r.sequence.owned; owned != (ObjectAddress{}) {
+		if owned := r.sequence.owned; owned != (ids.ObjectAddress{}) {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.state.descriptors[tableAddress].(*relationDescriptor)
@@ -429,7 +430,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid column default destination")
 		}
-		var dependencies []ObjectRef
+		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
 		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
@@ -466,7 +467,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err := validateGenerationPlan(v, r, definition.planned); err != nil {
 			return err
 		}
-		var dependencies []ObjectRef
+		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
 		_, err := (scalarRenderer{validation: true, owner: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot {
@@ -486,11 +487,11 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 
 var ErrCatalogReplaced = errors.New("stuntgres: catalog replaced before publication")
 
-type PublicationToken struct{ Epoch CatalogEpoch }
+type PublicationToken struct{ Epoch ids.CatalogEpoch }
 type ChangeSet struct {
-	Definitions []ObjectAddress
-	Statistics  []ObjectAddress
-	Namespaces  []ObjectAddress
+	Definitions []ids.ObjectAddress
+	Statistics  []ids.ObjectAddress
+	Namespaces  []ids.ObjectAddress
 	Replacement bool
 }
 type CatalogConflict struct{}
@@ -507,7 +508,7 @@ const (
 )
 
 type catalogRemoval struct {
-	ref        ObjectRef
+	ref        ids.ObjectRef
 	descriptor Descriptor
 }
 
@@ -523,32 +524,32 @@ type catalogRowShape struct {
 type CatalogStage struct {
 	owner                *Engine
 	base                 CatalogRead
-	descriptors          map[ObjectAddress]Descriptor
-	names                map[NameKey]ObjectAddress
+	descriptors          map[ids.ObjectAddress]Descriptor
+	names                map[ids.NameKey]ids.ObjectAddress
 	defaultACLs          map[defaultACLKey]*defaultACLRecord
 	defaultReads         map[defaultACLKey]*defaultACLRecord
-	touched              map[NameKey]ObjectAddress
-	removals             map[ObjectAddress]catalogRemoval
-	rowShapes            map[ObjectAddress]catalogRowShape
+	touched              map[ids.NameKey]ids.ObjectAddress
+	removals             map[ids.ObjectAddress]catalogRemoval
+	rowShapes            map[ids.ObjectAddress]catalogRowShape
 	partitionReads       []partitionReadFence
-	indexRebuilds        map[ObjectAddress]*relationDescriptor
-	indexCandidates      map[ObjectAddress]indexRootCandidate
-	indexLayouts         map[ObjectAddress]indexLayoutLineage
-	indexParents         map[ObjectAddress]*relationDescriptor
-	indexSets            map[ObjectAddress]int
+	indexRebuilds        map[ids.ObjectAddress]*relationDescriptor
+	indexCandidates      map[ids.ObjectAddress]indexRootCandidate
+	indexLayouts         map[ids.ObjectAddress]indexLayoutLineage
+	indexParents         map[ids.ObjectAddress]*relationDescriptor
+	indexSets            map[ids.ObjectAddress]int
 	indexOutput          sqltype.OutputEnvironment
-	oldNames             map[NameKey]bool
-	generators           map[ObjectAddress]*sequenceGenerator
-	identityOriginals    map[ObjectAddress]Descriptor
+	oldNames             map[ids.NameKey]bool
+	generators           map[ids.ObjectAddress]*sequenceGenerator
+	identityOriginals    map[ids.ObjectAddress]Descriptor
 	identityDependencies []catalogDependencyObservation
-	typedSource          ObjectAddress
-	typedObserved        map[ObjectAddress]Descriptor
+	typedSource          ids.ObjectAddress
+	typedObserved        map[ids.ObjectAddress]Descriptor
 	lifecycle            catalogLifecycle
 	invalid              error
 	authSession          *Session
 	authRevision         uint64
 	roleRevision         uint64
-	extensionNamespace   ObjectAddress
+	extensionNamespace   ids.ObjectAddress
 	databasePredecessor  Descriptor
 	databaseAuthority    Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
@@ -556,18 +557,18 @@ type CatalogStage struct {
 	roleCandidate      *roleCatalog
 	schemaCascadeNames []string
 	viewCascadeNames   []string
-	dependencyPath     []ObjectAddress
-	domainTargets      []ObjectAddress
+	dependencyPath     []ids.ObjectAddress
+	domainTargets      []ids.ObjectAddress
 	domainBases        []Descriptor
 	domainValidation   *domainValidationFence
 	domainAlter        context.Context
-	domainIndexRoots   map[ObjectAddress]*logicalIndexRoot
+	domainIndexRoots   map[ids.ObjectAddress]*logicalIndexRoot
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables           map[ObjectAddress]*relationStorage
+	initialTables           map[ids.ObjectAddress]*relationStorage
 	initialTx               TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []Descriptor
@@ -577,8 +578,8 @@ type CatalogStage struct {
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
 // overflow boundary; terminal replacements still have fresh identity.
-func (s *CatalogStage) cascadeMetadataRevision(revision DefinitionRevision) (DefinitionRevision, error) {
-	if revision == DefinitionRevision(^uint64(0)) {
+func (s *CatalogStage) cascadeMetadataRevision(revision ids.DefinitionRevision) (ids.DefinitionRevision, error) {
+	if revision == ids.DefinitionRevision(^uint64(0)) {
 		if s.terminalCleanup {
 			return revision, nil
 		}
@@ -589,12 +590,12 @@ func (s *CatalogStage) cascadeMetadataRevision(revision DefinitionRevision) (Def
 
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
-	epoch CatalogEpoch
+	epoch ids.CatalogEpoch
 	ctx   context.Context
 }
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
-	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress), touched: make(map[NameKey]ObjectAddress)}
+	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress), touched: make(map[ids.NameKey]ids.ObjectAddress)}
 	if base.owner != e || base.state == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -611,19 +612,19 @@ func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session)
 
 // lookupName resolves the private candidate, including names vacated by a
 // replacement. The original name remains in touched for publication validation.
-func (s *CatalogStage) lookupName(k NameKey) ObjectAddress {
-	if address := s.names[k]; address != (ObjectAddress{}) {
+func (s *CatalogStage) lookupName(k ids.NameKey) ids.ObjectAddress {
+	if address := s.names[k]; address != (ids.ObjectAddress{}) {
 		if _, removed := s.removals[address]; !removed {
 			return address
 		}
 	}
 	address := s.base.state.names[k]
 	if _, removed := s.removals[address]; removed {
-		return ObjectAddress{}
+		return ids.ObjectAddress{}
 	}
 	if replacement := s.descriptors[address]; replacement != nil &&
 		descriptorNameKey(replacement) != k {
-		return ObjectAddress{}
+		return ids.ObjectAddress{}
 	}
 	return address
 }
@@ -648,7 +649,7 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	k := descriptorNameKey(d)
 	// One live-name check includes staged replacements and excludes removed
 	// generations, whose private name slots can be reused by a new identity.
-	if s.lookupName(k) != (ObjectAddress{}) {
+	if s.lookupName(k) != (ids.ObjectAddress{}) {
 		return CatalogConflict{}
 	}
 	s.touched[k] = s.base.state.names[k]
@@ -682,14 +683,14 @@ func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 	}
 	oldKey := descriptorNameKey(old)
 	newKey := descriptorNameKey(d)
-	if a := s.lookupName(newKey); a != (ObjectAddress{}) && a != d.Address() {
+	if a := s.lookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return CatalogConflict{}
 	}
 	if previous := s.descriptors[d.Address()]; previous != nil {
 		delete(s.names, descriptorNameKey(previous))
 	}
 	if s.oldNames == nil {
-		s.oldNames = make(map[NameKey]bool)
+		s.oldNames = make(map[ids.NameKey]bool)
 	}
 	s.oldNames[oldKey] = true
 	s.touched[oldKey] = s.base.state.names[oldKey]
@@ -703,7 +704,7 @@ func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 }
 
 // alterRelation couples a same-identity revision with an immutable storage root.
-func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *relationDescriptor, original, replacement *relationStorage, observedLength int, observedGeneration uint64, observedEnds *deletionRoot) error {
+func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, original, replacement *relationStorage, observedLength int, observedGeneration uint64, observedEnds *deletionRoot) error {
 	if s == nil || s.owner == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -714,8 +715,8 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 		return err
 	}
 	old, ok := s.base.state.descriptors[ref.Address].(*relationDescriptor)
-	validRevision := ok && d != nil && old.revision != DefinitionRevision(^uint64(0)) && d.revision == old.revision+1
-	if s.terminalCleanup && ok && old.revision == DefinitionRevision(^uint64(0)) {
+	validRevision := ok && d != nil && old.revision != ids.DefinitionRevision(^uint64(0)) && d.revision == old.revision+1
+	if s.terminalCleanup && ok && old.revision == ids.DefinitionRevision(^uint64(0)) {
 		validRevision = d != nil && d != old && d.revision == old.revision
 	}
 	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || !validRevision || original == nil || replacement == nil || e.stageStorageLocked(s, ref.Address) != original {
@@ -750,19 +751,19 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 		return err
 	}
 	if s.rowShapes == nil {
-		s.rowShapes = make(map[ObjectAddress]catalogRowShape)
+		s.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 	}
 	s.rowShapes[ref.Address] = catalogRowShape{original: original, root: beforeRows, replacement: replacement, observedLength: observedLength, observedEnds: observedEnds, generation: observedGeneration}
 	return nil
 }
 
 // Remove stages a whole user relation with its coherent observed identity.
-func (s *CatalogStage) Remove(ref ObjectRef) error {
+func (s *CatalogStage) Remove(ref ids.ObjectRef) error {
 	return s.removeObject(ref, false)
 }
 
 // Schema closure uses the same removal authority for namespaces and relations.
-func (s *CatalogStage) removeObject(ref ObjectRef, namespace bool) error {
+func (s *CatalogStage) removeObject(ref ids.ObjectRef, namespace bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -772,7 +773,7 @@ func (s *CatalogStage) removeObject(ref ObjectRef, namespace bool) error {
 }
 
 // removeObjectLocked requires the owning engine mutex, including validation.
-func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
+func (s *CatalogStage) removeObjectLocked(ref ids.ObjectRef, namespace bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -782,7 +783,7 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 // removeObjectLocked is the one removal analysis for execution and immutable
 // DROP preparation. The effect sink owns bookkeeping, never the discovery.
 // The caller holds the engine mutex.
-func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) error {
+func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bool) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: whole object required")
 	}
@@ -801,7 +802,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		}
 	case *typeDescriptor:
 		t := d.(*typeDescriptor)
-		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
+		if t.owningRelation == (ids.ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	case *collationDescriptor:
@@ -867,14 +868,14 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		}
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
-		row, ok := provider.retirementDescriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}).(*typeDescriptor)
+		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(r.rowType)}).(*typeDescriptor)
 		if !ok || row.owningRelation != r.address {
 			return CatalogConflict{}
 		}
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}), false); err != nil {
+				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
 					return err
 				}
 			}
@@ -883,8 +884,8 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 	return nil
 }
 func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
-	ds := make(map[ObjectAddress]Descriptor, len(s.base.state.descriptors)+len(s.descriptors))
-	ns := make(map[NameKey]ObjectAddress, len(s.base.state.names)+len(s.names))
+	ds := make(map[ids.ObjectAddress]Descriptor, len(s.base.state.descriptors)+len(s.descriptors))
+	ns := make(map[ids.NameKey]ids.ObjectAddress, len(s.base.state.names)+len(s.names))
 	operators := operatorIndexEdit{index: s.base.state.operatorNames}
 	for k, v := range s.base.state.descriptors {
 		ds[k] = v
@@ -912,7 +913,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	}
 	priorities := s.base.state.dumpPriorities
 	if len(priorities) != 0 && len(s.removals) != 0 {
-		priorities = make(map[ObjectAddress]OID, len(s.base.state.dumpPriorities))
+		priorities = make(map[ids.ObjectAddress]ids.OID, len(s.base.state.dumpPriorities))
 		for address, priority := range s.base.state.dumpPriorities {
 			if _, exists := ds[address]; exists {
 				priorities[address] = priority
@@ -961,7 +962,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		e.mu.Unlock()
 		return nil, err
 	}
-	if err := e.evolveStageIndexesLocked(s, ObjectAddress{}, nil); err != nil {
+	if err := e.evolveStageIndexesLocked(s, ids.ObjectAddress{}, nil); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -1103,7 +1104,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		for _, d := range s.descriptors {
 			ns := d.Namespace()
-			if ns != (ObjectAddress{}) && s.descriptors[ns] == nil && current.descriptors[ns] != s.base.state.descriptors[ns] {
+			if ns != (ids.ObjectAddress{}) && s.descriptors[ns] == nil && current.descriptors[ns] != s.base.state.descriptors[ns] {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1112,7 +1113,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			// republishing it or observing unrelated namespace changes.
 			if old := s.base.state.descriptors[d.Address()]; old != nil {
 				source := old.Namespace()
-				if source != ns && source != (ObjectAddress{}) && s.descriptors[source] == nil && current.descriptors[source] != s.base.state.descriptors[source] {
+				if source != ns && source != (ids.ObjectAddress{}) && s.descriptors[source] == nil && current.descriptors[source] != s.base.state.descriptors[source] {
 					e.mu.Unlock()
 					return ChangeSet{}, CatalogConflict{}
 				}
@@ -1210,7 +1211,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if indexStores == nil {
-				indexStores = make(map[ObjectAddress]*relationStorage)
+				indexStores = make(map[ids.ObjectAddress]*relationStorage)
 			}
 			a := index.sqlIndex.parent
 			if indexStores[a] == nil && currentStorage[a] != nil {
@@ -1233,7 +1234,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		next := cloneCatalog(current)
 		next.defaultACLs = overlayDefaultACLs(current.defaultACLs, s.defaultACLs)
 		operators := operatorIndexEdit{index: current.operatorNames}
-		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
+		storage := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v
 		}
@@ -1276,14 +1277,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		buildStores := indexStores
 		candidateStores := false
-		var rebuildIndexes map[ObjectAddress]bool
+		var rebuildIndexes map[ids.ObjectAddress]bool
 		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedReplacement != nil) {
-			buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
+			buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
 			}
 			candidateStores = true
-			rebuildIndexes = make(map[ObjectAddress]bool, len(s.rowShapes))
+			rebuildIndexes = make(map[ids.ObjectAddress]bool, len(s.rowShapes))
 			for a, shape := range s.rowShapes {
 				buildStores[a] = shape.replacement
 				rebuildIndexes[a] = true
@@ -1306,7 +1307,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if !candidateStores {
-				buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores)+1)
+				buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores)+1)
 				for address, store := range indexStores {
 					buildStores[address] = store
 				}
@@ -1316,7 +1317,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		sourceRoots := indexPredecessors
 		if len(s.indexCandidates) != 0 {
-			sourceRoots = make(map[ObjectAddress]*logicalIndexRoot, len(indexPredecessors)+len(s.indexCandidates))
+			sourceRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(indexPredecessors)+len(s.indexCandidates))
 			for a, root := range indexPredecessors {
 				sourceRoots[a] = root
 			}
@@ -1324,9 +1325,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				sourceRoots[a] = candidate.root
 			}
 		}
-		var runtimeOwners map[ObjectAddress]authorization.PrincipalRef
+		var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 		if r := s.materializedReplacement; r != nil && r.concurrent {
-			runtimeOwners = map[ObjectAddress]authorization.PrincipalRef{r.original.address: r.original.owner}
+			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.address: r.original.owner}
 		}
 		evaluation := EvalContext{Context: p.ctx, Scope: 1, Frame: 1, statementScope: scope}
 		if scope != nil {
@@ -1523,7 +1524,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			for _, d := range s.descriptors {
 				if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 					nextRevision = revision
-					if nextRevision != DefinitionRevision(math.MaxUint64) {
+					if nextRevision != ids.DefinitionRevision(math.MaxUint64) {
 						nextRevision++
 					}
 				}
@@ -1588,7 +1589,7 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 		s.lifecycle = catalogDiscarded
 	}
 }
-func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
+func (e *Engine) ValidateObjectRef(view CatalogRead, ref ids.ObjectRef) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.validateObjectRefLocked(view, ref)
@@ -1596,7 +1597,7 @@ func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
 
 // validateObjectRefLocked preserves live epoch and provenance checks without
 // reacquiring synchronization when called from catalog mutation preflight.
-func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error {
+func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
 	if e.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -1606,7 +1607,7 @@ func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error 
 	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	d, ok := view.state.descriptors[ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
+	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
 	if !ok {
 		return fmt.Errorf("stuntgres: catalog object is missing")
 	}
@@ -1627,7 +1628,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 
 // Restore retains its genuine private operation through owner-cell validation.
 func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, restoreOp *Operation) (ChangeSet, error) {
-	var installed CatalogEpoch
+	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
 			e.locks.fence(installed)
@@ -1664,7 +1665,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		}
 	}
 	var next *catalogState
-	relationAddresses := make([]ObjectAddress, 0, len(replacement.state.descriptors))
+	relationAddresses := make([]ids.ObjectAddress, 0, len(replacement.state.descriptors))
 	hasHierarchy := false
 	for a, d := range replacement.state.descriptors {
 		if relation, ok := d.(*relationDescriptor); ok && hierarchyRelation(relation) {
@@ -1674,8 +1675,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			relationAddresses = append(relationAddresses, a)
 		}
 	}
-	storage := make(map[ObjectAddress]*relationStorage, len(relationAddresses))
-	var sequences map[ObjectAddress]*sequenceGenerator
+	storage := make(map[ids.ObjectAddress]*relationStorage, len(relationAddresses))
+	var sequences map[ids.ObjectAddress]*sequenceGenerator
 	var indexes *indexSnapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage, owner.commitSeq
@@ -1737,12 +1738,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 				nextRevision = revision
-				if nextRevision != DefinitionRevision(math.MaxUint64) {
+				if nextRevision != ids.DefinitionRevision(math.MaxUint64) {
 					nextRevision++
 				}
 			}
 		}
-		if e.state.epoch == CatalogEpoch(math.MaxUint64) {
+		if e.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 		}
 		var imported uint64
@@ -1823,7 +1824,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if e.state.epoch == CatalogEpoch(math.MaxUint64) {
+	if e.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 	}
 	if imported > ^uint64(0)-e.nextRow {
@@ -1854,7 +1855,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 			nextRevision = revision
-			if nextRevision != DefinitionRevision(math.MaxUint64) {
+			if nextRevision != ids.DefinitionRevision(math.MaxUint64) {
 				nextRevision++
 			}
 		}
@@ -1876,7 +1877,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, nextRevision DefinitionRevision, prepared remintedIndexStorage) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
 	if prepared.catalog != next || prepared.baseCatalog != e.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
 		return ErrCatalogReplaced
 	}
@@ -1900,7 +1901,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 }
 
 func cloneCatalog(s *catalogState) *catalogState {
-	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}
+	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[ids.NameKey]ids.ObjectAddress, len(s.names))}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	for k, v := range s.descriptors {
@@ -1910,7 +1911,7 @@ func cloneCatalog(s *catalogState) *catalogState {
 		n.names[k] = v
 	}
 	if len(s.dumpPriorities) != 0 {
-		n.dumpPriorities = make(map[ObjectAddress]OID, len(s.dumpPriorities))
+		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {
 			if _, exists := n.descriptors[address]; exists {
 				n.dumpPriorities[address] = priority
@@ -1952,7 +1953,7 @@ func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	return nil
 }
 
-func descriptorRevisionFrontier(d Descriptor) DefinitionRevision {
+func descriptorRevisionFrontier(d Descriptor) ids.DefinitionRevision {
 	revision := d.Revision()
 	if relation, ok := d.(*relationDescriptor); ok && relation.sequencePlanStamp > revision {
 		revision = relation.sequencePlanStamp

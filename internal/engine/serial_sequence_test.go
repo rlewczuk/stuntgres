@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -28,16 +29,16 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view.state = cloneCatalog(view.state)
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &relationDescriptor{
-		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		attributes: []int32{7, 9}, index: map[string]int{"ID": 0, "plain": 1}, attributeHighWater: 9,
 	}
 	owner := table.address
 	owner.SubID = 7
 	sequence := &relationDescriptor{
-		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		relationKind: sequenceRelation, sequence: &sequenceOptions{owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
@@ -63,7 +64,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	}{
 		{"AUTO/stable-attribute", func(serialSequenceUnit) {}, `"Mixed.Schema"."Owned.Seq"`},
 		{"INTERNAL/no-default", func(f serialSequenceUnit) { f.sequence.sequence.identity = true }, `"Mixed.Schema"."Owned.Seq"`},
-		{"NONE", func(f serialSequenceUnit) { f.sequence.sequence.owned = ObjectAddress{} }, nil},
+		{"NONE", func(f serialSequenceUnit) { f.sequence.sequence.owned = ids.ObjectAddress{} }, nil},
 		{"different-column", func(f serialSequenceUnit) { f.sequence.sequence.owned.SubID = 9 }, nil},
 		{"compacted-slot-is-not-attribute", func(f serialSequenceUnit) { f.sequence.sequence.owned.SubID = 1 }, nil},
 		{"different-table", func(f serialSequenceUnit) { f.sequence.sequence.owned.ObjectID++ }, nil},
@@ -74,7 +75,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		{"no-sequence-options", func(f serialSequenceUnit) { f.sequence.sequence = nil }, nil},
 		{"name-is-not-ownership", func(f serialSequenceUnit) {
 			f.sequence.name = "Owned_ID_seq"
-			f.sequence.sequence.owned = ObjectAddress{}
+			f.sequence.sequence.owned = ids.ObjectAddress{}
 		}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,7 +102,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	f.engine.state = cloneCatalog(f.view.state)
 	changed := *f.sequence
 	options := *changed.sequence
-	options.owned = ObjectAddress{}
+	options.owned = ids.ObjectAddress{}
 	changed.sequence = &options
 	f.engine.state.descriptors[changed.address] = &changed
 	value, err := f.node.Eval(f.context)
@@ -230,7 +231,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 	if err != nil || !strings.Contains(before, "pg_catalog.pg_get_serial_sequence(") {
 		t.Fatal(before, err)
 	}
-	remapped, err := remapBoundExpression(f.node, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	remapped, err := remapBoundExpression(f.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

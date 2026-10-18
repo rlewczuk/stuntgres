@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func advisoryXactUnitTicket(s *Session, xact bool) *relationTicket {
@@ -138,7 +140,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		pair.kind = advisoryPairResource
 		advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
 		advisoryXactUnitGrant(t, b, pair, advisoryExclusive, true)
-		for _, bad := range []lockResource{{kind: advisoryPairResource, row: 1}, {kind: advisoryBigintResource, ObjectRef: ObjectRef{Address: ObjectAddress{ObjectID: 1}}}} {
+		for _, bad := range []lockResource{{kind: advisoryPairResource, row: 1}, {kind: advisoryBigintResource, ObjectRef: ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 1}}}} {
 			if _, err := advisoryXactUnitAcquire(t, a, bad, advisoryExclusive, true, true); err == nil {
 				t.Fatal("invalid advisory resource accepted", bad)
 			}

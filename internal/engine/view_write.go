@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ type viewWrite struct {
 	logical          binding
 	layers           []viewWriteLayer
 	base             *relationDescriptor
-	ref              ObjectRef
+	ref              ids.ObjectRef
 	outputs          []BoundExpr
 	predicates       []BoundExpr
 	checks           []viewCheckGroup
@@ -22,10 +23,10 @@ type viewWrite struct {
 }
 type viewWriteLayer struct {
 	relation       *relationDescriptor
-	ref            ObjectRef
+	ref            ids.ObjectRef
 	targets        []int
 	source         *relationDescriptor
-	sourceRef      ObjectRef
+	sourceRef      ids.ObjectRef
 	mainOccurrence int
 }
 type viewCheckGroup struct {
@@ -146,13 +147,13 @@ func stableViewSlot(source *relationDescriptor, leaf viewLeaf, frozen int) (int,
 	}
 	return 0, ErrCatalogReplaced
 }
-func sameViewRelation(a, b ObjectRef) bool {
+func sameViewRelation(a, b ids.ObjectRef) bool {
 	a.Address.SubID = 0
 	b.Address.SubID = 0
 	return a == b
 }
 
-func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ObjectRef) error {
+func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	if b.relation == nil || b.relation.relationKind != viewRelation {
 		return nil
 	}
@@ -171,7 +172,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	w.logical.viewWrite = nil
 	d, ref := b.relation, b.ref
 	targets := append([]int(nil), b.targets...)
-	seen := make(map[ObjectRef]bool)
+	seen := make(map[ids.ObjectRef]bool)
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]BoundExpr, len(d.columns))
 	for i, c := range d.columns {
@@ -263,7 +264,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		var lowerStored func(BoundExpr, bool) (BoundExpr, bool, error)
 		lowerStored = func(expr BoundExpr, frozenLayout bool) (BoundExpr, bool, error) {
 			return rewriteViewExpression(auth.catalog, expr, d, func(n BoundExpr) (BoundExpr, bool, error) {
-				if q, ok := n.(functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]); ok && q.Origin.owner == (ObjectRef{}) {
+				if q, ok := n.(functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]); ok && q.Origin.owner == (ids.ObjectRef{}) {
 					q = q.WithOrigin(quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []BoundExpr

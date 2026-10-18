@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -32,7 +33,7 @@ func ownedLockAsync(e *Engine, s *Session, ctx context.Context, ast parser.State
 	return done
 }
 
-func ownedLockQueued(t *testing.T, e *Engine, ref ObjectRef, mode relationLockMode, done <-chan error) *relationRequest {
+func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode relationLockMode, done <-chan error) *relationRequest {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -154,13 +155,13 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 				if _, ok := e.state.descriptors[blocker.Address]; ok {
 					t.Fatal("owned blocker survived drop")
 				}
-				found := e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: "late"})
+				found := e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: "late"})
 				if create {
 					if len(found) != 0 {
 						t.Fatal("failed CREATE published late sequence")
 					}
 				} else {
-					if len(found) != 1 || e.state.descriptors[found[0]].(*relationDescriptor).sequence.owned != (ObjectAddress{}) {
+					if len(found) != 1 || e.state.descriptors[found[0]].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{}) {
 						t.Fatal("failed ALTER published association")
 					}
 					sequenceScalar(t, c, "SELECT nextval('late')", 17)
@@ -189,7 +190,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 					sessionSQL(t, b, "SET lock_timeout TO '1h'")
 					before := e.CatalogRead()
-					var sequence ObjectRef
+					var sequence ids.ObjectRef
 					var generator sequenceGenerator
 					if !create {
 						sequence = catalogRef(t, e, before, "late")
@@ -293,7 +294,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 				expected := make(map[string]bool, 2)
 				for _, edge := range []struct {
 					waiter, blocker *relationTicket
-					ref             ObjectRef
+					ref             ids.ObjectRef
 					mode            string
 				}{{bticket, dropRequest.ticket, table, "AccessShareLock"}, {dropRequest.ticket, bticket, sequence, "AccessExclusiveLock"}} {
 					expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.ID(), edge.waiter.ref.Session().ID(), edge.waiter.ref.Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.ID(), edge.blocker.ref.Session().ID(), edge.blocker.ref.Epoch())] = true
@@ -322,7 +323,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			if _, ok := e.state.descriptors[sequence.Address]; ok {
 				t.Fatal("original OWNED BY dependency did not cascade after victim release")
 			}
-			if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: e.state.descriptors[table.Address].(*relationDescriptor).namespace, Name: "victim_staged"})) != 0 {
+			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: e.state.descriptors[table.Address].(*relationDescriptor).namespace, Name: "victim_staged"})) != 0 {
 				t.Fatal("deadlock victim published previously staged sequence")
 			}
 			transactionEnd(t, b, br, false)

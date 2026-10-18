@@ -2,23 +2,24 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
-func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ObjectAddress][]rowVersion, map[ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
+func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
 	if ref.Epoch() != e.state.epoch {
 		e.mu.Unlock()
 		return nil, nil, nil, ErrCatalogReplaced
 	}
 	base := e.privateCatalogLocked(c)
-	if c == nil && op.session.temporaryNamespace == (ObjectAddress{}) {
+	if c == nil && op.session.temporaryNamespace == (ids.ObjectAddress{}) {
 		e.mu.Unlock()
 		return writes, deletes, c, nil
 	}
-	var cleared, dropped []ObjectAddress
+	var cleared, dropped []ids.ObjectAddress
 	for a, descriptor := range base.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.relationKind != tableRelation || table.onCommit != parser.OnCommitDelete && table.onCommit != parser.OnCommitDrop {
@@ -77,13 +78,13 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 			}
 			if rows != nil || nextWrites != nil {
 				if nextWrites == nil {
-					nextWrites = make(map[ObjectAddress][]rowVersion)
+					nextWrites = make(map[ids.ObjectAddress][]rowVersion)
 				}
 				nextWrites[old.address] = rows
 			}
 			if deleted != nil || nextDeletes != nil {
 				if nextDeletes == nil {
-					nextDeletes = make(map[ObjectAddress]*privateDeletionRoot)
+					nextDeletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
 				}
 				nextDeletes[old.address] = deleted
 			}
@@ -94,14 +95,14 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 				return nil, nil, nil, err
 			}
 		}
-		if err := stageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ObjectAddress{}); err != nil {
+		if err := stageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ids.ObjectAddress{}); err != nil {
 			return nil, nil, nil, err
 		}
 		if err := stageOwnedExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project); err != nil {
 			return nil, nil, nil, err
 		}
 		e.mu.Lock()
-		err := e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil)
+		err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
 			for a := range stage.descriptors {
 				original, observed := next.originals[a]

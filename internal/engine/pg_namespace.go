@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Caller owns e.mu. Catalog and paired roles are immutable captured authority;
 // inventory visibility is independent of the actor's schema USAGE privileges.
-func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ObjectAddress{ClassID: RelationClassID, ObjectID: NamespaceClassID}) || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: NamespaceClassID}) || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}

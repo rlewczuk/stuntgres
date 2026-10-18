@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -129,7 +130,7 @@ func (n namespaceInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) 
 	if n.kind != otherTempNamespace {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid namespace inquiry")
 	}
-	ns, _ := auth.catalog.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: OID(oid)}].(*namespaceDescriptor)
+	ns, _ := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ids.OID(oid)}].(*namespaceDescriptor)
 	other := ns != nil && ns.temporary != (SessionToken{}) && ns.temporary != auth.session.token
 	return sqltype.Boolean(n.usage.Type, other), nil
 }
@@ -144,7 +145,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 	if s.catalog != nil {
 		auth.recaptureCatalog(e.privateCatalogLocked(s.catalog))
 	}
-	if s.catalog != nil && temporaryNamespace(auth) == (ObjectAddress{}) {
+	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
 		for a, d := range s.catalog.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
 				auth.stagedTemporary = a
@@ -158,7 +159,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 // Resolve pending pg_temp only when a non-NULL schema inquiry is demanded.
 // Pair creation joins the existing statement candidate and ordinary Finish owns
 // publication or abort. Prepare and no-pending paths create no catalog stage.
-func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, []ObjectAddress, error) {
+func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, []ids.ObjectAddress, error) {
 	auth, err := s.namespaceAuthorizationLocked(e)
 	if err != nil {
 		return auth, nil, err

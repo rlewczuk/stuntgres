@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -33,14 +34,14 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "uuid-ossp"}]
+	address := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "uuid-ossp"}]
 	return e, e.state.descriptors[address].(*extensionDescriptor)
 }
 
 func TestUUIDOsspProviderIdentity(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.1" || len(ext.members) != 1 || ext.Namespace() != (ObjectAddress{}) {
+	if ext.version != "1.1" || len(ext.members) != 1 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	address := ext.members[0]
@@ -101,7 +102,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		func(x *extensionDescriptor) { x.version = "missing" },
 		func(x *extensionDescriptor) { x.name = "pgcrypto" },
 		func(x *extensionDescriptor) { x.members = nil },
-		func(x *extensionDescriptor) { x.members = []ObjectAddress{address, address} },
+		func(x *extensionDescriptor) { x.members = []ids.ObjectAddress{address, address} },
 	} {
 		bad := *ext
 		mutate(&bad)
@@ -135,7 +136,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}
 	}
-	builtin := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+	builtin := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
 	mixed := *builtin
 	mixed.uuidOssp = stockUUIDOssp
 	if err := e.providers[ProcedureClassID].Validate(view, &mixed); err == nil {

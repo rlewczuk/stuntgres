@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,7 +18,7 @@ type objectIdentity struct {
 
 // These are released address classes, not a whitelist of native providers.
 // Recognized classes without owned instances still have correct missing results.
-func objectAddressClassKind(class OID) (string, bool) {
+func objectAddressClassKind(class ids.OID) (string, bool) {
 	switch class {
 	case 1259:
 		return "relation", true
@@ -104,7 +105,7 @@ func objectAddressClassKind(class OID) (string, bool) {
 	}
 	return "", false
 }
-func objectNamespace(view CatalogRead, namespace ObjectAddress) (actual, canonical string) {
+func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
 	if ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor); ok {
 		actual, canonical = ns.name, ns.name
 		if ns.temporary != (SessionToken{}) {
@@ -143,11 +144,11 @@ func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) str
 	}
 	return ""
 }
-func objectQualifiedType(view CatalogRead, id OID) string {
+func objectQualifiedType(view CatalogRead, id ids.OID) string {
 	return regtypeSpellingMode(view, nil, id, true)
 }
 
-func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAddress, a ObjectAddress) (objectIdentity, error) {
+func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (objectIdentity, error) {
 	kind, known := objectAddressClassKind(a.ClassID)
 	if !known {
 		return objectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
@@ -163,13 +164,13 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAd
 		}
 		r.found = true
 		r.kind = objectRoutineKind(p.id)
-		ns, _ := objectNamespace(view, ObjectAddress{ClassID: NamespaceClassID, ObjectID: p.namespace})
+		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: p.namespace})
 		r.schema = pgIdentifier(ns)
 		r.names = []string{ns, p.name}
 		if p.signature != "" {
 			for arg := range strings.SplitSeq(string(p.signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
-				r.args = append(r.args, objectQualifiedType(view, OID(id)))
+				r.args = append(r.args, objectQualifiedType(view, ids.OID(id)))
 			}
 		}
 		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.name) + "(" + strings.Join(r.args, ",") + ")"
@@ -209,15 +210,15 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAd
 	if a.ClassID == 2605 {
 		for i := range sqltype.CastMetadataCount() {
 			fact, _ := sqltype.CastMetadataAt(i)
-			if OID(fact.OID) != a.ObjectID {
+			if ids.OID(fact.OID) != a.ObjectID {
 				continue
 			}
-			source, target := objectQualifiedType(view, OID(fact.Source)), objectQualifiedType(view, OID(fact.Target))
+			source, target := objectQualifiedType(view, ids.OID(fact.Source)), objectQualifiedType(view, ids.OID(fact.Target))
 			r.found = true
 			r.names = []string{source}
 			r.args = []string{target}
 			r.identity = "(" + source + " AS " + target + ")"
-			r.description = "cast from " + regtypeSpelling(view, path, OID(fact.Source)) + " to " + regtypeSpelling(view, path, OID(fact.Target))
+			r.description = "cast from " + regtypeSpelling(view, path, ids.OID(fact.Source)) + " to " + regtypeSpelling(view, path, ids.OID(fact.Target))
 			break
 		}
 		return r, nil
@@ -228,7 +229,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAd
 		if a.ClassID == 2616 {
 			for i := range sqltype.IndexClassMetadataCount() {
 				fact, _ := sqltype.IndexClassMetadataAt(i)
-				if OID(fact.OID) == a.ObjectID {
+				if ids.OID(fact.OID) == a.ObjectID {
 					name, method = fact.Name, fact.Method
 					break
 				}
@@ -328,7 +329,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAd
 
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
-func identifyOwnedAddress(view CatalogRead, path []ObjectAddress, a ObjectAddress, r objectIdentity) objectIdentity {
+func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
 	for _, descriptor := range view.state.descriptors {
 		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
 			for _, check := range domain.domainChecks {
@@ -339,7 +340,7 @@ func identifyOwnedAddress(view CatalogRead, path []ObjectAddress, a ObjectAddres
 				r.kind = "domain constraint"
 				ns, _ := objectNamespace(view, domain.Namespace())
 				r.schema = pgIdentifier(ns)
-				typeName := objectQualifiedType(view, OID(domain.typ.ID()))
+				typeName := objectQualifiedType(view, ids.OID(domain.typ.ID()))
 				r.identity = pgIdentifier(check.Name) + " on " + typeName
 				r.names = []string{typeName}
 				r.args = []string{check.Name}
@@ -382,7 +383,7 @@ func identifyOwnedAddress(view CatalogRead, path []ObjectAddress, a ObjectAddres
 	}
 	return r
 }
-func ownedAddressName(d *relationDescriptor, a ObjectAddress) (string, int32) {
+func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
 		for _, x := range d.notNullConstraints {

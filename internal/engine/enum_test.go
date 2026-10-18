@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || (diagnostic.Code != "23505" && diagnostic.Code != "42602") {
 			t.Fatal(err)
 		}
-		if len(e.CatalogRead().Lookup(NameKey{ClassID: TypeClassID, Namespace: mood.Namespace(), Name: "failed"})) != 0 {
+		if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: mood.Namespace(), Name: "failed"})) != 0 {
 			t.Fatal("failure leaked type")
 		}
 	}
@@ -117,8 +118,8 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.wrapped AS public.mood"))
 	wrapped := domainUnitType(t, e.CatalogRead(), "wrapped")
 	next := cloneCatalog(e.CatalogRead().state)
-	target := ObjectAddress{ClassID: TypeClassID, ObjectID: 60000}
-	changed, err := reownDomainTypes(next, map[ObjectAddress]ObjectAddress{mood.Address(): target}, false)
+	target := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 60000}
+	changed, err := reownDomainTypes(next, map[ids.ObjectAddress]ids.ObjectAddress{mood.Address(): target}, false)
 	if err != nil || !changed {
 		t.Fatal(err)
 	}

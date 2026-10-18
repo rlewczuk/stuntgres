@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -23,7 +24,7 @@ func truncateUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 		t.Fatal(err)
 	}
 }
-func truncateUnitReplace(t *testing.T, e *Engine, ref ObjectRef, change func(*relationDescriptor)) {
+func truncateUnitReplace(t *testing.T, e *Engine, ref ids.ObjectRef, change func(*relationDescriptor)) {
 	t.Helper()
 	base := e.CatalogRead()
 	original := base.state.descriptors[ref.Address].(*relationDescriptor)
@@ -36,7 +37,7 @@ func truncateUnitReplace(t *testing.T, e *Engine, ref ObjectRef, change func(*re
 	}
 	truncateUnitPublish(t, e, stage)
 }
-func truncateUnitFK(t *testing.T, e *Engine, parent, child ObjectRef) {
+func truncateUnitFK(t *testing.T, e *Engine, parent, child ids.ObjectRef) {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
@@ -44,7 +45,7 @@ func truncateUnitFK(t *testing.T, e *Engine, parent, child ObjectRef) {
 	next.revision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.mu.Lock()
-	err := e.stageForeignKey(catalogAuthorization(e, base), stage, &next, raw, parent.Address, ObjectAddress{})
+	err := e.stageForeignKey(catalogAuthorization(e, base), stage, &next, raw, parent.Address, ids.ObjectAddress{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +104,7 @@ func TestTruncateClosure(t *testing.T) {
 	}
 	// c needs a real referenced key for the second edge; retain the ordinary
 	// target-independent table as proof that closure walks incoming edges only.
-	selected := map[ObjectAddress]int{p.Address: 1}
+	selected := map[ids.ObjectAddress]int{p.Address: 1}
 	edges := truncateReferencers(e.CatalogRead(), selected)
 	if len(edges) != 1 || edges[0].relation.name != "c" || edges[0].parent.name != "p" {
 		t.Fatal("not relation-level incoming closure", edges)
@@ -160,10 +161,10 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
 	catalog := e.CatalogRead()
-	ownAddress := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"}]
-	peerAddress := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"}]
+	ownAddress := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"}]
+	peerAddress := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"}]
 	persistent := roleTableRef(t, e, "persistent_child")
-	if ownAddress == (ObjectAddress{}) || peerAddress == (ObjectAddress{}) || ownAddress == peerAddress {
+	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
 	peerRef := e.domain.Ref(catalog.Epoch(), peerAddress)
@@ -176,7 +177,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	_, journaledPeer := scope.ticket.resources[lockResource{ObjectRef: peerRef}]
 	excluded = excluded && !journaledPeer && e.locks.entries[lockResource{ObjectRef: peerRef}] == nil
 	admitted := true
-	for _, address := range []ObjectAddress{parent.Address, ownAddress, persistent.Address} {
+	for _, address := range []ids.ObjectAddress{parent.Address, ownAddress, persistent.Address} {
 		ref := e.domain.Ref(catalog.Epoch(), address)
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
 		if entry == nil {

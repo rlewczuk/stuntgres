@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -185,8 +186,8 @@ func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *relationDescript
 		t.Fatal("wrong physical replacement row", table.name, store)
 	}
 }
-func inheritanceAlterRowRoots(e *Engine) map[ObjectAddress][]rowVersion {
-	roots := make(map[ObjectAddress][]rowVersion, len(e.storage))
+func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
+	roots := make(map[ids.ObjectAddress][]rowVersion, len(e.storage))
 	for address, store := range e.storage {
 		rows := slices.Clone(store.versions)
 		for i := range rows {
@@ -199,7 +200,7 @@ func inheritanceAlterRowRoots(e *Engine) map[ObjectAddress][]rowVersion {
 func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) *relationDescriptor {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
-	g.inheritance = &tableInheritance{parents: []ObjectAddress{c.address}, columns: map[int32]inheritedColumn{g.attributes[0]: {origins: []inheritanceOrigin{{parent: c.address, attribute: c.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	g.inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}, columns: map[int32]inheritedColumn{g.attributes[0]: {origins: []inheritanceOrigin{{parent: c.address, attribute: c.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -507,7 +508,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertPhase(dropTypes, []string{"a"})
 			assertPhase(prepared.steps[1].types, []string{"a", "z"})
 			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
-			assertShape(before.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(p.rowType)}].(*typeDescriptor).typ, []string{"a", "b"})
+			assertShape(before.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(p.rowType)}].(*typeDescriptor).typ, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
@@ -611,8 +612,8 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if !slices.Equal(constraintAttributeKeys(cooked, cooked.checkConstraints[0].expression), []int32{newAttribute}) || cooked.checkConstraints[0].Name != "ck" || cooked.notNullConstraints[0].Name != "nn" || cooked.checkConstraints[0].OID != 0 || cooked.notNullConstraints[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
-			key := NameKey{ClassID: RelationClassID, Namespace: p.namespace, Name: "old_b"}
-			if prepared.reader.lookup(key) != (ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().state.descriptors[view.address] != view {
+			key := ids.NameKey{ClassID: RelationClassID, Namespace: p.namespace, Name: "old_b"}
+			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().state.descriptors[view.address] != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {

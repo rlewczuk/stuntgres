@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor
 type settingCallBinding struct {
 	parameters   ParameterInfo
 	arguments    []BoundExpr
-	routine      ObjectRef
+	routine      ids.ObjectRef
 	dependencies []expressionDependency
 }
 
@@ -157,7 +158,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	validInputs := true
 	for _, expression := range bound {
 		walkBoundExpression(expression, func(node BoundExpr) {
-			address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(node.ResultUsage().Type.ID())}
+			address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
 			if provider, exists := catalog.Descriptor(address); exists {
 				validInputs = validInputs && current.catalog.state.descriptors[address] == provider
 			}

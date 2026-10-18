@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestLockModesViews(t *testing.T) {
 	entry := func(p authorization.PrincipalRef, r authorization.Privileges) authorization.ACLEntry {
 		return authorization.ACLEntry{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: p}, Privileges: r}
 	}
-	grant := func(ref ObjectRef, entries ...authorization.ACLEntry) {
+	grant := func(ref ids.ObjectRef, entries ...authorization.ACLEntry) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)

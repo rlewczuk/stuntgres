@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Preparation records invocations, not granted rights. A graph can disappear
@@ -10,7 +11,7 @@ import (
 // admission after a wait. Values/providers are never replayed by readmit.
 type routineAdmission struct {
 	routine   *procedureDescriptor
-	reference ObjectRef
+	reference ids.ObjectRef
 	consumer  *relationDescriptor
 	body      routineBodyContext
 	actor     authorization.PrincipalRef
@@ -18,7 +19,7 @@ type routineAdmission struct {
 type routineAdmissionProgram struct{ calls []routineAdmission }
 
 func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []expressionDependency, routine *procedureDescriptor) error {
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	if c.routineReferences != nil {
 		for _, candidate := range c.routineReferences {
 			if candidate.Address == routine.address {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -122,7 +123,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(op.ctx, statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, op, nil, nil)
+	b, err := e.describe(op.ctx, statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, op, nil, nil)
 	var defaults map[int32]columnDefault
 	if err == nil {
 		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.createColumns, b.createDeclarations)

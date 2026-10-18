@@ -4,13 +4,14 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func pgClassUnitSource(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
-	return e.CatalogRead().state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	return e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
 }
 
 func TestPgClassProjection(t *testing.T) {
@@ -27,7 +28,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 200001}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "projection", owner: e.authorizationDomain.Principal(10), rowType: 200002, ofType: ObjectAddress{ClassID: TypeClassID, ObjectID: 200003}, attributeHighWater: 2, hasIndexes: true, hasSubclasses: true, rlsEnabled: true, rlsForced: true, checkConstraints: make([]checkConstraint, 2)}
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "projection", owner: e.authorizationDomain.Principal(10), rowType: 200002, ofType: ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 200003}, attributeHighWater: 2, hasIndexes: true, hasSubclasses: true, rlsEnabled: true, rlsForced: true, checkConstraints: make([]checkConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
@@ -72,8 +73,8 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("XID became OID")
 		}
 	}
-	for _, oid := range []OID{1213, 1262, 2396} {
-		d := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+	for _, oid := range []ids.OID{1213, 1262, 2396} {
+		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, d)
 		if err != nil {
 			t.Fatal(err)
@@ -97,14 +98,14 @@ func TestPgClassKinds(t *testing.T) {
 			t.Fatal(tc, got)
 		}
 	}
-	for _, oid := range []OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
-		d := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
+		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		before := d.virtualView
 		if got := pgClassKind(catalog, d); got != "v" || d.virtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)
 		}
 	}
-	parentAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 200010}
+	parentAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200010}
 	state := cloneCatalog(catalog.state)
 	state.descriptors[parentAddress] = &relationDescriptor{address: parentAddress, partition: &partitionDefinition{}}
 	index := &relationDescriptor{relationKind: indexRelation, sqlIndex: &indexDefinition{parent: parentAddress}}

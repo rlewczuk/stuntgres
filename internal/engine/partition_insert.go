@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -15,14 +16,14 @@ type partitionInsertState struct {
 	auth        AuthorizationView
 	target      *relationDescriptor
 	destination *relationDescriptor
-	layouts     map[ObjectAddress]*inheritanceQuerySegment
+	layouts     map[ids.ObjectAddress]*inheritanceQuerySegment
 	physicalRow []sqltype.Value
 	namedRow    []sqltype.Value
-	groups      map[ObjectAddress]*partitionInsertGroup
+	groups      map[ids.ObjectAddress]*partitionInsertGroup
 	order       []*partitionInsertGroup
 }
 type partitionInsertGroup struct {
-	ref    ObjectRef
+	ref    ids.ObjectRef
 	rows   indexWriteBatch
 	unique *uniqueWriteBinding
 }
@@ -50,7 +51,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		if layout != nil {
 			if state.layouts == nil {
-				state.layouts = make(map[ObjectAddress]*inheritanceQuerySegment)
+				state.layouts = make(map[ids.ObjectAddress]*inheritanceQuerySegment)
 			}
 			state.layouts[d.address] = &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, len(layout))}
 		}
@@ -121,7 +122,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 				break
 			}
 		}
-		if selected == nil && destination.partition.defaultChild != (ObjectAddress{}) {
+		if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
 			selected = state.catalog.state.descriptors[destination.partition.defaultChild].(*relationDescriptor)
 		}
 		if selected == nil {
@@ -274,14 +275,14 @@ func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value
 	return row
 }
 
-func (s *StatementScope) partitionInsertionGroup(ref ObjectRef) *partitionInsertGroup {
+func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
 	address := state.destination.address
 	group := state.groups[address]
 	if group == nil {
 		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}
 		if state.groups == nil {
-			state.groups = make(map[ObjectAddress]*partitionInsertGroup)
+			state.groups = make(map[ids.ObjectAddress]*partitionInsertGroup)
 		}
 		state.groups[address] = group
 		state.order = append(state.order, group)
@@ -289,7 +290,7 @@ func (s *StatementScope) partitionInsertionGroup(ref ObjectRef) *partitionInsert
 	return group
 }
 
-func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch) error {
+func (s *StatementScope) checkInsertUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch) error {
 	if s.partitionInsert == nil {
 		return s.checkUniqueRow(ref, candidate, nil, prefix)
 	}
@@ -304,7 +305,7 @@ func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, candidate *indexWri
 	return nil
 }
 
-func (s *StatementScope) applyInsertValidated(ref ObjectRef, rows indexWriteBatch) (int, error) {
+func (s *StatementScope) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
 	if s.partitionInsert == nil {
 		return s.Writes().applyInsertValidated(ref, rows)
 	}

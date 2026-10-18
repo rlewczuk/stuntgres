@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // Only sequence literal analysis is mutable; descriptions, ASTs and cursors are not.
@@ -16,7 +17,7 @@ type sequenceAnalysis struct {
 	namespace uint64
 }
 type sequenceEnvironment struct {
-	namespaces                                 []ObjectAddress
+	namespaces                                 []ids.ObjectAddress
 	implicitCatalog, implicitTemp, pendingTemp bool
 }
 type sequencePathKey struct {
@@ -24,8 +25,8 @@ type sequencePathKey struct {
 	role                 authorization.PrincipalRef
 	authorization, roles uint64
 	namespace            uint64
-	epoch                CatalogEpoch
-	temp, prefix         ObjectAddress
+	epoch                ids.CatalogEpoch
+	temp, prefix         ids.ObjectAddress
 	private              *catalogChanges
 	database             Descriptor
 }
@@ -54,8 +55,8 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvi
 	if err != nil {
 		return sequenceEnvironment{}, err
 	}
-	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-	result := sequenceEnvironment{namespaces: path, pendingTemp: pending, implicitCatalog: !slices.Contains(path, catalog), implicitTemp: key.temp != (ObjectAddress{}) && !slices.Contains(path, key.temp)}
+	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	result := sequenceEnvironment{namespaces: path, pendingTemp: pending, implicitCatalog: !slices.Contains(path, catalog), implicitTemp: key.temp != (ids.ObjectAddress{}) && !slices.Contains(path, key.temp)}
 	if auth.session != nil {
 		auth.session.sequencePath = sequencePathCache{valid: true, key: key, environment: result}
 	}

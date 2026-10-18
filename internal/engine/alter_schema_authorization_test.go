@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -33,7 +34,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			schemaOwner, _ := e.Roles().Lookup("move_schema_owner")
 			set := func(name string, grantee authorization.PrincipalRef, privileges authorization.Privileges) {
 				t.Helper()
-				a := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
+				a := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name}]
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
 				if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
@@ -51,7 +52,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			}
 			set("s1", actor.Ref, tc.source)
 			set("s2", actor.Ref, tc.target)
-			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
 			a := NameAddressForTempMove(t, e, source, "t")
 			q := NameAddressForTempMove(t, e, source, "q")
 			if tc.name == "nonowner_with_table_rights" {
@@ -73,7 +74,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				dest := e.state.names[NameKey{ClassID: NamespaceClassID, Name: tc.destination}]
+				dest := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: tc.destination}]
 				if e.state.descriptors[a].Namespace() != dest || e.state.descriptors[q].Namespace() != dest || e.storage[a] != storage {
 					t.Fatal("successful authorized move lost closure")
 				}

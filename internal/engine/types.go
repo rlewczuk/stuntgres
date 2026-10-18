@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ type StatementDescription struct {
 	Results    []ColumnDescriptor
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
 	catalogOwner *Engine
-	catalogEpoch CatalogEpoch
+	catalogEpoch ids.CatalogEpoch
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.
 	temporals        []temporalConstant
@@ -75,41 +76,41 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 type typeDescriptor struct {
 	typ       *sqltype.Descriptor
 	comment   string
-	namespace ObjectAddress
-	revision  DefinitionRevision
+	namespace ids.ObjectAddress
+	revision  ids.DefinitionRevision
 	owner     authorization.PrincipalRef
-	extension ObjectAddress
+	extension ids.ObjectAddress
 	acl       authorization.ACLValue
 	// aclSyntheticDefault distinguishes effective baseline USAGE from raw NULL
 	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.
 	aclSyntheticDefault bool
 	dimensions          int32
 	array               sqltype.ID
-	owningRelation      ObjectAddress
+	owningRelation      ids.ObjectAddress
 	domainChecks        []domainCheckConstraint
 }
 
-func (d *typeDescriptor) Address() ObjectAddress {
-	return ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.ID())}
+func (d *typeDescriptor) Address() ids.ObjectAddress {
+	return ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.ID())}
 }
-func (d *typeDescriptor) Revision() DefinitionRevision {
+func (d *typeDescriptor) Revision() ids.DefinitionRevision {
 	if d.revision == 0 {
 		return 1
 	}
 	return d.revision
 }
-func (d *typeDescriptor) Namespace() ObjectAddress {
-	if d.namespace != (ObjectAddress{}) {
+func (d *typeDescriptor) Namespace() ids.ObjectAddress {
+	if d.namespace != (ids.ObjectAddress{}) {
 		return d.namespace
 	}
-	return ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	return ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 }
-func (d *typeDescriptor) Name() string   { return d.typ.Name() }
-func (*typeDescriptor) Kind() ObjectKind { return TypeObject }
+func (d *typeDescriptor) Name() string       { return d.typ.Name() }
+func (*typeDescriptor) Kind() ids.ObjectKind { return ids.TypeObject }
 
 type typeProvider struct{}
 
-func (typeProvider) ClassID() OID { return TypeClassID }
+func (typeProvider) ClassID() ids.OID { return TypeClassID }
 func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	t, ok := descriptor.(*typeDescriptor)
 	if !ok || t.typ == nil || t.typ.ID() == 0 {
@@ -119,14 +120,14 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid synthetic type ACL")
 	}
 	ns, ok := view.Descriptor(descriptor.Namespace())
-	if !ok || ns.Kind() != NamespaceObject {
+	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: type namespace is missing")
 	}
 	found := view.Lookup(descriptorNameKey(descriptor))
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
-	if t.extension != (ObjectAddress{}) {
+	if t.extension != (ids.ObjectAddress{}) {
 		parent, ok := view.state.descriptors[t.extension].(*extensionDescriptor)
 		if !ok || parent.name != "intarray" || parent.targetNamespace != t.Namespace() || !t.typ.IsQueryInt() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
@@ -137,7 +138,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	} else if t.typ.IsQueryInt() {
 		return fmt.Errorf("stuntgres: query_int type has no installation")
 	}
-	if t.owningRelation != (ObjectAddress{}) {
+	if t.owningRelation != (ids.ObjectAddress{}) {
 		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)
 		if !ok || relation.namespace != t.Namespace() || relation.owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
@@ -150,7 +151,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		}
 	}
 	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsUserDefined() {
-		if t.revision == 0 || t.owningRelation == (ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.revision == 0 || t.owningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return CatalogConflict{}
 		}
 	}
@@ -186,7 +187,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		if !exists || actual != element {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
-		owner, exists := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
+		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
 		if !exists || owner.(*typeDescriptor).array != t.typ.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
@@ -201,7 +202,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 }
 
 func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	d, ok := r.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)})
+	d, ok := r.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)})
 	if !ok {
 		return nil, false
 	}
@@ -216,7 +217,7 @@ func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descript
 	if element == nil {
 		return nil, false
 	}
-	owner, ok := r.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
+	owner, ok := r.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
 	if !ok || owner.(*typeDescriptor).typ != element {
 		return nil, false
 	}
@@ -238,7 +239,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())})); err != nil {
+		if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}
@@ -355,14 +356,14 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	var found ObjectAddress
+	var found ids.ObjectAddress
 	for i := range path.count() {
-		found = auth.definitionLookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
-		if found != (ObjectAddress{}) {
+		found = auth.definitionLookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
+		if found != (ids.ObjectAddress{}) {
 			break
 		}
 	}
-	if found == (ObjectAddress{}) {
+	if found == (ids.ObjectAddress{}) {
 		if domainBase && raw.Name == "record" && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
 		}
@@ -493,8 +494,8 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 }
 
 // Existing row-bearing relations reserve their reciprocal type identity.
-func relationTypeNameOccupied(view CatalogRead, namespace ObjectAddress, name string) bool {
-	for _, address := range view.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
+func relationTypeNameOccupied(view CatalogRead, namespace ids.ObjectAddress, name string) bool {
+	for _, address := range view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
 		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
 			return true
 		}

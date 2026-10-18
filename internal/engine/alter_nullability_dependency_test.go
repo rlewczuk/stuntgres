@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
@@ -16,7 +18,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	originalView := e.state.descriptors[view.Address].(*relationDescriptor)
 	store := e.storage[table.Address]
 	provider := e.providers[RelationClassID]
-	var added ObjectAddress
+	var added ids.ObjectAddress
 	e.providers[RelationClassID] = alterDropProvider{provider, func() {
 		e.providers[RelationClassID] = provider
 		e.mu.Lock()
@@ -64,7 +66,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	if err == nil {
 		t.Fatal("stale dependency closure installed")
 	}
-	if added == (ObjectAddress{}) || e.state.descriptors[added] == nil || e.state.descriptors[table.Address] != old || e.state.descriptors[view.Address] != originalView || e.storage[table.Address] != store {
+	if added == (ids.ObjectAddress{}) || e.state.descriptors[added] == nil || e.state.descriptors[table.Address] != old || e.state.descriptors[view.Address] != originalView || e.storage[table.Address] != store {
 		t.Fatal("failed list published a closure prefix", err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM late_view")); len(got) != 1 || got[0][0] != int64(9) {

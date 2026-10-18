@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -76,7 +77,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	e.mu.Lock()
 	auth := catalogAuthorization(e, CatalogRead{e, e.state})
 	stage := e.BeginCatalogStage(auth.catalog)
-	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
+	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +130,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		before := e.CatalogRead()
 		if revision {
-			e.nextRevision = DefinitionRevision(^uint64(0))
+			e.nextRevision = ids.DefinitionRevision(^uint64(0))
 		} else {
 			e.nextOID = 0
 		}

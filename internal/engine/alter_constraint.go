@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -199,7 +200,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 	return &next, nil
 }
 
-func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ForeignKeyConstraint, target, supporting ObjectAddress) (*relationDescriptor, error) {
+func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*relationDescriptor, error) {
 	next := *parent
 	next.foreignKeys = slices.Clone(parent.foreignKeys)
 	if err := stage.Replace(&next); err != nil {

@@ -2,12 +2,13 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref ObjectRef, parent *relationDescriptor) (*querySource, error) {
+func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref ids.ObjectRef, parent *relationDescriptor) (*querySource, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
 	if captured, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {

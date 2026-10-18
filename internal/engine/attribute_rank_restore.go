@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -63,7 +64,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		e.mu.Unlock()
 		return nil
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}

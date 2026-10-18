@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func intaggUnitRecipes(t *testing.T) {
 			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
 			name := intaggRecipeFunction(raw)
 			ref, ok := b.viewIntaggRefs[path]
-			if !ok || ref.Address == (ObjectAddress{}) || len(b.viewIntaggRefs) != 1 {
+			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.viewIntaggRefs) != 1 {
 				t.Fatal("missing bound occurrence", b.viewIntaggRefs)
 			}
 			var child LogicalNode = &singletonNode{}
@@ -47,9 +48,9 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
-			for _, badRef := range []ObjectRef{{}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.address)} {
+			for _, badRef := range []ids.ObjectRef{{}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.address)} {
 				bad := *definition
-				bad.intaggRefs = map[viewLiteralPath]ObjectRef{path: badRef}
+				bad.intaggRefs = map[viewLiteralPath]ids.ObjectRef{path: badRef}
 				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
 				}
@@ -60,13 +61,13 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("raw-name fallback accepted")
 			}
 			extra := *definition
-			extra.intaggRefs = map[viewLiteralPath]ObjectRef{path: ref, {query: b.frameID(), target: 99}: ref}
+			extra.intaggRefs = map[viewLiteralPath]ids.ObjectRef{path: ref, {query: b.frameID(), target: 99}: ref}
 			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}
-			mapping := map[ObjectAddress]ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 910000}}
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 910000}}
 			for i, address := range ext.members {
-				mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(910001 + i)}
+				mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
 			state := cloneCatalog(e.state)
 			for address := range mapping {
@@ -79,7 +80,7 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			state.epoch++
 			view := CatalogRead{owner: e, state: state}
-			mapRef := func(old ObjectRef) ObjectRef {
+			mapRef := func(old ids.ObjectRef) ids.ObjectRef {
 				old.Epoch = state.epoch
 				if destination, ok := mapping[old.Address]; ok {
 					old.Address = destination

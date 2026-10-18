@@ -1,9 +1,12 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 var builtinConversionRoutines = [...]struct {
-	oid  OID
+	oid  ids.OID
 	name string
 }{
 	{4302, "koi8r_to_mic"},
@@ -92,7 +95,7 @@ var builtinConversionRoutines = [...]struct {
 	{4387, "shift_jis_2004_to_euc_jis_2004"},
 }
 
-func conversionRoutineName(oid OID) string {
+func conversionRoutineName(oid ids.OID) string {
 	if oid < 4302 || oid > 4387 || oid == 4350 || oid == 4351 {
 		return ""
 	}
@@ -109,7 +112,7 @@ func (e *Engine) initializeConversionRoutines() {
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")
 		}
-		d := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: routine.oid}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, revision: 1, name: routine.name, signature: conversionSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 23, volatility: Immutable, strict: true, conversion: provider}
+		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: routine.oid}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, revision: 1, name: routine.name, signature: conversionSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 23, volatility: Immutable, strict: true, conversion: provider}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}

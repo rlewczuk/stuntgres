@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -183,7 +184,7 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	lockAwait(t, waiting, context.Canceled)
 	e.mu.Lock()
 	read := CatalogRead{owner: e, state: e.state}
-	leaked := len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: e.state.names[NameKey{ClassID: NamespaceClassID, Name: "public"}], Name: "i"})) != 0 || len(e.sequences) != 1
+	leaked := len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}], Name: "i"})) != 0 || len(e.sequences) != 1
 	e.mu.Unlock()
 	if leaked {
 		t.Fatal("canceled provider admission published staged identity")
@@ -213,8 +214,8 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	sequence := table.identities[table.attributes[0]].sequence
 	ordinary := catalogRef(t, e, read, "ordinary").Address
 	for _, tc := range []struct {
-		provider, consumer ObjectAddress
-		want               OID
+		provider, consumer ids.ObjectAddress
+		want               ids.OID
 	}{
 		{sequence, consumer, owner.ObjectID}, {sequence, view, owner.ObjectID},
 		{sequence, owner, 0}, {ordinary, consumer, 0},
@@ -261,8 +262,8 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	candidate.name = "candidate_only"
 	candidate.sequencePlanStamp++
 	stage.descriptors[address] = &candidate
-	stage.names[NameKey{ClassID: RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
-	stage.names[NameKey{ClassID: NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
+	stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
+	stage.names[ids.NameKey{ClassID: NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

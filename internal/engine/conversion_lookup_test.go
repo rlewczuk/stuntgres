@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	earlier := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "earlier", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -30,12 +31,12 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ObjectAddress{earlier.address, low.Namespace()}}
+	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.address, low.Namespace()}}
 	procedure, err := scope.conversionProcedure(6, 8)
 	if err != nil || procedure == nil || procedure.address != low.handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
-	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ObjectAddress{low.Namespace(), earlier.address}}
+	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.address}}
 	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
@@ -72,7 +73,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil || raw != "\xe9" {
 		t.Fatal("actual selected handler output", raw, err)
 	}
-	missing := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ObjectAddress{}}
+	missing := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}
 	if _, err = node.Eval(&EvalContext{Context: context.Background(), statementScope: missing}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
@@ -87,7 +88,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	actor := auth.roles.LookupRef("pg_monitor")
 	auth.state.CurrentUser = actor
-	ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
@@ -133,7 +134,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	private := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	private := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -167,11 +168,11 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	public := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	public := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace = 90001, catalog
 	stage := e.BeginCatalogStage(view)
@@ -183,7 +184,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	path := []ObjectAddress{public, catalog}
+	path := []ids.ObjectAddress{public, catalog}
 	if actual := regprocSpelling(view, path, second.address.ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
 	}

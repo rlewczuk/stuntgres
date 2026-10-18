@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,52 +16,52 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	relation := &relationDescriptor{address: ObjectAddress{ClassID: 1259, ObjectID: 48001}, attributes: []int32{1, 3}, acl: whole, columnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
+	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, attributes: []int32{1, 3}, acl: whole, columnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
 	view.state = cloneCatalog(view.state)
 	view.state.descriptors[relation.address] = relation
-	schema := &namespaceDescriptor{address: ObjectAddress{ClassID: 2615, ObjectID: 48002}, acl: whole}
+	schema := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, acl: whole}
 	view.state.descriptors[schema.address] = schema
-	check := func(address ObjectAddress, want authorization.ACLValue) {
+	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()
 		got, err := rawObjectACL(view, address)
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatalf("address %#v got %#v want %#v: %v", address, got, want, err)
 		}
 	}
-	for _, class := range []OID{1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613} {
+	for _, class := range []ids.OID{1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613} {
 		hasACL, known := objectACLClass(class)
 		if !hasACL || !known {
 			t.Fatal("released ACL-bearing class", class, hasACL, known)
 		}
-		check(ObjectAddress{ClassID: class}, authorization.ACLValue{})
+		check(ids.ObjectAddress{ClassID: class}, authorization.ACLValue{})
 	}
 	// Independently enumerated REL_18_0 ObjectProperty ACL-less classes.
-	for _, class := range []OID{2601, 2602, 2603, 2605, 3456, 2606, 2607, 826, 3079, 2616, 2617, 2753, 1260, 1261, 2618, 3576, 2620, 3256, 3466, 3602, 3600, 3601, 3764, 6104, 6100, 3381, 1418} {
+	for _, class := range []ids.OID{2601, 2602, 2603, 2605, 3456, 2606, 2607, 826, 3079, 2616, 2617, 2753, 1260, 1261, 2618, 3576, 2620, 3256, 3466, 3602, 3600, 3601, 3764, 6104, 6100, 3381, 1418} {
 		hasACL, known := objectACLClass(class)
 		if hasACL || !known {
 			t.Fatal("released ACL-less class", class, hasACL, known)
 		}
-		check(ObjectAddress{ClassID: class, ObjectID: 999999, SubID: -1}, authorization.ACLValue{})
+		check(ids.ObjectAddress{ClassID: class, ObjectID: 999999, SubID: -1}, authorization.ACLValue{})
 	}
-	for _, class := range []OID{0, 1249, 6243, 999999} {
+	for _, class := range []ids.OID{0, 1249, 6243, 999999} {
 		if hasACL, known := objectACLClass(class); hasACL || known {
 			t.Fatal("unregistered class", class)
 		}
-		_, err := rawObjectACL(view, ObjectAddress{ClassID: class, ObjectID: 1})
+		_, err := rawObjectACL(view, ids.ObjectAddress{ClassID: class, ObjectID: 1})
 		if err == nil {
 			t.Fatal("unknown class became NULL", class)
 		}
 	}
 	for _, subid := range []int32{0, 1, -1, 65537} {
-		check(ObjectAddress{SubID: subid}, authorization.ACLValue{})
-		check(ObjectAddress{ClassID: 2615, ObjectID: 48002, SubID: subid}, whole)
+		check(ids.ObjectAddress{SubID: subid}, authorization.ACLValue{})
+		check(ids.ObjectAddress{ClassID: 2615, ObjectID: 48002, SubID: subid}, whole)
 	}
 	check(relation.address, whole)
 	for _, subid := range []int32{1, 65537, -65535} {
-		check(ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, column)
+		check(ids.ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, column)
 	}
 	for _, subid := range []int32{2, 3, 4, -1, 65536, -65536} {
-		check(ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, authorization.ACLValue{})
+		check(ids.ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, authorization.ACLValue{})
 	}
 	roles := e.roles.root.Read(authorization.PrincipalRef{})
 	array, _ := view.LookupType(sqltype.ACLItemArray)
@@ -87,7 +88,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal(err)
 		}
 		engine.mu.Lock()
-		sequence, err := engine.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "acl_unit_sequence", principal, engine.sequenceColumnsLocked(), nil)
+		sequence, err := engine.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "acl_unit_sequence", principal, engine.sequenceColumnsLocked(), nil)
 		engine.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -176,7 +177,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("foreign argument carrier retained", i)
 		}
 	}
-	remapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || remapped.(objectACLExpression).validateStored() != nil {
 		t.Fatal("stored remap", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,9 +17,9 @@ import (
 // Published definitions contain immutable typed nodes, never evaluated values
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
-	OID                    OID
+	OID                    ids.OID
 	expression             BoundExpr
-	dependencies           []ObjectRef
+	dependencies           []ids.ObjectRef
 	catalogSnapshot        bool
 	catalogAliasReferences bool
 }
@@ -129,12 +130,12 @@ type scalarRenderer struct {
 	validation             bool
 	owner                  *relationDescriptor
 	domainValue            *sqltype.Usage
-	dependencies           *[]ObjectRef
+	dependencies           *[]ids.ObjectRef
 	commentSnapshot        *bool
 	visibilitySnapshot     *bool
 	catalogAliasReferences *bool
 	provenance             *relationDescriptor
-	capturedManifest       []ObjectRef
+	capturedManifest       []ids.ObjectRef
 	capturedChecks         []expressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
@@ -151,8 +152,8 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 	return (scalarRenderer{}).sql(ctx, view, node)
 }
 
-func renderColumnDefault(ctx context.Context, view CatalogRead, node BoundExpr) (string, []ObjectRef, error) {
-	var dependencies []ObjectRef
+func renderColumnDefault(ctx context.Context, view CatalogRead, node BoundExpr) (string, []ids.ObjectRef, error) {
+	var dependencies []ids.ObjectRef
 	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
 	return text, dependencies, err
 }
@@ -172,7 +173,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, view.owner.domain.Ref(view.Epoch(), ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}), u.Collation)
+		r.recordStoredCollation(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -180,7 +181,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}))
+	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.usage {
@@ -431,7 +432,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", fmt.Errorf("stuntgres: invalid stored sequence argument")
 			}
 		}
-		if n.ref != (ObjectRef{}) {
+		if n.ref != (ids.ObjectRef{}) {
 			if len(args) == 0 {
 				return "", fmt.Errorf("stuntgres: stored sequence identity lacks argument")
 			}
@@ -480,7 +481,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
 			return "", err
 		}
-		if n.regclassRef != (ObjectRef{}) {
+		if n.regclassRef != (ids.ObjectRef{}) {
 			ref := n.regclassRef
 			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
 			_, relationOK := target.(*relationDescriptor)
@@ -499,7 +500,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			if err != nil {
 				return "", err
 			}
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
+			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
 				r.record(view.owner.domain.Ref(view.Epoch(), address))
 			}
@@ -1041,7 +1042,7 @@ func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name 
 	return name + "(" + strings.Join(parts, ", ") + ")", nil
 }
 
-func (r scalarRenderer) record(ref ObjectRef) {
+func (r scalarRenderer) record(ref ids.ObjectRef) {
 	if r.dependencies == nil {
 		return
 	}

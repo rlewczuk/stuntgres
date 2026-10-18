@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -216,7 +217,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal("accepted generated anchor slot as an original user target")
 	}
 	destination := New()
-	remapped, err := remapViewQuery(destination.CatalogRead(), original.definition.query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, err := remapViewQuery(destination.CatalogRead(), original.definition.query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, ok := destination.CatalogRead().LookupType(old.ID())
 		if !ok {
 			t.Fatal(old.ID())

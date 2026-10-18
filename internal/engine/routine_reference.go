@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 )
 
 // The cross-package interface is an identity carrier, not catalog authority.
@@ -64,7 +65,7 @@ func expressionRecipeDescriptor(node BoundExpr) (*relationDescriptor, error) {
 	}
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
 	if !ok || recipe == nil || recipe.view == nil || recipe.relationKind != viewRelation || recipe.address.ClassID != RelationClassID || recipe.address.ObjectID == 0 ||
-		recipe.view.consumer != (ObjectAddress{}) && recipe.view.consumer != recipe.address ||
+		recipe.view.consumer != (ids.ObjectAddress{}) && recipe.view.consumer != recipe.address ||
 		recipe.view.temporary != (SessionToken{}) && recipe.view.consumer != recipe.address {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}

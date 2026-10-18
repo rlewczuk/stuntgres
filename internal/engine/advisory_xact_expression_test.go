@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -43,16 +44,16 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				if strings.Contains(arguments, "$") {
 					// Prepared parameters are runtime inputs, not persistable view
 					// children. Lifetime support must not admit them to storage.
-					if _, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef { return ref }, nil); err == nil {
+					if _, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil); err == nil {
 						t.Fatal("persisted a runtime parameter")
 					}
 				} else {
 					last := len(node.args) - 1
-					column := columnExpression{expressionInfo: expressionInfo{usage: node.args[last].ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}}
+					column := columnExpression{expressionInfo: expressionInfo{usage: node.args[last].ResultUsage(), properties: ExprProperties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
 					stored.args = append([]BoundExpr(nil), node.args...)
 					stored.args[last] = column
-					remapped, err := remapBoundExpression(stored, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
+					remapped, err := remapBoundExpression(stored, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
 						t.Fatal("remapping stored column", err)
 					}

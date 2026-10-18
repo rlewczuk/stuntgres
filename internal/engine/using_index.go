@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 		if stage.base.state.descriptors[index.address] != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			e.mu.Lock()
 			id, allocateErr := e.allocateOIDLocked()
-			var revision DefinitionRevision
+			var revision ids.DefinitionRevision
 			if allocateErr == nil {
 				revision, allocateErr = e.revisionLocked()
 			}
@@ -43,7 +44,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				return nil, allocateErr
 			}
 			clone := *index
-			clone.address = ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+			clone.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
 			clone.revision = revision
 			clone.columns = slices.Clone(index.columns)
 			for i, attribute := range attributes {

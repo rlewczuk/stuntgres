@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
 
 func inheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 	for _, action := range actions {
@@ -21,11 +24,11 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 		return nil
 	}
 	original := scope.statementMutation
-	locked := map[ObjectAddress]bool{state.root.address: true}
-	processed := make(map[ObjectAddress]bool)
+	locked := map[ids.ObjectAddress]bool{state.root.address: true}
+	processed := make(map[ids.ObjectAddress]bool)
 	state.definition = inheritanceDefinitionReader{base: auth.catalog}
 	if !preparatory {
-		state.prepared = make(map[ObjectAddress]*inheritancePreparedNode)
+		state.prepared = make(map[ids.ObjectAddress]*inheritancePreparedNode)
 		state.preparing = true
 		defer func() { state.preparing = false }()
 	}

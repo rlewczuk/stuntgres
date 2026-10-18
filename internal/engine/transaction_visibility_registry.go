@@ -1,6 +1,10 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Engine.mu owns visibility/completion metadata. The ticket is an atomic mirror
 // association only, not permission to enter manager metadata. Visibility XIDs
@@ -126,7 +130,7 @@ func (e *Engine) resetVisibilityPhaseLocked(ref TxRef) {
 	}
 }
 
-func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ObjectAddress) error {
+func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAddress) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.state.epoch {

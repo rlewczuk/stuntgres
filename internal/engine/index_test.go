@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func btreeRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *logicalIndexRoot) {
@@ -131,7 +133,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")
-	if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: index.namespace, Name: "si"})) != 0 {
+	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: index.namespace, Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
 	old := e.indexRoots[index.address]
@@ -178,7 +180,7 @@ func TestBtreeIndexEmptyNullRepeatedAndCancellation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "canceled"})) != 0 {
+	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "canceled"})) != 0 {
 		t.Fatal("canceled definition leaked")
 	}
 }

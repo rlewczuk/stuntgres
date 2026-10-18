@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -13,7 +14,7 @@ var stockPgcrypto = &pgcryptoProvider{version: "1.4"}
 type pgcryptoMember struct {
 	name       string
 	signature  procedureSignature
-	result     OID
+	result     ids.OID
 	volatility Volatility
 	strict     bool
 }
@@ -45,7 +46,7 @@ func pgcryptoLookup(name string, signature procedureSignature) (pgcryptoMember, 
 }
 
 func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ObjectAddress, len(pgcryptoMembers))
+	ext.members = make([]ids.ObjectAddress, len(pgcryptoMembers))
 	for i, member := range pgcryptoMembers {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -55,10 +56,10 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if err != nil {
 			return err
 		}
-		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: member.volatility, strict: member.strict, crypto: p}
-		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
+		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
 		if err := stage.Create(proc); err != nil {
@@ -80,7 +81,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 			return invalid()
 		}
 		member, admitted := pgcryptoLookup(proc.name, proc.signature)
-		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
+		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		// Extension membership fixes provider semantics, not independently

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,7 +23,7 @@ type preparedCTEProgram struct {
 	main           preparedCommandExecution
 	mainScratch    ruleCommandScratch
 	mainMutation   int
-	normalizedRefs []ObjectRef
+	normalizedRefs []ids.ObjectRef
 }
 
 // This dispatch never binds, imports parameters, creates a scope or publishes.

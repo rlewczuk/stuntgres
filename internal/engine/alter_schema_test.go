@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
 )
@@ -21,8 +22,8 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	peer := sessionStart(t, e, nil)
-	source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-	dest := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+	dest := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
 	table := e.state.descriptors[tableAddress].(*relationDescriptor)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
@@ -33,7 +34,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	addresses := make([]ObjectAddress, 0, 3)
+	addresses := make([]ids.ObjectAddress, 0, 3)
 	before := make([]*relationDescriptor, 0, 3)
 	for _, name := range []string{"t", "q1", "q2"} {
 		a := NameAddressForTempMove(t, e, source, name)
@@ -94,8 +95,8 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-			original := make(map[ObjectAddress]Descriptor)
+			source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			original := make(map[ids.ObjectAddress]Descriptor)
 			for _, name := range []string{"t", "q1", "q2", "free"} {
 				a := NameAddressForTempMove(t, e, source, name)
 				original[a] = e.state.descriptors[a]

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -352,7 +353,7 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 				case "OID":
 					e.nextOID = 0
 				case "Revision":
-					e.nextRevision = DefinitionRevision(^uint64(0))
+					e.nextRevision = ids.DefinitionRevision(^uint64(0))
 					want = "stuntgres: catalog definition revision exhausted"
 				case "Namespace":
 					state := cloneCatalog(e.state)

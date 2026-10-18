@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -150,9 +151,9 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	var text string
 	switch e.kind {
 	case legacyDescription:
-		var class OID
+		var class ids.OID
 		for a, d := range scope.commentCatalog.state.descriptors {
-			if a.ObjectID == OID(oid) && a.SubID == 0 && (text == "" || a.ClassID < class) {
+			if a.ObjectID == ids.OID(oid) && a.SubID == 0 && (text == "" || a.ClassID < class) {
 				if candidate := descriptorComment(d, 0); candidate != "" {
 					// Immutable address ordering keeps equal calls STABLE; it
 					// does not establish portable catalog precedence.
@@ -165,7 +166,7 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		text = descriptorComment(scope.commentCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}], int32(sub))
+		text = descriptorComment(scope.commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}], int32(sub))
 	case objectDescription, sharedDescription:
 		name, err := values[1].Text()
 		if err != nil {
@@ -178,7 +179,7 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				text = role.Comment
 			}
 		} else {
-			var class OID
+			var class ids.OID
 			switch name {
 			case "pg_class":
 				class = RelationClassID
@@ -188,7 +189,7 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				class = TypeClassID
 			}
 			if class != 0 {
-				text = descriptorComment(scope.commentCatalog.state.descriptors[ObjectAddress{ClassID: class, ObjectID: OID(oid)}], 0)
+				text = descriptorComment(scope.commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}], 0)
 			}
 		}
 	}

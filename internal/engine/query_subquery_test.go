@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -493,7 +494,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 		}
 		return typ
 	}
-	refs := func(ref ObjectRef) ObjectRef { ref.Address.ObjectID += 100; return ref }
+	refs := func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }
 	if !queryDescriptorsChanged(q.Root, types) {
 		t.Fatal("nested type change invisible")
 	}
@@ -522,7 +523,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 	if !queryDescriptorsChanged(q.Root, types) {
 		t.Fatal("remapping mutated the original analyzed query")
 	}
-	originalRefs := make(map[int]ObjectRef)
+	originalRefs := make(map[int]ids.ObjectRef)
 	capture := true
 	var walk func(LogicalNode)
 	walk = func(node LogicalNode) {
@@ -582,7 +583,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("subquery_reader")
 	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	outer, child := roleTableRef(t, e, "o"), roleTableRef(t, e, "c")
-	grant := func(ref ObjectRef, rights authorization.Privileges) {
+	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)

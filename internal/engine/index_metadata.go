@@ -5,19 +5,21 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Detached pg_index-shaped values. Analyzed expression nodes are immutable;
 // the expression list and all vectors belong to the projection, not descriptors.
 type indexMetadata struct {
-	IndexRelID, IndRelID                       OID
+	IndexRelID, IndRelID                       ids.OID
 	IndNatts, IndNKeyAtts                      int16
 	IndIsUnique, IndNullsNotDistinct           bool
 	IndIsPrimary, IndIsExclusion, IndImmediate bool
 	IndIsClustered, IndIsValid, IndCheckXmin   bool
 	IndIsReady, IndIsLive, IndIsReplIdent      bool
 	IndKey                                     []int16
-	IndClass, IndCollation                     []OID
+	IndClass, IndCollation                     []ids.OID
 	IndOption                                  []int16
 	IndexExpressions                           []BoundExpr
 	Predicate                                  BoundExpr
@@ -31,7 +33,7 @@ type indexesMetadata struct {
 
 // Both projections use exactly this capture. In particular, deparsing does not
 // consult the current engine or filter records through the caller's ACL.
-func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRef) (indexMetadata, indexesMetadata, error) {
+func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
 	var m indexMetadata
 	var names indexesMetadata
 	if err := ctx.Err(); err != nil {
@@ -52,7 +54,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 	parent := catalog.state.descriptors[definition.parent].(*relationDescriptor)
 	n := len(definition.keys)
 	ready, valid, live := definition.publicationState()
-	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]OID, n), IndCollation: make([]OID, n), IndOption: make([]int16, n)}
+	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.unique
 	m.IndNullsNotDistinct = definition.nullsNotDistinct
 	m.IndIsPrimary = definition.constraint != nil && definition.constraint.kind == uniqueBackingKind && definition.constraint.Primary
@@ -88,11 +90,11 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 		if err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
-		m.IndClass[i] = OID(key.class.OID())
+		m.IndClass[i] = ids.OID(key.class.OID())
 		if m.IndClass[i] == 0 {
 			return indexMetadata{}, indexesMetadata{}, fmt.Errorf("stuntgres: index class has no released identity")
 		}
-		m.IndCollation[i] = OID(usage.Collation.ID)
+		m.IndCollation[i] = ids.OID(usage.Collation.ID)
 		if definition.method != btreeMethod {
 			continue
 		}

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -221,11 +222,11 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog Catalog
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
-	var path []ObjectAddress
+	var path []ids.ObjectAddress
 	if err == nil {
 		path, err = e.referencePath(auth)
 	}
-	var collationPath []ObjectAddress
+	var collationPath []ids.ObjectAddress
 	if err == nil {
 		for _, value := range rows.values {
 			if !value.IsNull() && value.Type().ContainsRegcollation() {

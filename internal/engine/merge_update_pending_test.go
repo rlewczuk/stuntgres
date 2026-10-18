@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
 // A live request on the original RowID establishes the exact interleaving.
-func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ObjectRef, row RowID, worker *Session, blocker *relationTicket, mode relationLockMode) {
+func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row RowID, worker *Session, blocker *relationTicket, mode relationLockMode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -204,7 +205,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 				worker.transactions.mu.Lock()
 				frontier := worker.transactions.frontier
-				roots := make(map[ObjectAddress]transactionRoot, len(worker.transactions.roots))
+				roots := make(map[ids.ObjectAddress]transactionRoot, len(worker.transactions.roots))
 				for address, root := range worker.transactions.roots {
 					roots[address] = root
 				}

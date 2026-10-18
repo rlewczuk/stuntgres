@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -290,7 +291,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed Descriptor, cu
 }
 
 type materializedSourceFence struct {
-	ref      ObjectRef
+	ref      ids.ObjectRef
 	relation *relationDescriptor
 	storage  *relationStorage
 }

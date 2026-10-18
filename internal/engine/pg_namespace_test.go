@@ -6,14 +6,15 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescriptor, ObjectRef) {
+func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 2615}
+	a := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2615}
 	d, ok := c.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing namespace source")
@@ -71,8 +72,8 @@ func TestPGNamespaceShape(t *testing.T) {
 			t.Fatal(i, column)
 		}
 	}
-	for _, id := range []OID{10047, 10046} {
-		typ := c.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
+	for _, id := range []ids.OID{10047, 10046} {
+		typ := c.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
 		if typ.owningRelation != d.address || typ.owner != d.owner {
 			t.Fatal("row/array reciprocal owner", id, typ)
 		}
@@ -80,7 +81,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	if err := (relationProvider{}).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
-	toast := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	toast := c.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
 	if toast.comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.address) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
 		t.Fatal("actual toast seed/protected root/control baseline", toast)
 	}
@@ -115,7 +116,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(c)
 	defer e.DiscardCatalogStage(stage)
-	original := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 2200}].(*namespaceDescriptor)
+	original := c.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 2200}].(*namespaceDescriptor)
 	next := *original
 	next.name = "renamed_public"
 	next.revision++
@@ -153,7 +154,7 @@ func TestPGNamespaceACL(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(c)
 	defer e.DiscardCatalogStage(stage)
-	empty := *c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	empty := *c.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
 	empty.acl = authorization.ACLValue{Explicit: true}
 	empty.revision++
 	if err := stage.Replace(&empty); err != nil {
@@ -224,7 +225,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
 	foreign := New()
-	reject := func(catalog CatalogRead, roles authorization.Read, r ObjectRef, source *relationDescriptor) {
+	reject := func(catalog CatalogRead, roles authorization.Read, r ids.ObjectRef, source *relationDescriptor) {
 		t.Helper()
 		e.mu.Lock()
 		rows, err := e.capturePGNamespace(context.Background(), catalog, roles, r, source)
@@ -264,7 +265,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		next.descriptors[d.address] = &invalid
 		reject(CatalogRead{e, next}, e.Roles(), ref, &invalid)
 	}
-	ns := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	ns := c.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
 	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
 		next := cloneCatalog(c.state)
 		invalid := *ns
@@ -282,7 +283,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	next.descriptors[ns.address] = &invalid
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
-	next.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}] = ns
+	next.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}] = ns
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
@@ -341,7 +342,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	op, done := roleOperation(t, e, "namespace_fixture_actor")
 	defer done()
 	before := e.CatalogRead()
-	address := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	address := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	original := before.state.descriptors[address].(*namespaceDescriptor)
 	identity := op.RoleState()
 	withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() {

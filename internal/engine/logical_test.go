@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -190,7 +191,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 			t.Fatal("logical computed schema", column)
 		}
 	}
-	refs := map[ObjectRef]bool{}
+	refs := map[ids.ObjectRef]bool{}
 	for _, dependency := range bound.dependencies {
 		refs[dependency.ref] = true
 	}

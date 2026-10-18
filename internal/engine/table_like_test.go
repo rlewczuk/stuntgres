@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -19,14 +20,14 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 		return nil, nil, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	if syntax.Persistence == "temporary" {
 		namespace = op.session.temporaryNamespace
 	}
 	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *relationDescriptor
 	if err == nil {
-		destination = stage.descriptors[stage.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*relationDescriptor)
+		destination = stage.descriptors[stage.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*relationDescriptor)
 	}
 	return stage, destination, err
 }
@@ -49,8 +50,8 @@ func TestTableLikeOptionMask(t *testing.T) {
 
 func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
-	source := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
-	destination := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
+	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
+	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
 	ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -119,7 +120,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	}
 	identity := destination.identities[4]
 	sequence := stage.descriptors[identity.sequence].(*relationDescriptor)
-	if identity.sequence == source.identities[3].sequence || sequence.sequence.owned != (ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.owner != destination.owner || sequence.sequence.persistence != "logged" || stage.generators[identity.sequence].called {
+	if identity.sequence == source.identities[3].sequence || sequence.sequence.owned != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.owner != destination.owner || sequence.sequence.persistence != "logged" || stage.generators[identity.sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
 	for _, ref := range destination.generations[5].dependencies {

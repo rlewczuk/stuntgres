@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			} else if score, err := value.Integer(); err != nil || score != 4 { t.Fatal(score, err) }
 			if err := n.validate(e.CatalogRead()); err != nil { t.Fatal(err) }
 			refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-			if err != nil || !reflect.DeepEqual(refs, []ObjectAddress{n.ref.Address}) { t.Fatal(refs, err) }
+			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) { t.Fatal(refs, err) }
 			var children []BoundExpr
 			boundExpressionChildren(n, func(child BoundExpr) { children = append(children, child) })
 			if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) { t.Fatal(children) }
@@ -52,7 +53,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			other := n
 			other.ref.Address = ext.members[0]
 			if sameGroupExpression(n, other) { t.Fatal("procedure identity collapsed") }
-			consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ObjectRef{n.ref}}}}
+			consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil { t.Fatal(err) }
 			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil { t.Fatal(err) }
 			for _, mutate := range []func(*procedureDescriptor){
@@ -91,8 +92,8 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			e, ext := daitchUnitInstalled(t)
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
-			mapping := map[ObjectAddress]ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
-			for i, address := range ext.members { mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900001+i)} }
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+			for i, address := range ext.members { mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
 				delete(next.names, descriptorNameKey(before.state.descriptors[address]))
@@ -103,8 +104,8 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.descriptors[destination] = descriptor
 				next.names[descriptorNameKey(descriptor)] = destination
 			}
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: 900020}
-			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ObjectRef{call.ref}}}}
+			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900020}
+			consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
 			next.descriptors[address] = consumer
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }

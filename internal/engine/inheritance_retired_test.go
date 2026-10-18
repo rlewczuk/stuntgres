@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -56,7 +57,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	}
 	for _, pair := range []struct {
 		p           inheritedConstraint
-		own, source OID
+		own, source ids.OID
 		check       bool
 	}{
 		{current.inheritance.notNull[nn.Attribute], nn.OID, parentNN, false},
@@ -81,7 +82,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	}
 	for _, pair := range []struct {
 		p      inheritedConstraint
-		source OID
+		source ids.OID
 	}{
 		{bottom.inheritance.notNull[bottom.notNullConstraints[0].Attribute], nn.OID},
 		{bottom.inheritance.checks[ck.Name], ck.OID},
@@ -110,7 +111,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	final := retiredUnitTable(t, e, "c")
 	for _, pair := range []struct {
 		p      inheritedConstraint
-		newOID OID
+		newOID ids.OID
 	}{
 		{final.inheritance.notNull[nn.Attribute], newNN}, {final.inheritance.checks[ck.Name], newCK},
 	} {
@@ -129,7 +130,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	state := &inheritanceAlterState{stage: stage, events: map[ObjectAddress][]inheritanceAlterEvent{}}
+	state := &inheritanceAlterState{stage: stage, events: map[ids.ObjectAddress][]inheritanceAlterEvent{}}
 	scope := &StatementScope{inheritanceAlter: state}
 	next := *p
 	next.columns = slices.Clone(p.columns[1:])

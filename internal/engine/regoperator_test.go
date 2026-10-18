@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	expected := make(map[OID]bool)
+	expected := make(map[ids.OID]bool)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fields := strings.Split(scanner.Text(), "\t")
@@ -37,9 +38,9 @@ func TestRegOperatorInventory(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		address := ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(oid)}
+		address := ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(oid)}
 		d, ok := view.state.descriptors[address].(*operatorDescriptor)
-		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.left != OID(left) || d.right != OID(right) || expected[OID(oid)] {
+		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.left != ids.OID(left) || d.right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
 		}
 		if err := (operatorProvider{}).Validate(view, d); err != nil {
@@ -48,7 +49,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		if !pgDependPinned(view, address) {
 			t.Fatal("builtin operator not pinned", address)
 		}
-		expected[OID(oid)] = true
+		expected[ids.OID(oid)] = true
 	}
 	if err := scanner.Err(); err != nil {
 		t.Fatal(err)
@@ -71,10 +72,10 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stage := e.BeginCatalogStage(view)
-	namespaces := make([]ObjectAddress, 4)
+	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg Op", "earlier", "later", `Reg" Op`} {
-		ns := *view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
-		ns.address = ObjectAddress{ClassID: NamespaceClassID, ObjectID: OID(90000 + i)}
+		ns := *view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
+		ns.address = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		namespaces[i] = ns.address
 		if err := stage.Create(&ns); err != nil {
@@ -83,9 +84,9 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	}
 	for i, row := range []struct {
 		ns          int
-		left, right OID
+		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
+		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -93,7 +94,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	groups := collectOperatorGroups(view)
-	path := []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: 11}}
+	path := []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: 11}}
 	for alias, want := range map[sqltype.ID]string{sqltype.Regoper: `"Reg Op".#=#`, sqltype.Regoperator: `"Reg Op".#=#(integer,integer)`} {
 		if got := operatorSpelling(view, path, groups, 91000, alias); got != want {
 			t.Fatal(got, want)
@@ -148,12 +149,12 @@ func TestRegOperatorPersistenceReferences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var refs []ObjectAddress
-			if err := walkOperatorReferences(view, value, func(a ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
+			var refs []ids.ObjectAddress
+			if err := walkOperatorReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if id == 551 {
-				if len(refs) != 1 || refs[0] != (ObjectAddress{ClassID: 2617, ObjectID: 551}) {
+				if len(refs) != 1 || refs[0] != (ids.ObjectAddress{ClassID: 2617, ObjectID: 551}) {
 					t.Fatal(refs)
 				}
 			} else if len(refs) != 0 {
@@ -175,7 +176,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			direct := domainUnitType(t, view, "operator_direct")
 			chain := domainUnitType(t, view, "operator_chain")
 			next := cloneCatalog(view.state)
-			mapping := make(map[ObjectAddress]ObjectAddress)
+			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 			for i, domain := range []*typeDescriptor{direct, chain} {
 				if !domain.typ.Concrete() || !domain.typ.Usage().Valid() || !sqltype.IsOperatorAlias(domain.typ.BaseType().ID()) {
 					t.Fatal("ordinary scalar domain invalidated", domain)
@@ -187,15 +188,15 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 				if _, err := sqltype.Array(61000, "_forged", domain.typ); err == nil {
 					t.Fatal("recursive operator array admitted")
 				}
-				mapping[domain.Address()] = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(60001 + i)}
-				mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(domain.array)}] = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(60003 + i)}
+				mapping[domain.Address()] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(60001 + i)}
+				mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(domain.array)}] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(60003 + i)}
 			}
 			if changed, err := reownDomainTypes(next, mapping, false); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
 			for i, original := range []*typeDescriptor{direct, chain} {
 				domain := next.descriptors[original.Address()].(*typeDescriptor)
-				array := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(original.array)}].(*typeDescriptor)
+				array := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(original.array)}].(*typeDescriptor)
 				if !domain.typ.Concrete() || domain.typ.ID() != sqltype.ID(60001+i) || array.typ.Concrete() || array.typ.Element() != domain.typ || array.typ.ID() != sqltype.ID(60003+i) || domain.array != array.typ.ID() {
 					t.Fatal("reownership changed companion admission", domain, array)
 				}

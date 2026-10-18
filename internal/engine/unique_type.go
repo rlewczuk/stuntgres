@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -65,7 +66,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		if err != nil {
 			return nil, err
 		}
-		c.Index = ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+		c.Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
 		clone := *index
 		clone.address = c.Index
 		clone.revision, err = e.revisionLocked()
@@ -145,7 +146,7 @@ func indexAttributeAffected(definition *indexDefinition, attribute int32) bool {
 	if slices.Contains(definition.include, attribute) {
 		return true
 	}
-	dependent := func(ref ObjectRef) bool {
+	dependent := func(ref ids.ObjectRef) bool {
 		return ref.Address.ClassID == definition.parent.ClassID && ref.Address.ObjectID == definition.parent.ObjectID && ref.Address.SubID == attribute
 	}
 	for _, key := range definition.keys {
@@ -173,7 +174,7 @@ func indexAttributeAffected(definition *indexDefinition, attribute int32) bool {
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.partition != nil {
 		return nil, nil

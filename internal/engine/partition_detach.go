@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -35,14 +36,14 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return fail(err)
 	}
 	defaultAddress := parent.partition.defaultChild
-	if defaultAddress != (ObjectAddress{}) {
+	if defaultAddress != (ids.ObjectAddress{}) {
 		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
 			return fail(err)
 		}
 	}
 	e.mu.Unlock()
-	if defaultAddress != (ObjectAddress{}) {
+	if defaultAddress != (ids.ObjectAddress{}) {
 		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
@@ -50,7 +51,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	e.mu.Lock()
 	auth, err := e.statementAuthorizationLocked(op, raw)
-	var candidate ObjectRef
+	var candidate ids.ObjectRef
 	if err == nil {
 		candidate, err = e.resolveRelationReference(auth, raw.Partition, true)
 	}
@@ -159,13 +160,13 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	if err := partitionDetachMembership(parent, child); err != nil {
 		return err
 	}
-	if parent.revision == DefinitionRevision(^uint64(0)) || child.revision == DefinitionRevision(^uint64(0)) {
+	if parent.revision == ids.DefinitionRevision(^uint64(0)) || child.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	nextParent, definition := *parent, *parent.partition
-	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(a ObjectAddress) bool { return a == child.address })
+	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(a ids.ObjectAddress) bool { return a == child.address })
 	if definition.defaultChild == child.address {
-		definition.defaultChild = ObjectAddress{}
+		definition.defaultChild = ids.ObjectAddress{}
 	}
 	nextParent.partition = &definition
 	nextParent.revision++
@@ -201,18 +202,18 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	}
 	for _, descriptor := range stage.base.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != child.address || index.sqlIndex.partitionParent == (ObjectAddress{}) {
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != child.address || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
 		ancestor, ok := stage.base.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
 		if !ok || ancestor.sqlIndex == nil || ancestor.sqlIndex.parent != parent.address {
 			return fmt.Errorf("stuntgres: invalid partition index ancestry")
 		}
-		if index.revision == DefinitionRevision(^uint64(0)) {
+		if index.revision == ids.DefinitionRevision(^uint64(0)) {
 			return fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next, definition := *index, *index.sqlIndex
-		definition.partitionParent = ObjectAddress{}
+		definition.partitionParent = ids.ObjectAddress{}
 		// The backing contains own identity/kind, not inheritance provenance;
 		// retain it while the table constraint alone becomes local.
 		next.sqlIndex = &definition

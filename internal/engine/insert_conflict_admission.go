@@ -1,9 +1,11 @@
 package engine
 
-func bindingForConflict(ref ObjectRef, parent *relationDescriptor, action *boundInsertConflict) binding {
+import "stuntgres/internal/engine/ids"
+
+func bindingForConflict(ref ids.ObjectRef, parent *relationDescriptor, action *boundInsertConflict) binding {
 	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources, returning: action.returning}
 }
-func (s *StatementScope) admitInsertRow(ref ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *EvalContext) (bool, error) {
+func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *EvalContext) (bool, error) {
 	action := s.insertConflict
 	if action == nil {
 		return true, s.checkInsertUniqueRow(ref, candidate, prefix)
@@ -14,7 +16,7 @@ func (s *StatementScope) admitInsertRow(ref ObjectRef, candidate *indexWriteCand
 	return s.admitInsertConflictRow(ref, candidate, prefix, indexProbeRuntime)
 }
 
-func (s *StatementScope) admitInsertConflictRow(ref ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, purpose indexProbePurpose) (bool, error) {
+func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, purpose indexProbePurpose) (bool, error) {
 	action := s.insertConflict
 	manager := s.op.session.Engine().locks
 	if action.statementKeys == nil {
@@ -56,7 +58,7 @@ func (s *StatementScope) insertConflictVisible(row rowVersion, committed bool) e
 	return nil
 }
 
-func (w *WriteStage) applyInsertValidated(ref ObjectRef, rows indexWriteBatch) (int, error) {
+func (w *WriteStage) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatch) (int, error) {
 	count := len(rows.values)
 	if action := w.scope.insertConflict; action != nil && action.update != nil {
 		return action.affected, nil
@@ -73,7 +75,7 @@ func (w *WriteStage) applyInsertValidated(ref ObjectRef, rows indexWriteBatch) (
 	}
 	return count, nil
 }
-func (s *StatementScope) revalidateConflictRows(ref ObjectRef, rows indexWriteBatch) (indexWriteBatch, error) {
+func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWriteBatch) (indexWriteBatch, error) {
 	prior := s.uniqueBinding
 	s.op.session.Engine().locks.restoreUnique(s.ticket, s.insertConflict.statementKeys)
 	s.uniqueBinding = nil

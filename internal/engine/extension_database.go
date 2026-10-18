@@ -4,32 +4,33 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-var currentDatabaseAddress = ObjectAddress{ClassID: DatabaseClassID, ObjectID: 16383}
+var currentDatabaseAddress = ids.ObjectAddress{ClassID: DatabaseClassID, ObjectID: 16383}
 
 type databaseDescriptor struct {
-	address  ObjectAddress
-	revision DefinitionRevision
+	address  ids.ObjectAddress
+	revision ids.DefinitionRevision
 	name     string
 	owner    authorization.PrincipalRef
 	acl      authorization.ACLValue
 }
 
-func (d *databaseDescriptor) Address() ObjectAddress       { return d.address }
-func (d *databaseDescriptor) Revision() DefinitionRevision { return d.revision }
-func (*databaseDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
-func (d *databaseDescriptor) Name() string                 { return d.name }
-func (*databaseDescriptor) Kind() ObjectKind               { return DatabaseObject }
+func (d *databaseDescriptor) Address() ids.ObjectAddress       { return d.address }
+func (d *databaseDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (*databaseDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
+func (d *databaseDescriptor) Name() string                     { return d.name }
+func (*databaseDescriptor) Kind() ids.ObjectKind               { return ids.DatabaseObject }
 
 type databaseProvider struct{}
 
-func (databaseProvider) ClassID() OID { return DatabaseClassID }
+func (databaseProvider) ClassID() ids.OID { return DatabaseClassID }
 func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	db, ok := d.(*databaseDescriptor)
-	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.state.names[descriptorNameKey(d)] != db.address || db.Namespace() != (ObjectAddress{}) {
+	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.state.names[descriptorNameKey(d)] != db.address || db.Namespace() != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid current database descriptor")
 	}
 	return nil
@@ -152,6 +153,6 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, db.address, &next)
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ObjectRef{Address: db.address}, e.state.descriptors[db.address])
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.state.descriptors[db.address])
 	return Result{}, nil
 }

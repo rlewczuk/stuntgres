@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -148,7 +149,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			e := New()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			var loser ObjectAddress
+			var loser ids.ObjectAddress
 			var winner CatalogRead
 			e.providers[RelationClassID] = &publicationConflictProvider{
 				CatalogProvider: e.providers[RelationClassID],
@@ -224,7 +225,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	release := make(chan struct{})
 	wrapped := &noticeConflictContext{Context: op.ctx}
 	op.ctx = wrapped
-	var loser ObjectAddress
+	var loser ids.ObjectAddress
 	var winner CatalogRead
 	e.providers[RelationClassID] = &publicationConflictProvider{
 		CatalogProvider: e.providers[RelationClassID],
@@ -401,7 +402,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal("switch reset notice filter", got)
 	}
-	namespace := e.domain.Ref(e.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	namespace := e.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +455,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()
-					namespace := e.domain.Ref(view.Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+					namespace := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 					acl := authorization.ACLValue{Explicit: true}
 					if usage {
 						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}

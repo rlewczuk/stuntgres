@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"sync/atomic"
@@ -92,10 +93,10 @@ type Session struct {
 	cursors                *cursorRegistry
 	preparedSQL            *sqlPreparedRegistry
 	authorization          *sessionAuthorization
-	sequences              map[ObjectAddress]*sequenceMemory
-	lastSequence           ObjectAddress
+	sequences              map[ids.ObjectAddress]*sequenceMemory
+	lastSequence           ids.ObjectAddress
 	discardPlansGeneration uint64 // serialized by physical-owner statement admission
-	temporaryNamespace     ObjectAddress
+	temporaryNamespace     ids.ObjectAddress
 	sequencePath           sequencePathCache
 	random                 randomState
 	arrayRandom            randomState // independent of random()/setseed()

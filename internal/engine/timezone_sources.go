@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Called after releasing the engine mutex. The immutable descriptor and captured
 // input belong to this execution; provider loading never extends catalog locks.
-func captureTimezoneSource(ctx context.Context, ref ObjectRef, d *relationDescriptor, input sqltype.InputEnvironment) (*querySource, error) {
+func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, input sqltype.InputEnvironment) (*querySource, error) {
 	var rows [][]sqltype.Value
 	offsetIndex := len(d.columns) - 2
 	appendFact := func(name, abbrev string, east int32, daylight bool) error {

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Exercise actual session publication, replacement, frontier admission and read
@@ -25,13 +27,13 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	before := e.CatalogRead()
-	baseAddress := before.state.names[NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"}]
-	viewAddress := before.state.names[NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"}]
+	baseAddress := before.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"}]
+	viewAddress := before.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"}]
 	original := before.state.descriptors[viewAddress].(*relationDescriptor)
 	oldBase := e.domain.Ref(before.Epoch(), baseAddress)
-	providers := make(map[ObjectAddress]*relationDescriptor)
+	providers := make(map[ids.ObjectAddress]*relationDescriptor)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
-		address := before.state.names[NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: name}]
+		address := before.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: owner.temporaryNamespace, Name: name}]
 		consumer := before.state.descriptors[address].(*relationDescriptor)
 		source := consumer.view.sources[0].ref.Address
 		providers[source] = before.state.descriptors[source].(*relationDescriptor)

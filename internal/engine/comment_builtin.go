@@ -1,10 +1,13 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 // Descriptions from PostgreSQL REL_18_0 pg_namespace.dat and pg_type.dat.
 // Only descriptors already represented by the native catalog are seeded.
-func namespaceCommentBaseline(oid OID) string {
+func namespaceCommentBaseline(oid ids.OID) string {
 	switch oid {
 	case PGCatalogNamespaceOID:
 		return "system catalog schema"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		index[column.Name] = i
 	}
 	e.mu.Lock()
-	source, err := e.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
+	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
 	if err == nil {
 		source.relationKind = compositeRelation
 		if !empty {
@@ -47,7 +48,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		table, err = e.newTableDescriptorLocked(source.namespace, "typed", source.owner, append([]ColumnDescriptor(nil), columns...), index)
 	}
 	if err == nil {
-		table.ofType = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}
+		table.ofType = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)}
 		if !empty {
 			table.attributes = []int32{1, 7}
 			table.attributeHighWater = 7
@@ -93,7 +94,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if len(actions) != 1 || actions[0].action.Column.Text != "note" || actions[0].action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
-	for _, bad := range []ObjectAddress{{ClassID: RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: TypeClassID, ObjectID: 999999}} {
+	for _, bad := range []ids.ObjectAddress{{ClassID: RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: TypeClassID, ObjectID: 999999}} {
 		invalid := *table
 		invalid.ofType = bad
 		if err := validateTypedAttachment(view, &invalid); err == nil {
@@ -101,7 +102,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 		}
 	}
 	invalid := *table
-	invalid.ofType = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(table.rowType)}
+	invalid.ofType = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(table.rowType)}
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("physical own-row source admitted")
 	}
@@ -131,7 +132,7 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 		}
 	}
 	detached := *table
-	detached.ofType = ObjectAddress{}
+	detached.ofType = ids.ObjectAddress{}
 	if err := typedDirectActionsGuard(&detached, []parser.AlterTableAction{{Action: parser.AddColumn}}); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ObjectAddress]Descriptor, len(stage.base.state.descriptors)+1)}
+		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, len(stage.base.state.descriptors)+1)}
 		for address, descriptor := range stage.base.state.descriptors {
 			next.descriptors[address] = descriptor
 		}
@@ -191,15 +192,15 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 		case "attach":
 			next.descriptors[late.address] = &late
 		case "child":
-			late.ofType = ObjectAddress{}
-			late.inheritance = &tableInheritance{parents: []ObjectAddress{table.address}}
+			late.ofType = ids.ObjectAddress{}
+			late.inheritance = &tableInheritance{parents: []ids.ObjectAddress{table.address}}
 			next.descriptors[late.address] = &late
 		case "descriptor":
 			replacement := *table
 			replacement.revision++
 			next.descriptors[table.address] = &replacement
 		case "unrelated":
-			late.ofType = ObjectAddress{}
+			late.ofType = ids.ObjectAddress{}
 			next.descriptors[late.address] = &late
 		}
 		valid := typedObservationValid(stage, CatalogRead{owner: e, state: next})
@@ -213,7 +214,7 @@ func TestTypedEmptyAndBuiltinSourceDumpPredecessor(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		e, source, table := typedUnitCatalog(t, empty)
 		predecessors, err := dumpColumnPredecessors(e.CatalogRead(), table, nil)
-		if err != nil || !reflect.DeepEqual(predecessors, []OID{source.address.ObjectID}) {
+		if err != nil || !reflect.DeepEqual(predecessors, []ids.OID{source.address.ObjectID}) {
 			t.Fatal("typed source absent from mixed topology", empty, predecessors, err)
 		}
 	}

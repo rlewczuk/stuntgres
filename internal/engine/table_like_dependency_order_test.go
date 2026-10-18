@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
@@ -29,7 +31,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{roleTableRef(t, e, "anchor").Address})
+	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{roleTableRef(t, e, "anchor").Address})
 	if err != nil {
 		t.Fatal(err)
 	}

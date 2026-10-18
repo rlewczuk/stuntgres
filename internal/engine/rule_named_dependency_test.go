@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -60,11 +61,11 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				e, _, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
 				view := e.CatalogRead()
 				r, conflict := ruleNamedDependencyAction(t, event, modifier)
-				constraint := ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID}
+				constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID}
 				backing := parent.uniqueConstraints[0].Index
 				want := constraint
 				if inferred {
-					want = ObjectAddress{}
+					want = ids.ObjectAddress{}
 				}
 				if conflict.constraint != want || !inferred && conflict.namedIndex != backing {
 					t.Fatal("named constraint/physical arbiter identity lost", conflict.constraint, conflict.namedIndex)
@@ -78,7 +79,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(view)
 				defer e.DiscardCatalogStage(stage)
-				edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{constraint, backing})
+				edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -87,7 +88,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 					if edge.address == event.address {
 						t.Fatal("constraint dependency retired event relation")
 					}
-					if edge.address == (ObjectAddress{ClassID: 2618, ObjectID: r.OID}) {
+					if edge.address == (ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}) {
 						found = true
 						if edge.target != constraint || edge.root != constraint || edge.relation != event || edge.automatic {
 							t.Fatal("constraint edge lost normal rule-owned authority", edge)
@@ -178,7 +179,7 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 			event := alterConstraintDescriptor(t, e, "src")
 			parent := alterConstraintDescriptor(t, e, "sink")
 			r, conflict := ruleNamedDependencyAction(t, event, false)
-			var id OID
+			var id ids.OID
 			switch kind {
 			case "unique":
 				id = parent.uniqueConstraints[0].OID
@@ -189,7 +190,7 @@ func TestRuleNamedConstraintKinds(t *testing.T) {
 			case "not_null":
 				id = parent.notNullConstraints[0].OID
 			}
-			provider := ObjectAddress{ClassID: 2606, ObjectID: id}
+			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: id}
 			if conflict.constraint != provider || !slices.Contains(r.references, provider) {
 				t.Fatal("recognized named kind lost actual captured constraint", conflict.constraint, r.references)
 			}
@@ -246,7 +247,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.
 			collision := *alterConstraintDescriptor(t, e, "log")
-			collision.address = ObjectAddress{ClassID: RelationClassID, ObjectID: oldConstraint.ObjectID}
+			collision.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oldConstraint.ObjectID}
 			collision.name = "collision"
 			next.descriptors[collision.address] = &collision
 			e.mu.Lock()
@@ -257,7 +258,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			view := CatalogRead{owner: e, state: next}
 			mappedParent := next.descriptors[parent.address].(*relationDescriptor)
-			provider := ObjectAddress{ClassID: 2606, ObjectID: mappedParent.uniqueConstraints[0].OID}
+			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.uniqueConstraints[0].OID}
 			if provider == oldConstraint {
 				t.Fatal("actual import collision did not remint constraint")
 			}
@@ -307,13 +308,13 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(view)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{provider})
+			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
 			if err != nil {
 				t.Fatal(err)
 			}
 			found := false
 			for _, edge := range edges {
-				if edge.address == (ObjectAddress{ClassID: 2618, ObjectID: mappedRule.OID}) {
+				if edge.address == (ids.ObjectAddress{ClassID: 2618, ObjectID: mappedRule.OID}) {
 					found = edge.target == provider && edge.root == provider && !edge.automatic
 				}
 			}

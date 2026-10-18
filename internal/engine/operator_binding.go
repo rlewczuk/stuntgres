@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 type selectedOperatorExpression struct {
 	expressionInfo
 	operator *operatorDescriptor
-	ref      ObjectRef
+	ref      ids.ObjectRef
 	provider BoundExpr
 }
 
@@ -201,9 +202,9 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	targets := []OID{d.right}
+	targets := []ids.OID{d.right}
 	if len(operands) == 2 {
-		targets = []OID{d.left, d.right}
+		targets = []ids.OID{d.left, d.right}
 	}
 	args := make([]BoundExpr, len(operands))
 	for i, o := range operands {
@@ -240,7 +241,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		}
 		return b.bindBuiltinOperator(raw, policy)
 	}
-	routine, _ := set.catalog.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
+	routine, _ := set.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
 	if routine == nil {
 		return nil, fmt.Errorf("stuntgres: missing operator implementation")
 	}

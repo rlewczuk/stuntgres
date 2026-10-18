@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -71,7 +72,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	pending := e.locks.entries[lockResource{ObjectRef: b}].pending[0]
 	first := e.locks.entries[lockResource{ObjectRef: a}]
 	ordered := pending.mode == accessExclusive && first != nil && first.holders[pending.ticket].mode == accessExclusive
-	for _, ref := range []ObjectRef{ai, ai2, bi} {
+	for _, ref := range []ids.ObjectRef{ai, ai2, bi} {
 		ordered = ordered && e.locks.entries[lockResource{ObjectRef: ref}] == nil
 	}
 	e.locks.mu.Unlock()
@@ -203,7 +204,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	}
 	e.mu.Lock()
 	oid, err := e.allocateOIDLocked()
-	var revision DefinitionRevision
+	var revision ids.DefinitionRevision
 	if err == nil {
 		revision, err = e.revisionLocked()
 	}
@@ -321,7 +322,7 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
+	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

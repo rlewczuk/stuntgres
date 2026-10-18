@@ -6,14 +6,15 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ObjectAddress) *domainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ids.ObjectAddress) *domainValidationFence {
 	t.Helper()
-	f, err := domainUsesAt(view, target, []ObjectAddress{})
+	f, err := domainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func TestDomainAlterConstraintDiscovery(t *testing.T) {
 	if f.current(e.CatalogRead(), e.storage) {
 		t.Fatal("late stored container escaped observation")
 	}
-	_, err := domainUsesAt(e.CatalogRead(), d.Address(), []ObjectAddress{})
+	_, err := domainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
 	domainUnitDiagnostic(t, err, "0A000", `cannot alter type "public.d" because column "blocker.v" uses it`)
 }
 
@@ -243,7 +244,7 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	copy := *d
 	copy.domainChecks = []domainCheckConstraint{check}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: d.Address().ObjectID}: nil, {oid: provider.Address().ObjectID}: {{oid: d.Address().ObjectID}}, {oid: 50002, phase: dumpRows}: {{oid: 50002}}, {oid: 50002}: nil, {oid: 50002, phase: dumpTableCompletion}: {{oid: 50002, phase: dumpRows}}}
-	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[OID]*typeDescriptor{d.Address().ObjectID: &copy}); err != nil {
+	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[ids.OID]*typeDescriptor{d.Address().ObjectID: &copy}); err != nil {
 		t.Fatal(err)
 	}
 	late := dumpEventKey{oid: d.Address().ObjectID, phase: dumpDomainChecks}

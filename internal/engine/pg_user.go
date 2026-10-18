@@ -6,13 +6,14 @@ import (
 	"math"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture from the statement's immutable role root, never from live engine roles.
 // Password verifiers are deliberately not consulted: the public value is constant.
-func capturePGUser(ctx context.Context, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

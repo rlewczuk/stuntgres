@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -89,7 +90,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 		in.targetSlots[i] = slot
 	}
 	d := *old
-	d.parent, d.partitionParent, d.constraint = child.address, ObjectAddress{}, nil
+	d.parent, d.partitionParent, d.constraint = child.address, ids.ObjectAddress{}, nil
 	d.keys, d.include = slices.Clone(old.keys), slices.Clone(old.include)
 	for i := range d.include {
 		a, err := in.attribute(child, d.include[i])
@@ -256,7 +257,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	var candidates []*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.sqlIndex != nil && index.sqlIndex.parent == child.address && index.sqlIndex.partitionParent == (ObjectAddress{}) {
+		if ok && index.sqlIndex != nil && index.sqlIndex.parent == child.address && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			candidates = append(candidates, index)
 		}
 	}
@@ -344,7 +345,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	if err != nil {
 		return nil, err
 	}
-	index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: child.namespace, name: name, revision: revision, owner: child.owner, relationKind: indexRelation, sqlIndex: mapped, columns: slices.Clone(parentIndex.columns), attributes: slices.Clone(parentIndex.attributes), attributeHighWater: parentIndex.attributeHighWater, index: make(map[string]int, len(parentIndex.columns))}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: child.namespace, name: name, revision: revision, owner: child.owner, relationKind: indexRelation, sqlIndex: mapped, columns: slices.Clone(parentIndex.columns), attributes: slices.Clone(parentIndex.attributes), attributeHighWater: parentIndex.attributeHighWater, index: make(map[string]int, len(parentIndex.columns))}
 	for i := range index.columns {
 		index.columns[i].OriginTable = uint32(oid)
 		index.columns[i].OriginAttribute = int16(i + 1)
@@ -472,7 +473,7 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 		indexes = append(indexes, index)
 	}
 	slices.SortFunc(indexes[inline:], func(a, b *relationDescriptor) int {
-		priority := func(index *relationDescriptor) OID {
+		priority := func(index *relationDescriptor) ids.OID {
 			if source := view.state.dumpPriorities[index.address]; source != 0 {
 				return source
 			}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -179,7 +180,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	maximum := *old.(*relationDescriptor)
-	maximum.revision = DefinitionRevision(^uint64(0))
+	maximum.revision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Replace(&maximum); err != nil {
 		t.Fatal(err)

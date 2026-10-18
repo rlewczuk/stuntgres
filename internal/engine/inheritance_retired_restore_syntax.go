@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -152,7 +153,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 		if err != nil || oid == 0 || strconv.FormatUint(oid, 10) != oidText {
 			return reject()
 		}
-		result.rows = append(result.rows, retiredRepairRow{parent: parent, text: text, column: oldColumn, attribute: int32(attribute), check: kind == "c", name: name, lifetime: lifetime, archive: archive, constraint: OID(oid)})
+		result.rows = append(result.rows, retiredRepairRow{parent: parent, text: text, column: oldColumn, attribute: int32(attribute), check: kind == "c", name: name, lifetime: lifetime, archive: archive, constraint: ids.OID(oid)})
 		if !slices.Contains(result.parents, text) {
 			result.parents = append(result.parents, text)
 		}

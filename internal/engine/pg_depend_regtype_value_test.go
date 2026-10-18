@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,17 +22,17 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	provider := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(domain.ID())}
+	provider := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(domain.ID())}
 	catalog.state.descriptors[provider] = &typeDescriptor{typ: domain}
 	row, err := sqltype.Composite(48102, "row_provider", "public.row_provider", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "id", Usage: integer.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.ID())}
-	relationAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(row.ID())}
+	rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.ID())}
+	relationAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(row.ID())}
 	catalog.state.descriptors[rowAddress] = &typeDescriptor{typ: row, owningRelation: relationAddress}
 	catalog.state.descriptors[relationAddress] = &relationDescriptor{address: relationAddress, rowType: row.ID()}
-	value := func(id OID) sqltype.Value {
+	value := func(id ids.OID) sqltype.Value {
 		t.Helper()
 		v, err := sqltype.RegtypeValue(regtype, uint32(id))
 		if err != nil {
@@ -39,16 +40,16 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		}
 		return v
 	}
-	pinned := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(integer.ID())}
+	pinned := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(integer.ID())}
 	cases := []struct {
 		name    string
 		value   sqltype.Value
-		want    []ObjectAddress
-		capture []ObjectAddress
+		want    []ids.ObjectAddress
+		capture []ids.ObjectAddress
 	}{
-		{"domain", value(provider.ObjectID), []ObjectAddress{provider}, []ObjectAddress{provider}},
-		{"row_type", value(rowAddress.ObjectID), []ObjectAddress{rowAddress}, []ObjectAddress{rowAddress}},
-		{"pinned", value(pinned.ObjectID), nil, []ObjectAddress{pinned}},
+		{"domain", value(provider.ObjectID), []ids.ObjectAddress{provider}, []ids.ObjectAddress{provider}},
+		{"row_type", value(rowAddress.ObjectID), []ids.ObjectAddress{rowAddress}, []ids.ObjectAddress{rowAddress}},
+		{"pinned", value(pinned.ObjectID), nil, []ids.ObjectAddress{pinned}},
 		{"null", sqltype.Null(regtype), nil, nil},
 		{"zero", value(0), nil, nil},
 		{"missing", value(49999), nil, nil},
@@ -61,11 +62,11 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 				t.Fatal(err)
 			}
 			pgDependUnitRefs(t, refs, tc.want)
-			var captured []ObjectRef
+			var captured []ids.ObjectRef
 			if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, tc.value); err != nil {
 				t.Fatal(err)
 			}
-			var addresses []ObjectAddress
+			var addresses []ids.ObjectAddress
 			for _, ref := range captured {
 				if ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
 					t.Fatal("lost identity provenance", ref)
@@ -111,10 +112,10 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	payloadAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(payloadType.ID())}
+	payloadAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(payloadType.ID())}
 	catalog.state.descriptors[payloadAddress] = &typeDescriptor{typ: payloadType}
 	literal := literalExpression{expressionInfo: expressionInfo{usage: payloadType.Usage()}, value: payload}
-	want := []ObjectAddress{payloadAddress, provider, rowAddress}
+	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
 	refs, err := pgDependExpressionRefs(context.Background(), catalog, literal)
 	if err != nil {
 		t.Fatal(err)
@@ -125,30 +126,30 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
-	var captured []ObjectRef
+	var captured []ids.ObjectRef
 	if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, payload); err != nil {
 		t.Fatal(err)
 	}
-	var addresses []ObjectAddress
+	var addresses []ids.ObjectAddress
 	for _, ref := range captured {
 		if ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
 			t.Fatal("lost recursive identity provenance", ref)
 		}
 		addresses = append(addresses, ref.Address)
 	}
-	pgDependUnitRefs(t, addresses, []ObjectAddress{provider, rowAddress})
+	pgDependUnitRefs(t, addresses, []ids.ObjectAddress{provider, rowAddress})
 
 	// A callback error must stop traversal rather than being overwritten by
 	// later identities. No transformed payload is allocated by the walk.
 	stop := errors.New("stop recording")
 	calls := 0
-	if err := walkCatalogAliasReferences(catalog, payload, func(ObjectAddress) error {
+	if err := walkCatalogAliasReferences(catalog, payload, func(ids.ObjectAddress) error {
 		calls++
 		return stop
 	}); !errors.Is(err, stop) || calls != 1 {
 		t.Fatal("callback failure lost", err, calls)
 	}
-	remapped, err := remapBoundExpression(literal, func(ref ObjectRef) ObjectRef {
+	remapped, err := remapBoundExpression(literal, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == provider {
 			ref.Address = rowAddress
 		}
@@ -161,9 +162,9 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgDependUnitRefs(t, refs, []ObjectAddress{payloadAddress, rowAddress})
+	pgDependUnitRefs(t, refs, []ids.ObjectAddress{payloadAddress, rowAddress})
 	originalID, err := payload.CompositeField(0).ArrayElement(0).TypeOID()
-	if err != nil || OID(originalID) != provider.ObjectID {
+	if err != nil || ids.OID(originalID) != provider.ObjectID {
 		t.Fatal("remapping mutated captured value", originalID, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())

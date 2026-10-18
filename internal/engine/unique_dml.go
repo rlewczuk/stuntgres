@@ -3,13 +3,14 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Admission owns private overlays for this statement; committed immutable roots
 // are recaptured only after each key grant, including after peer outcome waits.
-func (s *StatementScope) uniqueParent(ref ObjectRef) (*relationDescriptor, CatalogRead, error) {
+func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, CatalogRead, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -33,7 +34,7 @@ type uniqueBoundKey struct {
 	key, scratch []sqltype.Value
 }
 type uniqueWriteBinding struct {
-	ref       ObjectRef
+	ref       ids.ObjectRef
 	parent    *relationDescriptor
 	catalog   *catalogState
 	keys      []uniqueBoundKey
@@ -43,7 +44,7 @@ type uniqueWriteBinding struct {
 	checked   bool
 }
 
-func (s *StatementScope) bindUniqueWrite(ref ObjectRef) (*uniqueWriteBinding, error) {
+func (s *StatementScope) bindUniqueWrite(ref ids.ObjectRef) (*uniqueWriteBinding, error) {
 retry:
 	parent, view, err := s.uniqueParent(ref)
 	if err != nil {
@@ -206,7 +207,7 @@ retry:
 	s.uniqueBinding = b
 	if b.checked {
 		if s.indexBindings == nil {
-			s.indexBindings = make(map[ObjectAddress]*uniqueWriteBinding)
+			s.indexBindings = make(map[ids.ObjectAddress]*uniqueWriteBinding)
 		}
 		s.indexBindings[ref.Address] = b
 	}
@@ -237,7 +238,7 @@ func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.
 	return cmp == 0, err
 }
 
-func (s *StatementScope) claimUniqueRow(ref ObjectRef, row rowVersion) error {
+func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error {
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
@@ -315,7 +316,7 @@ type uniqueConflict struct {
 	position      int
 }
 
-func (c *uniqueConflict) diagnostic(s *StatementScope, ref ObjectRef) error {
+func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
 	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.sqlIndex.keys)
 	if err != nil {
 		return err
@@ -325,7 +326,7 @@ func (c *uniqueConflict) diagnostic(s *StatementScope, ref ObjectRef) error {
 	}
 	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
 }
-func (s *StatementScope) checkUniqueRow(ref ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch) error {
+func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch) error {
 	conflict, err := s.probeUniqueRow(ref, candidate, excluded, prefix, nil, indexProbeRuntime)
 	if err != nil {
 		return err
@@ -335,7 +336,7 @@ func (s *StatementScope) checkUniqueRow(ref ObjectRef, candidate *indexWriteCand
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
 	row := candidate.values
 retry:
 	binding, err := s.bindUniqueWrite(ref)
@@ -591,7 +592,7 @@ func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVe
 	return head, nil
 }
 
-func (s *StatementScope) uniqueKeyChanged(ref ObjectRef, old, next []sqltype.Value) (bool, error) {
+func (s *StatementScope) uniqueKeyChanged(ref ids.ObjectRef, old, next []sqltype.Value) (bool, error) {
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return false, err

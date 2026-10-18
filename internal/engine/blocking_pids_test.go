@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -18,7 +19,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *relationTicket) {
 }
 
 func blockingUnitResource(e *Engine) lockResource {
-	return lockResource{ObjectRef: e.domain.Ref(e.state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: 999999})}
+	return lockResource{ObjectRef: e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 999999})}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {

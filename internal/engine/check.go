@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 // A CHECK is a typed immutable current-row expression. Its dependencies retain
 // stable attribute and provider identities, never a name-keyed SQL cache.
 type checkConstraint struct {
-	OID       OID
+	OID       ids.OID
 	Name      string
 	NoInherit bool
 	NotValid  bool
@@ -161,7 +162,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		current[name], used[name] = true, true
 		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, ordinal: ordinal, expression: node}
-		var dependencies []ObjectRef
+		var dependencies []ids.ObjectRef
 		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
@@ -189,7 +190,7 @@ func orderedChecks(d *relationDescriptor) []checkConstraint {
 	return checks
 }
 
-func checkDepends(d *relationDescriptor, target ObjectAddress) bool {
+func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, c := range d.checkConstraints {
 		for _, dep := range c.dependencies {
 			a := dep.ref.Address
@@ -213,10 +214,10 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && provider.Kind() != TSDictionaryObject) || provider.Kind() == NamespaceObject && dep.ref.Address.SubID != 0 {
+			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
-			if provider.Kind() == CollationObject {
+			if provider.Kind() == ids.CollationObject {
 				if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
 					return err
 				}
@@ -236,9 +237,9 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	if err := s.acquireForeignKeyDefinitionProviders(stage); err != nil {
 		return err
 	}
-	var refs []ObjectRef
-	var retained map[ObjectAddress]Descriptor
-	add := func(ref ObjectRef, d *relationDescriptor) error {
+	var refs []ids.ObjectRef
+	var retained map[ids.ObjectAddress]Descriptor
+	add := func(ref ids.ObjectRef, d *relationDescriptor) error {
 		address := ref.Address
 		address.SubID = 0
 		if address.ClassID != RelationClassID || d != nil && address == d.address {
@@ -269,7 +270,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		ref.Address = address
 		if ref.Epoch != stage.base.Epoch() {
 			if retained == nil {
-				retained = make(map[ObjectAddress]Descriptor)
+				retained = make(map[ids.ObjectAddress]Descriptor)
 			}
 			retained[ref.Address] = stage.base.state.descriptors[ref.Address]
 		}
@@ -343,7 +344,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			}
 		}
 	}
-	slices.SortFunc(refs, func(a, b ObjectRef) int {
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int {
 		if a.Address.ObjectID < b.Address.ObjectID {
 			return -1
 		}
@@ -402,7 +403,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 			return fmt.Errorf("stuntgres: invalid check constraint identity")
 		}
 		names[c.Name], previous = true, c.Name
-		var actual []ObjectRef
+		var actual []ids.ObjectRef
 		var commentSnapshot, visibilitySnapshot bool
 		if _, err := (scalarRenderer{validation: true, owner: d, capturedChecks: c.dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
 			return err
@@ -437,10 +438,10 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject && target.Kind() != CollationObject && target.Kind() != ProcedureObject && target.Kind() != OperatorObject && target.Kind() != NamespaceObject && target.Kind() != TSDictionaryObject) || target.Kind() == NamespaceObject && dep.ref.Address.SubID != 0 {
+				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
-				if target.Kind() == CollationObject {
+				if target.Kind() == ids.CollationObject {
 					if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
 						return err
 					}
@@ -536,16 +537,16 @@ func checkDetailError(schema, table, name, detail string) error {
 type checkDependencyEdge struct {
 	relation *relationDescriptor
 	check    checkConstraint
-	target   ObjectAddress
+	target   ids.ObjectAddress
 }
 
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
+func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).checkDependents(targets, mode)
 }
 
-func (provider *dropProvider) checkDependents(targets []ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
+func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*relationDescriptor
 	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*relationDescriptor)
@@ -583,7 +584,7 @@ func (provider *dropProvider) checkDependents(targets []ObjectAddress, mode pars
 		var kept []checkConstraint
 		changed := false
 		for _, c := range d.checkConstraints {
-			var dependency ObjectAddress
+			var dependency ids.ObjectAddress
 			for _, dep := range c.dependencies {
 				a := dep.ref.Address
 				if a.ClassID == d.address.ClassID && a.ObjectID == d.address.ObjectID {
@@ -596,7 +597,7 @@ func (provider *dropProvider) checkDependents(targets []ObjectAddress, mode pars
 					}
 				}
 			}
-			if dependency == (ObjectAddress{}) {
+			if dependency == (ids.ObjectAddress{}) {
 				kept = append(kept, c)
 				continue
 			}

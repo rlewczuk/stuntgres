@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type physicalNotNullConstructor struct {
 	before    *relationDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 	repairs   []physicalNotNullRepair
 	indexName string
 	deferred  *parser.UniqueConstraint
@@ -18,13 +19,13 @@ type physicalNotNullConstructor struct {
 }
 type restoredPhysicalNotNullFact struct {
 	attribute int32
-	oid       OID
+	oid       ids.OID
 	usage     sqltype.Usage
 }
 type restoredPhysicalNotNull struct {
 	op             *Operation
 	authority      AuthorizationView
-	ref            ObjectRef
+	ref            ids.ObjectRef
 	current        *relationDescriptor
 	repairs        []physicalNotNullRepair
 	facts          []restoredPhysicalNotNullFact
@@ -57,7 +58,7 @@ func physicalNotNullFollowing(statements []parser.Statement, position int) []phy
 	return repairs
 }
 
-func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.AlterTable, repairs []physicalNotNullRepair, created map[ObjectAddress]ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.AlterTable, repairs []physicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
@@ -130,7 +131,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ObjectAddress]*relationDescriptor) (*restoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*relationDescriptor) (*restoredPhysicalNotNull, error) {
 	auth, err := op.Authorization()
 	if err != nil {
 		return nil, err
@@ -275,7 +276,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		e.mu.Unlock()
 		return reject()
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}

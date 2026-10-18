@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func materializedRefreshAccess(auth AuthorizationView, ref ObjectRef) error {
+func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ErrCatalogReplaced
@@ -29,7 +30,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
-	var ref ObjectRef
+	var ref ids.ObjectRef
 	var observed *relationDescriptor
 	if err == nil {
 		ref, err = e.resolveRelationReference(auth, stmt.Name, true)
@@ -216,7 +217,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 
 // Population's effective principal and expression identity are restored before
 // any stage validation/publication. No session settings or session_user change.
-func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ObjectRef, d *relationDescriptor) ([][]sqltype.Value, error) {
+func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *relationDescriptor) ([][]sqltype.Value, error) {
 	op := scope.op
 	population, owner := op.materializedPopulation, op.materializedOwner
 	identity, schema := scope.identity, scope.currentSchemaResult
@@ -286,7 +287,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if s.base.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	if d.revision == DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {
+	if d.revision == ids.DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: materialized replacement generation exhausted")
 	}
 	for _, row := range rows {
@@ -316,7 +317,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 		}
 	}
 	if s.indexSets == nil {
-		s.indexSets = make(map[ObjectAddress]int)
+		s.indexSets = make(map[ids.ObjectAddress]int)
 	}
 	s.indexSets[d.address] = s.materializedReplacement.indexCount
 	s.initialTx = tx

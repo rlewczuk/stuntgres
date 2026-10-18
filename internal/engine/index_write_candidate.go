@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,8 +12,8 @@ import (
 // admission may reserve its genuine identity after producing the index keys.
 type indexWriteCandidate struct {
 	values                        []sqltype.Value
-	indexes                       map[ObjectAddress]indexRowOutput
-	precheck                      map[ObjectAddress]indexRowOutput
+	indexes                       map[ids.ObjectAddress]indexRowOutput
+	precheck                      map[ids.ObjectAddress]indexRowOutput
 	exclusion                     *rowVersion
 	sharedIndexes, sharedPrecheck bool
 }
@@ -27,7 +28,7 @@ type indexWriteBatch struct {
 }
 
 type indexWriteState struct {
-	indexes, precheck map[ObjectAddress]indexRowOutput
+	indexes, precheck map[ids.ObjectAddress]indexRowOutput
 	exclusion         *rowVersion
 }
 
@@ -138,7 +139,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		}
 	}
 	if *outputs == nil {
-		*outputs = make(map[ObjectAddress]indexRowOutput)
+		*outputs = make(map[ids.ObjectAddress]indexRowOutput)
 	} else if *shared {
 		*outputs = maps.Clone(*outputs)
 	}
@@ -164,7 +165,7 @@ func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *E
 
 // The insertion producer has already materialized every checked index in order.
 // Staging validates exact produced-data authority and never invokes index SQL.
-func (s *StatementScope) validateIndexCandidates(ref ObjectRef, batch *indexWriteBatch) error {
+func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *indexWriteBatch) error {
 	if len(batch.values) == 0 {
 		return nil
 	}

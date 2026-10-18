@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // A collection is one PostgreSQL dependency-recording pass. Whole-relation
@@ -10,11 +12,11 @@ import (
 type pgDependRefs struct {
 	ctx       context.Context
 	catalog   CatalogRead
-	addresses map[ObjectAddress]struct{}
+	addresses map[ids.ObjectAddress]struct{}
 	err       error
 }
 
-func (r *pgDependRefs) add(address ObjectAddress) {
+func (r *pgDependRefs) add(address ids.ObjectAddress) {
 	if r.err != nil {
 		return
 	}
@@ -39,7 +41,7 @@ func (r *pgDependRefs) add(address ObjectAddress) {
 		}
 	}
 	if r.addresses == nil {
-		r.addresses = make(map[ObjectAddress]struct{})
+		r.addresses = make(map[ids.ObjectAddress]struct{})
 	}
 	r.addresses[address] = struct{}{}
 }
@@ -72,37 +74,37 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		r.add(n.ref.Address)
 	case literalExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 		r.add(n.regclassRef.Address)
 		if r.err == nil {
-			r.err = walkCatalogAliasDependencies(r.catalog, n.value, func(address ObjectAddress) error {
+			r.err = walkCatalogAliasDependencies(r.catalog, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkOperatorReferences(r.catalog, n.value, func(address ObjectAddress) error {
+			r.err = walkOperatorReferences(r.catalog, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkRegTSReferences(r.catalog, n.value, func(address ObjectAddress) error {
+			r.err = walkRegTSReferences(r.catalog, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 	case rowExpression:
 		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
-			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case coercionExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
-			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+			r.add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
 	case collationExpression:
-		r.add(ObjectAddress{ClassID: CollationClassID, ObjectID: OID(n.ResultUsage().Collation.ID)})
+		r.add(ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
 	case columnExpression:
 		r.add(n.origin.Address)
 	case tableOIDExpression:
@@ -156,7 +158,7 @@ func (r *pgDependRefs) query(node LogicalNode) {
 	r.query(right)
 }
 
-func (r *pgDependRefs) finish() ([]ObjectAddress, error) {
+func (r *pgDependRefs) finish() ([]ids.ObjectAddress, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -173,7 +175,7 @@ func (r *pgDependRefs) finish() ([]ObjectAddress, error) {
 			delete(r.addresses, address)
 		}
 	}
-	out := make([]ObjectAddress, 0, len(r.addresses))
+	out := make([]ids.ObjectAddress, 0, len(r.addresses))
 	for address := range r.addresses {
 		if err := r.ctx.Err(); err != nil {
 			return nil, err
@@ -183,13 +185,13 @@ func (r *pgDependRefs) finish() ([]ObjectAddress, error) {
 	return out, nil
 }
 
-func pgDependExpressionRefs(ctx context.Context, catalog CatalogRead, expression BoundExpr) ([]ObjectAddress, error) {
+func pgDependExpressionRefs(ctx context.Context, catalog CatalogRead, expression BoundExpr) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog}
 	r.expression(expression)
 	return r.finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog CatalogRead, query *BoundQuery) ([]ObjectAddress, error) {
+func pgDependQueryRefs(ctx context.Context, catalog CatalogRead, query *BoundQuery) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog}
 	if query != nil {
 		r.query(query.Root)

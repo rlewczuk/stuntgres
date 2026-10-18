@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -62,7 +63,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 	if err != nil || text != "x" {
 		t.Fatal(text, err)
 	}
-	mapped, err := remapBoundExpression(original, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !sameGroupExpression(original, mapped) {
 		t.Fatal(mapped, err)
 	}

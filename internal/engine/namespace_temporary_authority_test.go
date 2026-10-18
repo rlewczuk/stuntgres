@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 				defaultUnitDiagnostic(t, err, "42501", "permission denied for schema "+name)
 			}
 		}
-		if temporaryNamespace(auth) != (ObjectAddress{}) || ownTemporaryNamespace(auth, auth.catalog.state.descriptors[namespace].(*namespaceDescriptor)) {
+		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || ownTemporaryNamespace(auth, auth.catalog.state.descriptors[namespace].(*namespaceDescriptor)) {
 			t.Fatal("qualified usage granted physical namespace adoption")
 		}
 	}

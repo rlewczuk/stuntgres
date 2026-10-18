@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func physicalPrimaryDeferred(table *relationDescriptor, primary *uniqueConstraint) bool {
@@ -96,7 +98,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 // Track only actual moved providers in the existing event graph. Consumers do
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
 func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) error {
-	var deferred map[ObjectAddress]*relationDescriptor
+	var deferred map[ids.ObjectAddress]*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || len(table.physicalNotNull) == 0 {
@@ -115,7 +117,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				return fmt.Errorf("stuntgres: missing physical primary event")
 			}
 			if deferred == nil {
-				deferred = make(map[ObjectAddress]*relationDescriptor)
+				deferred = make(map[ids.ObjectAddress]*relationDescriptor)
 			}
 			deferred[table.address] = index
 		}
@@ -138,7 +140,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				return err
 			}
 			if moved {
-				oid, err := dumpPredecessor(view, producer.address, ObjectAddress{})
+				oid, err := dumpPredecessor(view, producer.address, ids.ObjectAddress{})
 				if err != nil {
 					return err
 				}

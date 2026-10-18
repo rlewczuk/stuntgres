@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Existing builtin view allocation, grounded by the pinned PostgreSQL inventory.
 // Its row/array are 12075/12074; these are separate catalog object classes.
-const pgLocksOID OID = 12073
+const pgLocksOID ids.OID = 12073
 
 var pgLockModes = [...]struct {
 	mode relationLockMode
@@ -57,7 +58,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the
 // manager is entered. Captured sources own values; prepared handles own recipes.
-func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ObjectRef, d *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor) (*querySource, error) {
 	database, ok := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	if !ok {
 		e.mu.Unlock()

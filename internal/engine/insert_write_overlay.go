@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 // Slots refer to this command's append-only stage or its captured immutable
 // prior-own prefix. Provider hashes only select buckets; matches supplies the
@@ -14,7 +17,7 @@ type insertWriteKeyOverlay struct {
 
 type insertWriteOverlay struct {
 	affectedRows map[RowID]int
-	ownRowSlots  map[ObjectAddress]map[RowID]int
+	ownRowSlots  map[ids.ObjectAddress]map[RowID]int
 	overlays     map[*uniqueBoundKey]*insertWriteKeyOverlay
 }
 
@@ -28,13 +31,13 @@ func (s *StatementScope) writeOverlay() *insertWriteOverlay {
 	return nil
 }
 
-func (s *StatementScope) insertOwnRow(ref ObjectRef, id RowID) (rowVersion, bool) {
+func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id RowID) (rowVersion, bool) {
 	if len(s.ownWrites[ref.Address]) == 0 {
 		return rowVersion{}, false
 	}
 	c := s.writeOverlay()
 	if c.ownRowSlots == nil {
-		c.ownRowSlots = make(map[ObjectAddress]map[RowID]int)
+		c.ownRowSlots = make(map[ids.ObjectAddress]map[RowID]int)
 	}
 	slots := c.ownRowSlots[ref.Address]
 	if slots == nil {
@@ -67,7 +70,7 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	return nil
 }
 
-func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []rowVersion, purpose indexProbePurpose) (rowVersion, bool, error) {
+func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []rowVersion, purpose indexProbePurpose) (rowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.overlays == nil {
 		c.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)

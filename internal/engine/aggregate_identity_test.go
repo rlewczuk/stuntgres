@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -41,7 +42,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if procedureInNamespaces(view, namespaceSelection{qualified: proc.namespace}, helper.name, helper.signature) != nil {
 			t.Fatal("metadata helper became callable")
 		}
-		reserved := make(map[OID]bool)
+		reserved := make(map[ids.OID]bool)
 		reserveDefinitionOIDs(reserved, proc)
 		if !reserved[helper.id] || !definitionOIDUsed(proc, helper.id) {
 			t.Fatal("allocator lost owned helper", helper.id)
@@ -51,8 +52,8 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var refs []ObjectAddress
-		if err := walkRoutineReferences(view, value, func(a ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ObjectAddress{proc.address}) {
+		var refs []ids.ObjectAddress
+		if err := walkRoutineReferences(view, value, func(a ids.ObjectAddress) error { refs = append(refs, a); return nil }); err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{proc.address}) {
 			t.Fatal("helper dependency is not real aggregate owner", refs, err)
 		}
 	}
@@ -70,7 +71,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
-	source := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
+	source := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
 	ref := e.domain.Ref(view.Epoch(), source.address)
 	rows, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil || len(rows.anonymous) != 145 {
@@ -139,7 +140,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	collision := cloneCatalog(view.state)
 	helper := proc.aggregate.helpers[0]
 	namespace := *view.state.descriptors[proc.namespace].(*namespaceDescriptor)
-	namespace.address = ObjectAddress{ClassID: NamespaceClassID, ObjectID: helper.id}
+	namespace.address = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: helper.id}
 	collision.descriptors[namespace.address] = &namespace
 	if err := stockIntagg.validate(CatalogRead{owner: e, state: collision}, ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
@@ -154,12 +155,12 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	view := e.CatalogRead()
 	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
 	original := *proc.aggregate
-	mapping := map[ObjectAddress]ObjectAddress{
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		proc.address:   {ClassID: ProcedureClassID, ObjectID: 900000},
 		proc.namespace: {ClassID: NamespaceClassID, ObjectID: 900001},
 	}
 	for i, helper := range proc.aggregate.helpers {
-		mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900002 + i)}
+		mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900002 + i)}
 	}
 	remapped := remapExtensionDescriptor(proc, mapping).(*procedureDescriptor)
 	if remapped == proc || remapped.aggregate == proc.aggregate || remapped.address.ObjectID != 900000 || remapped.namespace.ObjectID != 900001 || *proc.aggregate != original {
@@ -169,7 +170,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 		t.Fatal("definition retained old helper IDs")
 	}
 	for i, h := range remapped.aggregate.helpers {
-		if h.id != OID(900002+i) || h.namespace != 900001 {
+		if h.id != ids.OID(900002+i) || h.namespace != 900001 {
 			t.Fatal("alias retained old namespace/identity")
 		}
 	}
@@ -177,19 +178,19 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 		t.Fatal("unchanged remap copied immutable metadata")
 	}
 	typ, _ := view.LookupType(sqltype.Regproc)
-	for _, id := range []OID{original.helpers[0].id, original.helpers[1].id, 4294967295} {
+	for _, id := range []ids.OID{original.helpers[0].id, original.helpers[1].id, 4294967295} {
 		value, err := sqltype.RegprocValue(typ, uint32(id))
 		if err != nil {
 			t.Fatal(err)
 		}
-		mapped, err := remapRoutineDatum(value, func(id OID) OID {
-			if next, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+		mapped, err := remapRoutineDatum(value, func(id ids.OID) ids.OID {
+			if next, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
 				return next.ObjectID
 			}
 			return id
 		})
 		want := id
-		if next, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+		if next, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
 			want = next.ObjectID
 		}
 		actual, _ := mapped.ProcedureOID()
@@ -211,8 +212,8 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
-	ext := &extensionDescriptor{address: ObjectAddress{ClassID: ExtensionClassID, ObjectID: 200000}, name: "intagg", version: "1.1", targetNamespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.authorizationDomain.Principal(10)}
-	e.nextOID = ^OID(0) - 1 // aggregate and state can allocate; final helper cannot.
+	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ExtensionClassID, ObjectID: 200000}, name: "intagg", version: "1.1", targetNamespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.authorizationDomain.Principal(10)}
+	e.nextOID = ^ids.OID(0) - 1 // aggregate and state can allocate; final helper cannot.
 	if err := stockIntagg.stage(e, stage, ext, ext.owner, AuthorizationView{}); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
@@ -233,7 +234,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target := New()
 	target.state = cloneCatalog(target.state)
 	namespace := &namespaceDescriptor{
-		address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: original.helpers[0].id},
+		address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: original.helpers[0].id},
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
 		temporary: target.domain.Session(99),
 	}
@@ -242,7 +243,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target.nextOID = 30000
 	next := cloneCatalog(source.state)
 	target.mu.Lock()
-	err := target.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +256,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 		t.Fatal("unrelated helper/source changed")
 	}
 	for _, helper := range imported.aggregate.helpers {
-		if next.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] != nil {
+		if next.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] != nil {
 			t.Fatal("mapping-only helper became a descriptor")
 		}
 	}

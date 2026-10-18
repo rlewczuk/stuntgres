@@ -1,9 +1,11 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Commutator and negator are reciprocal links, deliberately not dependencies.
-func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ObjectAddress {
-	refs := make([]ObjectAddress, 0, 7)
-	add := func(a ObjectAddress) {
+func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.ObjectAddress {
+	refs := make([]ids.ObjectAddress, 0, 7)
+	add := func(a ids.ObjectAddress) {
 		if a.ObjectID == 0 {
 			return
 		}
@@ -15,11 +17,11 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []Obje
 		refs = append(refs, a)
 	}
 	add(d.namespace)
-	for _, id := range [...]OID{d.left, d.right, d.result} {
-		add(ObjectAddress{ClassID: TypeClassID, ObjectID: id})
+	for _, id := range [...]ids.OID{d.left, d.right, d.result} {
+		add(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id})
 	}
-	for _, id := range [...]OID{d.function, d.restriction, d.join} {
-		a := ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+	for _, id := range [...]ids.OID{d.function, d.restriction, d.join} {
+		a := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
 		if _, ok := view.state.descriptors[a]; ok {
 			add(a)
 		}

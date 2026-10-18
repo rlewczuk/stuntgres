@@ -9,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -45,9 +46,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	original := owner.partition.keys[0].derived
 	refs := slices.Clone(original.dependencies)
-	for _, id := range []OID{1811, 1374, 141} {
-		if !slices.ContainsFunc(refs, func(ref ObjectRef) bool {
-			return ref.Address == (ObjectAddress{ClassID: ProcedureClassID, ObjectID: id})
+	for _, id := range []ids.OID{1811, 1374, 141} {
+		if !slices.ContainsFunc(refs, func(ref ids.ObjectRef) bool {
+			return ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id})
 		}) {
 			t.Fatal("original outer/body reference missing", id)
 		}
@@ -92,7 +93,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if _, err := evaluatePartitionRecipe(&evaluation, owner, 0, row); err != nil || len(evaluation.statementScope.routinePrograms) != 1 {
 		t.Fatal("repeated tuple reinitialized consumed program", err)
 	}
-	probe := func(name string, dependencies []ObjectRef) {
+	probe := func(name string, dependencies []ids.ObjectRef) {
 		t.Helper()
 		t.Run(name, func(t *testing.T) {
 			copyOwner, partition, key := *owner, *owner.partition, *original
@@ -113,9 +114,11 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		})
 	}
 	probe("missing", nil)
-	probe("empty", []ObjectRef{})
-	for _, id := range []OID{1811, 1374, 141} {
-		missing := slices.DeleteFunc(slices.Clone(refs), func(ref ObjectRef) bool { return ref.Address.ObjectID == id && ref.Address.ClassID == ProcedureClassID })
+	probe("empty", []ids.ObjectRef{})
+	for _, id := range []ids.OID{1811, 1374, 141} {
+		missing := slices.DeleteFunc(slices.Clone(refs), func(ref ids.ObjectRef) bool {
+			return ref.Address.ObjectID == id && ref.Address.ClassID == ProcedureClassID
+		})
 		probe(fmt.Sprintf("omitted_%d", id), missing)
 	}
 	stale := slices.Clone(refs)
@@ -157,7 +160,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	staleAuth := auth
 	state := *auth.catalog.state
 	state.descriptors = maps.Clone(state.descriptors)
-	address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1811}
+	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1811}
 	declaration := *state.descriptors[address].(*procedureDescriptor)
 	declaration.revision++
 	state.descriptors[address] = &declaration
@@ -172,7 +175,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	siblingPartition.keys = slices.Clone(siblingPartition.keys)
 	sibling.partition = &siblingPartition
 	siblingPartition.keys[0].derived = &siblingKey
-	siblingKey.dependencies = []ObjectRef{}
+	siblingKey.dependencies = []ids.ObjectRef{}
 	if _, err := evaluatePartitionRecipe(&evaluation, &sibling, 0, row); err == nil || len(evaluation.statementScope.partitionPrograms) != 1 {
 		t.Fatal("sibling borrowed an admitted owner's manifest")
 	}

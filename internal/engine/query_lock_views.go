@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -126,7 +127,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	return 0, nil
 }
 func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
-	seen := make(map[ObjectAddress]bool)
+	seen := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(d *relationDescriptor) bool {
 		if d.relationKind != viewRelation || seen[d.address] {

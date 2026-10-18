@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -253,7 +254,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 	}
 	// Validation above owns cycle and stored-reference errors. Memoization here
 	// only avoids re-inspecting a shared acyclic definition in this analysis.
-	memo := make(map[ObjectAddress]bool)
+	memo := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(relation *relationDescriptor) bool {
 		if relation.relationKind != viewRelation {

@@ -3,12 +3,13 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (v AuthorizationView) checkSequenceAny(ref ObjectRef, mask authorization.Privileges) error {
+func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorization.Privileges) error {
 	d, err := v.object(ref)
 	if err != nil {
 		return err
@@ -94,7 +95,7 @@ func tableKind(d *relationDescriptor, operation string) error {
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: message, Detail: detail}
 }
-func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, reserveReplacement bool) error {
+func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode relationLockMode, reserveReplacement bool) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
@@ -129,27 +130,27 @@ func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
-func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *relationDescriptor, raw parser.ObjectName) (ObjectAddress, error) {
+func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *relationDescriptor, raw parser.ObjectName) (ids.ObjectAddress, error) {
 	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
-		return ObjectAddress{}, nil
+		return ids.ObjectAddress{}, nil
 	}
 	if len(raw.Parts) < 2 || len(raw.Parts) > 3 {
-		return ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid OWNED BY option", Hint: "Specify OWNED BY table.column or OWNED BY NONE."}
+		return ids.ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid OWNED BY option", Hint: "Specify OWNED BY table.column or OWNED BY NONE."}
 	}
 	table := parser.ObjectName{Parts: raw.Parts[:len(raw.Parts)-1]}
 	ref, err := e.resolveRelationReference(*auth, table, false)
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	e.mu.Unlock()
 	err = scope.acquireSequence(ref, accessShare, true)
 	e.mu.Lock()
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	fresh, err := e.authorizationLocked(scope.op)
 	if err != nil {
-		return ObjectAddress{}, err
+		return ids.ObjectAddress{}, err
 	}
 	fresh.catalog = e.privateCatalogLocked(changes)
 	fresh.recaptureCatalog(fresh.catalog)
@@ -157,21 +158,21 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	// Keep the captured incarnation, not a replacement now found by name.
 	r, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {
-		return ObjectAddress{}, ErrCatalogReplaced
+		return ids.ObjectAddress{}, ErrCatalogReplaced
 	}
 	if r.relationKind != tableRelation && r.relationKind != partitionedRelation {
-		return ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
+		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
 	}
 	if r.owner != d.owner {
-		return ObjectAddress{}, sqlError("55000", "sequence must have same owner as table it is linked to")
+		return ids.ObjectAddress{}, sqlError("55000", "sequence must have same owner as table it is linked to")
 	}
 	if r.namespace != d.namespace {
-		return ObjectAddress{}, sqlError("55000", "sequence must be in same schema as table it is linked to")
+		return ids.ObjectAddress{}, sqlError("55000", "sequence must be in same schema as table it is linked to")
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
 	slot, ok := r.index[name]
 	if !ok {
-		return ObjectAddress{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, r.name))
+		return ids.ObjectAddress{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, r.name))
 	}
 	a := r.address
 	a.SubID = r.attributes[slot]
@@ -232,7 +233,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
-		key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
+		key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}
 		if _, ok := auth.catalog.state.names[key]; ok {
 			e.mu.Unlock()
 			if s.IfNotExists {
@@ -260,12 +261,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		columns := e.sequenceColumnsLocked()
-		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
+		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
 		d.acl = e.creationACLChangesLocked(changes, auth.catalog, d.owner, d.namespace, authorization.DefaultSequences)
 		d.attributeHighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
@@ -388,7 +389,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			options.persistence = s.Action
 		case "owner":
 			target := ownerTarget
-			if options.owned != (ObjectAddress{}) {
+			if options.owned != (ids.ObjectAddress{}) {
 				a := options.owned
 				a.SubID = 0
 				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), false)
@@ -412,7 +413,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.owner = target
 			d.acl = authorization.SchemaACLOwner(d.acl, old.owner, d.owner)
 		case "schema":
-			if options.owned != (ObjectAddress{}) {
+			if options.owned != (ids.ObjectAddress{}) {
 				a := options.owned
 				a.SubID = 0
 				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), true)
@@ -477,7 +478,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 	return Result{}, sqlError("0A000", "unsupported sequence statement")
 }
 func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (Result, error) {
-	refs := make([]ObjectRef, 0, len(s.Names))
+	refs := make([]ids.ObjectRef, 0, len(s.Names))
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
@@ -529,7 +530,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	targets := make([]ObjectAddress, len(refs))
+	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
@@ -611,12 +612,12 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		targets = append(targets, address)
 	}
 	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
-func relationDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor) error {
+func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor) error {
 	err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	if err == nil {
 		return nil

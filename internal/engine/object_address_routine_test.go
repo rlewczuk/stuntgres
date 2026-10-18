@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 	_, _, foreign := strictNullUnitBind(t, other, otherOp, otherScope, "1")
 	for _, tc := range []struct {
 		name, expression, signature string
-		oid, result                 OID
+		oid, result                 ids.OID
 		slots                       [3]uint8
 	}{
 		{"pg_identify_object", "pg_identify_object(objsubid=>0,objid=>23,classid=>1247)", "26,26,23", 3839, 2249, [3]uint8{2, 1, 0}},
@@ -37,8 +38,8 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || captured == nil {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
-			address := ObjectAddress{ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != Stable || generationImmutable(carrier) {

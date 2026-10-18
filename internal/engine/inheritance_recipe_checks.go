@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -20,7 +21,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 	if !hasSeed {
 		return
 	}
-	byAddress := make(map[ObjectAddress]*dumpRelation, len(tables))
+	byAddress := make(map[ids.ObjectAddress]*dumpRelation, len(tables))
 	for i := range tables {
 		byAddress[tables[i].descriptor.address] = &tables[i]
 	}
@@ -77,7 +78,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 
 // The actual dependency graph, not rows-first reconstruction, orders physical
 // recipes and local CHECK definers. Recursive ADD rebuilds real diamond merges.
-func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	selected := false
 	for i := range tables {
 		if tables[i].recipePlaceholders {
@@ -88,12 +89,12 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 	if !selected {
 		return ctx.Err()
 	}
-	byOID := make(map[OID]*dumpRelation, len(tables))
+	byOID := make(map[ids.OID]*dumpRelation, len(tables))
 	for i := range tables {
 		byOID[tables[i].descriptor.address.ObjectID] = &tables[i]
 	}
-	components := make(map[ObjectAddress][]dumpEventKey)
-	var order []ObjectAddress
+	components := make(map[ids.ObjectAddress][]dumpEventKey)
+	var order []ids.ObjectAddress
 	for _, declaration := range declarations {
 		if table := byOID[declaration.oid]; table != nil && table.recipePlaceholders {
 			key := table.recipeComponent
@@ -103,8 +104,8 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 			components[key] = append(components[key], declaration)
 		}
 	}
-	addProvider := func(event dumpEventKey) func(ObjectAddress) error {
-		return func(address ObjectAddress) error {
+	addProvider := func(event dumpEventKey) func(ids.ObjectAddress) error {
+		return func(address ids.ObjectAddress) error {
 			predecessor, exists, err := nameReady(address)
 			if err == nil && exists {
 				addDumpDependency(graph, event, predecessor)
@@ -216,18 +217,18 @@ func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view CatalogRead
 }
 
 type restoredGenerationRecipe struct {
-	ref        ObjectRef
+	ref        ids.ObjectRef
 	attribute  int32
-	generation OID
+	generation ids.OID
 	usage      sqltype.Usage
 	kind       generationKind
 }
 type restoredGenerationKey struct {
-	relation  ObjectAddress
+	relation  ids.ObjectAddress
 	attribute int32
 }
 
-func (e *Engine) captureRestoredPlaceholders(created ObjectRef, raw *parser.CreateTable, origins map[restoredGenerationKey]restoredGenerationRecipe) {
+func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.CreateTable, origins map[restoredGenerationKey]restoredGenerationRecipe) {
 	view := e.CatalogRead()
 	table, ok := view.state.descriptors[created.Address].(*relationDescriptor)
 	if !ok {
@@ -415,12 +416,12 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	return reject()
 }
 
-func inheritedRecipeConnected(view CatalogRead, target, start ObjectAddress) bool {
+func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress) bool {
 	if target == start {
 		return true
 	}
-	pending := []ObjectAddress{start}
-	seen := map[ObjectAddress]bool{start: true}
+	pending := []ids.ObjectAddress{start}
+	seen := map[ids.ObjectAddress]bool{start: true}
 	for len(pending) != 0 {
 		address := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
@@ -428,7 +429,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ObjectAddress) boo
 		if !ok {
 			continue
 		}
-		appendTarget := func(next ObjectAddress) bool {
+		appendTarget := func(next ids.ObjectAddress) bool {
 			if next == target {
 				return true
 			}
@@ -454,7 +455,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ObjectAddress) boo
 	return false
 }
 
-func capturedGenerationReplayPlan(view CatalogRead) (map[ObjectAddress]*dumpRelation, error) {
+func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.state.descriptors {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.inheritance != nil && len(table.generations) != 0 {
@@ -486,11 +487,11 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ObjectAddress]*dumpRela
 		tables = append(tables, captured)
 	}
 	prepareGenerationPlaceholders(view, tables)
-	var selected map[ObjectAddress]*dumpRelation
+	var selected map[ids.ObjectAddress]*dumpRelation
 	for i := range tables {
 		if tables[i].recipePlaceholders {
 			if selected == nil {
-				selected = make(map[ObjectAddress]*dumpRelation)
+				selected = make(map[ids.ObjectAddress]*dumpRelation)
 			}
 			selected[tables[i].descriptor.address] = &tables[i]
 		}

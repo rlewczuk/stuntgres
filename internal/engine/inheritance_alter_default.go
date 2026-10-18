@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -42,7 +43,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.revision == DefinitionRevision(^uint64(0)) {
+		if old.revision == ids.DefinitionRevision(^uint64(0)) {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}

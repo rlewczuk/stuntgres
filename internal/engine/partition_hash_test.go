@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,13 +54,13 @@ func hashPartitionUnitDescriptor(t *testing.T) (CatalogRead, *relationDescriptor
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 25000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "hash_root", relationKind: partitionedRelation, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}}
+	root := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 25000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "hash_root", relationKind: partitionedRelation, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"k": 0}}
 	leaf := *root
 	leaf.address.ObjectID++
 	leaf.name = "hash_leaf"
 	leaf.relationKind = tableRelation
 	leaf.membership = &partitionMembership{parent: root.address, strategy: parser.PartitionHash, modulus: 1}
-	root.partition = &partitionDefinition{strategy: parser.PartitionHash, keys: []partitionKeyEntry{{attribute: 1, usage: typ.Usage(), class: class, hash: provider, label: "k"}}, children: []ObjectAddress{leaf.address}}
+	root.partition = &partitionDefinition{strategy: parser.PartitionHash, keys: []partitionKeyEntry{{attribute: 1, usage: typ.Usage(), class: class, hash: provider, label: "k"}}, children: []ids.ObjectAddress{leaf.address}}
 	catalog.descriptors[root.address], catalog.descriptors[leaf.address] = root, &leaf
 	return CatalogRead{owner: e, state: catalog}, root, &leaf
 }
@@ -104,7 +105,7 @@ func TestHashPartitionRemap(t *testing.T) {
 			break
 		}
 	}
-	remapped, err := remapPartitionDescriptor(catalog, root, func(ref ObjectRef) ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+	remapped, err := remapPartitionDescriptor(catalog, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
 		if typ == old.usage.Type {
 			return replacement
 		}
@@ -136,8 +137,8 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	root.partition.children = append(root.partition.children, destination.address)
 	catalog.state.descriptors[destination.address] = &destination
 	class, _ := sqltype.DefaultIndexClass(source.columns[0].Usage.Type)
-	makeIndex := func(parent *relationDescriptor, oid OID) *relationDescriptor {
-		index := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: parent.name + "_key", relationKind: indexRelation,
+	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
+		index := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: parent.name + "_key", relationKind: indexRelation,
 			sqlIndex: &indexDefinition{parent: parent.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, live: true, valid: true}}
 		catalog.state.descriptors[index.address] = index
 		return index
@@ -149,16 +150,16 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	movedRow := rowVersion{row: 7, version: 11, born: 1, values: []sqltype.Value{value}}
-	storage := map[ObjectAddress]*relationStorage{
+	storage := map[ids.ObjectAddress]*relationStorage{
 		source.address:      {},
 		destination.address: {versions: []rowVersion{movedRow}},
 	}
-	snapshot := &indexSnapshot{sources: map[ObjectAddress]indexSnapshotSource{
+	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
 		sourceIndex.address:      {index: sourceIndex, parent: source, frontier: 1},
 		destinationIndex.address: {index: destinationIndex, parent: &destination, frontier: 1},
 	}}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: catalog}
-	dirty := map[ObjectAddress]bool{source.address: true, destination.address: true}
+	dirty := map[ids.ObjectAddress]bool{source.address: true, destination.address: true}
 	if err := snapshot.repair(evaluation.Context, &evaluation, storage, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if captured.row != 7 || captured.version != 11 {
 		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.row, captured.version)
 	}
-	positions := map[ObjectAddress]map[indexRowIdentity]int{
+	positions := map[ids.ObjectAddress]map[indexRowIdentity]int{
 		source.address:      {},
 		destination.address: {{row: 7, version: 11}: 0},
 	}

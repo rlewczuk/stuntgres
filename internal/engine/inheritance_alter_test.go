@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					c := inheritanceUnitRelation(e, "c", 22002, "extra", "a")
 					c.attributes = []int32{2, 7}
 					c.attributeHighWater = 7
-					parents := []ObjectAddress{p.address}
+					parents := []ids.ObjectAddress{p.address}
 					origins := []inheritanceOrigin{{parent: p.address, attribute: 1}}
 					if other {
 						parents = append(parents, q.address)
@@ -43,7 +44,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						c.notNullConstraints = []notNullConstraint{{OID: 23002, Name: "fact", Attribute: 7}}
 						nn := append([]inheritanceOrigin(nil), origins...)
 						for i := range nn {
-							nn[i].constraint = 23000 + OID(i)
+							nn[i].constraint = 23000 + ids.OID(i)
 						}
 						c.inheritance.notNull[7] = inheritedConstraint{local: local, origins: nn}
 						original = cloneInheritance(c.inheritance)
@@ -56,7 +57,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						checks := append([]inheritanceOrigin(nil), origins...)
 						for i := range checks {
 							checks[i].attribute = 0
-							checks[i].constraint = 23000 + OID(i)
+							checks[i].constraint = 23000 + ids.OID(i)
 						}
 						c.inheritance.checks["fact"] = inheritedConstraint{local: local, origins: checks}
 						original = cloneInheritance(c.inheritance)
@@ -66,7 +67,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
 					stage.descriptors[p.address] = &next
-					state := &inheritanceAlterState{stage: stage, root: p, targets: []*relationDescriptor{p, c}, selected: map[ObjectAddress]bool{p.address: true, c.address: true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ObjectAddress][]inheritanceAlterEvent)}
+					state := &inheritanceAlterState{stage: stage, root: p, targets: []*relationDescriptor{p, c}, selected: map[ids.ObjectAddress]bool{p.address: true, c.address: true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 					(&StatementScope{inheritanceAlter: state}).recordInheritanceAlterAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
 					if err != nil {
@@ -169,7 +170,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c = inheritanceUnitRelation(e, "gc", 22003, "a", "g")
 	p.generations = map[int32]columnGeneration{2: {OID: 24000, kind: generationVirtual, expression: expression(1)}}
 	c.generations = map[int32]columnGeneration{2: {OID: 24001, kind: generationVirtual, expression: expression(2)}}
-	c.inheritance = &tableInheritance{parents: []ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}, 2: {origins: []inheritanceOrigin{{parent: p.address, attribute: 2}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	c.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}, 2: {origins: []inheritanceOrigin{{parent: p.address, attribute: 2}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
 	if err := validateInheritance(view, c); err != nil {
 		t.Fatal("legal ONLY recipe divergence invalidated column origins", err)
@@ -196,7 +197,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	foreign := New()
 	definition := c.generations[2]
-	definition.dependencies = []ObjectRef{foreign.domain.Ref(view.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Int4)})}
+	definition.dependencies = []ids.ObjectRef{foreign.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.generations = map[int32]columnGeneration{2: definition}
 	if err := validateGenerationProviders(view, &invalid); err == nil {

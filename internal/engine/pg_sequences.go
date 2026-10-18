@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Definitions are snapshot-owned; completion uses the exact current incarnation.
 type pgSequencesSource struct {
 	scope      *StatementScope
-	refs       []ObjectRef
+	refs       []ids.ObjectRef
 	predicates []BoundExpr
 }
 
-func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	base := e.state
 	if scope.owner.sequenceCatalog != nil {
 		base = scope.owner.sequenceCatalog
@@ -91,7 +92,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ObjectRef, 
 	return &querySource{ref: ref, anonymous: rows, pgSequences: provider}, nil
 }
 
-func (p *pgSequencesSource) complete(ctx context.Context, ref ObjectRef, row []sqltype.Value) error {
+func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row []sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

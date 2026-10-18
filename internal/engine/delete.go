@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,7 +15,7 @@ type rowEnd struct {
 }
 type deletionRoot struct{ rows map[RowID]rowEnd }
 type deleteCandidate struct {
-	ref     ObjectRef
+	ref     ids.ObjectRef
 	storage *relationStorage
 	row     RowID
 	version VersionID
@@ -46,11 +47,11 @@ func liveVersion(v rowVersion, frontier CommitSeq, ends *deletionRoot, own *priv
 	return true
 }
 
-func mergeDeletions(previous, staged map[ObjectAddress]*privateDeletionRoot) map[ObjectAddress]*privateDeletionRoot {
+func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot) map[ids.ObjectAddress]*privateDeletionRoot {
 	if len(staged) == 0 {
 		return previous
 	}
-	next := make(map[ObjectAddress]*privateDeletionRoot, len(previous)+len(staged))
+	next := make(map[ids.ObjectAddress]*privateDeletionRoot, len(previous)+len(staged))
 	for a, root := range previous {
 		next[a] = root
 	}
@@ -204,7 +205,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 		return err
 	}
 	if w.deletes == nil {
-		w.deletes = make(map[ObjectAddress]*privateDeletionRoot)
+		w.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
 	}
 	root := w.deletes[candidate.ref.Address]
 	if root == nil {
@@ -399,7 +400,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
-func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef) (*querySource, error) {
+func captureQuerySource(ctx context.Context, view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
 	source, err := captureQueryPrefix(view, ref)
 	if err != nil {
 		return nil, err
@@ -408,7 +409,7 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef
 	return selectQuerySource(ctx, source, data.frontierAt(ref.Address), data.ends[ref.Address], data.deleted[ref.Address])
 }
 
-func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, error) {
+func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")

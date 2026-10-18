@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ type addedColumn struct {
 	column       *parser.Column
 	declaration  createColumnDeclaration
 	expression   BoundExpr
-	dependencies []ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
+	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
 	consumer     *relationDescriptor
 	value        sqltype.Value
 }

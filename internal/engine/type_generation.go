@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Engine.mu is held. Reuse replacement's copy-on-change type/expression/value
 // reownership without changing OIDs, object references, or old catalog roots.
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
@@ -41,7 +43,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			}
 		}
 	}
-	var stores map[ObjectAddress]*relationStorage
+	var stores map[ids.ObjectAddress]*relationStorage
 	for address, descriptor := range next.descriptors {
 		previous := stage.descriptors[address]
 		if previous == nil {
@@ -63,7 +65,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 				if store != nil {
 					if stores == nil {
-						stores = make(map[ObjectAddress]*relationStorage)
+						stores = make(map[ids.ObjectAddress]*relationStorage)
 					}
 					stores[address] = store
 				}
@@ -79,7 +81,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 					}
 					if store != nil {
 						if stores == nil {
-							stores = make(map[ObjectAddress]*relationStorage)
+							stores = make(map[ids.ObjectAddress]*relationStorage)
 						}
 						stores[parent] = store
 					}
@@ -104,7 +106,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 	}
 	if stage.rowShapes == nil {
-		stage.rowShapes = make(map[ObjectAddress]catalogRowShape)
+		stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 	}
 	for address, replacement := range stores {
 		if shape, ok := stage.rowShapes[address]; ok {

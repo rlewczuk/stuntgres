@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -17,15 +18,15 @@ func sameTruncateLineage(a, b *relationStorage) bool {
 
 type truncateName struct {
 	name      parser.ObjectName
-	ref       ObjectRef
-	namespace ObjectAddress
+	ref       ids.ObjectRef
+	namespace ids.ObjectAddress
 }
 type truncateGraphFence struct {
 	base      *catalogState
-	targets   map[ObjectAddress]int // Immutable after acquisition; savepoints share it.
-	token     SessionToken          // Descendant TEMP exclusion matches grant-time admission.
+	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.
+	token     SessionToken              // Descendant TEMP exclusion matches grant-time admission.
 	restart   bool
-	sequences map[ObjectAddress]*sequenceGenerator // Immutable committed bindings; not counter undo.
+	sequences map[ids.ObjectAddress]*sequenceGenerator // Immutable committed bindings; not counter undo.
 }
 
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
@@ -178,7 +179,7 @@ func (s *StatementScope) stageTruncate() error {
 			err = CatalogConflict{}
 		}
 	}
-	var sequences map[ObjectAddress]*sequenceGenerator
+	var sequences map[ids.ObjectAddress]*sequenceGenerator
 	if err == nil && s.truncateRestart {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}

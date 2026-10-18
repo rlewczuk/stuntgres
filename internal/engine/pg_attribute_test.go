@@ -6,14 +6,15 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ObjectRef) {
+func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 1249}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1249}
 	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_attribute")
@@ -73,7 +74,7 @@ func TestPGAttributeShape(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	array := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 270}].(*typeDescriptor)
+	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 270}].(*typeDescriptor)
 	if array.owningRelation != d.address || array.typ.Element().ID() != 75 {
 		t.Fatal("array ownership", array)
 	}
@@ -123,7 +124,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	if got, err := e.capturePGAttribute(context.Background(), catalog, e.Roles(), wrong, d); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
-	privateColumn := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, attributes: []int32{1}, columnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}
+	privateColumn := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, attributes: []int32{1}, columnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}
 	explicit, err := e.pgAttributeRow(e.Roles(), d, privateColumn, relationAttributeMetadata(privateColumn, 0))
 	if err != nil || explicit[21].IsNull() || explicit[21].ArrayLen() != 0 {
 		t.Fatal("private explicit empty column ACL lost", explicit, err)
@@ -152,7 +153,7 @@ func TestPGAttributePublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	u := testUsage(e, sqltype.Int4)
-	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "attribute_unit", revision: 1, owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "attribute_unit", revision: 1, owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
 	if err := stage.Create(table); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +298,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("foreign carrier descriptor admitted")
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
-	ordinary := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "bad", owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
+	ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200000}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "bad", owner: e.authorizationDomain.Principal(10), columns: []ColumnDescriptor{{Name: "a", Usage: u}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"a": 0}}
 	if err := (relationProvider{}).Validate(catalog, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}

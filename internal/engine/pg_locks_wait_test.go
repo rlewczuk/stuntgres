@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *relationTicket, resource lockResource, mode relationLockMode, purpose completionLockPurpose) (*relationRequest, context.CancelFunc) {
@@ -327,7 +329,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 			}
 			for index := range 1024 {
 				granted := blockingUnitResource(e)
-				granted.Address.ObjectID += OID(index + 1)
+				granted.Address.ObjectID += ids.OID(index + 1)
 				if err := e.locks.acquire(context.Background(), holder, granted, accessShare); err != nil {
 					t.Fatal(err)
 				}

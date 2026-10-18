@@ -5,6 +5,8 @@ import (
  "errors"
  "reflect"
  "testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterDropColumnCommentsStableAttributes(t *testing.T){
@@ -72,12 +74,12 @@ func TestAlterDropColumnRevisionFrontierFailures(t *testing.T){
 
 func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T){
  e:=New();run(t,e,"CREATE TABLE t(a INT,b INT)");ref:=roleTableRef(t,e,"t")
- old:=e.state.descriptors[ref.Address].(*relationDescriptor);terminal:=*old;terminal.revision=DefinitionRevision(^uint64(0))-1
+ old:=e.state.descriptors[ref.Address].(*relationDescriptor);terminal:=*old;terminal.revision=ids.DefinitionRevision(^uint64(0))-1
  stage:=e.BeginCatalogStage(e.CatalogRead());if err:=stage.Replace(&terminal);err!=nil{t.Fatal(err)}
  prepared,err:=e.ValidateCatalogStage(context.Background(),stage);if err!=nil{t.Fatal(err)}
  if _,err=e.PublishCatalog(prepared,PublicationToken{Epoch:ref.Epoch});err!=nil{t.Fatal(err)}
  run(t,e,"ALTER TABLE t DROP b")
- maximum:=e.state.descriptors[ref.Address].(*relationDescriptor);root:=e.storage[ref.Address];limit:=DefinitionRevision(^uint64(0))
+ maximum:=e.state.descriptors[ref.Address].(*relationDescriptor);root:=e.storage[ref.Address];limit:=ids.DefinitionRevision(^uint64(0))
  if maximum.revision!=limit||e.nextRevision!=limit{t.Errorf("terminal publication revision=%d allocator=%d want=%d",maximum.revision,e.nextRevision,limit)}
  for _,tc:=range []struct{q,message string}{{"COMMENT ON TABLE t IS 'unavailable'","stuntgres: catalog definition revision exhausted"},{"COMMENT ON COLUMN t.a IS 'unavailable'","stuntgres: catalog definition revision exhausted"},{"ALTER TABLE t DROP a","stuntgres: definition revision exhausted"}}{
   _,err:=testExecute(e,context.Background(),statement(t,tc.q),nil)

@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -189,7 +190,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal("mixed capture lost per-relation birth provenance or fixture acquired deletion/replacement roots")
 	}
 	for _, test := range []struct {
-		ref    ObjectRef
+		ref    ids.ObjectRef
 		filter bool
 		count  int
 	}{{p, true, 0}, {q, false, 1}} {

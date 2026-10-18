@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -102,7 +103,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				if namespace != (ObjectAddress{}) {
+				if namespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.token, namespace)
 					for address, d := range catalog.descriptors {
 						if d.Namespace() == namespace && (e.state.descriptors[address] != nil || e.sequences[address] != nil || e.storage[address] != nil) {
@@ -110,7 +111,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 						}
 					}
 				}
-				if a.temporaryNamespace != (ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ObjectAddress{}) {
+				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) {
 					t.Fatal("physical end retained session namespace or memory")
 				}
 				if e.state.descriptors[peerNamespace] != peerDescriptor {
@@ -133,9 +134,9 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 	}
 }
 
-func NameAddressForTempMove(t *testing.T, e *Engine, namespace ObjectAddress, name string) ObjectAddress {
+func NameAddressForTempMove(t *testing.T, e *Engine, namespace ids.ObjectAddress, name string) ids.ObjectAddress {
 	t.Helper()
-	a, ok := e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	a, ok := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
 	if !ok {
 		t.Fatal("missing fixture relation", name)
 	}
@@ -182,7 +183,7 @@ func TestSequenceTemporaryMoveCreatePermissionPrecedence(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE USER mover")
 			sessionSQL(t, s, "CREATE SCHEMA denied")
-			ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "denied"}]
+			ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "denied"}]
 			if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}

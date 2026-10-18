@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ func TestVersionInformationBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct {
 		kind       functions.VersionInformationKind
-		oid        OID
+		oid        ids.OID
 		volatility Volatility
 	}{
 		{functions.VersionInformationServer, 89, Stable},
@@ -84,7 +85,7 @@ func TestVersionInformationRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
+		remapped, err := remapBoundExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { t.Fatal("leaf invented row dependency", ref); return ref }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

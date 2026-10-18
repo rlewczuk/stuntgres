@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -214,7 +215,7 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	mapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	mapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}

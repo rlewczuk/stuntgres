@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -78,8 +79,8 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if e.visibility[d].xid != 0 || e.visibility[d].assignedXID == 0 {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}
-	if publicationNeedsXID(map[ObjectAddress][]rowVersion{address: nil}, map[ObjectAddress]*privateDeletionRoot{address: {}}, newCatalogChanges(), nil) {
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}
+	if publicationNeedsXID(map[ids.ObjectAddress][]rowVersion{address: nil}, map[ids.ObjectAddress]*privateDeletionRoot{address: {}}, newCatalogChanges(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
 	if !publicationNeedsXID(nil, nil, nil, &preparedPublication{preparing: true}) {
@@ -130,14 +131,14 @@ func TestCommitTimePublication(t *testing.T) {
 				xid := e.visibility[ref].assignedXID
 				old := e.state
 				var prepared *PreparedCatalogPublication
-				var writes map[ObjectAddress][]rowVersion
+				var writes map[ids.ObjectAddress][]rowVersion
 				var rowStore *relationStorage
 				if route != "empty" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					if route == "catalog" {
 						stage.initialTx = ref
 					}
-					d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
+					d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}
@@ -158,7 +159,7 @@ func TestCommitTimePublication(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						writes = map[ObjectAddress][]rowVersion{d.address: versions}
+						writes = map[ids.ObjectAddress][]rowVersion{d.address: versions}
 						rowStore = e.storage[d.address]
 					}
 				}
@@ -320,19 +321,19 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+kind.name()+"(") {
 			t.Fatal(recipe, err)
 		}
-		persisted, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !sameGroupExpression(n, persisted) || persisted.(commitTimestampExpression).validate() != nil {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
 		if n.arg != nil {
 			column := columnExpression{
 				expressionInfo: b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, ExprProperties{RowDependent: true}),
-				origin:         ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}},
+				origin:         ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			withColumn := n
 			withColumn.arg = column
 			withColumn.properties = mergeExpressionProperties(ExprProperties{Volatility: Volatile}, column.Properties())
-			persisted, err := remapBoundExpression(withColumn, func(ref ObjectRef) ObjectRef {
+			persisted, err := remapBoundExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref
 			}, map[int32]int{2: 3})

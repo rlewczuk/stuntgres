@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 
 // Reparse original syntax against the completed TYPE descriptor, rather than
 // retagging old operators or retaining inferred coercions from the old usage.
-func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ObjectRef, next *relationDescriptor, queue []alterTypeCheck) (*relationDescriptor, []checkConstraint, error) {
+func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ids.ObjectRef, next *relationDescriptor, queue []alterTypeCheck) (*relationDescriptor, []checkConstraint, error) {
 	if len(queue) == 0 {
 		return next, nil, nil
 	}
@@ -98,7 +99,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		definition := replacement.checkConstraints[pending.index]
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.expression, definition.dependencies, definition.commentSnapshot, definition.visibilitySnapshot = node, nil, false, false
-		var dependencies []ObjectRef
+		var dependencies []ids.ObjectRef
 		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return nil, nil, err
 		}

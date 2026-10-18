@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -41,9 +42,9 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	if table.relationKind != tableRelation || table.partition != nil || table.membership == nil || table.inheritance != nil {
 		return nil
 	}
-	address := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: raw.Actions[0].UsingIndex.Index.Text}]
+	address := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: raw.Actions[0].UsingIndex.Index.Text}]
 	index, ok := auth.catalog.state.descriptors[address].(*relationDescriptor)
-	if ok && index.sqlIndex != nil && index.sqlIndex.parent == table.address && index.sqlIndex.partitionParent == (ObjectAddress{}) && index.sqlIndex.constraint == nil {
+	if ok && index.sqlIndex != nil && index.sqlIndex.parent == table.address && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) && index.sqlIndex.constraint == nil {
 		op.restorePartitionUsingIndex = &partitionUsingIndexReplay{target: table, index: index, syntax: raw}
 	}
 	return nil

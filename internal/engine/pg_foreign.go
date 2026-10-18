@@ -6,10 +6,11 @@ import (
 	"sort"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-const pgUserMappingsOID OID = 12095
+const pgUserMappingsOID ids.OID = 12095
 
 func (e *Engine) initializeForeignCatalogSources() error {
 	type column struct {
@@ -18,7 +19,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 		nullable bool
 	}
 	for _, spec := range []struct {
-		oid     OID
+		oid     ids.OID
 		name    string
 		columns []column
 	}{
@@ -28,7 +29,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 		{ForeignTableClassID, "pg_foreign_table", []column{{"ftrelid", sqltype.Oid, false}, {"ftserver", sqltype.Oid, false}, {"ftoptions", 1009, true}}},
 		{pgUserMappingsOID, "pg_user_mappings", []column{{"umid", sqltype.Oid, false}, {"srvid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"umuser", sqltype.Oid, false}, {"usename", sqltype.Name, true}, {"umoptions", 1009, true}}},
 	} {
-		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		if spec.oid == ForeignMappingClassID {
 			d.acl = authorization.ACLValue{}
 		}
@@ -61,7 +62,7 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqlt
 	return sqltype.OwnedArrayValue(typ, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 }
 
-func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	var descriptors []Descriptor
 	for _, d := range auth.catalog.state.descriptors {
 		if foreign, ok := d.(*foreignDescriptor); ok {

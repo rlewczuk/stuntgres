@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 			provider = functions.NewRegressionCountAggregate(input, result.Usage())
 		}
 		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
-		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			d, _ := destination.CatalogRead().LookupType(old.ID())
 			return d
 		})

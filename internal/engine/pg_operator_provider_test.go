@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -64,15 +65,15 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		d, _ := catalog.LookupType(id)
 		return d
 	}
-	want := map[OID][]string{}
+	want := map[ids.OID][]string{}
 	for _, row := range pgOperatorReleaseRows(t, "pg-operator-pg18-supported.tsv", 15) {
-		id := OID(integer(row[0]))
+		id := ids.OID(integer(row[0]))
 		if want[id] != nil {
 			t.Fatal("duplicate supported expected OID", id)
 		}
 		want[id] = row
 	}
-	production := map[OID]operatorMetadata{}
+	production := map[ids.OID]operatorMetadata{}
 	for _, fact := range supportedOperatorMetadata {
 		if _, exists := production[fact.oid]; exists {
 			t.Fatal("duplicate production OID", fact.oid)
@@ -80,9 +81,9 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		production[fact.oid] = fact
 	}
 	universe := pgOperatorReleaseRows(t, "regoperator-pg18-inventory.tsv", 8)
-	seen, admitted := map[OID]bool{}, map[OID]bool{}
+	seen, admitted := map[ids.OID]bool{}, map[ids.OID]bool{}
 	for _, candidate := range universe {
-		oid := OID(integer(candidate[0]))
+		oid := ids.OID(integer(candidate[0]))
 		if seen[oid] {
 			t.Fatal("duplicate candidate", oid)
 		}

@@ -5,13 +5,6 @@ import "stuntgres/internal/engine/ids"
 // Temporary aliases for identity values moved to internal/engine/ids
 // (docs/ENGINE-SPLIT-ids.md step 1d removes them).
 type (
-	OID                = ids.OID
-	CatalogEpoch       = ids.CatalogEpoch
-	DefinitionRevision = ids.DefinitionRevision
-	ObjectAddress      = ids.ObjectAddress
-	ObjectRef          = ids.ObjectRef
-	NameKey            = ids.NameKey
-	ObjectKind         = ids.ObjectKind
 	Domain             = ids.Domain
 	SessionID          = ids.SessionID
 	SessionToken       = ids.SessionToken
@@ -51,23 +44,6 @@ const (
 	PGCatalogNamespaceOID = ids.PGCatalogNamespaceOID
 	PGToastNamespaceOID   = ids.PGToastNamespaceOID
 	PublicNamespaceOID    = ids.PublicNamespaceOID
-
-	NamespaceObject      = ids.NamespaceObject
-	RelationObject       = ids.RelationObject
-	TypeObject           = ids.TypeObject
-	CollationObject      = ids.CollationObject
-	ConversionObject     = ids.ConversionObject
-	ExtensionObject      = ids.ExtensionObject
-	ProcedureObject      = ids.ProcedureObject
-	TSTemplateObject     = ids.TSTemplateObject
-	TSDictionaryObject   = ids.TSDictionaryObject
-	DatabaseObject       = ids.DatabaseObject
-	OperatorObject       = ids.OperatorObject
-	ForeignWrapperObject = ids.ForeignWrapperObject
-	ForeignServerObject  = ids.ForeignServerObject
-	ForeignMappingObject = ids.ForeignMappingObject
-	ParameterObject      = ids.ParameterObject
-	TablespaceObject     = ids.TablespaceObject
 
 	transactionInProgress = ids.TxInProgress
 	transactionCommitted  = ids.TxCommitted

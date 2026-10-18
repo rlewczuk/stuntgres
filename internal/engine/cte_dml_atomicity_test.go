@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -218,13 +219,13 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			if err != nil || result.Count != 2 || result.Rows != nil || scope.completed || scope.catalog == nil {
 				t.Fatal("creation did not join the private statement stage", result, err)
 			}
-			var created ObjectAddress
+			var created ids.ObjectAddress
 			for address, descriptor := range scope.catalog.descriptors {
 				if address.ClassID == RelationClassID && descriptor.Name() == "copied" {
 					created = address
 				}
 			}
-			if created == (ObjectAddress{}) || e.state.descriptors[created] != nil || e.storage[created] != nil || len(scope.stage.rows[created]) != 2 {
+			if created == (ids.ObjectAddress{}) || e.state.descriptors[created] != nil || e.storage[created] != nil || len(scope.stage.rows[created]) != 2 {
 				t.Fatal("destination published before Finish")
 			}
 			transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)

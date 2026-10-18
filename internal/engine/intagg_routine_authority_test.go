@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 	for _, tc := range []struct {
 		name, text, signature string
 		kind                  routineKind
-		result                OID
+		result                ids.OID
 		strict                bool
 	}{
 		{"aggregate", "int_array_aggregate(v)", "23", aggregateRoutine, 1007, false},
@@ -56,7 +57,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.text)
 			var captured *procedureDescriptor
-			var ref ObjectRef
+			var ref ids.ObjectRef
 			aggregate := tc.kind == aggregateRoutine
 			if aggregate {
 				if len(binder.aggregates) != 1 {
@@ -64,7 +65,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				call := binder.aggregates[0]
 				captured, ref = call.procedure, call.routine
-				if ref != call.ref || ref == (ObjectRef{}) {
+				if ref != call.ref || ref == (ids.ObjectRef{}) {
 					t.Fatal("aggregate lost original compact authority")
 				}
 				if carrier, err := expressionRoutineDescriptor(node); err != nil || carrier != nil {
@@ -122,7 +123,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if !found {
 				t.Fatal("missing original manifest")
 			}
-			admit := func(c *EvalContext, n BoundExpr, r ObjectRef) error {
+			admit := func(c *EvalContext, n BoundExpr, r ids.ObjectRef) error {
 				if aggregate {
 					return admitRoutineReference(c, r, "aggregate")
 				}
@@ -132,7 +133,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("original admission", err)
 			}
 			if aggregate {
-				if err := admitRoutineReference(&evaluation, ObjectRef{}, "aggregate"); err == nil {
+				if err := admitRoutineReference(&evaluation, ids.ObjectRef{}, "aggregate"); err == nil {
 					t.Fatal("missing aggregate identity admitted")
 				}
 			}
@@ -215,7 +216,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("graft ancestry lost or mutated source")
 				}
 				if tc.name == "enum_parameter" {
-					if _, err := remapBoundExpression(node, func(r ObjectRef) ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression engine.parameterExpression") {
+					if _, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression engine.parameterExpression") {
 						t.Fatal("parameter persistence boundary changed", err)
 					}
 					rewritten, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
@@ -258,9 +259,9 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					// Transfer the actual selected ref before descriptor retagging; no old OID
 					// can resolve in this relocated catalog.
-					mapping := map[ObjectAddress]ObjectAddress{ext.address: {ExtensionClassID, 900000, 0}}
+					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ExtensionClassID, 900000, 0}}
 					for i, a := range ext.members {
-						mapping[a] = ObjectAddress{ProcedureClassID, OID(900001 + i), 0}
+						mapping[a] = ids.ObjectAddress{ProcedureClassID, ids.OID(900001 + i), 0}
 					}
 					state := cloneCatalog(evaluation.catalog.state)
 					for a := range mapping {
@@ -274,7 +275,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					state.epoch++
 					view := CatalogRead{owner: e, state: state}
-					remap := func(r ObjectRef) ObjectRef {
+					remap := func(r ids.ObjectRef) ids.ObjectRef {
 						r.Epoch = state.epoch
 						if a, ok := mapping[r.Address]; ok {
 							r.Address = a
@@ -310,7 +311,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := admitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
-					foreignNode, err := remapBoundExpression(node, func(r ObjectRef) ObjectRef {
+					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
 						r = other.domain.Ref(r.Epoch, r.Address)
 						r.Epoch = foreign.catalog.Epoch()
 						return r
@@ -394,7 +395,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := imported.importExtensionOwners(context.Background(), importOp, []extensionOwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
-	installed := imported.state.descriptors[imported.state.names[NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	installed := imported.state.descriptors[imported.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 	if err := stockIntagg.validate(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}

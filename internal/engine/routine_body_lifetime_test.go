@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	var missing []expressionDependency
 	for _, dependency := range original {
-		if dependency.ref.Address != (ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1374}) {
+		if dependency.ref.Address != (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 1374}) {
 			missing = append(missing, dependency)
 		}
 	}
@@ -100,7 +101,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	type recipe struct {
 		consumer *relationDescriptor
 		node     BoundExpr
-		refs     []ObjectRef
+		refs     []ids.ObjectRef
 		checks   []expressionDependency
 	}
 	capture := func(e *Engine) []recipe {
@@ -129,7 +130,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sourceAuth := authority(source)
 	// Save actual source manifests and declaration provenance before remapping;
 	// no reconstructed/grafted expected recipe substitutes for the stored one.
-	originalRefs := append([]ObjectRef(nil), original[0].refs...)
+	originalRefs := append([]ids.ObjectRef(nil), original[0].refs...)
 	originalChecks := append([]expressionDependency(nil), original[1].checks...)
 	sourceCall, err := expressionRoutineDescriptor(original[0].node)
 	if err != nil || sourceCall == nil {
@@ -169,12 +170,12 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		// The released TEXT wrapper calls octet_length(text), then int4mul.
 		// Each original body ref must independently remain necessary; equal
 		// builtin addresses in either engine cannot repair a missing manifest.
-		for _, id := range []OID{1811, 1374, 141} {
-			address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+		for _, id := range []ids.OID{1811, 1374, 141} {
+			address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
 			probe := evaluation
-			probe.routineReferences = []ObjectRef{}
+			probe.routineReferences = []ids.ObjectRef{}
 			probe.routineChecks = nil
-			var selected ObjectRef
+			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
 					if ref.Domain() != target.domain || ref.Epoch != current.Epoch() {
@@ -273,25 +274,25 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 	// Expected callees are independently pinned to REL_18_0 declarations and
 	// SQL bodies, not obtained by walking the implementation's closure table.
 	cases := []struct {
-		id         OID
+		id         ids.OID
 		expression string
-		calls      []OID
+		calls      []ids.OID
 	}{
-		{879, "lpad(t,i)", []OID{873}}, {880, "rpad(t,i)", []OID{874}},
-		{1811, "bit_length(t)", []OID{1374, 141}}, {1810, "bit_length(b)", []OID{720, 141}}, {1812, "bit_length(bs)", []OID{1681}},
-		{1708, "round(n)", []OID{1707}}, {1710, "trunc(n)", []OID{1709}}, {1384, "date_part('year',d)", []OID{2024, 2021}}, {2059, "age(ts)", []OID{2024, 2058}},
-		{1741, "log(n)", []OID{1736}}, {1481, "log10(n)", []OID{1736}},
-		{1296, "tm+d", []OID{1272}}, {1298, "tz+d", []OID{1297}}, {1848, "iv+tm", []OID{1747}}, {2546, "iv+d", []OID{2071}}, {2547, "iv+tz", []OID{1749}},
-		{2548, "iv+ts", []OID{2032}}, {2549, "iv+zt", []OID{1189}}, {2550, "i+d", []OID{1141}},
-		{2074, `substring(t,'#"b#"','#')`, []OID{1986, 2073}},
-		{1285, "quote_literal(i)", []OID{1283}}, {1290, "quote_nullable(i)", []OID{1289}}, {2003, "t||i", []OID{1258}}, {2004, "i||t", []OID{1258}},
-		{1285, "quote_literal(flag)", []OID{2971, 1283}}, {1285, "quote_literal(ip)", []OID{730, 1283}},
-		{2631, "n8+ip", []OID{2630}},
-		{3935, "pg_sleep_for(iv)", []OID{2649, 1189, 6203, 1725, 1746, 2626}}, {3936, "pg_sleep_until(zt)", []OID{2649, 6203, 1725, 1746, 2626}},
-		{1305, "(zt,iv) OVERLAPS (zt,iv)", []OID{1189, 1304}}, {1306, "(zt,zt) OVERLAPS (zt,iv)", []OID{1189, 1304}}, {1307, "(zt,iv) OVERLAPS (zt,zt)", []OID{1189, 1304}},
-		{2042, "(ts,iv) OVERLAPS (ts,iv)", []OID{2032, 2041}}, {2043, "(ts,ts) OVERLAPS (ts,iv)", []OID{2032, 2041}}, {2044, "(ts,iv) OVERLAPS (ts,ts)", []OID{2032, 2041}},
-		{1309, "(tm,iv) OVERLAPS (tm,iv)", []OID{1747, 1308}}, {1310, "(tm,tm) OVERLAPS (tm,iv)", []OID{1747, 1308}}, {1311, "(tm,iv) OVERLAPS (tm,tm)", []OID{1747, 1308}},
-		{1215, "obj_description(id,nm)", []OID{184, 62, 65}}, {1993, "shobj_description(id,nm)", []OID{184, 62}}, {1348, "obj_description(id)", []OID{184, 65}}, {1216, "col_description(id,i)", []OID{184, 65}},
+		{879, "lpad(t,i)", []ids.OID{873}}, {880, "rpad(t,i)", []ids.OID{874}},
+		{1811, "bit_length(t)", []ids.OID{1374, 141}}, {1810, "bit_length(b)", []ids.OID{720, 141}}, {1812, "bit_length(bs)", []ids.OID{1681}},
+		{1708, "round(n)", []ids.OID{1707}}, {1710, "trunc(n)", []ids.OID{1709}}, {1384, "date_part('year',d)", []ids.OID{2024, 2021}}, {2059, "age(ts)", []ids.OID{2024, 2058}},
+		{1741, "log(n)", []ids.OID{1736}}, {1481, "log10(n)", []ids.OID{1736}},
+		{1296, "tm+d", []ids.OID{1272}}, {1298, "tz+d", []ids.OID{1297}}, {1848, "iv+tm", []ids.OID{1747}}, {2546, "iv+d", []ids.OID{2071}}, {2547, "iv+tz", []ids.OID{1749}},
+		{2548, "iv+ts", []ids.OID{2032}}, {2549, "iv+zt", []ids.OID{1189}}, {2550, "i+d", []ids.OID{1141}},
+		{2074, `substring(t,'#"b#"','#')`, []ids.OID{1986, 2073}},
+		{1285, "quote_literal(i)", []ids.OID{1283}}, {1290, "quote_nullable(i)", []ids.OID{1289}}, {2003, "t||i", []ids.OID{1258}}, {2004, "i||t", []ids.OID{1258}},
+		{1285, "quote_literal(flag)", []ids.OID{2971, 1283}}, {1285, "quote_literal(ip)", []ids.OID{730, 1283}},
+		{2631, "n8+ip", []ids.OID{2630}},
+		{3935, "pg_sleep_for(iv)", []ids.OID{2649, 1189, 6203, 1725, 1746, 2626}}, {3936, "pg_sleep_until(zt)", []ids.OID{2649, 6203, 1725, 1746, 2626}},
+		{1305, "(zt,iv) OVERLAPS (zt,iv)", []ids.OID{1189, 1304}}, {1306, "(zt,zt) OVERLAPS (zt,iv)", []ids.OID{1189, 1304}}, {1307, "(zt,iv) OVERLAPS (zt,zt)", []ids.OID{1189, 1304}},
+		{2042, "(ts,iv) OVERLAPS (ts,iv)", []ids.OID{2032, 2041}}, {2043, "(ts,ts) OVERLAPS (ts,iv)", []ids.OID{2032, 2041}}, {2044, "(ts,iv) OVERLAPS (ts,ts)", []ids.OID{2032, 2041}},
+		{1309, "(tm,iv) OVERLAPS (tm,iv)", []ids.OID{1747, 1308}}, {1310, "(tm,tm) OVERLAPS (tm,iv)", []ids.OID{1747, 1308}}, {1311, "(tm,iv) OVERLAPS (tm,tm)", []ids.OID{1747, 1308}},
+		{1215, "obj_description(id,nm)", []ids.OID{184, 62, 65}}, {1993, "shobj_description(id,nm)", []ids.OID{184, 62}}, {1348, "obj_description(id)", []ids.OID{184, 65}}, {1216, "col_description(id,i)", []ids.OID{184, 65}},
 	}
 	for _, test := range cases {
 		t.Run(test.expression, func(t *testing.T) {
@@ -319,7 +320,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				t.Fatal("original body admission", err)
 			}
 			for _, id := range test.calls {
-				address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
+				address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}
 				var missing []expressionDependency
 				for _, dependency := range binder.dependencies {
 					if dependency.ref.Address != address {

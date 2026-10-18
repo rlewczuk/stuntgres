@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ type regtypeConstant struct {
 	typeID     sqltype.ID
 	id         uint32
 	value      sqltype.Value
-	qualified  []ObjectAddress
+	qualified  []ids.ObjectAddress
 	operands   []expressionDependency
 	references []regObjectReference
 }
@@ -24,13 +25,13 @@ type regtypeAnalysis struct {
 	role              authorization.PrincipalRef
 	database          string
 	types, collations bool
-	collationPath     []ObjectAddress
+	collationPath     []ids.ObjectAddress
 }
 
 type regObjectReference struct {
-	address       ObjectAddress
+	address       ids.ObjectAddress
 	name          string
-	namespace     ObjectAddress
+	namespace     ids.ObjectAddress
 	namespaceName string
 }
 
@@ -244,7 +245,7 @@ func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos pars
 
 func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant) error {
 	view := b.bindingCatalog()
-	return walkCatalogAliasDependencies(view, constant.value, func(address ObjectAddress) error {
+	return walkCatalogAliasDependencies(view, constant.value, func(address ids.ObjectAddress) error {
 		if address.ClassID == TypeClassID {
 			return nil
 		}

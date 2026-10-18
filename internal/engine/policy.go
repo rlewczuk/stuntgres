@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -32,7 +33,7 @@ const (
 )
 
 type policyDefinition struct {
-	OID          OID
+	OID          ids.OID
 	Name         string
 	permissive   bool
 	command      policyCommand

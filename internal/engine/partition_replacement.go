@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -38,11 +39,11 @@ func partitionReplacementRow(from, to *relationDescriptor, row []sqltype.Value) 
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
-func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, storage map[ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ObjectAddress]bool, error) {
+func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
 	catalog := evaluation.catalog
-	var removed map[ObjectAddress]map[int]bool
-	var incoming map[ObjectAddress][]rowVersion
-	var dirty map[ObjectAddress]bool
+	var removed map[ids.ObjectAddress]map[int]bool
+	var incoming map[ids.ObjectAddress][]rowVersion
+	var dirty map[ids.ObjectAddress]bool
 	for address, store := range storage {
 		source, ok := catalog.state.descriptors[address].(*relationDescriptor)
 		if !ok || source.membership == nil || source.partition != nil {
@@ -98,7 +99,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 						break
 					}
 				}
-				if selected == nil && destination.partition.defaultChild != (ObjectAddress{}) {
+				if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
 					selected = catalog.state.descriptors[destination.partition.defaultChild].(*relationDescriptor)
 				}
 				if selected == nil {
@@ -139,9 +140,9 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				continue
 			}
 			if dirty == nil {
-				removed = make(map[ObjectAddress]map[int]bool)
-				incoming = make(map[ObjectAddress][]rowVersion)
-				dirty = make(map[ObjectAddress]bool)
+				removed = make(map[ids.ObjectAddress]map[int]bool)
+				incoming = make(map[ids.ObjectAddress][]rowVersion)
+				dirty = make(map[ids.ObjectAddress]bool)
 			}
 			if removed[address] == nil {
 				removed[address] = make(map[int]bool)

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -78,7 +79,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if len(root.entries) != 2 || !maps.Equal(root.membership, map[RowID]VersionID{e.storage[ref.Address].versions[0].row: e.storage[ref.Address].versions[0].version, e.storage[ref.Address].versions[1].row: e.storage[ref.Address].versions[1].version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}
@@ -108,7 +109,7 @@ func partialUniqueRow(t *testing.T, f *uniquePublicationFixture, offset int, a, 
 	return r
 }
 
-func partialUniqueMembership(t *testing.T, f *uniquePublicationFixture, roots map[ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
+func partialUniqueMembership(t *testing.T, f *uniquePublicationFixture, roots map[ids.ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
 	t.Helper()
 	f.membership(t, roots, materialize, rows)
 	if !materialize {

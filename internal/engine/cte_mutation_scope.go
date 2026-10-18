@@ -1,10 +1,13 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
 
 type admittedMutationTarget struct {
 	statement parser.Statement
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 // Command-local state is switched inside one statement owner. Stage, view,
@@ -12,7 +15,7 @@ type admittedMutationTarget struct {
 // The embedded context keeps single-command statements allocation-free.
 type statementMutation struct {
 	statement             parser.Statement
-	lockedRef             ObjectRef
+	lockedRef             ids.ObjectRef
 	lockedDescriptor      Descriptor
 	lockedStorage         *relationStorage
 	lockedIdentityOnly    bool
@@ -20,7 +23,7 @@ type statementMutation struct {
 	viewWrite             *viewWrite
 	routineDependencies   []expressionDependency // Borrowed immutable manifest follows command activation.
 	uniqueBinding         *uniqueWriteBinding
-	indexBindings         map[ObjectAddress]*uniqueWriteBinding
+	indexBindings         map[ids.ObjectAddress]*uniqueWriteBinding
 	insertConflict        *boundInsertConflict
 	insertReturning       *insertReturningOutput
 	partitionInsert       *partitionInsertState
@@ -29,9 +32,9 @@ type statementMutation struct {
 	rlsMergeUpdate        rlsDisposition
 	rlsMergeInsert        rlsDisposition
 	rlsProposalTable      string
-	partitionRelations    map[ObjectAddress]*relationDescriptor
+	partitionRelations    map[ids.ObjectAddress]*relationDescriptor
 	admittedTargetName    parser.ObjectName
-	admittedTargetLexical ObjectRef
+	admittedTargetLexical ids.ObjectRef
 }
 
 func (s *StatementScope) activateMutation(index int) {

@@ -6,14 +6,15 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Reserved native relation identity, independent of PostgreSQL's allocator.
-const dataTypePrivilegesOID OID = 16201
+const dataTypePrivilegesOID ids.OID = 16201
 
 func (e *Engine) initializeDataTypePrivileges() error {
-	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
+	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
 	d.virtualView = true
 	for i, name := range []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"} {
 		id := sqltype.Name
@@ -38,7 +39,7 @@ func (e *Engine) initializeDataTypePrivileges() error {
 
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 		}
 		rows = append(rows, row)
 	}
-	visible := func(address ObjectAddress, owner authorization.PrincipalRef, mask authorization.Privileges) (bool, error) {
+	visible := func(address ids.ObjectAddress, owner authorization.PrincipalRef, mask authorization.Privileges) (bool, error) {
 		owns, err := auth.roles.InheritsRole(auth.state.CurrentUser, owner)
 		if err != nil || owns {
 			return owns, err
@@ -87,7 +88,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			objectType := "TABLE"
 			if kind == "c" {
 				objectType = "USER-DEFINED TYPE"
-				typ, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}].(*typeDescriptor)
+				typ, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
 				if !ok || !typ.typ.IsComposite() || typ.owningRelation != d.address {
 					return nil, fmt.Errorf("stuntgres: invalid composite privilege identity")
 				}
@@ -147,7 +148,7 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			// Genuine seeded domains retain PUBLIC USAGE by stable namespace
 			// identity even after a schema rename. Display names are not authority;
 			// this exception never extends to ownerless user objects.
-			seeded := d.typ.IsBuiltin() && d.Namespace() == (ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229})
+			seeded := d.typ.IsBuiltin() && d.Namespace() == (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229})
 			if !seeded {
 				allowed, err := visible(d.Address(), d.owner, authorization.UsagePrivilege)
 				if err != nil {

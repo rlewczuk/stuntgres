@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Uses only current private engine seams. The real root, its maintained entries
@@ -45,7 +47,7 @@ func TestPGOpclassJSONBHashIdentity(t *testing.T) {
 	if got := index.sqlIndex.keys[0].class.OID(); got != 10089 {
 		t.Errorf("JSONB hash class OID got %d want released hash identity 10089 (not btree 10088)", got)
 	}
-	if !reflect.DeepEqual(metadata.IndClass, []OID{10089}) {
+	if !reflect.DeepEqual(metadata.IndClass, []ids.OID{10089}) {
 		t.Errorf("actual index metadata class got %v want [10089]", metadata.IndClass)
 	}
 }

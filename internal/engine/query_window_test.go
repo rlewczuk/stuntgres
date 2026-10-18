@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -380,7 +381,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if oldEnum == newEnum || oldDomain == newDomain || newDomain.BaseType() != newEnum {
 		t.Fatal("descriptors not replaced")
 	}
-	mapped, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == oldEnum {
 			return newEnum
 		}

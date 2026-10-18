@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -179,10 +180,10 @@ func updateMatches(eval *EvalContext, predicate BoundExpr) (bool, error) {
 }
 
 // SQL waits never retain replacement admission or state/manager mutexes.
-func (s *StatementScope) acquireUpdateRow(ref ObjectRef, row RowID) error {
+func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row RowID) error {
 	return s.acquireUpdateRowMode(ref, row, noKeyUpdate)
 }
-func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode relationLockMode) error {
+func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row RowID, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
@@ -218,7 +219,7 @@ type updateCandidate struct {
 	physical    queryPhysicalRow
 }
 
-func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
+func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
@@ -358,7 +359,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 	}
 	type physicalBatch struct {
-		ref    ObjectRef
+		ref    ids.ObjectRef
 		old    []rowVersion
 		rows   indexWriteBatch
 		staged int

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -48,8 +49,8 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	}
 	// Reachability is by actual transition direction, not an executable global
 	// registry. Only the existing catalog is consulted while capturing authority.
-	directions := make(map[ObjectAddress]uint8)
-	changed := make(map[ObjectAddress]bool)
+	directions := make(map[ids.ObjectAddress]uint8)
+	changed := make(map[ids.ObjectAddress]bool)
 	for a, rows := range s.stage.rows {
 		if len(rows) != 0 {
 			changed[a] = true
@@ -92,7 +93,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		}
 	}
 	var jobs []foreignKeyJob
-	modes := make(map[ObjectRef]relationLockMode)
+	modes := make(map[ids.ObjectRef]relationLockMode)
 	for _, descriptor := range auth.catalog.state.descriptors {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
@@ -109,7 +110,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 				return nil, auth, ErrCatalogReplaced
 			}
 			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
-			for _, a := range []ObjectAddress{child.address, parent.address} {
+			for _, a := range []ids.ObjectAddress{child.address, parent.address} {
 				ref := e.domain.Ref(auth.catalog.Epoch(), a)
 				if modes[ref] == 0 {
 					modes[ref] = relationRowShare
@@ -123,11 +124,11 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	}
 	e.mu.Unlock()
 	slices.SortFunc(jobs, func(a, b foreignKeyJob) int { return cmp.Compare(a.definition.OID, b.definition.OID) })
-	refs := make([]ObjectRef, 0, len(modes))
+	refs := make([]ids.ObjectRef, 0, len(modes))
 	for ref := range modes {
 		refs = append(refs, ref)
 	}
-	slices.SortFunc(refs, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		if err = s.foreignKeyGrant(ref, 0, modes[ref], nil); err != nil {
 			return nil, auth, err
@@ -192,7 +193,7 @@ func (s *StatementScope) settleForeignActions() error {
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
 		ref := e.domain.Ref(auth.catalog.Epoch(), a)
-		image, err := s.captureForeignKeyRows(ref, ObjectAddress{})
+		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
@@ -213,7 +214,7 @@ func (s *StatementScope) settleForeignActions() error {
 			continue
 		}
 		ref := e.domain.Ref(auth.catalog.Epoch(), a)
-		image, err := s.captureForeignKeyRows(ref, ObjectAddress{})
+		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}

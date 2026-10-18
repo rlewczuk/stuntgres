@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltyp
 		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
 			return root, nil
 		}
-		return remapViewQueryMapped(view, root, func(ref ObjectRef) ObjectRef { return ref }, retainedType, collations...)
+		return remapViewQueryMapped(view, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, retainedType, collations...)
 	}, collations...)
 }
 

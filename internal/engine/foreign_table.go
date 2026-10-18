@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -55,9 +56,9 @@ func foreignTableSyntax(table *parser.CreateTable) *parser.CreateTable {
 	return next
 }
 
-func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]foreignValidation, []ObjectAddress, error) {
+func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]foreignValidation, []ids.ObjectAddress, error) {
 	if s.Action == "drop" {
-		var roots []ObjectAddress
+		var roots []ids.ObjectAddress
 		for _, name := range s.Names {
 			ref, err := e.resolveRelationReference(auth, name, true)
 			if err != nil {
@@ -88,8 +89,8 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, creationError(err, s.Name)
 	}
-	key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if stage.lookupName(key) != (ObjectAddress{}) {
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	if stage.lookupName(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			scope.op.existingRelationNotice(key.Name)
 			return nil, nil, nil

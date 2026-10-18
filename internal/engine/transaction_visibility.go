@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"sync/atomic"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // VisibilityView retains exact immutable relation-local roots, not copied row
@@ -19,18 +21,18 @@ type visibilityData struct {
 	tx                     TxRef
 	command                CommandID
 	frontier               CommitSeq
-	rewrittenFrontiers     map[ObjectAddress]CommitSeq
+	rewrittenFrontiers     map[ids.ObjectAddress]CommitSeq
 	catalog                CatalogRead
-	committed              map[ObjectAddress][]rowVersion
-	generations            map[ObjectAddress]visibilityGeneration
+	committed              map[ids.ObjectAddress][]rowVersion
+	generations            map[ids.ObjectAddress]visibilityGeneration
 	singleGeneration       *relationStorage
 	singleNeedsBirthFilter bool
-	own                    map[ObjectAddress][]rowVersion
-	ends                   map[ObjectAddress]*deletionRoot
-	deleted                map[ObjectAddress]*privateDeletionRoot
+	own                    map[ids.ObjectAddress][]rowVersion
+	ends                   map[ids.ObjectAddress]*deletionRoot
+	deleted                map[ids.ObjectAddress]*privateDeletionRoot
 }
 
-func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
+func (d *visibilityData) generationAt(address ids.ObjectAddress) *relationStorage {
 	if d.generations != nil {
 		return d.generations[address].storage
 	}
@@ -40,7 +42,7 @@ func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
 	return nil
 }
 
-func (d *visibilityData) needsBirthFilterAt(address ObjectAddress) bool {
+func (d *visibilityData) needsBirthFilterAt(address ids.ObjectAddress) bool {
 	if d.generations != nil {
 		return d.generations[address].needsBirthFilter
 	}
@@ -48,7 +50,7 @@ func (d *visibilityData) needsBirthFilterAt(address ObjectAddress) bool {
 	return captured && d.singleNeedsBirthFilter
 }
 
-func (d *visibilityData) frontierAt(address ObjectAddress) CommitSeq {
+func (d *visibilityData) frontierAt(address ids.ObjectAddress) CommitSeq {
 	if frontier, ok := d.rewrittenFrontiers[address]; ok {
 		return frontier
 	}
@@ -67,7 +69,7 @@ func newVisibilityView(data *visibilityData) *VisibilityView {
 	return v
 }
 
-func (s *StatementScope) AcquireDataView(ref ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*VisibilityView, error) {
 	if err := s.active(); err != nil {
 		return nil, err
 	}
@@ -82,21 +84,21 @@ func (s *StatementScope) AcquireDataView(ref ObjectRef) (*VisibilityView, error)
 	return s.acquireDataViewLocked(e, ref)
 }
 
-func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*VisibilityView, error) {
-	return s.acquireDataViewsLocked(e, []ObjectRef{ref})
+func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*VisibilityView, error) {
+	return s.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
 }
 
-func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ids.ObjectRef) (*VisibilityView, error) {
 	return s.captureDataViewsLocked(e, refs, false)
 }
 
 // ATTACH validates the grant-time committed frontier plus this owner's earlier
 // commands. It does not change the RR/Serializable owner's ordinary snapshot.
-func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ids.ObjectRef) (*VisibilityView, error) {
 	return s.captureDataViewsLocked(e, refs, true)
 }
 
-func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, latest bool) (*VisibilityView, error) {
+func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*VisibilityView, error) {
 	if s.txRef.Epoch() != e.state.epoch {
 		return nil, ErrCatalogReplaced
 	}
@@ -154,10 +156,10 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, lat
 	data := &visibilityData{
 		tx: s.txRef, command: s.command, frontier: frontier,
 		catalog:   catalog,
-		committed: make(map[ObjectAddress][]rowVersion, len(refs)),
+		committed: make(map[ids.ObjectAddress][]rowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
-		data.generations = make(map[ObjectAddress]visibilityGeneration, len(refs))
+		data.generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
 	}
 	for _, ref := range refs {
 		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -201,7 +203,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, lat
 		}
 		if !latest && rewrite.rewritten && stableIsolation(s.owner.isolation) {
 			if data.rewrittenFrontiers == nil {
-				data.rewrittenFrontiers = make(map[ObjectAddress]CommitSeq)
+				data.rewrittenFrontiers = make(map[ids.ObjectAddress]CommitSeq)
 			}
 			data.rewrittenFrontiers[ref.Address] = rewrite.frontier
 		}
@@ -214,13 +216,13 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, lat
 		}
 		if ends != nil {
 			if data.ends == nil {
-				data.ends = make(map[ObjectAddress]*deletionRoot)
+				data.ends = make(map[ids.ObjectAddress]*deletionRoot)
 			}
 			data.ends[ref.Address] = ends
 		}
 		if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
 			if data.own == nil {
-				data.own = make(map[ObjectAddress][]rowVersion)
+				data.own = make(map[ids.ObjectAddress][]rowVersion)
 			}
 			data.own[ref.Address] = rows
 		}
@@ -237,7 +239,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ObjectRef, lat
 			// single-target case, rather than allocating a redundant map.
 			data.deleted = s.ownDeletes
 		} else if selected != 0 {
-			data.deleted = make(map[ObjectAddress]*privateDeletionRoot, selected)
+			data.deleted = make(map[ids.ObjectAddress]*privateDeletionRoot, selected)
 			for _, ref := range refs {
 				if root := s.ownDeletes[ref.Address]; root != nil {
 					data.deleted[ref.Address] = root

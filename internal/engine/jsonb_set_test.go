@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -102,12 +103,12 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if err != nil || out != "{}" {
 		t.Fatal(out, err)
 	}
-	mapped, err := remapBoundExpression(e, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !sameGroupExpression(e, mapped) {
 		t.Fatal(mapped, err)
 	}
 	variadic := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set('{"a":1}','{a}',VARIADIC '2'::jsonb)`)
-	mapped, err = remapBoundExpression(variadic, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err = remapBoundExpression(variadic, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

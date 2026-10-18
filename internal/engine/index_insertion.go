@@ -1,6 +1,10 @@
 package engine
 
-import "maps"
+import (
+	"maps"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Only a target with checked nonunique indexes needs a mixed insertion lane.
 // Unique/exclusion bindings retain their existing ordered fast path otherwise.
@@ -25,7 +29,7 @@ func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding,
 		return err
 	}
 	if r.indexes == nil {
-		r.indexes = make(map[ObjectAddress]indexRowOutput)
+		r.indexes = make(map[ids.ObjectAddress]indexRowOutput)
 	} else if r.sharedIndexes {
 		r.indexes = maps.Clone(r.indexes)
 	}
@@ -44,7 +48,7 @@ const (
 
 // Catalog-drift staging can refresh grants and immutable providers, but cannot
 // manufacture a new checked insertion occurrence after the producer finished.
-func (s *StatementScope) revalidateIndexRows(ref ObjectRef, old []rowVersion, batch *indexWriteBatch) error {
+func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion, batch *indexWriteBatch) error {
 	prior := s.uniqueBinding
 	if prior != nil && prior.ref != ref {
 		prior = s.indexBindings[ref.Address]
@@ -107,7 +111,7 @@ func (s *StatementScope) revalidateIndexRows(ref ObjectRef, old []rowVersion, ba
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
 func (s *StatementScope) retainExistingIndexOutput(index *relationDescriptor, row rowVersion, output indexRowOutput) {
 	if s.existingIndexOutputs == nil {
-		s.existingIndexOutputs = make(map[ObjectAddress]map[indexRowIdentity]indexRowOutput)
+		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput)
 	}
 	outputs := s.existingIndexOutputs[index.address]
 	if outputs == nil {

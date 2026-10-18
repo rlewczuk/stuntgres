@@ -6,6 +6,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
@@ -29,7 +31,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			view := roleTableRef(t, e, "template")
 			old, store := e.state.descriptors[table.Address], e.storage[table.Address]
 			originalView := e.state.descriptors[view.Address].(*relationDescriptor)
-			removeView := func(ref ObjectRef) {
+			removeView := func(ref ids.ObjectRef) {
 				t.Helper()
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(stage)
@@ -46,7 +48,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			}
 			removeView(view)
 			provider := e.providers[RelationClassID]
-			var added ObjectAddress
+			var added ids.ObjectAddress
 			e.providers[RelationClassID] = alterDropProvider{provider, func() {
 				e.providers[RelationClassID] = provider
 				e.mu.Lock()
@@ -100,7 +102,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			if !errors.As(err, &conflict) {
 				t.Fatal("expected dependency publication conflict", err)
 			}
-			if added == (ObjectAddress{}) || e.state.descriptors[added] == nil || e.state.descriptors[table.Address] != old || e.storage[table.Address] != store {
+			if added == (ids.ObjectAddress{}) || e.state.descriptors[added] == nil || e.state.descriptors[table.Address] != old || e.storage[table.Address] != store {
 				t.Fatal("failed TYPE published a prefix", err)
 			}
 			if got := tuples(run(t, e, "SELECT * FROM late_view")); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {

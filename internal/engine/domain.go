@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -53,14 +54,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}].(*typeDescriptor); ok {
+	if replacement, ok := stage.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
 		base.Type = replacement.typ
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
 	if err != nil {
 		return err
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())})
+	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 	if err = auth.CanUse(ref); err != nil {
 		return err
@@ -109,15 +110,15 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		path, err := e.lookupNamespaces(auth, name, typeLookup)
 		if err != nil {
 			return err
 		}
-		var found []ObjectAddress
+		var found []ids.ObjectAddress
 		for i := range path.count() {
-			found = auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found = auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) != 0 {
 				break
 			}
@@ -147,9 +148,9 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	return nil
 }
 
-func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ObjectAddress) string {
+func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
 	if d.typ.IsArray() {
-		element, ok := catalog.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())})
+		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
 		if ok {
 			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
 		}
@@ -159,7 +160,7 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ObjectA
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+		if address, ok := catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
 			if address == d.Address() {
 				return name
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -327,7 +328,7 @@ func TestQueryCTEStoredIndependentGraphMemo(t *testing.T) {
 	definition := &cteDefinition{query: &BoundQuery{Root: canonical}, owner: 1, references: 2, hint: parser.CTENotMaterialized}
 	leftScan := &derivedNode{querySchema: canonical.Schema(), query: &BoundQuery{Root: &left}, cte: definition}
 	rightScan := &derivedNode{querySchema: canonical.Schema(), query: &BoundQuery{Root: &right}, cte: definition}
-	remapper := &viewQueryRemapper{catalog: e.CatalogRead(), ref: func(ref ObjectRef) ObjectRef { return ref }, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }}
+	remapper := &viewQueryRemapper{catalog: e.CatalogRead(), ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }}
 	mappedLeft, err := remapper.query(leftScan)
 	if err != nil {
 		t.Fatal(err)

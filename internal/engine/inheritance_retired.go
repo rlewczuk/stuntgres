@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -13,14 +14,14 @@ import (
 // attribute numbers in a later logical import. The current parent reference and
 // this physical constraint's identity remain exact live authority.
 type retiredInheritanceOrigin struct {
-	parent     ObjectRef
+	parent     ids.ObjectRef
 	attribute  int32
 	column     string
 	name       string
-	constraint OID
+	constraint ids.OID
 	lifetime   uint64
 	archive    uint64
-	own        OID
+	own        ids.OID
 	check      bool
 	// Logical import retains the archived source lifetime, not fresh OID/ranks.
 	replayed bool
@@ -28,7 +29,7 @@ type retiredInheritanceOrigin struct {
 
 func (p inheritedConstraint) count() int { return len(p.origins) + len(p.retired) }
 
-func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own OID, check bool) error {
+func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.retired {
 		parent, ok := view.state.descriptors[history.parent.Address].(*relationDescriptor)
 		if !ok || parent.relationKind != tableRelation || !storedReferenceEpochValid(view, table, history.parent) || history.parent.Address.SubID != 0 || history.attribute <= 0 || history.attribute > 1600 || history.column == "" || history.name == "" || history.constraint == 0 || history.lifetime == 0 || history.own != own || history.check != check || !slices.Contains(table.inheritance.parents, parent.address) {
@@ -109,7 +110,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relati
 	}
 }
 
-func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ObjectAddress]Descriptor) error {
+func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	// Runtime certificates share the source catalog's namespace. On replacement,
 	// archive that namespace once above every already imported namespace.
 	var runtimeArchive uint64
@@ -157,7 +158,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[Object
 			return fmt.Errorf("stuntgres: missing retired constraint owner")
 		}
 		graph := cloneInheritance(table.inheritance)
-		remap := func(p inheritedConstraint, oldOID, newOID OID) (inheritedConstraint, error) {
+		remap := func(p inheritedConstraint, oldOID, newOID ids.OID) (inheritedConstraint, error) {
 			p.retired = slices.Clone(p.retired)
 			for i := range p.retired {
 				record := &p.retired[i]
@@ -178,7 +179,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[Object
 			if len(p.retired) == 0 {
 				continue
 			}
-			var before, after OID
+			var before, after ids.OID
 			for _, c := range old.notNullConstraints {
 				if c.Attribute == attribute {
 					before = c.OID
@@ -199,7 +200,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[Object
 			if len(p.retired) == 0 {
 				continue
 			}
-			var before, after OID
+			var before, after ids.OID
 			for _, c := range old.checkConstraints {
 				if c.Name == name {
 					before = c.OID
@@ -226,7 +227,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[Object
 // Actual TYPE reconstruction destroys the old constraint tuple. Validate its
 // exact own identity before expiring its historical contributions; actual live
 // origins and local authority belong to the ordinary reconstruction callbacks.
-func retireRebuiltDefinitionHistory(p inheritedConstraint, before, after OID) (inheritedConstraint, error) {
+func retireRebuiltDefinitionHistory(p inheritedConstraint, before, after ids.OID) (inheritedConstraint, error) {
 	if len(p.retired) == 0 || before == after {
 		return p, nil
 	}

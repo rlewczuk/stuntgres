@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -100,7 +101,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 				}
 			}
 		}
-		session.lastSequence = ObjectAddress{}
+		session.lastSequence = ids.ObjectAddress{}
 		e.mu.Unlock()
 	}
 	s.completed, s.sessionCompleted = true, true
@@ -203,7 +204,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		return err
 	}
 	base := auth.catalog
-	owned := make(map[ObjectAddress]bool)
+	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
 			owned[address] = true
@@ -242,7 +243,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	if err = s.stageOwnedSequences(stage, children, parser.DropCascade, changes); err != nil {
 		return err
 	}
-	var relations []ObjectAddress
+	var relations []ids.ObjectAddress
 	for address := range stage.removals {
 		if address.ClassID == RelationClassID {
 			relations = append(relations, address)
@@ -287,11 +288,11 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 
 // Both destructive utilities check the actual selected closure. Exhausted
 // portals retain source pins; failed and exported HOLD roots do not.
-func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, address ObjectAddress) error {
+func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, address ids.ObjectAddress) error {
 	return s.relationCursorPreflight(stage.base, address, "DROP TABLE")
 }
 
-func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ObjectAddress, command string) error {
+func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ids.ObjectAddress, command string) error {
 	session := s.op.session
 	for _, cursor := range session.cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {

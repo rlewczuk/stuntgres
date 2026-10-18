@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,7 +13,7 @@ import (
 
 type columnIdentity struct {
 	mode     parser.IdentityMode
-	sequence ObjectAddress
+	sequence ids.ObjectAddress
 }
 
 func identityInsertError(column string) error {
@@ -123,7 +124,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			}
 			namespace := table.namespace
 			used := func(name string) bool {
-				return len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
+				return len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
 			}
 			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
@@ -165,7 +166,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	if err != nil {
 		return err
 	}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 	options.owned = table.address
 	options.owned.SubID = table.attributes[slot]
 	options.identity = true
@@ -179,7 +180,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	}
 	table.identities[table.attributes[slot]] = columnIdentity{mode: mode, sequence: address}
 	if stage.generators == nil {
-		stage.generators = make(map[ObjectAddress]*sequenceGenerator)
+		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}
 	initial := options.start
 	if restart != nil {

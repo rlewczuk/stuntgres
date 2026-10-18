@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -29,29 +30,29 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 	if count != 621 {
 		t.Fatal("initialized inventory", count)
 	}
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
 	if d, ok := view.Descriptor(ns); !ok || d.Name() != "information_schema" {
 		t.Fatal("initialized namespace", d, ok)
 	}
 	for _, name := range []string{"pg_type", "pg_class", "pg_index", "pg_sequence", "pg_attribute"} {
-		address := view.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name}]
+		address := view.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name}]
 		relation, exists := view.state.descriptors[address].(*relationDescriptor)
 		if name == "pg_index" && !exists {
 			t.Fatal("missing represented pg_index projection")
 		}
 		if !exists {
 			// Lookup-only identities do not create executable projections.
-			types := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
+			types := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
 			if len(types) != 1 {
 				t.Fatal("lookup-only row identity", name)
 			}
 			row := view.state.descriptors[types[0]].(*typeDescriptor)
-			if row.typ.Concrete() || row.owningRelation != (ObjectAddress{}) {
+			if row.typ.Concrete() || row.owningRelation != (ids.ObjectAddress{}) {
 				t.Fatal("lookup-only identity implies relation execution", name)
 			}
 			continue
 		}
-		row := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+		row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 		if row.owningRelation != address || row.Name() != relation.Name() || row.typ.Concrete() {
 			t.Fatal("projection row authority", name)
 		}
@@ -79,10 +80,10 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: values}
-	mapping := map[ObjectAddress]ObjectAddress{
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		{ClassID: RelationClassID, ObjectID: 23}: {ClassID: RelationClassID, ObjectID: 99},
 	}
-	transform := func(ref ObjectRef) ObjectRef {
+	transform := func(ref ids.ObjectRef) ids.ObjectRef {
 		if target, ok := mapping[ref.Address]; ok {
 			ref.Address = target
 		}
@@ -96,7 +97,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil || id != 23 {
 		t.Fatal("relation ID used as type identity", id, err)
 	}
-	mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: 23}] = ObjectAddress{ClassID: TypeClassID, ObjectID: 42}
+	mapping[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 23}] = ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 42}
 	changed, err := remapBoundExpression(literal, transform, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +117,7 @@ func TestRegtypeOIDAllocationSkipsTypeIdentities(t *testing.T) {
 	e := New()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.nextOID = OID(sqltype.Regtype)
+	e.nextOID = ids.OID(sqltype.Regtype)
 	id, err := e.allocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)

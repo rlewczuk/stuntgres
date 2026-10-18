@@ -3,15 +3,16 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
 
 // Names are namespace-wide only when generated. Explicit names are relation-local.
-func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relationDescriptor, reader ...definitionReader) map[string]bool {
+func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *relationDescriptor, reader ...definitionReader) map[string]bool {
 	names := make(map[string]bool)
-	descriptors := func(yield func(ObjectAddress, Descriptor) bool) {
+	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		for address, descriptor := range read.state.descriptors {
 			if !yield(address, descriptor) {
 				return

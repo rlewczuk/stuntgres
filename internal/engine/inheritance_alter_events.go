@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -11,7 +12,7 @@ import (
 type inheritanceAlterEvent struct {
 	action         parser.AlterTableAction
 	attribute      int32
-	constraint     OID
+	constraint     ids.OID
 	validation     bool
 	retiredNotNull []notNullConstraint
 	retiredChecks  []checkConstraint
@@ -45,7 +46,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			}
 			for _, c := range before.checkConstraints {
 				if !slices.ContainsFunc(after.checkConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.dependencies, func(dependency expressionDependency) bool {
-					return dependency.ref.Address == ObjectAddress{ClassID: RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
+					return dependency.ref.Address == ids.ObjectAddress{ClassID: RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
 				}

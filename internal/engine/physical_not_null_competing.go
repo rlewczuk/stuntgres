@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -98,7 +99,7 @@ func emitPhysicalCompetingUniques(view CatalogRead, table *relationDescriptor, o
 	return nil
 }
 
-func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ObjectAddress]ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
 		return nil, nil
 	}

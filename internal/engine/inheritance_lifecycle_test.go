@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,8 +14,8 @@ import (
 
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
-func inheritanceLifecycleTable(e *Engine, id OID, name string, parents ...ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
+func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
+	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
 	if len(parents) != 0 {
 		table.inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 	}
@@ -44,18 +45,18 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if err := stage.Remove(e.domain.Ref(base.Epoch(), p.address)); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{p.address})
+	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.address})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var addresses []ObjectAddress
+	var addresses []ids.ObjectAddress
 	for _, edge := range edges {
 		addresses = append(addresses, edge.address)
 	}
-	if !reflect.DeepEqual(addresses, []ObjectAddress{left.address, leaf.address, right.address}) {
+	if !reflect.DeepEqual(addresses, []ids.ObjectAddress{left.address, leaf.address, right.address}) {
 		t.Fatal(addresses)
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err == nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 		t.Fatal("RESTRICT accepted descendants")
 	} else {
 		var d *sqlstate.Error
@@ -66,7 +67,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if len(stage.removals) != 1 || e.state != base.state {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{p, left, right, leaf} {
@@ -97,12 +98,12 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{p.address, c.address}, parser.DropRestrict, nil, nil, nil, ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address, c.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := domainDependencyClosure(ctx, stage, []ObjectAddress{p.address}); !errors.Is(err, context.Canceled) {
+	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.address}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.state != base.state || len(stage.removals) != 2 {
@@ -133,7 +134,7 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 
 func TestInheritanceControlsTopology(t *testing.T) {
 	order, err := viewDumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: 20001}: {{oid: 20003}, {oid: 20002}}, {oid: 20002}: nil, {oid: 20003}: nil}, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{20002, 20003, 20001}) {
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{20002, 20003, 20001}) {
 		t.Fatal(order, err)
 	}
 }
@@ -154,7 +155,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			child.name = "child"
 			child.onCommit = actions.child
 			child.inheritance = &tableInheritance{
-				parents: []ObjectAddress{parent.address},
+				parents: []ids.ObjectAddress{parent.address},
 				columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: parent.address, attribute: 1}}}},
 				checks:  map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{},
 			}
@@ -171,7 +172,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			writes := map[ObjectAddress][]rowVersion{
+			writes := map[ids.ObjectAddress][]rowVersion{
 				parent.address: {{row: 1, version: 1, values: []sqltype.Value{one}}},
 				child.address:  {{row: 2, version: 2, values: []sqltype.Value{two}}},
 			}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -189,7 +190,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		owned := &cteDefinition{statement: auxiliary.syntax, mutation: &auxiliary.binding, owner: 1, name: "ignored"}
 		b := original.binding
 		b.ctes = []*cteDefinition{owned}
-		mapped, err := remapRuleBinding(auth.catalog, b, func(ref ObjectRef) ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		mapped, err := remapRuleBinding(auth.catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -269,13 +270,13 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	firstDefinition, firstConflict := executable(first)
 	// Mutate the actual normalized execution binding, not a stand-alone clone.
 	firstConflict.markAffected(RowID(42), 0)
-	firstConflict.selected = []ObjectAddress{sink.address}
+	firstConflict.selected = []ids.ObjectAddress{sink.address}
 	firstConflict.catalog = auth.catalog.state
 	firstConflict.checkpoint = make(relationLockCheckpoint)
 	firstConflict.statementKeys = make(relationLockCheckpoint)
 	firstConflict.frame = make([]sqltype.Value, 4)
 	firstConflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
-	firstConflict.ownRowSlots = map[ObjectAddress]map[RowID]int{sink.address: {RowID(42): 0}}
+	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[RowID]int{sink.address: {RowID(42): 0}}
 	second := compose()
 	secondDefinition, secondConflict := executable(second)
 	if firstConflict == secondConflict || firstConflict == recipe || secondConflict == recipe || firstDefinition == definition || secondDefinition == definition {

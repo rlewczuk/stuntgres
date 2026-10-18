@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // remapPreparedCatalog consumes an unpublished private candidate under the target
@@ -133,7 +134,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *typeDescriptor:
 			n := *d
 			var err error
-			seeded := d.owningRelation == (ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined())
+			seeded := d.owningRelation == (ids.ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined())
 			n.owner, err = seedOwner(d.owner, seeded)
 			if err != nil {
 				return nil, err

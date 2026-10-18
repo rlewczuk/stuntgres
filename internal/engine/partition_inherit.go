@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -11,7 +12,7 @@ import (
 // Inherited columns and cooked definitions carry admitted catalog identities.
 // Re-parsing their qualified names would add schema/cast/function privileges
 // PostgreSQL does not demand and could resolve a different provider by name.
-func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, syntax *parser.CreateTable, namespace ObjectAddress) (*relationDescriptor, error) {
+func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*relationDescriptor, error) {
 	op := scope.op
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
 	available, err := e.displaceAssociatedArrayLocked(stage, namespace, name)
@@ -26,7 +27,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for _, column := range parent.columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+			ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())})
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}
@@ -130,7 +131,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		for i, attribute := range d.attributes {
 			slots[attribute] = i
 		}
-		rowRef := func(old ObjectRef) ObjectRef {
+		rowRef := func(old ids.ObjectRef) ids.ObjectRef {
 			if old.Address.ClassID == parent.address.ClassID && old.Address.ObjectID == parent.address.ObjectID {
 				attribute := old.Address.SubID
 				old.Address = d.address
@@ -148,11 +149,11 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 			definition := original
 			definition.OID = 0
-			definition.expression, err = remapBoundExpressionWithQuery(original.expression, func(ref ObjectRef) ObjectRef { return ref }, slots, nil, rowRef)
+			definition.expression, err = remapBoundExpressionWithQuery(original.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
 			if err != nil {
 				return nil, err
 			}
-			var refs []ObjectRef
+			var refs []ids.ObjectRef
 			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, definition.expression)
 			if err != nil {
 				return nil, err

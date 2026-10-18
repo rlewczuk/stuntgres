@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Caller holds the admitted owner's mutex, never a peer owner. Waiting releases
 // Engine.mu and the implicit replacement fence; terminal session cancellation
 // can therefore drain this operation and replacement can fence its candidate.
@@ -32,7 +34,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		node.exempt = false
 		node.possible = nil
 		node.ready = nil
-		roots := make(map[ObjectAddress]transactionRoot, len(e.storage))
+		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
 			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}

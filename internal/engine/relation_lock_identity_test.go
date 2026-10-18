@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestRelationLockIdentity(t *testing.T) {
@@ -33,7 +35,7 @@ func TestRelationLockIdentity(t *testing.T) {
 			t.Fatal("foreign ticket accepted")
 		}
 	}
-	for _, invalid := range []ObjectRef{{}, catalogRef(t, other, other.CatalogRead(), "t"), tref.Domain().Ref(tref.Epoch+1, tref.Address), tref.Domain().Ref(tref.Epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: tref.Address.ObjectID, SubID: 1})} {
+	for _, invalid := range []ids.ObjectRef{{}, catalogRef(t, other, other.CatalogRead(), "t"), tref.Domain().Ref(tref.Epoch+1, tref.Address), tref.Domain().Ref(tref.Epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: tref.Address.ObjectID, SubID: 1})} {
 		if err := e.locks.acquire(context.Background(), ticket, lockResource{ObjectRef: invalid}, accessShare); err == nil {
 			t.Fatal("invalid resource accepted", invalid)
 		}

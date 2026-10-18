@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -49,7 +50,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 	}
 	for _, typ := range []*sqltype.Descriptor{row, array, domain} {
 		consumer := *table
-		consumer.ofType = ObjectAddress{}
+		consumer.ofType = ids.ObjectAddress{}
 		consumer.relationKind = materializedViewRelation
 		consumer.columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
 		state := *before.state

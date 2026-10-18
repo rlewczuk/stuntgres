@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Released facts belong to initialized catalog descriptors, separately from
 // their adapter's ability to return physical fields or infer query nullability.
 type catalogAttribute struct {
@@ -10,7 +12,7 @@ type catalogAttribute struct {
 
 // Condensed projections keep their established result order. Stable attribute
 // numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
-func catalogAttributeNumber(oid OID, name string, ordinal int32) int32 {
+func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	switch oid {
 	case 1255:
 		switch name {

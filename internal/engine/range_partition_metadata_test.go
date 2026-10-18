@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -163,7 +164,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		relation := rangePartitionRelation(t, e, "rp_admission_root")
 		view := e.CatalogRead()
 		key := relation.partition.keys[0]
-		address := ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.usage.Collation.ID)}
+		address := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.usage.Collation.ID)}
 		provider := view.state.descriptors[address].(*collationDescriptor)
 		var other *collationDescriptor
 		for _, descriptor := range view.state.descriptors {
@@ -202,8 +203,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 			t.Fatal("effective authority without explicit clause", err)
 		}
 	})
-	var physical []ObjectAddress
-	if err := partitionPhysicalDescendants(e.CatalogRead(), root, func(d *relationDescriptor) error { physical = append(physical, d.address); return nil }); err != nil || !reflect.DeepEqual(physical, []ObjectAddress{leaf.address, rest.address}) {
+	var physical []ids.ObjectAddress
+	if err := partitionPhysicalDescendants(e.CatalogRead(), root, func(d *relationDescriptor) error { physical = append(physical, d.address); return nil }); err != nil || !reflect.DeepEqual(physical, []ids.ObjectAddress{leaf.address, rest.address}) {
 		t.Fatal(physical, err)
 	}
 	for _, test := range []struct {
@@ -263,7 +264,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	cyclicRoot, cyclicMiddle := *root, *middle
 	cyclicRoot.membership = &partitionMembership{parent: middle.address, defaultBound: true}
 	middleDefinition := *middle.partition
-	middleDefinition.children = []ObjectAddress{root.address}
+	middleDefinition.children = []ids.ObjectAddress{root.address}
 	middleDefinition.defaultChild = root.address
 	cyclicMiddle.partition = &middleDefinition
 	cyclic.descriptors[root.address], cyclic.descriptors[middle.address] = &cyclicRoot, &cyclicMiddle
@@ -273,7 +274,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlapping := cloneCatalog(e.CatalogRead().state)
 	overlappingRoot, overlappingRest := *root, *rest
 	rootDefinition := *root.partition
-	rootDefinition.defaultChild = ObjectAddress{}
+	rootDefinition.defaultChild = ids.ObjectAddress{}
 	overlappingRoot.partition = &rootDefinition
 	overlappingRest.membership = &partitionMembership{parent: root.address, lower: slices.Clone(middle.membership.lower), upper: slices.Clone(middle.membership.upper)}
 	overlapping.descriptors[root.address], overlapping.descriptors[rest.address] = &overlappingRoot, &overlappingRest

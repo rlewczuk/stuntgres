@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -14,7 +15,7 @@ var stockIntagg = &intaggProvider{version: "1.1"}
 var intaggMembers = [...]struct {
 	name      string
 	signature procedureSignature
-	result    OID
+	result    ids.OID
 	strict    bool
 	kind      routineKind
 }{
@@ -23,7 +24,7 @@ var intaggMembers = [...]struct {
 }
 
 func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ObjectAddress, len(intaggMembers))
+	ext.members = make([]ids.ObjectAddress, len(intaggMembers))
 	for i, member := range intaggMembers {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -33,7 +34,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		if err != nil {
 			return err
 		}
-		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
 		if i == 0 {
@@ -53,7 +54,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 				},
 			}
 		}
-		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
+		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
 		if err := stage.Create(proc); err != nil {
@@ -71,7 +72,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 	var seen [len(intaggMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {

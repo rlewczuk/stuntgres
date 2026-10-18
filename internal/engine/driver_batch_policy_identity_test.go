@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			owner := e.state.descriptors[ownerRef.Address].(*relationDescriptor)
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
-			var oid OID
+			var oid ids.OID
 			var private *relationDescriptor
 			for i, q := range []string{
 				"CREATE POLICY original ON policy_owner USING(nextval('policy_dependency')>0)",
@@ -52,14 +53,14 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			e.mu.Unlock()
 			stage := e.BeginCatalogStage(view)
 			defer e.DiscardCatalogStage(stage)
-			closure, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{dependency.Address})
+			closure, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{dependency.Address})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if len(closure) != 1 || closure[0].automatic || closure[0].label != "policy renamed on table policy_owner" {
 				t.Fatal("private altered policy dependency closure lost identity", closure)
 			}
-			if err = stageExpressionDependencies(context.Background(), stage, []ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+			if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			pruned, ok := stage.descriptors[ownerRef.Address].(*relationDescriptor)

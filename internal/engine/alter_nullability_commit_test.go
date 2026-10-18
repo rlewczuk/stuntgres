@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
-	setup := func() (*Engine, *Session, TxRef, ObjectRef) {
+	setup := func() (*Engine, *Session, TxRef, ids.ObjectRef) {
 		e := New()
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE t(a INT,b INT)")

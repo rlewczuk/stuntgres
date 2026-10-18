@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -14,7 +15,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 		return nil, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 1 {
 			return auth.catalog.state.descriptors[found[0]].(*typeDescriptor), nil
 		}
@@ -22,7 +23,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	return nil, expressionError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ObjectAddress) (*relationDescriptor, error) {
+func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
 	name := typ.typ.DiagnosticName()
 	if typ.typ.IsUserDefined() {
 		name = typeDiagnosticNameAt(catalog, typ, path)
@@ -115,7 +116,7 @@ func typedShape(table, source *relationDescriptor) error {
 }
 
 func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) error {
-	if table.ofType == (ObjectAddress{}) {
+	if table.ofType == (ids.ObjectAddress{}) {
 		return nil
 	}
 	if table.ofType.ClassID != TypeClassID || table.ofType.SubID != 0 || table.relationKind != tableRelation {
@@ -149,10 +150,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	next := *old
 	if s.Type == nil {
-		if old.ofType == (ObjectAddress{}) {
+		if old.ofType == (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a typed table`, old.name)))
 		}
-		next.ofType = ObjectAddress{}
+		next.ofType = ids.ObjectAddress{}
 	} else {
 		typ, err := e.namedType(auth, *s.Type)
 		if err != nil {
@@ -176,13 +177,13 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		}
 		next.ofType = typ.Address()
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	next.revision++
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	if next.ofType != (ObjectAddress{}) {
+	if next.ofType != (ids.ObjectAddress{}) {
 		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[next.ofType])
 	}
 	e.mu.Unlock()
@@ -215,7 +216,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 }
 
 func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTableAction) error {
-	if table.ofType == (ObjectAddress{}) {
+	if table.ofType == (ids.ObjectAddress{}) {
 		return nil
 	}
 	for _, action := range actions {
@@ -235,19 +236,19 @@ func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTa
 }
 
 func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool) error {
-	var sources map[ObjectAddress]bool
+	var sources map[ids.ObjectAddress]bool
 	if drop {
 		if len(stage.domainTargets) != 0 {
-			sources = make(map[ObjectAddress]bool, len(stage.domainTargets))
+			sources = make(map[ids.ObjectAddress]bool, len(stage.domainTargets))
 		}
 		for _, source := range stage.domainTargets {
 			sources[source] = true
 		}
 	} else {
 		for _, descriptor := range stage.descriptors {
-			if table, ok := descriptor.(*relationDescriptor); ok && table.ofType != (ObjectAddress{}) {
+			if table, ok := descriptor.(*relationDescriptor); ok && table.ofType != (ids.ObjectAddress{}) {
 				if sources == nil {
-					sources = make(map[ObjectAddress]bool)
+					sources = make(map[ids.ObjectAddress]bool)
 				}
 				sources[table.ofType] = true
 			}
@@ -256,11 +257,11 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 	if len(sources) == 0 {
 		return nil
 	}
-	addresses := make([]ObjectAddress, 0, len(sources))
+	addresses := make([]ids.ObjectAddress, 0, len(sources))
 	for source := range sources {
 		addresses = append(addresses, source)
 	}
-	slices.SortFunc(addresses, func(a, b ObjectAddress) int {
+	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
 		}

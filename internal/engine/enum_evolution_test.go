@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestEnumProvenanceSavepoints(t *testing.T) {
-	address := ObjectAddress{ClassID: TypeClassID, ObjectID: 45000}
+	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 45000}
 	outer := newCatalogChanges()
-	outer.enumCreated = map[ObjectAddress]bool{address: true}
+	outer.enumCreated = map[ids.ObjectAddress]bool{address: true}
 	outer.enumUnsafe = map[int64]bool{9: true}
 	child := cloneCatalogChanges(outer)
 	child.enumUnsafe[10] = true

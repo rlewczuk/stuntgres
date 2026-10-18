@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func routineSpelling(view CatalogRead, path []ObjectAddress, id OID, signatureQualified, qualified bool) string {
+func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, signatureQualified, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -22,7 +23,7 @@ func routineSpelling(view CatalogRead, path []ObjectAddress, id OID, signatureQu
 	selected, count := selectRoutine(view, namespaceSelection{path: path}, procedure.name, signature)
 	name := regclassIdentifier(procedure.name)
 	if qualified || count != 1 || selected.id != id {
-		namespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: procedure.namespace}]
+		namespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: procedure.namespace}]
 		name = regclassIdentifier(namespace.Name()) + "." + name
 	}
 	if !signatureQualified {
@@ -39,14 +40,14 @@ func routineSpelling(view CatalogRead, path []ObjectAddress, id OID, signatureQu
 			}
 			first = false
 			oid, _ := strconv.ParseUint(arg, 10, 32) // validated identity inventory
-			text.WriteString(regtypeSpelling(view, path, OID(oid)))
+			text.WriteString(regtypeSpelling(view, path, ids.OID(oid)))
 		}
 	}
 	text.WriteByte(')')
 	return text.String()
 }
 
-func regprocSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+func regprocSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
 	return routineSpelling(view, path, id, false, false)
 }
 
@@ -57,7 +58,7 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if text, ok := s.regprocOutput[id]; ok {
 		return text, nil
 	}
-	text := regprocSpelling(s.commentCatalog, s.deparsePath, OID(id))
+	text := regprocSpelling(s.commentCatalog, s.deparsePath, ids.OID(id))
 	if s.regprocOutput == nil {
 		s.regprocOutput = make(map[uint32]string)
 	}
@@ -71,7 +72,7 @@ func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if text, ok := s.regprocedureOutput[id]; ok {
 		return text, nil
 	}
-	text := routineSpelling(s.commentCatalog, s.deparsePath, OID(id), true, false)
+	text := routineSpelling(s.commentCatalog, s.deparsePath, ids.OID(id), true, false)
 	if s.regprocedureOutput == nil {
 		s.regprocedureOutput = make(map[uint32]string)
 	}
@@ -93,7 +94,7 @@ func (r *finalRows) FormatRegprocedure(id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -133,7 +134,7 @@ func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ObjectA
 			rows.regprocOutput = output
 		}
 	}
-	output[id] = routineSpelling(view, path, OID(id), signature, false)
+	output[id] = routineSpelling(view, path, ids.OID(id), signature, false)
 	rows.output.Regproc = rows
 	return nil
 }
@@ -141,13 +142,13 @@ func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ObjectA
 // Catalog renderers use captured authority, never a live Rows lookup.
 type catalogRoutineOutput struct {
 	view      CatalogRead
-	path      []ObjectAddress
+	path      []ids.ObjectAddress
 	qualified bool
 }
 
 func (r catalogRoutineOutput) FormatRegproc(id uint32) (string, error) {
-	return routineSpelling(r.view, r.path, OID(id), false, r.qualified), nil
+	return routineSpelling(r.view, r.path, ids.OID(id), false, r.qualified), nil
 }
 func (r catalogRoutineOutput) FormatRegprocedure(id uint32) (string, error) {
-	return routineSpelling(r.view, r.path, OID(id), true, r.qualified), nil
+	return routineSpelling(r.view, r.path, ids.OID(id), true, r.qualified), nil
 }

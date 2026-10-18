@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -72,23 +73,23 @@ func operatorAlterOption(o parser.OperatorOption) parser.OperatorOption {
 	return o
 }
 
-func (e *Engine) resolveOperatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (OID, error) {
+func (e *Engine) resolveOperatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
 	input, err := e.captureRegtypeInput(auth, op)
 	if err != nil {
 		return 0, err
 	}
 	id, err := input.resolveParsedTypeName(op.Context(), raw, op)
-	return OID(id), err
+	return ids.OID(id), err
 }
 
-func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id OID) error {
+func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id ids.OID) error {
 	if id == 0 {
 		return nil
 	}
-	return auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: id}))
+	return auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}))
 }
 
-func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (OID, error) {
+func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
 	if raw.Name == "" || strings.EqualFold(raw.Name, "none") && raw.Schema == nil && !raw.Quoted {
 		return 0, nil
 	}
@@ -101,7 +102,7 @@ func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw par
 	}
 	return id, e.checkOperatorArgumentUsage(auth, id)
 }
-func operatorInputName(v CatalogRead, left, right OID, name parser.ObjectName) string {
+func operatorInputName(v CatalogRead, left, right ids.OID, name parser.ObjectName) string {
 	n := objectNameText(name)
 	if left != 0 {
 		t, _ := v.LookupType(sqltype.ID(left))
@@ -126,7 +127,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	if err != nil {
 		return nil, err
 	}
-	key := operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID}, left: left, right: right, name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, left: left, right: right, name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.namespace = path.at(i)
 		a := auth.catalog.state.names[descriptorNameKey(&key)]
@@ -136,7 +137,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	}
 	return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.catalog, left, right, s.Name))
 }
-func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []OID) (*procedureDescriptor, error) {
+func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*procedureDescriptor, error) {
 	path, err := e.lookupNamespaces(auth, name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -174,7 +175,7 @@ func operatorEstimatorVariant(name parser.ObjectName, five routineIdentity, five
 	return four, fourCount, nil
 }
 
-func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result OID, builtin, superuser bool) error {
+func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result ids.OID, builtin, superuser bool) error {
 	if !builtin && !superuser {
 		return sqlError("42501", "must be superuser to specify a non-built-in selectivity estimation function")
 	}
@@ -190,7 +191,7 @@ func validateOperatorEstimatorMetadata(name parser.ObjectName, join bool, result
 	}
 	return nil
 }
-func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectName, join bool) (OID, error) {
+func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectName, join bool) (ids.OID, error) {
 	if len(name.Parts) == 0 {
 		return 0, nil
 	}
@@ -214,15 +215,15 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		}
 	}
 	if count == 0 {
-		inputs := []OID{2281, 26, 2281, 23}
+		inputs := []ids.OID{2281, 26, 2281, 23}
 		if join {
-			inputs = []OID{2281, 26, 2281, 21, 2281}
+			inputs = []ids.OID{2281, 26, 2281, 21, 2281}
 		}
 		_, err := e.operatorRoutine(auth, name, inputs)
 		return 0, err
 	}
 	result := releasedOperatorEstimatorResult(identity.id)
-	if d, ok := auth.catalog.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: identity.id}].(*procedureDescriptor); ok {
+	if d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: identity.id}].(*procedureDescriptor); ok {
 		if d.routineKind != functionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
@@ -264,7 +265,7 @@ func validateOperatorOptions(d *operatorDescriptor, comm, neg parser.ObjectName)
 			return sqlError("42P13", "only binary operators can hash")
 		}
 	}
-	if d.result != OID(sqltype.Bool) {
+	if d.result != ids.OID(sqltype.Bool) {
 		if len(neg.Parts) > 0 {
 			return sqlError("42P13", "only boolean operators can have negators")
 		}
@@ -495,7 +496,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	}
 	view := e.stageRead(stage)
 	var peer *operatorDescriptor
-	key := operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID}, name: symbol, left: left, right: right}
+	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, name: symbol, left: left, right: right}
 	for i := range path.count() {
 		key.namespace = path.at(i)
 		if found, ok := view.state.descriptors[view.state.names[descriptorNameKey(&key)]].(*operatorDescriptor); ok {
@@ -530,7 +531,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		if err != nil {
 			return nil, err
 		}
-		peer = &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: id}, namespace: ns.Address, revision: rev, name: symbol, left: left, right: right, owner: auth.state.CurrentUser}
+		peer = &operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}, namespace: ns.Address, revision: rev, name: symbol, left: left, right: right, owner: auth.state.CurrentUser}
 		if err = stage.Create(peer); err != nil {
 			return nil, err
 		}
@@ -585,7 +586,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operato
 		attribute = "negator"
 	}
 	if link != 0 && link != d.address.ObjectID {
-		third, ok := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: link}].(*operatorDescriptor)
+		third, ok := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: link}].(*operatorDescriptor)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing reciprocal operator")
 		}
@@ -641,7 +642,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if len(function.Parts) == 0 {
 		return sqlError("42P13", "operator function must be specified")
 	}
-	var l, r OID
+	var l, r ids.OID
 	if hasLeft {
 		l, err = e.resolveOperatorArgument(op, auth, left)
 		if err != nil {
@@ -666,19 +667,19 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err = e.checkOperatorArgumentUsage(auth, r); err != nil {
 		return err
 	}
-	inputs := []OID{r}
+	inputs := []ids.OID{r}
 	if l != 0 {
-		inputs = []OID{l, r}
+		inputs = []ids.OID{l, r}
 	}
 	routine, err := e.operatorRoutine(auth, function, inputs)
 	if err != nil {
 		return err
 	}
-	if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: routine.result})); err != nil {
+	if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: routine.result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
-	next := operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID}, namespace: ns.Address, name: symbol, left: l, right: r, owner: auth.state.CurrentUser, result: routine.result, function: routine.address.ObjectID}
+	next := operatorDescriptor{address: ids.ObjectAddress{ClassID: OperatorClassID}, namespace: ns.Address, name: symbol, left: l, right: r, owner: auth.state.CurrentUser, result: routine.result, function: routine.address.ObjectID}
 	// DefineOperator resolves surviving estimators before OperatorCreate checks
 	// the name, parameter combinations, and only then duplicate/shell ownership.
 	comm, neg, err := e.collectOperatorOptions(auth, &next, s.Options, false)
@@ -705,7 +706,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		if err != nil {
 			return err
 		}
-		next.address = ObjectAddress{ClassID: OperatorClassID, ObjectID: id}
+		next.address = ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}
 	}
 	next.revision, err = e.revisionLocked()
 	if err != nil {
@@ -786,7 +787,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		next.owner = target
 	case "schema":
-		if a := stage.lookupName(descriptorNameKey(&next)); a != (ObjectAddress{}) && a != d.address {
+		if a := stage.lookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && a != d.address {
 			return sqlError("42723", "operator "+d.name+" already exists in schema \""+s.Target.Text+"\"")
 		}
 	case "options":
@@ -836,7 +837,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	return stage.Replace(&next)
 }
 func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropOperator) error {
-	seen := make(map[ObjectAddress]bool, len(s.Signatures))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Signatures))
 	for _, sig := range s.Signatures {
 		d, err := e.findUtilityOperator(op, auth, sig)
 		if err != nil {

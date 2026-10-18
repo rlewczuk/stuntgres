@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Called by the existing ALTER executor with Engine.mu held. Flag-only lists
 // stage only metadata: no storage clone, row scan, policy copy or definition OID
@@ -13,7 +17,7 @@ func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *Operatio
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.mu.Unlock()
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next.revision = old.revision + 1

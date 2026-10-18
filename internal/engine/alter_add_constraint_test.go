@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -137,7 +138,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if len(scope.alterForeignKeys) != 1 || scope.alterForeignKeys[0].target.Address != original.address || scope.alterForeignKeys[0].index != (ObjectAddress{}) {
+	if len(scope.alterForeignKeys) != 1 || scope.alterForeignKeys[0].target.Address != original.address || scope.alterForeignKeys[0].index != (ids.ObjectAddress{}) {
 		t.Fatal("invented preexisting self provider", scope.alterForeignKeys)
 	}
 	candidate := scope.catalog.descriptors[original.address].(*relationDescriptor)
@@ -186,7 +187,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		t.Fatal("ordinary UPDATE acquired historical provenance")
 	}
 	current := scope.stage.rows[child.address][0]
-	rows, err := scope.captureForeignKeyRows(e.domain.Ref(e.state.epoch, child.address), ObjectAddress{})
+	rows, err := scope.captureForeignKeyRows(e.domain.Ref(e.state.epoch, child.address), ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +271,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: e.stageRead(stage)}, auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ObjectAddress{next.uniqueConstraints[1].Index}, false)
+	_, err = validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: e.stageRead(stage)}, auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ids.ObjectAddress{next.uniqueConstraints[1].Index}, false)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)

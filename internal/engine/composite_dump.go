@@ -6,10 +6,11 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
-func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []OID) ([]OID, error) {
-	if relation.ofType != (ObjectAddress{}) {
+func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
+	if relation.ofType != (ids.ObjectAddress{}) {
 		id, err := dumpPredecessor(view, relation.ofType, relation.address)
 		if err != nil {
 			return nil, err
@@ -19,7 +20,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 		}
 	}
 	for _, column := range relation.columns {
-		id, err := dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}, relation.address)
+		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.address)
 		if err != nil {
 			return nil, err
 		}
@@ -31,7 +32,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 }
 
 func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, relation *relationDescriptor) (dumpDomain, error) {
-	row := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+	row := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 	if !defaultDomainACL(row) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
 	}
@@ -68,17 +69,17 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authori
 
 // Render from the captured graph only. All row creators reserve their implicit
 // array names here, so domain-on-array replay follows the actual mixed order.
-func mixedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, order []OID, domains map[OID]*typeDescriptor, composites map[OID]*relationDescriptor) (map[OID]dumpDomain, error) {
+func mixedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, order []ids.OID, domains map[ids.OID]*typeDescriptor, composites map[ids.OID]*relationDescriptor) (map[ids.OID]dumpDomain, error) {
 	replay := newDomainReplayNames()
-	result := make(map[OID]dumpDomain, len(domains)+len(composites))
+	result := make(map[ids.OID]dumpDomain, len(domains)+len(composites))
 	for _, id := range order {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		d := domains[id]
 		if d == nil {
-			if relation, ok := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor); ok && relation.rowType != 0 {
-				d = view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+			if relation, ok := view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor); ok && relation.rowType != 0 {
+				d = view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
 			}
 		}
 		if d == nil {

@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
-func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int) (BoundExpr, error) {
+func remapBoundExpression(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (BoundExpr, error) {
 	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
 		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
 	}, nil)
 }
 
-func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ObjectRef) ObjectRef) (BoundExpr, error) {
+func remapBoundExpressionWithQuery(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (BoundExpr, error) {
 	if rowRef == nil {
 		rowRef = ref
 	}
@@ -26,7 +27,7 @@ func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef
 // Row copies retain explicit object constants and external calls. Replacement
 // callers map both roles, whereas LIKE and partition inheritance supply a
 // distinct owner-row mapper.
-func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
+func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -122,13 +123,13 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			next = n
 			break
 		}
-		if n.regclassRef != (ObjectRef{}) {
+		if n.regclassRef != (ids.ObjectRef{}) {
 			n.regclassRef = ref(n.regclassRef)
 		}
 		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapRegclassDatum(n.value, func(id OID) OID {
-				return ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}}).Address.ObjectID
+			n.value, failure = remapRegclassDatum(n.value, func(id ids.OID) ids.OID {
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -136,8 +137,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		}
 		if (n.usage.Type.ContainsRegtype() || n.usage.Type.ContainsRegObject()) && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapCatalogAliasDatum(n.value, func(address ObjectAddress) ObjectAddress {
-				return ref(ObjectRef{Address: address}).Address
+			n.value, failure = remapCatalogAliasDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
+				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
 				return nil, failure
@@ -145,8 +146,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		}
 		if n.usage.Type.ContainsRegproc() && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapRoutineDatum(n.value, func(id OID) OID {
-				return ref(ObjectRef{Address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}}).Address.ObjectID
+			n.value, failure = remapRoutineDatum(n.value, func(id ids.OID) ids.OID {
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -154,8 +155,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		}
 		if n.usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapOperatorDatum(n.value, func(id OID) OID {
-				return ref(ObjectRef{Address: ObjectAddress{ClassID: OperatorClassID, ObjectID: id}}).Address.ObjectID
+			n.value, failure = remapOperatorDatum(n.value, func(id ids.OID) ids.OID {
+				return ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}}).Address.ObjectID
 			})
 			if failure != nil {
 				return nil, failure
@@ -163,8 +164,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		}
 		if n.usage.Type.ContainsRegTS() && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapRegTSDatum(n.value, func(address ObjectAddress) ObjectAddress {
-				return ref(ObjectRef{Address: address}).Address
+			n.value, failure = remapRegTSDatum(n.value, func(address ids.ObjectAddress) ids.ObjectAddress {
+				return ref(ids.ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
 				return nil, failure
@@ -608,7 +609,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		next = n
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
 		n.Args = args(n.Args)
-		if ref != nil && n.Origin.owner != (ObjectRef{}) {
+		if ref != nil && n.Origin.owner != (ids.ObjectRef{}) {
 			origin := n.Origin
 			origin.owner = ref(origin.owner)
 			n = n.WithOrigin(origin)
@@ -648,12 +649,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	return next, err
 }
 
-func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	var collation collationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
@@ -666,7 +667,7 @@ func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ObjectRef
 }
 
 type viewQueryRemapper struct {
-	ref            func(ObjectRef) ObjectRef
+	ref            func(ids.ObjectRef) ids.ObjectRef
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*projectNode]LogicalNode
 	collation      collationRemapper
@@ -713,7 +714,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			schema[i].Usage.Collation = capability
 		}
 		if schema[i].OriginTable != 0 {
-			origin := ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(schema[i].OriginTable)}})
+			origin := ref(ids.ObjectRef{Address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(schema[i].OriginTable)}})
 			schema[i].OriginTable = uint32(origin.Address.ObjectID)
 		}
 	}
@@ -1240,7 +1241,7 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 	return changed
 }
 
-func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
+func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	return e.reownCatalogExpressions(next, mapping, false)
 }
 
@@ -1249,7 +1250,7 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 // objects and relation identities remapped earlier in the private candidate.
 func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	const descriptorOID, ruleOID, claimedOID = uint8(1), uint8(2), uint8(4)
-	reserved := make(map[OID]uint8, len(next.descriptors))
+	reserved := make(map[ids.OID]uint8, len(next.descriptors))
 	var views []*relationDescriptor
 	for address, descriptor := range next.descriptors {
 		reserved[address.ObjectID] |= descriptorOID

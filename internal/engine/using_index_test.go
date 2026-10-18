@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -528,7 +529,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	for _, attribute := range parent.attributes {
 		target := parent.address
 		target.SubID = attribute
-		if !slices.Contains(edges, pgDependEdge{dependent: ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, referenced: target, deptype: 'a'}) {
+		if !slices.Contains(edges, pgDependEdge{dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, referenced: target, deptype: 'a'}) {
 			t.Fatal("missing key/include auto dependency", target)
 		}
 	}
@@ -657,7 +658,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	before := e.CatalogRead()
 	parent, index := primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "owned")
 	parentRef, indexRef := catalogRef(t, e, before, "t"), catalogRef(t, e, before, "owned")
-	constraintRef := parentRef.Domain().Ref(before.Epoch(), ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID})
+	constraintRef := parentRef.Domain().Ref(before.Epoch(), ids.ObjectAddress{ClassID: 2606, ObjectID: parent.uniqueConstraints[0].OID})
 	store, root := e.storage[parent.address], e.indexRoots[index.address]
 	versions := slices.Clone(store.versions)
 	columns, constraints := slices.Clone(parent.columns), slices.Clone(parent.uniqueConstraints)
@@ -677,7 +678,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 		t.Fatal("Restore lost valid cross-object constraint identity", current.uniqueConstraints)
 	}
 	currentParentRef, currentIndexRef := catalogRef(t, e, after, "t"), catalogRef(t, e, after, "owned")
-	currentConstraintRef := currentParentRef.Domain().Ref(after.Epoch(), ObjectAddress{ClassID: 2606, ObjectID: current.uniqueConstraints[0].OID})
+	currentConstraintRef := currentParentRef.Domain().Ref(after.Epoch(), ids.ObjectAddress{ClassID: 2606, ObjectID: current.uniqueConstraints[0].OID})
 	if after.Epoch() != before.Epoch()+1 || currentParentRef == parentRef || currentIndexRef == indexRef || currentConstraintRef == constraintRef || current.address != parent.address {
 		t.Fatal("Restore did not establish fresh group generation at retained parent", before.Epoch(), after.Epoch(), constraintRef, currentConstraintRef)
 	}

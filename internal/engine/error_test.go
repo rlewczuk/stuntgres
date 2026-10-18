@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -54,7 +55,7 @@ func (p *publicationConflictProvider) Validate(view CatalogRead, d Descriptor) e
 
 func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	e := New()
-	var loser ObjectAddress
+	var loser ids.ObjectAddress
 	var winnerView CatalogRead
 	e.providers[RelationClassID] = &publicationConflictProvider{
 		CatalogProvider: e.providers[RelationClassID],
@@ -86,7 +87,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if _, ok := after.Descriptor(loser); ok || e.storage[loser] != nil {
 		t.Fatal("losing Execute installed its descriptor or storage")
 	}
-	key := NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "conflict_rows"}
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "conflict_rows"}
 	refs := after.Lookup(key)
 	if len(refs) != 1 || refs[0] == loser {
 		t.Fatalf("winning name binding = %#v", refs)

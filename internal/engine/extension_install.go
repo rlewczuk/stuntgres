@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -75,7 +76,7 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	}
 	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.state.descriptors[stage.extensionNamespace], database: stage.databasePredecessor})
 	scope.catalog = changes
-	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
+	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
 	return Result{}, nil
 }
@@ -86,8 +87,8 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	key := NameKey{ClassID: ExtensionClassID, Name: s.Name.Text}
-	if auth.catalog.state.names[key] != (ObjectAddress{}) {
+	key := ids.NameKey{ClassID: ExtensionClassID, Name: s.Name.Text}
+	if auth.catalog.state.names[key] != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
 			return nil, nil
@@ -133,10 +134,10 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if version != registration.version {
 		return nil, sqlError("22023", fmt.Sprintf(`extension "%s" has no installation script nor update path for version "%s"`, s.Name.Text, version))
 	}
-	var namespace ObjectAddress
+	var namespace ids.ObjectAddress
 	if schema != nil {
-		namespace = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: schema.Text}]
-		if namespace == (ObjectAddress{}) {
+		namespace = auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: schema.Text}]
+		if namespace == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, schema.Text))
 		}
 	} else {
@@ -177,7 +178,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &extensionDescriptor{address: ObjectAddress{ClassID: ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
+	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, version: version, targetNamespace: namespace, owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -191,13 +192,13 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 }
 
 func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ObjectAddress, 6)
-	for i, class := range [6]OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
+	ext.members = make([]ids.ObjectAddress, 6)
+	for i, class := range [6]ids.OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		ext.members[i] = ObjectAddress{ClassID: class, ObjectID: oid}
+		ext.members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
@@ -206,7 +207,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			return err
 		}
 		name := "unaccent"
-		result := OID(25)
+		result := ids.OID(25)
 		vol := Stable
 		strict := true
 		if i == 2 {
@@ -225,7 +226,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i < 2 {
 			proc.dictionary = ext.members[5]
 		}
-		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
+		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return extensionMemberConflict(proc, ext.targetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
@@ -244,8 +245,8 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock script has no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := e.effectivePath(auth, []ObjectAddress{ext.targetNamespace}, installedFunctionLookup)
-	var helpers [2]ObjectAddress
+	path := e.effectivePath(auth, []ids.ObjectAddress{ext.targetNamespace}, installedFunctionLookup)
+	var helpers [2]ids.ObjectAddress
 	for i, helper := range [...]struct {
 		name      string
 		signature procedureSignature
@@ -262,7 +263,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	tmpl := &tsTemplateDescriptor{address: ext.members[4], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", init: helpers[0], lexize: helpers[1], provider: p}
-	if stage.lookupName(descriptorNameKey(tmpl)) != (ObjectAddress{}) {
+	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.targetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
@@ -273,12 +274,12 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	dict := &tsDictionaryDescriptor{address: ext.members[5], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: "unaccent", template: tmpl.address, owner: owner, provider: p}
-	if stage.lookupName(descriptorNameKey(dict)) != (ObjectAddress{}) {
+	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.targetNamespace)
 	}
 	return stage.Create(dict)
 }
-func extensionMemberConflict(d Descriptor, ns ObjectAddress) error {
+func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 	err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR"}
 	switch d := d.(type) {
 	case *procedureDescriptor:

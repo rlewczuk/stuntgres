@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -150,16 +151,16 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	next := make([]relationDescriptor, len(group))
 	for i, r := range group {
-		if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]; exists {
+		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]; exists {
 			return fail(collision(r))
 		}
 		if r.rowType != 0 {
-			if winner, exists := auth.catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}) {
+			if winner, exists := auth.catalog.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(r.rowType)}) {
 				return fail(typeCollision(r))
 			}
 		}
 		frontier := descriptorRevisionFrontier(r)
-		if frontier == DefinitionRevision(^uint64(0)) {
+		if frontier == ids.DefinitionRevision(^uint64(0)) {
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
 		next[i] = *r
@@ -186,13 +187,13 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		current := e.stageCatalogBaseLocked(stage)
 		if current.epoch == ref.Epoch {
 			for _, r := range group {
-				winner, exists := current.names[NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]
+				winner, exists := current.names[ids.NameKey{ClassID: RelationClassID, Namespace: destination.Address, Name: r.name}]
 				if exists && winner != r.address {
 					err = collision(r)
 					break
 				}
 				if r.rowType != 0 {
-					if winner, exists := current.names[NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}) {
+					if winner, exists := current.names[ids.NameKey{ClassID: TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(r.rowType)}) {
 						err = typeCollision(r)
 						break
 					}

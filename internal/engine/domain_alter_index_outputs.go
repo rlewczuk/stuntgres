@@ -4,6 +4,8 @@ import (
 	"context"
 	"maps"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, original, store *relationStorage) (*relationStorage, error) {
@@ -15,7 +17,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 		if len(row.indexOutputs) == 0 {
 			continue
 		}
-		var outputs map[ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]indexRowOutput
 		for address, output := range row.indexOutputs {
 			old, ok := base.descriptors[address].(*relationDescriptor)
 			index, present := next.descriptors[address].(*relationDescriptor)

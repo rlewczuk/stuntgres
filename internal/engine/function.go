@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -399,7 +400,7 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		effective := engine.effectivePath(auth, explicit, relationLookup)
 		names := make([]string, len(effective))
-		for i, path := range [2][]ObjectAddress{explicit, effective} {
+		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
 			for j, a := range path {
 				names[j] = auth.catalog.state.descriptors[a].Name()
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -86,7 +87,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				t.Fatal("execution predicate retains source slot", got, want, err)
 			}
 		}
-		var executionDependencies []ObjectRef
+		var executionDependencies []ids.ObjectRef
 		if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), predicate.execution); err != nil {
 			t.Fatal(err)
 		}
@@ -97,10 +98,10 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if index.sqlIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.sqlIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
 				t.Fatal("key/include/external identity lost", index.sqlIndex)
 			}
-			booleanType := e.domain.Ref(stage.base.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Bool)})
-			regclassType := e.domain.Ref(stage.base.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regclass)})
-			regtypeType := e.domain.Ref(stage.base.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regtype)})
-			if !slices.Equal(predicate.dependencies, []ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
+			booleanType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			if !slices.Equal(predicate.dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.dependencies)
 			}
 		} else if index.name == "clone_expr_idx" {
@@ -304,7 +305,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, owner: source.owner, columns: columns, attributes: attributes, attributeHighWater: int32(len(attributes)), index: lookup, relationKind: indexRelation, sqlIndex: definition}
+						index = &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: source.namespace, name: "private_partial", revision: revision, owner: source.owner, columns: columns, attributes: attributes, attributeHighWater: int32(len(attributes)), index: lookup, relationKind: indexRelation, sqlIndex: definition}
 						err = stage.Create(index)
 					}
 				}

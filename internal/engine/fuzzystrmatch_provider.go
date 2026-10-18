@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -14,7 +15,7 @@ var stockFuzzystrmatch = &fuzzystrmatchProvider{version: "1.2"}
 var fuzzystrmatchMembers = [...]struct {
 	name      string
 	signature procedureSignature
-	result    OID
+	result    ids.OID
 }{
 	{"daitch_mokotoff", "25", 1009},
 	{"levenshtein", "25,25", 23},
@@ -28,7 +29,7 @@ var fuzzystrmatchMembers = [...]struct {
 	{"difference", "25,25", 23},
 }
 
-func fuzzystrmatchResult(name string, signature procedureSignature) OID {
+func fuzzystrmatchResult(name string, signature procedureSignature) ids.OID {
 	for _, member := range fuzzystrmatchMembers {
 		if member.name == name && member.signature == signature {
 			return member.result
@@ -38,7 +39,7 @@ func fuzzystrmatchResult(name string, signature procedureSignature) OID {
 }
 
 func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ObjectAddress, len(fuzzystrmatchMembers))
+	ext.members = make([]ids.ObjectAddress, len(fuzzystrmatchMembers))
 	for i, member := range fuzzystrmatchMembers {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -48,10 +49,10 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		if err != nil {
 			return err
 		}
-		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: Immutable, strict: true, fuzzy: p}
-		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
+		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
 		if err := stage.Create(proc); err != nil {
@@ -69,7 +70,7 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		found := false

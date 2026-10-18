@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ type mergeRows struct {
 	returning    *finalRows
 }
 
-func (rows *mergeRows) stage(w *WriteStage, ref ObjectRef) error {
+func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
 	for start := 0; start < len(rows.actions); {
 		action := rows.actions[start]
 		if action.action == parser.MergeDeleteAction {
@@ -507,7 +508,7 @@ func (s *StatementScope) mergeFollowChainStrong(b binding) (bool, error) {
 
 // MERGE follows a committed update even with a retained RR frontier. Deletion
 // still conflicts; query visibility, not this fetch, owns old+own occurrences.
-func (e *Engine) latestMergeRow(s *StatementScope, ref ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
+func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {

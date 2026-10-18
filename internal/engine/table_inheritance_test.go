@@ -3,13 +3,14 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func inheritanceUnitRelation(e *Engine, name string, id OID, names ...string) *relationDescriptor {
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
+func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string) *relationDescriptor {
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
 	for i, name := range names {
 		d.index[name] = i
 		d.attributes = append(d.attributes, int32(i+1))
@@ -22,7 +23,7 @@ func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRea
 	state := cloneCatalog(e.CatalogRead().state)
 	for _, d := range relations {
 		state.descriptors[d.address] = d
-		state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+		state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	}
 	return CatalogRead{owner: e, state: state}
 }
@@ -81,7 +82,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if len(child.notNullConstraints) != 1 || child.notNullConstraints[0].Name != "first" || child.columns[0].Nullable || len(child.inheritance.notNull[1].origins) != 2 || child.inheritance.notNull[1].local || child.inheritance.columns[1].local || !child.inheritance.columns[3].local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.inheritance.parents, []ObjectAddress{p.address, q.address}) || !sameGroupExpression(child.defaults[1].expression, literal) || child.defaults[1].OID != 0 || p.defaults[1].OID != 23002 {
+	if !reflect.DeepEqual(child.inheritance.parents, []ids.ObjectAddress{p.address, q.address}) || !sameGroupExpression(child.defaults[1].expression, literal) || child.defaults[1].OID != 0 || p.defaults[1].OID != 23002 {
 		t.Fatal(child.defaults, p.defaults)
 	}
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
@@ -99,7 +100,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 	e := New()
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
-	c.inheritance = &tableInheritance{parents: []ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}}}
+	c.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}}}
 	if err := validateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			child := *c
 			graph := *c.inheritance
 			child.inheritance = &graph
-			graph.parents = append([]ObjectAddress(nil), graph.parents...)
+			graph.parents = append([]ids.ObjectAddress(nil), graph.parents...)
 			graph.columns = map[int32]inheritedColumn{1: c.inheritance.columns[1]}
 			switch kind {
 			case "dangling":
@@ -119,7 +120,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			case "attribute":
 				graph.columns[1] = inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 0}}}
 			case "cycle":
-				parent.inheritance = &tableInheritance{parents: []ObjectAddress{c.address}}
+				parent.inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}}
 			case "locality":
 				graph.columns[1] = inheritedColumn{}
 			case "type":
@@ -141,9 +142,9 @@ func TestInheritanceGraphDiamondChildren(t *testing.T) {
 	left := inheritanceUnitRelation(e, "left", 22001)
 	right := inheritanceUnitRelation(e, "right", 22002)
 	leaf := inheritanceUnitRelation(e, "leaf", 22003)
-	left.inheritance = &tableInheritance{parents: []ObjectAddress{base.address}}
-	right.inheritance = &tableInheritance{parents: []ObjectAddress{base.address}}
-	leaf.inheritance = &tableInheritance{parents: []ObjectAddress{left.address, right.address, base.address}}
+	left.inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
+	right.inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
+	leaf.inheritance = &tableInheritance{parents: []ids.ObjectAddress{left.address, right.address, base.address}}
 	v := inheritanceUnitView(e, base, left, right, leaf)
 	got := inheritanceChildren(v, base.address)
 	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(inheritanceChildren(v, leaf.address)) != 0 {
@@ -222,7 +223,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 		{Column: &parser.Column{Name: "a", TypeName: parser.TypeName{Name: "integer"}}},
 	}}
 	e.mu.Lock()
-	bound, err := e.describe(op.Context(), syntax, auth, ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
+	bound, err := e.describe(op.Context(), syntax, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

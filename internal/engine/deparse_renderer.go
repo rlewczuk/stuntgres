@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ type pgRenderer struct {
 	view               CatalogRead
 	relation           *relationDescriptor
 	pretty             bool
-	path               []ObjectAddress
+	path               []ids.ObjectAddress
 	output             sqltype.OutputEnvironment
 	nonstandardStrings bool
 	showImplicit       bool
@@ -116,14 +117,14 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return text, err
 	}
-	d, ok := r.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}].(*typeDescriptor)
+	d, ok := r.view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())}].(*typeDescriptor)
 	if !ok || d.typ != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
 	}
 	if r.output.QuoteAllIdentifiers {
 		name := r.identifier(d.Name())
 		for _, ns := range r.path {
-			if a, ok := r.view.state.names[NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+			if a, ok := r.view.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
 				if a == d.Address() {
 					return name, nil
 				}
@@ -253,7 +254,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			if err != nil {
 				return "", err
 			}
-			text = regclassSpelling(r.view, r.path, OID(id))
+			text = regclassSpelling(r.view, r.path, ids.OID(id))
 		}
 		return quote(text) + "::" + typ, nil
 	}
@@ -283,7 +284,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::" + typ, nil
 	case sqltype.Regclass:
 		if id, err := strconv.ParseUint(text, 10, 32); err == nil {
-			text = regclassSpelling(r.view, r.path, OID(id))
+			text = regclassSpelling(r.view, r.path, ids.OID(id))
 		}
 		return quote(text) + "::regclass", nil
 	case sqltype.Regtype:

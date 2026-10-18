@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -116,8 +117,8 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		imported := target.e.state.names[NameKey{ClassID: NamespaceClassID, Name: "default_schema"}]
-		if imported == target.schema || imported == (ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
+		imported := target.e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "default_schema"}]
+		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
 		if target.e.state.defaultACLs[defaultACLKey{creator: target.owner, class: authorization.DefaultSequences}] == nil {
@@ -180,7 +181,7 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table
 	// dump/restore fail, nor require a broadened generic TypeObject fallback.
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
-	f.schema = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	f.schema = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	f.owner = f.e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	table := defaultUnitTable(t, f, stage, "pristine", f.owner)
 	if err = defaultUnitPublish(t, f.e, stage); err != nil {

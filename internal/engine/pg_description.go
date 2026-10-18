@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,7 @@ func catalogDescription(d Descriptor, sub int32) string {
 	return descriptorComment(d, sub)
 }
 
-func collationDescription(oid OID) string {
+func collationDescription(oid ids.OID) string {
 	switch oid {
 	case 100:
 		return "database's default collation"
@@ -39,7 +40,7 @@ func collationDescription(oid OID) string {
 	return ""
 }
 
-func conversionDescription(oid OID) string {
+func conversionDescription(oid ids.OID) string {
 	if oid < 4402 || oid > 4531 || oid == 4450 || oid == 4451 {
 		return ""
 	}
@@ -50,12 +51,12 @@ func conversionDescription(oid OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0, len(catalog.state.descriptors))
-	appendDescription := func(address ObjectAddress, sub int32, text string) error {
+	appendDescription := func(address ids.ObjectAddress, sub int32, text string) error {
 		if text == "" {
 			return nil
 		}

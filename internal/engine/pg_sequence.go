@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -9,7 +10,7 @@ import (
 // snapshot and current owner's overlay are distinct authorities: an override
 // replaces (or deletes) its base row, and private additions contribute new rows.
 // Caller holds Engine.mu and statement admission; no generator is accessed.
-func capturePGSequence(ctx context.Context, base *catalogState, own *catalogChanges, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGSequence(ctx context.Context, base *catalogState, own *catalogChanges, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -2,13 +2,14 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Membership and identity come from the existing immutable catalog. The caller
 // caches this enumeration by catalog identity, never by the parent alone.
-func enforcingIndexes(view CatalogRead, parent ObjectAddress) []*relationDescriptor {
+func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
 	var indexes []*relationDescriptor
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)

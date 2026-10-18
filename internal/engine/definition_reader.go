@@ -3,6 +3,7 @@ package engine
 import (
 	"iter"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,24 +12,24 @@ import (
 // cache. Bound definitions retain their normal identities/provider observations;
 // the reader is scoped to preparation/consumption and is never persisted.
 type definitionReader interface {
-	descriptor(ObjectAddress) (Descriptor, bool)
-	lookup(NameKey) ObjectAddress
-	descriptors() iter.Seq2[ObjectAddress, Descriptor]
+	descriptor(ids.ObjectAddress) (Descriptor, bool)
+	lookup(ids.NameKey) ids.ObjectAddress
+	descriptors() iter.Seq2[ids.ObjectAddress, Descriptor]
 }
 
-func (a AuthorizationView) definitionDescriptor(address ObjectAddress) (Descriptor, bool) {
+func (a AuthorizationView) definitionDescriptor(address ids.ObjectAddress) (Descriptor, bool) {
 	if a.definition != nil {
 		return a.definition.descriptor(address)
 	}
 	return a.catalog.Descriptor(address)
 }
-func (a AuthorizationView) definitionLookup(key NameKey) ObjectAddress {
+func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	if a.definition != nil {
 		return a.definition.lookup(key)
 	}
 	return a.catalog.state.names[key]
 }
-func (a AuthorizationView) definitionDescriptors() iter.Seq2[ObjectAddress, Descriptor] {
+func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	if a.definition != nil {
 		return a.definition.descriptors()
 	}
@@ -40,7 +41,7 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 
 type stageDefinitionReader struct{ stage *CatalogStage }
 
-func (r stageDefinitionReader) descriptor(address ObjectAddress) (Descriptor, bool) {
+func (r stageDefinitionReader) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
 	if _, removed := r.stage.removals[address]; removed {
 		return nil, false
 	}
@@ -49,9 +50,11 @@ func (r stageDefinitionReader) descriptor(address ObjectAddress) (Descriptor, bo
 	}
 	return r.stage.base.Descriptor(address)
 }
-func (r stageDefinitionReader) lookup(key NameKey) ObjectAddress { return r.stage.lookupName(key) }
-func (r stageDefinitionReader) descriptors() iter.Seq2[ObjectAddress, Descriptor] {
-	return func(yield func(ObjectAddress, Descriptor) bool) {
+func (r stageDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
+	return r.stage.lookupName(key)
+}
+func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
+	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		for address := range r.stage.base.state.descriptors {
 			if descriptor, exists := r.descriptor(address); exists {
 				if !yield(address, descriptor) {
@@ -73,7 +76,7 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ObjectAddress, Descriptor
 	}
 }
 
-func (a AuthorizationView) definitionNamespace(address ObjectAddress) (*namespaceDescriptor, bool) {
+func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*namespaceDescriptor, bool) {
 	descriptor, exists := a.definitionDescriptor(address)
 	namespace, ok := descriptor.(*namespaceDescriptor)
 	return namespace, exists && ok
@@ -88,7 +91,7 @@ func (b *expressionBinder) definitionReader() definitionReader {
 	}
 	return nil
 }
-func (b *expressionBinder) definitionDescriptor(address ObjectAddress) (Descriptor, bool) {
+func (b *expressionBinder) definitionDescriptor(address ids.ObjectAddress) (Descriptor, bool) {
 	if reader := b.definitionReader(); reader != nil {
 		return reader.descriptor(address)
 	}
@@ -101,18 +104,18 @@ func (b *expressionBinder) definitionArray(element *sqltype.Descriptor) (*sqltyp
 	return definitionArrayAt(b.bindingCatalog(), b.definitionReader(), element)
 }
 
-func (a AuthorizationView) definitionRelation(address ObjectAddress) (*relationDescriptor, bool) {
+func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*relationDescriptor, bool) {
 	descriptor, exists := a.definitionDescriptor(address)
 	relation, ok := descriptor.(*relationDescriptor)
 	return relation, exists && ok
 }
 
-func (r stageDefinitionReader) indexLayout(address ObjectAddress) (indexLayoutLineage, bool) {
+func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	lineage, ok := r.stage.indexLayouts[address]
 	return lineage, ok
 }
 
-func definitionDescriptorAt(view CatalogRead, reader definitionReader, address ObjectAddress) (Descriptor, bool) {
+func definitionDescriptorAt(view CatalogRead, reader definitionReader, address ids.ObjectAddress) (Descriptor, bool) {
 	if reader != nil {
 		return reader.descriptor(address)
 	}
@@ -127,7 +130,7 @@ func definitionTypeAt(view CatalogRead, reader definitionReader, id sqltype.ID) 
 	if reader == nil {
 		return view.LookupType(id)
 	}
-	descriptor, exists := reader.descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)})
+	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)})
 	typ, ok := descriptor.(*typeDescriptor)
 	if !exists || !ok {
 		return nil, false
@@ -142,7 +145,7 @@ func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqlty
 	if reader == nil {
 		return view.LookupArray(element)
 	}
-	descriptor, exists := reader.descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
+	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(element.ID())})
 	typ, ok := descriptor.(*typeDescriptor)
 	if !exists || !ok || typ.typ != element {
 		return nil, false
@@ -151,12 +154,12 @@ func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqlty
 	return array, ok && array.IsArray() && array.Element() == element
 }
 
-func (r scalarRenderer) descriptor(view CatalogRead, address ObjectAddress) Descriptor {
+func (r scalarRenderer) descriptor(view CatalogRead, address ids.ObjectAddress) Descriptor {
 	descriptor, _ := definitionDescriptorAt(view, r.definition, address)
 	return descriptor
 }
 
-func definitionLookupAt(view CatalogRead, reader definitionReader, key NameKey) ObjectAddress {
+func definitionLookupAt(view CatalogRead, reader definitionReader, key ids.NameKey) ids.ObjectAddress {
 	if reader != nil {
 		return reader.lookup(key)
 	}

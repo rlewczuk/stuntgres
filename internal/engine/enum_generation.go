@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,8 +13,8 @@ func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion,
 	if len(versions) == 0 {
 		return versions, nil
 	}
-	address := ObjectAddress{}
-	stores := map[ObjectAddress]*relationStorage{address: {versions: versions}}
+	address := ids.ObjectAddress{}
+	stores := map[ids.ObjectAddress]*relationStorage{address: {versions: versions}}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if shape.fills != nil {
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
-				target, _ := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(value.Type().ID())}].(*typeDescriptor)
+				target, _ := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
 				if target != nil && target.typ != value.Type() {
 					v, err := reownDomainDatum(value, target.typ, nil, nil, nil)
 					if err != nil {

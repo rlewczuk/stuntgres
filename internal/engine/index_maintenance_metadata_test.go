@@ -7,11 +7,12 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func indexMaintenanceMetadataFlags(index, parent OID, n int16) indexMetadata {
+func indexMaintenanceMetadataFlags(index, parent ids.OID, n int16) indexMetadata {
 	return indexMetadata{IndexRelID: index, IndRelID: parent, IndNatts: n, IndNKeyAtts: n, IndImmediate: true, IndIsValid: true, IndIsReady: true, IndIsLive: true}
 }
 func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog CatalogRead, name string) (indexMetadata, indexesMetadata) {
@@ -35,8 +36,8 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	m, n := indexMaintenanceMetadata(t, e, capture, "ni")
 	want := indexMaintenanceMetadataFlags(ni.address.ObjectID, ni.sqlIndex.parent.ObjectID, 4)
 	want.IndKey = []int16{2, 2, 2, 2}
-	want.IndClass = []OID{1978, 1978, 1978, 1978}
-	want.IndCollation = []OID{0, 0, 0, 0}
+	want.IndClass = []ids.OID{1978, 1978, 1978, 1978}
+	want.IndCollation = []ids.OID{0, 0, 0, 0}
 	want.IndOption = []int16{0, 2, 1, 3}
 	if !reflect.DeepEqual(m, want) || n != (indexesMetadata{SchemaName: "public", TableName: "t", IndexName: "ni", IndexDef: "CREATE INDEX ni ON public.t USING btree (n, n NULLS FIRST, n DESC NULLS LAST, n DESC)"}) {
 		t.Fatal("complete simple metadata", m, n, want)
@@ -44,8 +45,8 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	expressions, names := indexMaintenanceMetadata(t, e, capture, "ei")
 	expected := indexMaintenanceMetadataFlags(ei.address.ObjectID, ei.sqlIndex.parent.ObjectID, 3)
 	expected.IndKey = []int16{0, 0, 2}
-	expected.IndClass = []OID{3126, 1978, 1978}
-	expected.IndCollation = []OID{100, 0, 0}
+	expected.IndClass = []ids.OID{3126, 1978, 1978}
+	expected.IndCollation = []ids.OID{100, 0, 0}
 	expected.IndOption = []int16{0, 0, 1}
 	expected.IndexExpressions = []BoundExpr{ei.sqlIndex.keys[0].derived.definition, ei.sqlIndex.keys[1].derived.definition}
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
@@ -66,8 +67,8 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		want.IndIsUnique = true
 		want.IndNullsNotDistinct = name == "u"
 		want.IndKey = []int16{1}
-		want.IndClass = []OID{1978}
-		want.IndCollation = []OID{0}
+		want.IndClass = []ids.OID{1978}
+		want.IndCollation = []ids.OID{0}
 		want.IndOption = []int16{0}
 		if !reflect.DeepEqual(got, want) || n.Tablespace != nil {
 			t.Fatal("UNIQUE flags/vectors/tree nullability", got, n, want)
@@ -128,15 +129,15 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 	if renamed.address != un.address || renamed.sqlIndex.constraint.OID != constraint.OID || renamed.sqlIndex.constraint.Index != constraint.Index {
 		t.Fatal("domain backing rename lost real constraint/index link")
 	}
-	check := func(name string, attribute int16, class, collation OID) {
+	check := func(name string, attribute int16, class, collation ids.OID) {
 		t.Helper()
 		index, _ := btreeRoot(t, e, name)
 		got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), name)
 		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 1)
 		want.IndIsUnique, want.IndNullsNotDistinct = true, true
 		want.IndKey = []int16{attribute}
-		want.IndClass = []OID{class}
-		want.IndCollation = []OID{collation}
+		want.IndClass = []ids.OID{class}
+		want.IndCollation = []ids.OID{collation}
 		want.IndOption = []int16{0}
 		if !reflect.DeepEqual(got, want) || index.sqlIndex.keys[0].class.OID() != uint32(class) || index.sqlIndex.constraint.Index != index.address {
 			t.Fatal("real domain backing descriptor/vector truth", name, got, want)
@@ -176,8 +177,8 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ci")
 	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
 	want.IndKey = []int16{3, 3, 3}
-	want.IndClass = []OID{3126, 3126, 3126}
-	want.IndCollation = []OID{950, 951, 100}
+	want.IndClass = []ids.OID{3126, 3126, 3126}
+	want.IndCollation = []ids.OID{950, 951, 100}
 	want.IndOption = []int16{0, 0, 0}
 	if !reflect.DeepEqual(got, want) || names.IndexDef != `CREATE INDEX ci ON public.t USING btree (s COLLATE "C", s COLLATE "POSIX", s)` {
 		t.Fatal("collation provider/simple attribute identity", got, names, want)
@@ -191,8 +192,8 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	m, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "repeated")
 	expected := indexMaintenanceMetadataFlags(repeated.address.ObjectID, repeated.sqlIndex.parent.ObjectID, 32)
 	expected.IndKey = make([]int16, 32)
-	expected.IndClass = make([]OID, 32)
-	expected.IndCollation = make([]OID, 32)
+	expected.IndClass = make([]ids.OID, 32)
+	expected.IndCollation = make([]ids.OID, 32)
 	expected.IndOption = make([]int16, 32)
 	for i := range expected.IndKey {
 		expected.IndKey[i] = 2
@@ -212,8 +213,8 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ix")
 	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.sqlIndex.parent.ObjectID, 3)
 	want.IndKey = []int16{1, 2, 3}
-	want.IndClass = []OID{1978, 3126, 10069}
-	want.IndCollation = []OID{0, 100, 0}
+	want.IndClass = []ids.OID{1978, 3126, 10069}
+	want.IndCollation = []ids.OID{0, 100, 0}
 	want.IndOption = []int16{0, 0, 0}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("domain/enum metadata substituted declared type OIDs", got, want)
@@ -248,7 +249,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.domain.Ref(old.Epoch(), index.address)); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), ObjectAddress{ClassID: RelationClassID, ObjectID: 123456})); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 123456})); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
 	if _, _, err := projectIndexMetadata(context.Background(), old, e.domain.Ref(old.Epoch(), parent.Address)); err == nil {

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -82,7 +83,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				t.Fatalf("namespace/ACL map %+v want %+v", gotNames, names)
 			}
 			if tc.namespace == "" {
-				if _, exists := e.CatalogRead().state.names[NameKey{ClassID: NamespaceClassID, Name: "public"}]; exists {
+				if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "public"}]; exists {
 					t.Fatal("Restore invented public")
 				}
 			} else {
@@ -101,7 +102,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					}
 					td := e.CatalogRead().state.descriptors[roleTableRef(t, e, tc.namespace+".t").Address].(*relationDescriptor)
 					// Namespace OWNER does not restamp the independently owned table.
-					oldTable := before.state.descriptors[before.state.names[NameKey{ClassID: RelationClassID, Namespace: before.state.names[NameKey{ClassID: NamespaceClassID, Name: tc.namespace}], Name: "t"}]].(*relationDescriptor)
+					oldTable := before.state.descriptors[before.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: before.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: tc.namespace}], Name: "t"}]].(*relationDescriptor)
 					if td.owner != oldTable.owner || td.acl.Explicit || len(td.acl.Entries) != 0 {
 						t.Fatal("table owner/ACL changed")
 					}
@@ -188,7 +189,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 						t.Fatal("new namespace owner/ACL", name, namespace)
 					}
 				}
-				byObjectID := make(map[OID]ObjectAddress)
+				byObjectID := make(map[ids.OID]ids.ObjectAddress)
 				for address := range after.state.descriptors {
 					if address.ClassID != NamespaceClassID && address.ClassID != RelationClassID {
 						continue

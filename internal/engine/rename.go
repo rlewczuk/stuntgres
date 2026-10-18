@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -51,7 +52,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	var renamed *relationDescriptor
 	if columnRename {
-		if old.ofType != (ObjectAddress{}) {
+		if old.ofType != (ids.ObjectAddress{}) {
 			return fail(sqlError("42809", "cannot rename column of typed table"))
 		}
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
@@ -75,11 +76,11 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if err = auth.CheckCreate(e.domain.Ref(ref.Epoch, old.namespace)); err != nil {
 			return fail(err)
 		}
-		if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]; exists {
+		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]; exists {
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
 		}
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	next := *old
@@ -122,7 +123,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	if _, conflict := err.(CatalogConflict); conflict && !columnRename {
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
-		winner, exists := current.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]
+		winner, exists := current.names[ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]
 		sameEpoch := current.epoch == ref.Epoch
 		e.mu.Unlock()
 		if sameEpoch && exists && winner != ref.Address {

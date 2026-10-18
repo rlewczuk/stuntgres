@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -76,10 +77,10 @@ func parseSearchPath(input string) ([]string, error) {
 }
 
 // explicitPath runs under the engine mutex and captures one immutable setting value.
-func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, error) {
+func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
 	return e.explicitPathFor(auth, relationLookup)
 }
-func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ObjectAddress, bool, error) {
+func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, bool, error) {
 	entries := e.settingsDefinitions["search_path"].bootValue.path
 	if auth.settings != nil && !auth.materializedPopulation {
 		auth.settings.mu.Lock()
@@ -90,8 +91,8 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 	if auth.materializedPopulation {
 		entries = restricted[:]
 	}
-	var result []ObjectAddress
-	if auth.pathPrefix != (ObjectAddress{}) && !auth.materializedPopulation {
+	var result []ids.ObjectAddress
+	if auth.pathPrefix != (ids.ObjectAddress{}) && !auth.materializedPopulation {
 		ref := e.domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err
@@ -114,17 +115,17 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 			}
 			name = d.Name
 		}
-		var a ObjectAddress
+		var a ids.ObjectAddress
 		if name == "pg_temp" {
 			a = temporaryNamespace(auth)
-			if a == (ObjectAddress{}) {
+			if a == (ids.ObjectAddress{}) {
 				if len(result) == 0 {
 					pendingTemp = true
 				}
 				continue
 			}
 		} else {
-			a = auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name})
+			a = auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name})
 		}
 		_, ok := auth.definitionDescriptor(a)
 		if !ok {
@@ -167,17 +168,17 @@ const (
 	conversionLookup
 )
 
-func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) {
+func (e *Engine) referencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
 	return e.lookupPath(auth, relationLookup)
 }
-func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ObjectAddress, error) {
+func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, error) {
 	path, _, err := e.explicitPathFor(auth, kind)
 	if err != nil {
 		return nil, err
 	}
 	return e.effectivePath(auth, path, kind), nil
 }
-func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kind lookupKind) []ObjectAddress {
+func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind lookupKind) []ids.ObjectAddress {
 	if kind == installedFunctionLookup || kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
@@ -188,7 +189,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 		}
 		path = filtered
 	}
-	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	catalog := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	foundCatalog := false
 	for _, a := range path {
 		if a == catalog {
@@ -197,9 +198,9 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 		}
 	}
 	if !foundCatalog {
-		path = append([]ObjectAddress{catalog}, path...)
+		path = append([]ids.ObjectAddress{catalog}, path...)
 	}
-	if temp := temporaryNamespace(auth); temp != (ObjectAddress{}) && (kind == relationLookup || kind == typeLookup) {
+	if temp := temporaryNamespace(auth); temp != (ids.ObjectAddress{}) && (kind == relationLookup || kind == typeLookup) {
 		found := false
 		for _, a := range path {
 			if a == temp {
@@ -207,7 +208,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 			}
 		}
 		if !found {
-			path = append([]ObjectAddress{temp}, path...)
+			path = append([]ids.ObjectAddress{temp}, path...)
 		}
 	}
 	return path
@@ -215,18 +216,18 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 
 // Qualified lookup carries its one address inline, without a singleton slice.
 type namespaceSelection struct {
-	path      []ObjectAddress
-	qualified ObjectAddress
+	path      []ids.ObjectAddress
+	qualified ids.ObjectAddress
 }
 
 func (p namespaceSelection) count() int {
-	if p.qualified != (ObjectAddress{}) {
+	if p.qualified != (ids.ObjectAddress{}) {
 		return 1
 	}
 	return len(p.path)
 }
-func (p namespaceSelection) at(i int) ObjectAddress {
-	if p.qualified != (ObjectAddress{}) {
+func (p namespaceSelection) at(i int) ids.ObjectAddress {
+	if p.qualified != (ids.ObjectAddress{}) {
 		return p.qualified
 	}
 	return p.path[i]
@@ -252,11 +253,11 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
 	}
 	n := name.Parts[0]
-	a := auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: n.Text})
+	a := auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: n.Text})
 	if n.Text == "pg_temp" {
 		a = temporaryNamespace(auth)
 	}
-	if a == (ObjectAddress{}) {
+	if a == (ids.ObjectAddress{}) {
 		if kind != relationLookup {
 			return namespaceSelection{}, expressionError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
 		}
@@ -301,58 +302,58 @@ func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKin
 	}
 	return false, nil
 }
-func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	return e.creationNamespaceWithSystem(auth, name, false)
 }
 
-func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser.ObjectName, system bool) (ObjectRef, error) {
+func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser.ObjectName, system bool) (ids.ObjectRef, error) {
 	ref, deferredTemp, err := e.creationNamespaceDestination(auth, name, system)
 	if err == nil && deferredTemp {
-		return ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
+		return ids.ObjectRef{}, sqlError("0A000", "temporary schema creation is unsupported")
 	}
 	return ref, err
 }
 
 // Resolve creation without establishing a deferred temporary namespace.
 // Callers requiring an existing namespace retain the rejecting policy above.
-func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ObjectRef, bool, error) {
+func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ids.ObjectRef, bool, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
-		return ObjectRef{}, false, err
+		return ids.ObjectRef{}, false, err
 	}
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
-		return ObjectRef{}, false, fmt.Errorf("stuntgres: invalid relation name")
+		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: invalid relation name")
 	}
-	var a ObjectAddress
+	var a ids.ObjectAddress
 	if len(name.Parts) == 2 {
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
 			ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor)
 			if !ok || !ownTemporaryNamespace(auth, ns) {
-				return ObjectRef{}, true, nil
+				return ids.ObjectRef{}, true, nil
 			}
 			a = ns.address
 		} else {
 			var ok bool
-			a, ok = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n}]
+			a, ok = auth.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: n}]
 			if !ok {
-				return ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
+				return ids.ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
 			}
 		}
 	} else {
 		path, temp, err := e.explicitPath(auth)
 		if err != nil {
-			return ObjectRef{}, false, err
+			return ids.ObjectRef{}, false, err
 		}
 		if temp {
-			return ObjectRef{}, true, nil
+			return ids.ObjectRef{}, true, nil
 		}
 		if len(path) == 0 {
-			return ObjectRef{}, false, sqlError("3F000", "no schema has been selected to create in")
+			return ids.ObjectRef{}, false, sqlError("3F000", "no schema has been selected to create in")
 		}
 		a = path[0]
 	}
 	if !system && a.ObjectID == PGCatalogNamespaceOID {
-		return ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
+		return ids.ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
 	return e.domain.Ref(auth.catalog.Epoch(), a), false, nil
 }

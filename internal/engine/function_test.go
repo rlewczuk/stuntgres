@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -158,7 +159,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 			t.Fatal(column)
 		}
 	}
-	refs := map[ObjectRef]bool{}
+	refs := map[ids.ObjectRef]bool{}
 	for _, dep := range bound.dependencies {
 		refs[dep.ref] = true
 	}

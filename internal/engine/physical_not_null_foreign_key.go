@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -49,7 +50,7 @@ func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, ow
 type restoredPhysicalForeignKeyProvider struct {
 	op             *Operation
 	authority      AuthorizationView
-	ref            ObjectRef
+	ref            ids.ObjectRef
 	current        *relationDescriptor
 	primary        *physicalPrimarySupport
 	ownerDirective bool
@@ -58,7 +59,7 @@ type restoredPhysicalForeignKeyProvider struct {
 
 // Only the actual completed constructor/cleanup can issue this short-lived
 // readiness receipt. It never creates a key or grants foreign-key privileges.
-func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.ObjectName, created map[ObjectAddress]ObjectRef) (*restoredPhysicalForeignKeyProvider, error) {
+func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.ObjectName, created map[ids.ObjectAddress]ids.ObjectRef) (*restoredPhysicalForeignKeyProvider, error) {
 	auth, err := op.Authorization()
 	if err != nil {
 		return nil, err
@@ -98,7 +99,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 // Reuse the incumbent captured-FK binder, including its one data validation and
 // publication. The optional supporting slot pins only this genuine current PK;
 // ordinary declarations continue to use the unchanged zero-slot selection.
-func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ObjectAddress]ObjectRef) (restoredForeignKeys, bool, error) {
+func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterTable, provider *restoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddForeignKey || raw.Actions[0].ForeignKey == nil || raw.Actions[0].ForeignKey.NotValid {
 		return restoredForeignKeys{}, false, nil
 	}

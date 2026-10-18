@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -41,8 +42,8 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 	}
 	return refs, protected, nil
 }
-func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ObjectAddress {
-	var roots []ObjectAddress
+func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
+	var roots []ids.ObjectAddress
 	for a, d := range catalog.state.descriptors {
 		owner, _, _ := descriptorACL(d)
 		if sources[owner] && ownershipRoot(catalog, d) {
@@ -60,14 +61,14 @@ func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool
 
 // Ownership locks follow canonical associations, not generated names. Include
 // independent roots and their backing relations, indexes and owned sequences.
-func ownershipRelationLocks(catalog CatalogRead, roots []ObjectAddress) []ObjectAddress {
-	group := make(map[ObjectAddress]bool, len(roots))
+func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
+	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
 		switch d := catalog.state.descriptors[a].(type) {
 		case *relationDescriptor:
 			group[a] = true
 		case *typeDescriptor:
-			if d.owningRelation != (ObjectAddress{}) {
+			if d.owningRelation != (ids.ObjectAddress{}) {
 				group[d.owningRelation] = true
 			}
 		}
@@ -88,7 +89,7 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ObjectAddress) []Object
 			}
 		}
 	}
-	locks := make([]ObjectAddress, 0, len(group))
+	locks := make([]ids.ObjectAddress, 0, len(group))
 	for a := range group {
 		locks = append(locks, a)
 	}
@@ -159,7 +160,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 		roots = local
 	}
-	primaryRoot := ObjectAddress{}
+	primaryRoot := ids.ObjectAddress{}
 	if !reassign {
 		local := roots[:0]
 		for _, a := range roots {
@@ -172,19 +173,19 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			primaryRoot = local[0]
 		}
 		path, _ := e.referencePath(auth)
-		pending := make(map[ObjectAddress]bool, len(roots))
+		pending := make(map[ids.ObjectAddress]bool, len(roots))
 		for _, a := range roots {
 			pending[a] = true
 		}
 		for _, a := range roots {
-			var extension ObjectAddress
+			var extension ids.ObjectAddress
 			switch d := auth.catalog.state.descriptors[a].(type) {
 			case *procedureDescriptor:
 				extension = d.extension
 			case *tsDictionaryDescriptor:
 				extension = d.extension
 			}
-			if extension != (ObjectAddress{}) && !pending[extension] {
+			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := auth.catalog.state.descriptors[extension].(*extensionDescriptor)
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.name) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.name) + " instead."})
 			}
@@ -294,12 +295,12 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.roles, auth.roleRecord, sources); err != nil {
 			return Result{}, err
 		}
-		if primaryRoot != (ObjectAddress{}) && ownedCleanupAddsDeletionRoot(stage, sources) {
-			primaryRoot = ObjectAddress{}
+		if primaryRoot != (ids.ObjectAddress{}) && ownedCleanupAddsDeletionRoot(stage, sources) {
+			primaryRoot = ids.ObjectAddress{}
 		}
 		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" {
-				if primaryRoot != (ObjectAddress{}) {
+				if primaryRoot != (ids.ObjectAddress{}) {
 					diagnostic.Message = "cannot drop " + dependencyObject(stage.base, primaryRoot, stage.dependencyPath) + " because other objects depend on it"
 				} else {
 					diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"

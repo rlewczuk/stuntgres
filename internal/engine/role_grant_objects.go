@@ -4,51 +4,52 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName, kind string) (ObjectRef, error) {
+func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName, kind string) (ids.ObjectRef, error) {
 	if kind == "" || kind == "sequence" {
 		return e.resolveRelationReference(v, name, true)
 	}
 	if kind == "tablespace" {
 		return resolveGrantTablespace(v, objectNameText(name))
 	}
-	var address ObjectAddress
+	var address ids.ObjectAddress
 	if kind == "schema" {
 		if len(name.Parts) == 1 {
-			address = v.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			address = v.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 			if name.Parts[0].Text == "pg_temp" {
 				address = temporaryNamespace(v)
 			}
 		}
-		if address == (ObjectAddress{}) {
-			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, objectNameText(name)))
+		if address == (ids.ObjectAddress{}) {
+			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, objectNameText(name)))
 		}
 	} else {
 		path, err := e.lookupNamespaces(v, name, typeLookup)
 		if err != nil {
-			return ObjectRef{}, err
+			return ids.ObjectRef{}, err
 		}
 		for i := range path.count() {
-			found := v.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found := v.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) == 1 {
 				address = found[0]
 				break
 			}
 		}
-		if address == (ObjectAddress{}) {
-			return ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
+		if address == (ids.ObjectAddress{}) {
+			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
 		t := v.catalog.state.descriptors[address].(*typeDescriptor)
 		if kind == "domain" && !t.typ.IsDomain() {
-			return ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
+			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
 		if t.typ.IsArray() {
 			diagnostic := sqlError("0LP01", "cannot set privileges of array types").(*sqlstate.Error)
 			diagnostic.Hint = "Set the privileges of the element type instead."
-			return ObjectRef{}, diagnostic
+			return ids.ObjectRef{}, diagnostic
 		}
 	}
 	return e.domain.Ref(v.catalog.Epoch(), address), nil
@@ -67,13 +68,13 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 	class := authorization.DefaultTypes
 	noun := "type"
 	switch d.Kind() {
-	case NamespaceObject:
+	case ids.NamespaceObject:
 		class, noun = authorization.DefaultSchemas, "schema"
-	case ProcedureObject:
+	case ids.ProcedureObject:
 		class, noun = authorization.DefaultRoutines, "function"
-	case ParameterObject:
+	case ids.ParameterObject:
 		class, noun = authorization.DefaultParameters, "parameter"
-	case TablespaceObject:
+	case ids.TablespaceObject:
 		class, noun = authorization.DefaultTablespaces, "tablespace"
 	}
 	baseline := old
@@ -96,7 +97,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 	if err != nil {
 		return nil, err
 	}
-	if !changed && (old.Explicit || d.Kind() == ParameterObject) {
+	if !changed && (old.Explicit || d.Kind() == ids.ParameterObject) {
 		return nil, nil
 	}
 	var next Descriptor

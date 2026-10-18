@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -46,7 +47,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	source, destination := collation("expr_retag_source"), collation("expr_retag_destination")
 	other, otherDestination := collation("expr_retag_other"), collation("expr_retag_other_destination")
-	mapping := map[ObjectAddress]ObjectAddress{source.Address(): destination.Address(), other.Address(): otherDestination.Address()}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address(), other.Address(): otherDestination.Address()}
 	remap := remappedCollationCapabilities(view.state, mapping)
 	if remap == nil {
 		t.Fatal("fixture lacks actual identity replacement")

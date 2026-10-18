@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 func TestArraySearchViewCoercions(t *testing.T) {
 	ctx := context.Background()
 	sourceEngine, targetEngine := New(), New()
-	publishCollation := func(e *Engine, id OID, name string) *collationDescriptor {
+	publishCollation := func(e *Engine, id ids.OID, name string) *collationDescriptor {
 		d := collationUnitDefinition(e, id, name)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Create(d); err != nil {
@@ -104,7 +105,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
 	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []BoundExpr{outer, positions}, frame: b.frameID(), syntax: syntax}
 	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.viewLiterals, castUsages: b.viewCastUsages, collations: b.viewCollations}
-	path := []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, {ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	path := []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, {ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	render := func(view CatalogRead, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
 		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{clause: viewTargetLiteral, target: target})
@@ -136,7 +137,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	render(sourceView, original, 1, rawText, sourceTextSQL)
 	oldNumeric := assertValue(outer, wideArray, "{1,2}")
 	oldPositions := assertValue(positions, array, "{1,2}")
-	mapping := map[ObjectAddress]ObjectAddress{sourceCollation.Address(): targetCollation.Address()}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{sourceCollation.Address(): targetCollation.Address()}
 	collation := remappedCollationCapabilities(targetView.state, mapping)
 	types := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
@@ -144,7 +145,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		}
 		return targetBinder.typ(d.ID())
 	}
-	identity := func(ref ObjectRef) ObjectRef { return ref }
+	identity := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
 	mapped, err := remapFrozenPresentation(targetView, original, mapping, identity, types, collation)
 	if err != nil {
 		t.Fatal(err)

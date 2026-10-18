@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 func TestJSONBPathQueryBinding(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		oid    OID
+		oid    ids.OID
 		result uint32
 		set    bool
 	}{
@@ -47,9 +48,9 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if d.identity != identity || d.kind != functionRoutine || uint32(d.result) != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet != tc.set || d.defaults != 2 || d.variadic != 0 || d.providers != jsonRoutineProvider {
 				t.Fatal("released full-IN declaration", d)
 			}
-			address := ObjectAddress{ProcedureClassID, tc.oid, 0}
+			address := ids.ObjectAddress{ProcedureClassID, tc.oid, 0}
 			view := e.CatalogRead()
-			if captured.address != address || captured.namespace != (ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || uint32(captured.result) != tc.result || captured.revision == 0 || view.state.descriptors[address] != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{NamespaceClassID, 11, 0}) || captured.name != identity.name || captured.signature != identity.signature || uint32(captured.result) != tc.result || captured.revision == 0 || view.state.descriptors[address] != captured {
 				t.Fatal("declaration is not engine-owned", captured)
 			}
 			var args []BoundExpr

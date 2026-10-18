@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -27,9 +28,9 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					old := base.state.descriptors[ownerRef.Address].(*relationDescriptor)
 					providerRef := roleTableRef(t, e, "provider")
 					provider := base.state.descriptors[providerRef.Address].(*relationDescriptor)
-					rowAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(provider.rowType)}
+					rowAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(provider.rowType)}
 					row := base.state.descriptors[rowAddress].(*typeDescriptor)
-					arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}
+					arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}
 					storage := e.storage[old.address]
 					retained := old.policies[1]
 					stage := e.BeginCatalogStage(base)
@@ -37,7 +38,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stage.Remove(providerRef); err != nil {
 						t.Fatal(err)
 					}
-					if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ObjectAddress{}); err != nil {
+					if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					next, ok := stage.descriptors[old.address].(*relationDescriptor)
@@ -71,7 +72,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 						t.Fatal(err)
 					}
 					now := e.CatalogRead()
-					for _, address := range []ObjectAddress{providerRef.Address, rowAddress, arrayAddress} {
+					for _, address := range []ids.ObjectAddress{providerRef.Address, rowAddress, arrayAddress} {
 						if _, exists := now.Descriptor(address); exists {
 							t.Fatal("retired provider remains", address)
 						}

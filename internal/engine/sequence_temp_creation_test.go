@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -92,11 +93,11 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				r.Rows.Close()
 				catalog, namespace, cell := e.state, a.temporaryNamespace, held.sequences
 				retained := cloneCatalog(catalog)
-				generators := make(map[ObjectAddress]sequenceGenerator, len(e.sequences))
+				generators := make(map[ids.ObjectAddress]sequenceGenerator, len(e.sequences))
 				for address, g := range e.sequences {
 					generators[address] = *g
 				}
-				memories := make(map[ObjectAddress]sequenceMemory, len(a.sequences))
+				memories := make(map[ids.ObjectAddress]sequenceMemory, len(a.sequences))
 				for address, m := range a.sequences {
 					memories[address] = *m
 				}
@@ -124,7 +125,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						t.Fatal("valid own temporary creation", err)
 					}
 					ns := e.state.descriptors[a.temporaryNamespace].(*namespaceDescriptor)
-					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ObjectAddress{}) && ns.address != namespace) {
+					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
 					assertTemporaryNamespacePair(t, e, a.token, ns.address)
@@ -158,14 +159,14 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				for address, d := range e.state.descriptors {
-					if ownedNamespace != (ObjectAddress{}) && d.Namespace() == ownedNamespace {
+					if ownedNamespace != (ids.ObjectAddress{}) && d.Namespace() == ownedNamespace {
 						t.Fatal("physical end leaked owned temporary child", address)
 					}
 				}
-				if ownedNamespace != (ObjectAddress{}) {
+				if ownedNamespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.token, ownedNamespace)
 				}
-				if a.temporaryNamespace != (ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ObjectAddress{}) || e.state.descriptors[peerAddress] != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences[peerAddress] != peerMemory {
+				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) || e.state.descriptors[peerAddress] != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences[peerAddress] != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 41)
@@ -184,7 +185,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE USER creator")
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
-				ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "denied"}]
+				ns := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "denied"}]
 				if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}

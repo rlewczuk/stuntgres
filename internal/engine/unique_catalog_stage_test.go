@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // TYPE UNIQUE rebuilds replace one backing relation with a new identity under
@@ -75,7 +77,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				t.Fatal(err)
 			}
 			private := e.stageRead(stage)
-			if _, ok := private.state.descriptors[oldRef.Address]; ok || private.state.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: old.name}] != next.address {
+			if _, ok := private.state.descriptors[oldRef.Address]; ok || private.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: old.name}] != next.address {
 				t.Fatal("private overlay retained incumbent")
 			}
 			if mode == "duplicate" || mode == "duplicate_address" {
@@ -177,7 +179,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	}
 	changed := *e.storage[ref.Address]
 	changed.generation++
-	if indexStoresUnchanged(map[ObjectAddress]*relationStorage{ref.Address: &changed}, captured, e.state, e.state, e.indexRoots, nil) {
+	if indexStoresUnchanged(map[ids.ObjectAddress]*relationStorage{ref.Address: &changed}, captured, e.state, e.state, e.indexRoots, nil) {
 		t.Fatal("existing parent generation change passed its storage fence")
 	}
 	before, root, stores := e.state, e.indexRoots[index], len(e.storage)

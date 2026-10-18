@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -47,7 +48,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if got := borrow.mapValues(physical); &got[0] != &physical[0] {
 		t.Fatal("identity copied")
 	}
-	state := partitionInsertState{target: parent, destination: child, layouts: map[ObjectAddress]*inheritanceQuerySegment{child.address: &back}}
+	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*inheritanceQuerySegment{child.address: &back}}
 	state.physicalRow = state.rowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
 	scope := StatementScope{statementMutation: statementMutation{partitionInsert: &state}}

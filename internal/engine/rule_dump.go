@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func ruleRelationSQL(view CatalogRead, ref ObjectRef) (string, error) {
+func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	d, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {
 		return "", ErrCatalogReplaced
@@ -312,7 +313,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 		}
 		if s.Conflict != nil {
 			sql.WriteString(" ON CONFLICT")
-			if constraint := b.conflict.constraint; constraint != (ObjectAddress{}) {
+			if constraint := b.conflict.constraint; constraint != (ids.ObjectAddress{}) {
 				if constraint.ClassID != 2606 || constraint.SubID != 0 {
 					return "", fmt.Errorf("stuntgres: invalid named rule constraint identity")
 				}
@@ -465,7 +466,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 		if err != nil {
 			return nil, err
 		}
-		table, err := ruleRelationSQL(view, ObjectRef{Address: d.address})
+		table, err := ruleRelationSQL(view, ids.ObjectRef{Address: d.address})
 		if err != nil {
 			return nil, err
 		}

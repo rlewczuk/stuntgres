@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -149,7 +150,7 @@ func (row queryPhysicalRow) values(version rowVersion) []sqltype.Value {
 	return version.values
 }
 
-func (s *querySource) physicalRef(index int) ObjectRef {
+func (s *querySource) physicalRef(index int) ids.ObjectRef {
 	if s.inheritance != nil {
 		segment, _ := s.inheritanceSegment(index)
 		return segment.leaf.ref

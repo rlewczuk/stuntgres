@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
 	"testing"
@@ -29,21 +30,21 @@ type serializableIndexSnapshot struct {
 }
 type serializablePublicationSnapshot struct {
 	catalog             *catalogState
-	descriptors         map[ObjectAddress]Descriptor
-	names               map[NameKey]ObjectAddress
+	descriptors         map[ids.ObjectAddress]Descriptor
+	names               map[ids.NameKey]ids.ObjectAddress
 	namespaceGeneration uint64
-	revision            DefinitionRevision
+	revision            ids.DefinitionRevision
 	frontier            CommitSeq
 	order               uint64
-	storage             map[ObjectAddress]serializableStorageSnapshot
-	indexes             map[ObjectAddress]serializableIndexSnapshot
-	sequences           map[ObjectAddress]*sequenceGenerator
-	generators          map[ObjectAddress]sequenceGenerator
-	providers           map[OID]reflect.Type
+	storage             map[ids.ObjectAddress]serializableStorageSnapshot
+	indexes             map[ids.ObjectAddress]serializableIndexSnapshot
+	sequences           map[ids.ObjectAddress]*sequenceGenerator
+	generators          map[ids.ObjectAddress]sequenceGenerator
+	providers           map[ids.OID]reflect.Type
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), namespaceGeneration: e.state.namespaceGeneration, revision: e.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ObjectAddress]serializableStorageSnapshot), indexes: make(map[ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.sequences), generators: make(map[ObjectAddress]sequenceGenerator), providers: make(map[OID]reflect.Type)}
+	s := serializablePublicationSnapshot{catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), namespaceGeneration: e.state.namespaceGeneration, revision: e.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
 	for address, store := range e.storage {
 		rows := append([]rowVersion(nil), store.versions[:cap(store.versions)]...)
 		for i := range rows {
@@ -334,7 +335,7 @@ func TestSerializablePublicationCatalogChangeSetVetoWithLiveGraph(t *testing.T) 
 	peer := serializableUnitCycle(t, e, node)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	descriptor := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "unpublished", revision: 1}
+	descriptor := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "unpublished", revision: 1}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
 	}

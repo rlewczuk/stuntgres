@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	if err != nil {
 		return err
 	}
-	var collationPath []ObjectAddress
+	var collationPath []ids.ObjectAddress
 	aclOutput := capturedACLItemOutput{owner: e, roles: auth.roles}
 	roleOutput := capturedRegroleOutput{owner: e, roles: auth.roles, quoteAll: rows.output.QuoteAllIdentifiers}
 	for _, value := range rows.values {
@@ -80,7 +81,7 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	return nil
 }
 
-func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if err := captureRegprocOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []Obj
 	if rows.regclassOutput == nil {
 		rows.regclassOutput = make(map[string]string)
 	}
-	rows.regclassOutput[key] = regclassSpelling(catalog, path, OID(n))
+	rows.regclassOutput[key] = regclassSpelling(catalog, path, ids.OID(n))
 	rows.output.Regclass = rows
 	return nil
 }
@@ -144,19 +145,19 @@ func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
 	}
-	return regclassSpelling(s.commentCatalog, s.deparsePath, OID(id)), nil
+	return regclassSpelling(s.commentCatalog, s.deparsePath, ids.OID(id)), nil
 }
 
 // regclassSpelling uses only the statement's captured catalog and relation path.
-func regclassSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+func regclassSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
 	return regclassSpellingAt(view, nil, path, id)
 }
 
-func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ObjectAddress, id OID) string {
+func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ids.ObjectAddress, id ids.OID) string {
 	if id == 0 {
 		return "-"
 	}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
 	if d, ok := descriptor.(*relationDescriptor); ok {
 		text := regclassIdentifier(d.name)

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -78,7 +79,7 @@ const (
 
 // Row zero is the relation resource; logical rows use their stable RowID.
 type lockResource struct {
-	ObjectRef
+	ids.ObjectRef
 	kind       lockResourceKind
 	high, low  uint32
 	row        RowID
@@ -150,7 +151,7 @@ type relationEntry struct {
 type relationLockManager struct {
 	mu           sync.Mutex
 	domain       *Domain // Owning engine's identity domain; provenance checks only.
-	epoch        CatalogEpoch
+	epoch        ids.CatalogEpoch
 	owners       map[TxRef]*relationTicket
 	sessions     map[SessionToken]*relationTicket
 	entries      map[lockResource]*relationEntry
@@ -459,7 +460,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	}
 	advisory := ref.kind == advisoryBigintResource || ref.kind == advisoryPairResource
 	if advisory {
-		if ref.ObjectRef != (ObjectRef{}) || ref.row != 0 || ref.key != nil || ref.completion != nil ||
+		if ref.ObjectRef != (ids.ObjectRef{}) || ref.row != 0 || ref.key != nil || ref.completion != nil ||
 			mode != advisoryShared && mode != advisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
@@ -647,7 +648,7 @@ func (m *relationLockManager) endLocked(t *relationTicket, err error, notify **r
 	t.multiContributions = nil
 	t.multiCache = nil
 }
-func (m *relationLockManager) fence(epoch CatalogEpoch) {
+func (m *relationLockManager) fence(epoch ids.CatalogEpoch) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if epoch > m.epoch {

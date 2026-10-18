@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -132,8 +133,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	own.born = 0
 	insert := row(5, 6)
 	insert.born = 0
-	scope.ownWrites = map[ObjectAddress][]rowVersion{old.address: {own, insert}}
-	scope.ownDeletes = map[ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {own, insert}}
+	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transform := queryProbeExpression{expressionInfo: expressionInfo{usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)

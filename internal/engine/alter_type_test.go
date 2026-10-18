@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -142,7 +143,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE USER alter_reader")
 	run(t, e, "CREATE SCHEMA denied")
-	schema := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "denied"}]
+	schema := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "denied"}]
 	if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, schema), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

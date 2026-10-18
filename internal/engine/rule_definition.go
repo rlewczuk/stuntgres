@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -14,7 +15,7 @@ const rulePseudoScope = ^uint32(0)
 
 type ruleNamespace struct {
 	relation *relationDescriptor
-	ref      ObjectRef
+	ref      ids.ObjectRef
 	event    string
 }
 
@@ -26,7 +27,7 @@ type ruleAction struct {
 }
 
 type ruleDefinition struct {
-	OID                   OID
+	OID                   ids.OID
 	Name                  string
 	event                 string
 	instead               bool
@@ -34,7 +35,7 @@ type ruleDefinition struct {
 	conditionPresentation *viewDefinition
 	conditionBinding      *binding
 	actions               []ruleAction
-	references            []ObjectAddress
+	references            []ids.ObjectAddress
 }
 
 func ruleIndex(d *relationDescriptor, name string) int {
@@ -186,7 +187,7 @@ func ruleReturning(s parser.Statement) *parser.Returning {
 	return nil
 }
 
-func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *relationDescriptor, ref ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
+func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *relationDescriptor, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
 	r := ruleDefinition{Name: s.Name.Text, event: strings.ToUpper(s.Event), instead: s.Instead}
 	ns := &ruleNamespace{relation: d, ref: ref, event: r.event}
 	if s.Condition != nil {
@@ -223,7 +224,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if _, notify := action.(*parser.Notify); notify {
 			return r, sqlError("0A000", "NOTIFY is unsupported")
 		}
-		var target ObjectRef
+		var target ids.ObjectRef
 		var err error
 		var targetName parser.ObjectName
 		switch action := action.(type) {

@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -38,7 +39,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			options.persistence = "temporary"
 		}
 		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
-			return name == table.name || len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name})) != 0
+			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: table.namespace, Name: name})) != 0
 		})
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -48,7 +49,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		if err != nil {
 			return err
 		}
-		address := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+		address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
 		options.owned = table.address
 		options.owned.SubID = table.attributes[slot]
 		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, sequencePlanStamp: revision, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
@@ -58,7 +59,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			return err
 		}
 		if stage.generators == nil {
-			stage.generators = make(map[ObjectAddress]*sequenceGenerator)
+			stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 		}
 		stage.generators[address] = &sequenceGenerator{last: options.start, generation: revision}
 		// Route synthetic syntax through the same closed default binder as Restore.
@@ -86,7 +87,7 @@ func closedSequenceDefault(node BoundExpr) bool {
 	case fieldExpression:
 		return closedSequenceDefault(n.base)
 	case sequenceCallExpression:
-		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
+		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
 			return false
 		}
 		literal, ok := n.args[0].(literalExpression)

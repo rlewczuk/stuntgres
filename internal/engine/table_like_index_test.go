@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -102,7 +103,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	}
 	candidate := cloneCatalog(auth.catalog.state)
 	for _, name := range []string{"invalid_source", "dropping_source"} {
-		ref := ObjectRef{Address: candidate.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]}
+		ref := ids.ObjectRef{Address: candidate.names[ids.NameKey{ClassID: RelationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]}
 		original := candidate.descriptors[ref.Address].(*relationDescriptor)
 		copy := *original
 		definition := *original.sqlIndex
@@ -117,7 +118,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	auth.recaptureCatalog(auth.catalog)
 	stage := e.BeginCatalogStage(auth.catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

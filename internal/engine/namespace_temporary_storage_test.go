@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -30,11 +31,11 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	catalog := e.CatalogRead()
 	namespace := owner.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
-	lookup := func(namespace ObjectAddress, name string) *relationDescriptor {
-		address := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
+	lookup := func(namespace ids.ObjectAddress, name string) *relationDescriptor {
+		address := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}]
 		return catalog.state.descriptors[address].(*relationDescriptor)
 	}
-	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "storage_parent")
+	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "storage_parent")
 }
 
 func namespaceCapturedAuthorization(t *testing.T, s *Session) AuthorizationView {
@@ -55,7 +56,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	e, owner, peer, foreign, chain, persistent := namespaceTemporaryStorageFixture(t)
 	catalog := e.CatalogRead()
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
-	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token SessionToken) ([]ObjectRef, error) {
+	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
 		leaf := queryLeaf{ref: e.domain.Ref(view.Epoch(), relation.address), relation: relation, only: only, analysisOnly: analysis}
 		auth := peerAuth
@@ -75,12 +76,12 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	}{{foreign, false}, {foreign, true}, {chain, false}} {
 		refs, err := collect(catalog, tc.relation, tc.only, false, peer.token)
 		defaultUnitDiagnostic(t, err, "0A000", "cannot access temporary tables of other sessions")
-		if len(refs) != 0 || e.state != before || e.commitSeq != sequence || e.nextOID != oid || e.nextRevision != revision || peer.temporaryNamespace != (ObjectAddress{}) || peer.transactions.accessedTemporary {
+		if len(refs) != 0 || e.state != before || e.commitSeq != sequence || e.nextOID != oid || e.nextRevision != revision || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 			t.Fatal("rejected physical source changed capture frontier or TEMP footprint", refs, err)
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ObjectRef{e.domain.Ref(catalog.Epoch(), foreign.address)}, peer.token, queryRowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ids.ObjectRef{e.domain.Ref(catalog.Epoch(), foreign.address)}, peer.token, queryRowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {
@@ -134,7 +135,7 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.state != before || e.commitSeq != sequence || e.nextOID != oid || e.nextRevision != revision || peer.temporaryNamespace != (ObjectAddress{}) || peer.transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.state != before || e.commitSeq != sequence || e.nextOID != oid || e.nextRevision != revision || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 				t.Fatal("foreign physical execution boundary/atomicity", prepared, err)
 			}
 		}

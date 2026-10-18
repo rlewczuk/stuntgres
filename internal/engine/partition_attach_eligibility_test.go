@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 	if err := partitionAttachEligibility(view, parent, child); err != nil {
 		t.Fatal(err)
 	}
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32202}
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32202}
 	view.state.descriptors[ns] = &namespaceDescriptor{address: ns, temporary: e.domain.Session(99)}
 	child.namespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
@@ -44,7 +45,7 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}, children: []ObjectAddress{child.address}, defaultChild: child.address}
+	parent.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}, children: []ids.ObjectAddress{child.address}, defaultChild: child.address}
 	child.membership = &partitionMembership{parent: parent.address, defaultBound: true}
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
@@ -55,14 +56,14 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 		}
 	}
 	check(true)
-	one := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32212}
-	two := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32213}
+	one := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32212}
+	two := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 32213}
 	token := e.domain.Session(99)
 	view.state.descriptors[one] = &namespaceDescriptor{address: one, temporary: token}
 	view.state.descriptors[two] = &namespaceDescriptor{address: two, temporary: e.domain.Session(100)}
 	child.namespace = one
 	check(false) // Permanent parent, temporary child.
-	parent.namespace, child.namespace = one, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	parent.namespace, child.namespace = one, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	check(false) // Temporary parent, permanent child.
 	child.namespace = two
 	check(false) // Equal persistence cannot bridge physical-session authority.

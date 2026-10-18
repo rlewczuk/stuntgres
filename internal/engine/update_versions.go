@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
@@ -54,22 +56,22 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 }
 
 // Conflict UPDATE separately proves cardinality through its affected-row set.
-func (w *WriteStage) replaceDistinct(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, true, true)
 }
 
-func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replace(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, false)
 }
 
 // Ordinary UPDATE proves each accepted physical target distinct through its
 // frozen scan / FROM winner gate, and excludes existing staged RowIDs before
 // choosing this append lane. Ordinary target and RI validation still applies.
-func (w *WriteStage) appendUpdateReplacement(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, true)
 }
 
-func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
+func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
 	rows := batch.values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
@@ -238,7 +240,7 @@ retry:
 	}
 	if len(versions) != 0 {
 		if w.rows == nil {
-			w.rows = make(map[ObjectAddress][]rowVersion)
+			w.rows = make(map[ids.ObjectAddress][]rowVersion)
 		}
 		if appendOnly {
 			w.rows[ref.Address] = distinctRows

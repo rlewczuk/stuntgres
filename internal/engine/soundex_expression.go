@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 type installedSoundexFunctionExpression struct {
 	functions.Soundex[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -115,7 +116,7 @@ func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
 			return fmt.Errorf("stuntgres: missing stored Soundex argument")
 		}
 	}
-	result := OID(25)
+	result := ids.OID(25)
 	if n.Function == "difference" {
 		result = 23
 	}

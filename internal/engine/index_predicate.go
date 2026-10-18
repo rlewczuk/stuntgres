@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -9,7 +10,7 @@ import (
 // an arm. Both trees use the immutable parent attribute layout.
 type indexPredicate struct {
 	definition, execution BoundExpr
-	dependencies          []ObjectRef
+	dependencies          []ids.ObjectRef
 	attributes            []int32
 }
 
@@ -23,7 +24,7 @@ type indexExecutionPreparation struct {
 	constantsPrepared, predicatePrepared, keysPrepared bool
 }
 
-func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ObjectRef, parent *relationDescriptor) EvalContext {
+func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ids.ObjectRef, parent *relationDescriptor) EvalContext {
 	local := *evaluation
 	local.routineGraft = false
 	local.routineRecipe = true
@@ -32,7 +33,7 @@ func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ObjectRef, pa
 	return local
 }
 
-func prepareIndexRecipe(evaluation *EvalContext, expression BoundExpr, dependencies []ObjectRef, parent *relationDescriptor, admission *routineAdmissionProgram, executable bool) (BoundExpr, error) {
+func prepareIndexRecipe(evaluation *EvalContext, expression BoundExpr, dependencies []ids.ObjectRef, parent *relationDescriptor, admission *routineAdmissionProgram, executable bool) (BoundExpr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
 	local.routineProgram = admission
 	prepared, _, err := preflightCoercionsWithPolicy(&local, expression, true)
@@ -140,7 +141,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if plannedVolatility(execution) != Immutable {
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
-	var dependencies []ObjectRef
+	var dependencies []ids.ObjectRef
 	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, err
 	}

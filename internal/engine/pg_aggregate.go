@@ -3,23 +3,24 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-const pgAggregateOID OID = 2600
+const pgAggregateOID ids.OID = 2600
 
 // An aggregate definition belongs to its implemented routine. Optional seeds
 // distinguish SQL NULL from an empty string without allocating seed pointers.
 type aggregateDefinition struct {
-	function                       OID
+	function                       ids.OID
 	kind                           string
 	directArgs                     int16
-	functions                      [8]OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
+	functions                      [8]ids.OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
 	finalExtra, movingFinalExtra   bool
 	finalModify, movingFinalModify string
-	sortOperator, transitionType   OID
+	sortOperator, transitionType   ids.OID
 	transitionSpace                int32
-	movingType                     OID
+	movingType                     ids.OID
 	movingSpace                    int32
 	initial, movingInitial         string
 	hasInitial, hasMovingInitial   bool
@@ -32,11 +33,11 @@ var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Int4, sqltype.Text, sqltype.Text,
 }
 
-func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ObjectAddress{ClassID: RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source || len(source.columns) != len(aggregateColumnTypes) {
+	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source || len(source.columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {

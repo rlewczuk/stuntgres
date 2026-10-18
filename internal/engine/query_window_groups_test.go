@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -63,7 +64,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
 	}
-	mapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
+	mapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] })
 	if err != nil || mapped == query.Root {
 		t.Fatal(mapped, err)
 	}
@@ -329,7 +330,7 @@ func TestQueryWindowGroupsDomainRemap(t *testing.T) {
 		types[old.ID()] = next
 	}
 	lookup := func(old *sqltype.Descriptor) *sqltype.Descriptor { return types[old.ID()] }
-	mapped, err := remapViewQuery(New().CatalogRead(), root, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
+	mapped, err := remapViewQuery(New().CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID += 100; return ref }, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,12 +368,12 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "groups_unit_reader"})
 
 	e.roles = roles
-	column := func(index int) ObjectRef {
+	column := func(index int) ids.ObjectRef {
 		object := ref
 		object.Address.SubID = table.attributes[index]
 		return object
 	}
-	grant := func(object ObjectRef, rights authorization.Privileges) {
+	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {

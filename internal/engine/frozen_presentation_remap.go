@@ -1,8 +1,11 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
-func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ObjectAddress]ObjectAddress, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
+func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
 	typ = recordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {
@@ -15,13 +18,13 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 		}
 	}
 	if len(original.intaggRefs) != 0 {
-		definition.intaggRefs = make(map[viewLiteralPath]ObjectRef, len(original.intaggRefs))
+		definition.intaggRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.intaggRefs))
 		for path, old := range original.intaggRefs {
 			definition.intaggRefs[path] = ref(old)
 		}
 	}
 	if len(original.operatorRefs) != 0 {
-		definition.operatorRefs = make(map[viewLiteralPath]ObjectRef, len(original.operatorRefs))
+		definition.operatorRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.operatorRefs))
 		for path, old := range original.operatorRefs {
 			definition.operatorRefs[path] = ref(old)
 		}
@@ -29,7 +32,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 	if collation != nil && len(original.collations) != 0 {
 		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
 		for path, id := range original.collations {
-			if target, ok := mapping[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}]; ok {
+			if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}]; ok {
 				id = uint32(target.ObjectID)
 			}
 			definition.collations[path] = id
@@ -81,7 +84,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 			definition.composites[path] = captured
 		}
 	}
-	definition.sequenceRefs = make(map[int]ObjectRef, len(original.sequenceRefs))
+	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(original.sequenceRefs))
 	for offset, old := range original.sequenceRefs {
 		definition.sequenceRefs[offset] = ref(old)
 	}

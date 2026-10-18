@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func()) {
 	t.Helper()
 	catalog := e.CatalogRead()
-	addresses := catalog.Lookup(NameKey{ClassID: NamespaceClassID, Name: "public"})
+	addresses := catalog.Lookup(ids.NameKey{ClassID: NamespaceClassID, Name: "public"})
 	if len(addresses) != 1 {
 		t.Fatal("public schema fixture requires one public namespace")
 	}

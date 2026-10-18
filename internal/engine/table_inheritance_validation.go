@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Retained TEMP definitions keep their original row-reference epoch across a
@@ -30,7 +32,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	if !ok {
 		return invalid()
 	}
-	seen := make(map[ObjectAddress]bool, len(graph.parents))
+	seen := make(map[ids.ObjectAddress]bool, len(graph.parents))
 	for _, address := range graph.parents {
 		parent, ok := v.state.descriptors[address].(*relationDescriptor)
 		if !ok || parent.address != address || parent.relationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.address {
@@ -47,7 +49,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		if !ok || !provenance.local && len(provenance.origins) == 0 {
 			return invalid()
 		}
-		origins := make(map[ObjectAddress]bool, len(provenance.origins))
+		origins := make(map[ids.ObjectAddress]bool, len(provenance.origins))
 		for _, origin := range provenance.origins {
 			if !seen[origin.parent] || origins[origin.parent] || origin.constraint != 0 {
 				return invalid()
@@ -118,7 +120,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		if err := validateRetiredInheritance(v, d, provenance, d.notNullConstraints[child].OID, false); err != nil {
 			return err
 		}
-		origins := make(map[ObjectAddress]bool)
+		origins := make(map[ids.ObjectAddress]bool)
 		for _, origin := range provenance.origins {
 			if !seen[origin.parent] || origins[origin.parent] || origin.constraint == 0 {
 				return invalid()
@@ -146,7 +148,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		if err := validateRetiredInheritance(v, d, provenance, d.checkConstraints[child].OID, true); err != nil {
 			return err
 		}
-		origins := make(map[ObjectAddress]bool)
+		origins := make(map[ids.ObjectAddress]bool)
 		for _, origin := range provenance.origins {
 			if !seen[origin.parent] || origins[origin.parent] || origin.attribute != 0 || origin.constraint == 0 {
 				return invalid()
@@ -180,8 +182,8 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 	}
 	// An explicit DFS validates imported/internal candidates as well as CREATE.
-	visiting := make(map[ObjectAddress]bool)
-	visited := make(map[ObjectAddress]bool)
+	visiting := make(map[ids.ObjectAddress]bool)
+	visited := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(current *relationDescriptor) bool {
 		if visiting[current.address] {

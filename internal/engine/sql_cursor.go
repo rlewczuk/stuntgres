@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -28,7 +29,7 @@ const (
 type sqlCursor struct {
 	tx                                          TxRef
 	ordinal                                     uint64
-	epoch                                       CatalogEpoch
+	epoch                                       ids.CatalogEpoch
 	hold, promoted                              bool
 	statement                                   string
 	created                                     sqltype.Value
@@ -56,10 +57,10 @@ type sqlCursor struct {
 	routineDependencies                         []expressionDependency // Original immutable binding lifetimes, not permissions.
 	routineAuth                                 AuthorizationView      // DECLARE's initialized executor, not cached permission results.
 	deparseAuth                                 AuthorizationView
-	deparsePath                                 []ObjectAddress
-	collationPath                               []ObjectAddress
+	deparsePath                                 []ids.ObjectAddress
+	collationPath                               []ids.ObjectAddress
 	visibilityCatalog                           CatalogRead
-	visibilityRelationPath, visibilityOtherPath []ObjectAddress
+	visibilityRelationPath, visibilityOtherPath []ids.ObjectAddress
 }
 
 // All cursor cleanup is detached from registries before application callbacks.

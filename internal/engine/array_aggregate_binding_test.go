@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 		}
 		found := false
 		for _, dependency := range b.dependencies {
-			if dependency.ref.Address.ClassID == TypeClassID && dependency.ref.Address.ObjectID == OID(usage.Type.ID()) {
+			if dependency.ref.Address.ClassID == TypeClassID && dependency.ref.Address.ObjectID == ids.OID(usage.Type.ID()) {
 				found = true
 			}
 		}
@@ -121,7 +122,7 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		}
 		found := false
 		for _, d := range b.dependencies {
-			if d.ref.Address.ClassID == TypeClassID && d.ref.Address.ObjectID == OID(tc.want.ID()) {
+			if d.ref.Address.ClassID == TypeClassID && d.ref.Address.ObjectID == ids.OID(tc.want.ID()) {
 				found = true
 			}
 		}

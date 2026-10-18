@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // SQL routine kind is independent of the catalog's ProcedureObject class.
 type routineKind byte
 
@@ -33,12 +35,12 @@ func (d *procedureDescriptor) returnsSet() bool {
 type builtinRoutineDeclaration struct {
 	identity   routineIdentity
 	kind       routineKind
-	result     OID
+	result     ids.OID
 	strict     bool
 	volatility Volatility
 	parallel   byte
 	returnsSet bool
-	variadic   OID
+	variadic   ids.OID
 	defaults   uint8
 	providers  routineProvider
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -29,7 +30,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := *d
-	base.address = ObjectAddress{ClassID: RelationClassID, ObjectID: baseOID}
+	base.address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: baseOID}
 	base.name, base.relationKind, base.view = "unit_base", tableRelation, nil
 	base.acl = authorization.ACLValue{Explicit: true}
 	if err := stage.Create(&base); err != nil {
@@ -52,7 +53,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, mvSources, nil, SessionToken{}, queryRowMark{})
 	e.mu.Unlock()
-	if err != nil || !reflect.DeepEqual(refs, []ObjectRef{mvRef}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectRef{mvRef}) {
 		t.Fatalf("physical read expanded frozen source references: %v %v", refs, err)
 	}
 }

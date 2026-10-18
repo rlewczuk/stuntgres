@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -84,7 +85,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				columnRef.Address.SubID = initial.attributes[0]
 				sequenceRef := roleTableRef(t, e, "t_c_seq")
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: initial.owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
-				for _, ref := range []ObjectRef{tableRef, columnRef, sequenceRef} {
+				for _, ref := range []ids.ObjectRef{tableRef, columnRef, sequenceRef} {
 					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 						t.Fatal(err)
 					}
@@ -348,7 +349,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				e.state.descriptors[tableRef.Address] = &changed
 				changes.originals[tableRef.Address] = &changed
 			}
-			changes.dependencies = append(changes.dependencies, catalogDependencyObservation{observationBase, []ObjectAddress{target}})
+			changes.dependencies = append(changes.dependencies, catalogDependencyObservation{observationBase, []ids.ObjectAddress{target}})
 			err := e.catalogPreflightLocked(changes)
 			e.mu.Unlock()
 			if name == "current" {

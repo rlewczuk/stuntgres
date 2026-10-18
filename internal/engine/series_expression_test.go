@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -232,7 +233,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			t.Fatal(n, err)
 		}
 	}
-	clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !sameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}

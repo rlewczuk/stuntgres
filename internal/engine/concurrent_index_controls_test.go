@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -342,8 +343,8 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
-			stage.indexCandidates = map[ObjectAddress]indexRootCandidate{next.address: {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
+			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.address: {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

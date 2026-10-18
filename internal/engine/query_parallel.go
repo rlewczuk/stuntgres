@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,7 +27,7 @@ func queryParallelWorkers(ceiling, count int) int {
 
 func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *sortNode, bool) {
 	project, ok := root.(*projectNode)
-	if !ok || source == nil || source.view == nil || project.cteOwner || project.hasTargetSet || project.frozenValues || source.sources != nil || source.storedRef != (ObjectRef{}) ||
+	if !ok || source == nil || source.view == nil || project.cteOwner || project.hasTargetSet || project.frozenValues || source.sources != nil || source.storedRef != (ids.ObjectRef{}) ||
 		source.locks != nil || source.lineage != nil || source.inherited.mode != 0 || source.hashIndexes != nil || source.partialMask != nil || source.inheritance != nil ||
 		source.singleton || source.rlsDenied || source.anonymous != nil || source.pgSequences != nil || source.materialized || source.final != nil || source.input != nil ||
 		source.nestedRoot != nil || source.nestedInputs != nil || source.nestedStage != nil || source.window || source.joinLeft != nil || source.joinRight != nil ||

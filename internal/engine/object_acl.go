@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -177,7 +178,7 @@ func (n objectACLExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if scope.catalog != nil {
 		auth.recaptureCatalog(e.privateCatalogLocked(scope.catalog))
 	}
-	acl, err := rawObjectACL(auth.catalog, ObjectAddress{ClassID: OID(class), ObjectID: OID(object), SubID: int32(subid)})
+	acl, err := rawObjectACL(auth.catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -187,7 +188,7 @@ func (n objectACLExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 // REL_18_0 ObjectProperty, not the native provider inventory. A catalog without
 // native instances can still be a recognized address class. pg_largeobject is
 // the released alias for pg_largeobject_metadata. pg_parameter_acl is not listed.
-func objectACLClass(class OID) (hasACL, known bool) {
+func objectACLClass(class ids.OID) (hasACL, known bool) {
 	switch class {
 	case 1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613:
 		return true, true
@@ -199,7 +200,7 @@ func objectACLClass(class OID) (hasACL, known bool) {
 	return false, false
 }
 
-func rawObjectACL(catalog CatalogRead, address ObjectAddress) (authorization.ACLValue, error) {
+func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	if address.ClassID == 0 && address.ObjectID == 0 {
 		return authorization.ACLValue{}, nil
 	}

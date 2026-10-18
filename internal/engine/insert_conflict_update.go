@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -9,7 +10,7 @@ import (
 
 // Each proposal is already projected and constrained. Only arbitration is
 // restarted after a row wait; defaults, the source and SET are never replayed.
-func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *EvalContext) error {
+func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *EvalContext) error {
 	proposal := candidate.values
 	c := s.insertConflict
 	e := s.op.session.Engine()
@@ -199,7 +200,7 @@ func conflictUpdateCardinalityError() error {
 
 // Committed hits retain their provider's exact physical hint. Private overlays
 // are keyed by RowID, with this command's replacement ahead of prior writes.
-func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ObjectRef, candidate uniqueConflict) (rowVersion, *relationDescriptor, string, bool, error) {
+func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (rowVersion, *relationDescriptor, string, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {

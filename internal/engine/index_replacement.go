@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,13 +12,13 @@ import (
 type remintedIndexStorage struct {
 	catalog              *catalogState
 	baseCatalog          *catalogState
-	roots                map[ObjectAddress]*logicalIndexRoot
+	roots                map[ids.ObjectAddress]*logicalIndexRoot
 	nextRow, nextVersion uint64
 	baseRow, baseVersion uint64
 	frontier             CommitSeq
 }
 
-func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
+func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
 	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.state, baseRow: e.nextRow, baseVersion: e.nextVersion, frontier: e.commitSeq}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
@@ -30,8 +31,8 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 // Imported storage is private to replacement. Exact retained TEMP storage keeps
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
-func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
-	retained := &catalogState{descriptors: make(map[ObjectAddress]Descriptor)}
+func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ids.ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
+	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
 	for address, descriptor := range next.descriptors {
 		namespace, temporary := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor)
 		if temporary && namespace.temporary != (SessionToken{}) && descriptor == e.state.descriptors[address] {
@@ -50,7 +51,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	if snapshot == nil {
 		return nil, 0, 0, ErrCatalogReplaced
 	}
-	positions := make(map[ObjectAddress]map[indexRowIdentity]int, len(storage))
+	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
 		if descriptor := next.descriptors[address]; descriptor != nil && e.storage[address] == relation {
 			if namespace, ok := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {

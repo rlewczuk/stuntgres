@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,7 +39,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 		return conversionSQLName(view, definitions[i]) < conversionSQLName(view, definitions[j])
 	})
 	type pair struct {
-		namespace           ObjectAddress
+		namespace           ids.ObjectAddress
 		source, destination int
 	}
 	occupiedPairs := make(map[pair]bool)
@@ -95,7 +96,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 // All moving/renamed seeds first receive intermediate names, avoiding swaps and
 // collisions with both canonical seed names and current user-object names.
 func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
+	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
 	}
@@ -127,7 +128,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, descriptor := range view.state.descriptors {
-					if descriptor.Kind() == ConversionObject {
+					if descriptor.Kind() == ids.ConversionObject {
 						occupied[descriptor.Name()] = true
 					}
 				}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ type EvalContext struct {
 	queryRowSource                     *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
 	queryCurrentRows     [][]sqltype.Value
-	physicalTable        ObjectRef // Existing generated recipe's containing physical row.
+	physicalTable        ids.ObjectRef // Existing generated recipe's containing physical row.
 	functionRecheckCache *functionRecheckCache
 	presenceSlots        []int
 	presence             []bool
@@ -88,7 +89,7 @@ type EvalContext struct {
 	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
 	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
 	routineChecks      []expressionDependency
-	routineReferences  []ObjectRef
+	routineReferences  []ids.ObjectRef
 	routineConsumer    *relationDescriptor
 	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
@@ -100,7 +101,7 @@ type expressionInfo struct {
 	properties  ExprProperties
 	unknownNull bool
 	// Only genuine scalar REGCLASS constants carry captured relation authority.
-	regclassRef                   ObjectRef
+	regclassRef                   ids.ObjectRef
 	collationConflict             bool
 	collationExplicit             parser.Position
 	collationLeft, collationRight sqltype.CollationRef
@@ -277,7 +278,7 @@ func (e literalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 type columnExpression struct {
 	expressionInfo
-	origin             ObjectRef
+	origin             ids.ObjectRef
 	scope, frame       uint32
 	slot               int
 	virtual            BoundExpr
@@ -336,7 +337,7 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	recipe := e.virtual
 	if e.virtualOwner != nil {
 		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.generations[e.virtualAttribute])
-	} else if e.origin != (ObjectRef{}) {
+	} else if e.origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
 	if e.queryOccurrence != 0 {
@@ -2089,15 +2090,15 @@ type expressionPolicy struct {
 	operand bool
 }
 type expressionDependency struct {
-	ref      ObjectRef
-	revision DefinitionRevision
+	ref      ids.ObjectRef
+	revision ids.DefinitionRevision
 }
 type expressionBinder struct {
 	engine                *Engine
 	ctx                   context.Context
 	relation              *relationDescriptor
 	insertTarget          *relationDescriptor // Diagnostic candidate only, never a source.
-	ref                   ObjectRef
+	ref                   ids.ObjectRef
 	ruleNamespace         *ruleNamespace
 	parameters            map[int]sqltype.Usage
 	formalParameters      []sqltype.Usage
@@ -2190,8 +2191,8 @@ type expressionBinder struct {
 	storedExpressionSyntax map[storedExpressionSyntaxKey]parser.Expr
 	viewLiterals           map[viewLiteralPath]literalExpression
 	viewCastUsages         map[viewLiteralPath]sqltype.Usage
-	viewIntaggRefs         map[viewLiteralPath]ObjectRef
-	viewOperatorRefs       map[viewLiteralPath]ObjectRef
+	viewIntaggRefs         map[viewLiteralPath]ids.ObjectRef
+	viewOperatorRefs       map[viewLiteralPath]ids.ObjectRef
 	viewComposites         map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings  map[viewLiteralPath]bool
 	viewPosixSubstrings    map[viewLiteralPath]bool
@@ -2246,7 +2247,7 @@ func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 	d, _ := b.definitionType(id)
 	return d
 }
-func (b *expressionBinder) dependency(ref ObjectRef, revision DefinitionRevision) {
+func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
 	for _, d := range b.dependencies {
 		if d.ref == ref {
 			return
@@ -2263,14 +2264,14 @@ func (b *expressionBinder) bindingCatalog() CatalogRead {
 
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
 	view := b.bindingCatalog()
-	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}
-	revision := DefinitionRevision(1)
+	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())}
+	revision := ids.DefinitionRevision(1)
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
 	b.dependency(b.engine.domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
-		address := ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}
+		address := ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
 			b.dependency(b.engine.domain.Ref(view.Epoch(), address), d.Revision())
 		}
@@ -2426,11 +2427,11 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 	}
 	return b.columnAt(i, raw.Pos), nil
 }
-func (b *expressionBinder) useColumn(i int) ObjectRef {
+func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
 	return b.useColumnOf(b.relation, i)
 }
 
-func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ObjectRef {
+func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.ObjectRef {
 	ref := b.ref
 	ref.Address.SubID = relation.attributes[i]
 	b.dependency(ref, relation.revision)
@@ -2941,7 +2942,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if err != nil {
 					return nil, err
 				}
-				address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
+				address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.catalog.Descriptor(address); exists {
 					b.dependency(b.engine.domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
 				}

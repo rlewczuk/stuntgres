@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -92,7 +93,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	if err != nil || out != `{"b":[1]}` {
 		t.Fatal(out, err)
 	}
-	mapped, err := remapBoundExpression(e, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != Stable {
 		t.Fatal(mapped, err)
 	}

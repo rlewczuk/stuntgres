@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		catalog.state.descriptors[pgDependUnitAddress(1247, OID(49501+i), 0)] = &typeDescriptor{typ: domain}
+		catalog.state.descriptors[pgDependUnitAddress(1247, ids.OID(49501+i), 0)] = &typeDescriptor{typ: domain}
 		domains = append(domains, domain)
 	}
 	literal := literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}
@@ -29,13 +30,13 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgDependUnitRefs(t, got, []ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
+	pgDependUnitRefs(t, got, []ids.ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
 	node.rightExpressions = append(node.rightExpressions, node.leftExpressions[0])
 	got, err = pgDependQueryRefs(context.Background(), catalog, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgDependUnitRefs(t, got, []ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
+	pgDependUnitRefs(t, got, []ids.ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
 	node.leftExpressions = nil
 	node.rightExpressions = nil
 	// Result metadata is not itself a Const or coercion target.

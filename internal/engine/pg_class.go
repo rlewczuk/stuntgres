@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,7 +13,7 @@ import (
 // pinned PostgreSQL 18.0 confirms the flags. Install this fact on their owning
 // descriptors without fabricating missing native index relations. This is not
 // the bounded pg_tables summary-inclusion predicate.
-func representedCatalogHasIndexes(oid OID) bool {
+func representedCatalogHasIndexes(oid ids.OID) bool {
 	switch oid {
 	case pgTypeOID, 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2600, pgAMOID, 2604, 2605, 2606, 2607,
 		2608, 2609, 2610, 2612, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, 3600, 3764, ParameterClassID:
@@ -137,7 +138,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		text(16, pgClassPersistence(catalog, relation)), text(17, kind), integer(18, int64(relation.attributeHighWater)), integer(19, int64(len(relation.checkConstraints))),
 		boolean(20, len(relation.rules) != 0 || relation.view != nil || relation.relationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.hasSubclasses),
 		boolean(23, relation.rlsEnabled), boolean(24, relation.rlsForced), boolean(25, relation.relationKind != materializedViewRelation || relation.populated),
-		text(26, replica), boolean(27, relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ObjectAddress{})), oid(28, 0),
+		text(26, replica), boolean(27, relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.columns[30].Usage.Type, 0)), acl, options, bound,
 	}
 	if err := ctx.Err(); err != nil {

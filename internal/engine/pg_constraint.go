@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 		if !ok {
 			continue
 		}
-		next := func(id OID, name, kind string) ([]sqltype.Value, error) {
+		next := func(id ids.OID, name, kind string) ([]sqltype.Value, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -229,7 +230,7 @@ type pgConstraintBuilder struct {
 	err   error
 }
 
-func (b *pgConstraintBuilder) initialize(row []sqltype.Value, namespace, relation, id OID, name, kind string) {
+func (b *pgConstraintBuilder) initialize(row []sqltype.Value, namespace, relation, id ids.OID, name, kind string) {
 	for i, typ := range b.types {
 		switch pgConstraintTypeIDs[i] {
 		case sqltype.Oid:
@@ -253,7 +254,7 @@ func (b *pgConstraintBuilder) initialize(row []sqltype.Value, namespace, relatio
 	b.oid(row, 8, relation)
 	b.boolean(row, 16, true)
 }
-func (b *pgConstraintBuilder) oid(row []sqltype.Value, i int, id OID) {
+func (b *pgConstraintBuilder) oid(row []sqltype.Value, i int, id ids.OID) {
 	value, err := sqltype.OIDValue(b.types[i], uint32(id))
 	row[i] = value
 	if b.err == nil {
@@ -343,7 +344,7 @@ func constraintAction(typ *sqltype.Descriptor, action parser.ForeignKeyAction) (
 	return sqltype.String(typ, code), nil
 }
 
-func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID) (OID, error) {
+func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID) (ids.OID, error) {
 	for _, operand := range []*sqltype.ID{&left, &right} {
 		typ, ok := catalog.LookupType(*operand)
 		if !ok {
@@ -353,14 +354,14 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 			*operand = 3500
 		}
 	}
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	signature := strconv.FormatUint(uint64(left), 10) + "," + strconv.FormatUint(uint64(right), 10)
-	address, ok := catalog.state.names[NameKey{ClassID: OperatorClassID, Namespace: namespace, Name: name, Signature: signature}]
+	address, ok := catalog.state.names[ids.NameKey{ClassID: OperatorClassID, Namespace: namespace, Name: name, Signature: signature}]
 	if !ok || address.ObjectID == 0 {
 		return 0, fmt.Errorf("stuntgres: missing constraint operator identity")
 	}
 	op, ok := catalog.state.descriptors[address].(*operatorDescriptor)
-	if !ok || op.left != OID(left) || op.right != OID(right) {
+	if !ok || op.left != ids.OID(left) || op.right != ids.OID(right) {
 		return 0, fmt.Errorf("stuntgres: invalid constraint operator identity")
 	}
 	return address.ObjectID, nil

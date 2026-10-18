@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -21,14 +22,14 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	hidden := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "hidden", revision: 1, owner: e.authorizationDomain.Principal(10)}
-	collision := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90011}, name: "__stuntgres_conversion_2", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	hidden := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "hidden", revision: 1, owner: e.authorizationDomain.Principal(10)}
+	collision := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90011}, name: "__stuntgres_conversion_2", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	first, second := conversionUnitDefinition(e, 90000, "a", true), conversionUnitDefinition(e, 90001, "b", true)
 	plain := conversionUnitDefinition(e, 90002, "plain", false)
-	seed := *view.state.descriptors[ObjectAddress{ClassID: ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
+	seed := *view.state.descriptors[ids.ObjectAddress{ClassID: ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
 	seed.name, seed.namespace, seed.revision = "seed_moved", hidden.address, 2
 	seedCollision := conversionUnitDefinition(e, 90003, "__stuntgres_conversion_seed_4519", false)
-	seedCollision.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	seedCollision.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	stage := e.BeginCatalogStage(view)
 	for _, d := range []Descriptor{hidden, collision, first, second, plain, seedCollision} {
 		if err := stage.Create(d); err != nil {
@@ -84,8 +85,8 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		{"public", "a", true}, {"public", "b", true}, {"public", "plain", false},
 		{"pg_catalog", "__stuntgres_conversion_seed_4519", false}, {"hidden", "seed_moved", true},
 	} {
-		namespace := current.state.names[NameKey{ClassID: NamespaceClassID, Name: expected.namespace}]
-		address := current.state.names[NameKey{ClassID: ConversionClassID, Namespace: namespace, Name: expected.name}]
+		namespace := current.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: expected.namespace}]
+		address := current.state.names[ids.NameKey{ClassID: ConversionClassID, Namespace: namespace, Name: expected.name}]
 		restored, ok := current.state.descriptors[address].(*conversionDescriptor)
 		if !ok || restored.source != 6 || restored.destination != 8 || restored.handler != first.handler || restored.defaultConversion != expected.def || restored.owner != e.authorizationDomain.Principal(10) {
 			t.Fatal("lossless replay conversion metadata", expected, restored)
@@ -242,7 +243,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	}
 	bad := cloneCatalog(source.CatalogRead().state)
 	invalid := *d
-	invalid.handler = ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90099}
+	invalid.handler = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90099}
 	bad.descriptors[d.Address()] = &invalid
 	if err := (conversionProvider{}).Validate(CatalogRead{source, bad}, &invalid); err == nil {
 		t.Fatal("unavailable imported handler admitted")

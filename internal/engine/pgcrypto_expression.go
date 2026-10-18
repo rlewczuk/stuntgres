@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 type installedCryptoFunctionExpression struct {
 	functions.Pgcrypto[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref       ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {

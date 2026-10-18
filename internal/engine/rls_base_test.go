@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -142,7 +143,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal("no-op published a catalog revision")
 	}
 	exhausted := *d
-	exhausted.revision = DefinitionRevision(^uint64(0))
+	exhausted.revision = ids.DefinitionRevision(^uint64(0))
 	exhaustedNext := rowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
 	exhaustedScope := &StatementScope{op: op, owner: &transactionOwner{}}
 	e.mu.Lock()

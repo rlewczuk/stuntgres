@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Map actual live relation/index addresses with the existing replacement map.
 // Archived removed identities retain their genuine source lifetime namespace.
-func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[ObjectAddress]ObjectAddress) error {
+func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	if len(old.physicalNotNull) == 0 {
 		return nil
 	}
@@ -52,7 +54,7 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[O
 // Existing remapDefinitionOIDsLocked has already minted the actual final key
 // group. Reissue only the exact captured relation/attribute and that group;
 // neither this helper nor the certificate allocates a constraint or index.
-func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ObjectAddress]Descriptor) error {
+func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
 	for address, descriptor := range next.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || len(table.physicalNotNull) == 0 {

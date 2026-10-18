@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,21 +25,21 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "pgcrypto"}]
+	address := e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "pgcrypto"}]
 	return e, e.state.descriptors[address].(*extensionDescriptor)
 }
 
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.4" || len(ext.members) != 14 || ext.Namespace() != (ObjectAddress{}) {
+	if ext.version != "1.4" || len(ext.members) != 14 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
-	seen := map[ObjectAddress]bool{}
+	seen := map[ids.ObjectAddress]bool{}
 	expected := []struct {
 		name       string
 		signature  procedureSignature
-		result     OID
+		result     ids.OID
 		volatility Volatility
 		strict     bool
 	}{
@@ -162,7 +163,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	// rather than reducing the call to its extension or output type.
 	generated := &relationDescriptor{
 		generations: map[int32]columnGeneration{
-			1: {kind: generationStored, expression: n, planned: n, dependencies: []ObjectRef{n.ref}},
+			1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}},
 		},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err != nil {
@@ -173,7 +174,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	}
 	stale := n.ref
 	stale.Epoch = 0
-	generated.generations[1] = columnGeneration{dependencies: []ObjectRef{stale}}
+	generated.generations[1] = columnGeneration{dependencies: []ids.ObjectRef{stale}}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}
@@ -198,7 +199,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := remapExtensionDescriptor(n.procedure, map[ObjectAddress]ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
 	if mapped.crypto != stockPgcrypto || mapped.signature != n.procedure.signature || mapped.result != 17 || mapped.address == n.procedure.address {
 		t.Fatal(mapped)
 	}
@@ -229,7 +230,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
 		t.Fatal(aesRefs, err)
 	}
-	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ObjectAddress]ObjectAddress{aesCall.ref.Address: {ClassID: ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
+	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
 	if mappedAES.crypto != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}

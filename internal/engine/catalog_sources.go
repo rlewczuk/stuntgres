@@ -6,12 +6,13 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) initializeCatalogSources() error {
 	for _, spec := range []struct {
-		oid     OID
+		oid     ids.OID
 		name    string
 		columns []struct {
 			name string
@@ -250,7 +251,7 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
-		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		d.hasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 || spec.oid == ParameterClassID {
 			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
@@ -370,27 +371,27 @@ func (e *Engine) initializeCatalogSources() error {
 	return e.initializeDataTypePrivileges()
 }
 
-func (e *Engine) catalogSourceDescriptor(oid OID, namespace ObjectAddress, name string, count int) *relationDescriptor {
+func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *relationDescriptor {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
-	if address, ok := e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
+	if address, ok := e.state.names[ids.NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
 		row := e.state.descriptors[address].(*typeDescriptor)
 		row.owningRelation, row.owner = d.address, d.owner
 		d.rowType = row.typ.ID()
 		if row.array != 0 {
-			array := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
+			array := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 			array.owningRelation, array.owner = d.address, d.owner
 		}
 	}
 	e.state.descriptors[d.address] = d
-	e.state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == pgTypeOID {
 		return e.capturePGType(ctx, catalog, roles, ref, source)
 	}

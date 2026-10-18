@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
@@ -13,7 +15,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	target := roleTableRef(t,e,"q").Address
 	run(t,e,`CREATE TABLE t(id INT DEFAULT nextval('q'))`)
 	changes := newCatalogChanges()
-	changes.dependencies = append(changes.dependencies,catalogDependencyObservation{base,[]ObjectAddress{target}})
+	changes.dependencies = append(changes.dependencies,catalogDependencyObservation{base,[]ids.ObjectAddress{target}})
 	e.mu.Lock()
 	err := e.catalogPreflightLocked(changes)
 	e.mu.Unlock()
@@ -24,7 +26,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	bad := *d
 	bad.defaults = map[int32]columnDefault{1:d.defaults[1]}
 	definition := bad.defaults[1]
-	definition.dependencies = append([]ObjectRef(nil),definition.dependencies...)
+	definition.dependencies = append([]ids.ObjectRef(nil),definition.dependencies...)
 	for i,ref := range definition.dependencies { if ref.Address == target { definition.dependencies = append(definition.dependencies[:i],definition.dependencies[i+1:]...); break } }
 	bad.defaults[1] = definition
 	if err := (relationProvider{}).Validate(view,&bad); err == nil { t.Fatal("untracked default edge admitted") }

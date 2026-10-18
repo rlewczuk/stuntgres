@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Called under Engine.mu after namespace relation collisions have been checked.
 // Publish parent constraint and backing descriptor together, preserving all key
@@ -46,7 +50,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	if slot < 0 {
 		return ErrCatalogReplaced
 	}
-	if parent.revision == DefinitionRevision(^uint64(0)) {
+	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent

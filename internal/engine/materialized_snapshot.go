@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -192,7 +193,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		populated  bool
 	}
 	imports := make([]imported, 0, len(records))
-	seen := make(map[ObjectAddress]bool, len(records))
+	seen := make(map[ids.ObjectAddress]bool, len(records))
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -201,8 +202,8 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
 		e.mu.Lock()
-		namespace := e.state.names[NameKey{ClassID: NamespaceClassID, Name: record.Schema}]
-		address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: record.Name}]
+		namespace := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: record.Schema}]
+		address := e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: record.Name}]
 		d, ok := e.state.descriptors[address].(*relationDescriptor)
 		valid := ok && d.relationKind == materializedViewRelation && !d.populated && !seen[address]
 		e.mu.Unlock()

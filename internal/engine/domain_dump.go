@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,23 +15,23 @@ type dumpDomain struct{ owner, sql string }
 // Replay names are transient rendering predictions keyed by captured identity,
 // not a catalog or destination OID allocator. Only domain/enum creators run here.
 type domainReplayNames struct {
-	occupied map[NameKey]sqltype.ID
-	names    map[sqltype.ID]NameKey
+	occupied map[ids.NameKey]sqltype.ID
+	names    map[sqltype.ID]ids.NameKey
 	arrays   map[sqltype.ID]sqltype.ID
 	elements map[sqltype.ID]sqltype.ID
 }
 
 func newDomainReplayNames() *domainReplayNames {
 	r := &domainReplayNames{
-		occupied: make(map[NameKey]sqltype.ID), names: make(map[sqltype.ID]NameKey),
+		occupied: make(map[ids.NameKey]sqltype.ID), names: make(map[sqltype.ID]ids.NameKey),
 		arrays: make(map[sqltype.ID]sqltype.ID), elements: make(map[sqltype.ID]sqltype.ID),
 	}
 	for _, typ := range sqltype.Builtins() {
-		namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 		if typ.NamespaceName() == "information_schema" {
 			namespace.ObjectID = 13229
 		}
-		key := NameKey{ClassID: TypeClassID, Namespace: namespace, Name: typ.Name()}
+		key := ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: typ.Name()}
 		r.occupied[key], r.names[typ.ID()] = typ.ID(), key
 		r.arrays[typ.ID()] = typ.AssociatedArray()
 		if typ.IsArray() {
@@ -40,7 +41,7 @@ func newDomainReplayNames() *domainReplayNames {
 	return r
 }
 
-func (r *domainReplayNames) arrayName(key NameKey) NameKey {
+func (r *domainReplayNames) arrayName(key ids.NameKey) ids.NameKey {
 	key.Name = chooseAssociatedArrayName(key.Name, func(candidate string) bool {
 		key.Name = candidate
 		return r.occupied[key] != 0
@@ -120,7 +121,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 	if !u.Type.IsUserDefined() && !(u.Type.IsDomain() && u.Type.Concrete()) {
 		return u.Declaration()
 	}
-	descriptor, ok := definitionDescriptorAt(view, reader, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())})
+	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(u.Type.ID())})
 	if !ok || descriptor.(*typeDescriptor).typ != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
@@ -141,7 +142,7 @@ func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string
 	if column.DeclaredDimensions > 0 {
 		return declaration + strings.Repeat("[]", int(column.DeclaredDimensions)-1), nil
 	}
-	descriptor, ok := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())})
+	descriptor, ok := view.Descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing array declaration identity")
 	}
@@ -369,17 +370,17 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 		if err != nil {
 			return "", err
 		}
-		return "CAST('" + strings.ReplaceAll(regclassSpellingAt(view, reader, nil, OID(id)), "'", "''") + "' AS REGCLASS)", nil
+		return "CAST('" + strings.ReplaceAll(regclassSpellingAt(view, reader, nil, ids.OID(id)), "'", "''") + "' AS REGCLASS)", nil
 	}
 	return literalSQL(ctx, n)
 }
 
 type catalogRegclassOutput struct {
 	view       CatalogRead
-	path       []ObjectAddress
+	path       []ids.ObjectAddress
 	definition definitionReader
 }
 
 func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
-	return regclassSpellingAt(r.view, r.definition, r.path, OID(id)), nil
+	return regclassSpellingAt(r.view, r.definition, r.path, ids.OID(id)), nil
 }

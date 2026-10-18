@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 // This fixture reuses the real partition/key/storage construction, then drives
 // the actual early-return handler rather than publishing a hand-built drop stage.
-func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, Descriptor, *catalogChanges) {
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, Descriptor, *catalogChanges) {
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
@@ -24,7 +25,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	for _, ref := range []ObjectRef{root, leaf} {
+	for _, ref := range []ids.ObjectRef{root, leaf} {
 		if err := stageOwnership(setup, setup.base.state.descriptors[ref.Address], dbOwner); err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +102,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("fixture lacks actual rows or recursive/local keys")
 				}
 				rootKey := table.uniqueConstraints[0]
-				selected := map[ObjectAddress]bool{rootKey.Index: true}
+				selected := map[ids.ObjectAddress]bool{rootKey.Index: true}
 				for _, key := range e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints {
 					if key.Parent == rootKey.OID {
 						selected[key.Index] = true

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -101,7 +102,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 					parent := catalog.state.descriptors[sinkRef.Address].(*relationDescriptor)
 					for _, test := range []struct {
-						ref  ObjectRef
+						ref  ids.ObjectRef
 						want bool
 					}{{matchingRef, !expression}, {ordinaryRef, false}} {
 						index := catalog.state.descriptors[test.ref.Address].(*relationDescriptor).sqlIndex

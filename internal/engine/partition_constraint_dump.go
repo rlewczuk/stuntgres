@@ -4,20 +4,22 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type partitionConstraintReplay struct {
 	original  CatalogRead
-	temporary map[ObjectAddress]string
-	occupied  map[ObjectAddress]map[string]bool
+	temporary map[ids.ObjectAddress]string
+	occupied  map[ids.ObjectAddress]map[string]bool
 }
 
 // Reserve names against the entire captured namespace, not just objects that
 // happen to have been emitted. Temporary names depend on logical order, not OIDs.
 func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionConstraintReplay) {
-	replay := &partitionConstraintReplay{original: view, temporary: make(map[ObjectAddress]string), occupied: make(map[ObjectAddress]map[string]bool)}
+	replay := &partitionConstraintReplay{original: view, temporary: make(map[ids.ObjectAddress]string), occupied: make(map[ids.ObjectAddress]map[string]bool)}
 	var tables []*relationDescriptor
-	reserved := make(map[ObjectAddress]map[string]bool)
+	reserved := make(map[ids.ObjectAddress]map[string]bool)
 	for key := range view.state.names {
 		if key.ClassID != RelationClassID {
 			continue
@@ -40,7 +42,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		return view, replay
 	}
 	state := *view.state
-	state.descriptors = make(map[ObjectAddress]Descriptor, len(view.state.descriptors))
+	state.descriptors = make(map[ids.ObjectAddress]Descriptor, len(view.state.descriptors))
 	for a, d := range view.state.descriptors {
 		state.descriptors[a] = d
 	}
@@ -113,7 +115,7 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 		used[c.Name] = true
 	}
 	for _, index := range partitionIndexDeclarationOrder(view, table) {
-		if index.sqlIndex.constraint != nil && index.sqlIndex.partitionParent == (ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
+		if index.sqlIndex.constraint != nil && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
 			used[index.name] = true
 		}
 	}

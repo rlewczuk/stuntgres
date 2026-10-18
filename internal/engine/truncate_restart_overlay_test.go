@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -138,7 +139,7 @@ func TestTruncateRestartCache(t *testing.T) {
 				sessionSQL(t, s, "DISCARD SEQUENCES")
 			}
 			memory := s.sequences[ref.Address]
-			if memory == nil || memory.analysisStamp <= original.sequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.state.descriptors[ref.Address] != original {
+			if memory == nil || memory.analysisStamp <= original.sequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.state.descriptors[ref.Address] != original {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.mu.Lock()
@@ -195,7 +196,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		if len(scope.catalog.generators) != 3 || len(scope.catalog.storage) != 2 || e.storage[root.Address] != nil || scope.catalog.storage[low.Address].replacement == nil || scope.catalog.storage[high.Address].replacement == nil {
 			t.Fatal("virtual root omitted its sequence/descendant")
 		}
-		for _, ref := range []ObjectRef{rs, ls, hs} {
+		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: ref}]
 			valid := entry != nil && entry.holders[scope.ticket].mode == accessExclusive
@@ -218,8 +219,8 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 		sessionSQL(t, peer, "CREATE TEMP SEQUENCE peer_s OWNED BY peer_child.id")
 		catalog := e.CatalogRead()
-		own := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: s.temporaryNamespace, Name: "own_s"}]
-		foreign := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"}]
+		own := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: s.temporaryNamespace, Name: "own_s"}]
+		foreign := catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"}]
 		original := e.sequences[foreign]
 		scope := truncateRestartUnitStage(t, e, s, "p")
 		if scope.catalog.generators[own] == nil || scope.catalog.generators[foreign] != nil || len(scope.truncateSequences) != 1 {
@@ -250,7 +251,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)
-		if e.sequences[ps.Address] != replacement || e.state.descriptors[ps.Address].(*relationDescriptor).sequence.owned != (ObjectAddress{}) {
+		if e.sequences[ps.Address] != replacement || e.state.descriptors[ps.Address].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
 		sequenceScalar(t, s, "SELECT nextval('later')", 90)

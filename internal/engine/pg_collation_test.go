@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ObjectRef) {
+func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 3456}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 3456}
 	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_collation")
@@ -43,11 +44,11 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}].(*typeDescriptor)
+	row, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
 	if !ok {
 		t.Fatal("owned row type", d.rowType)
 	}
-	array, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
+	array, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 	if !ok {
 		t.Fatal("owned row array", row.array)
 	}
@@ -89,7 +90,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 			t.Fatal("private ordered identity", id, previous, err)
 		}
 		previous = id
-		definition, ok := catalog.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+		definition, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
 		if !ok {
 			t.Fatal("invented row", id)
 		}

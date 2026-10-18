@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/authorization"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+)
 
 // Only lc_messages has a real native privileged setter that accepts parameter
 // SET grants. Read-only settings and deny-only custom settings retain their
@@ -15,8 +18,8 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if exists && role.Superuser {
 		return true, nil
 	}
-	address := view.catalog.state.names[NameKey{ClassID: ParameterClassID, Name: settingFold(name)}]
-	if address == (ObjectAddress{}) {
+	address := view.catalog.state.names[ids.NameKey{ClassID: ParameterClassID, Name: settingFold(name)}]
+	if address == (ids.ObjectAddress{}) {
 		return false, nil
 	}
 	ref := view.engine.domain.Ref(view.catalog.Epoch(), address)

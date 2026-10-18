@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
-	return e, e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 }
 
 func TestIntaggProviderManifest(t *testing.T) {
@@ -28,7 +29,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if err := stockIntagg.validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	addresses := map[ObjectAddress]bool{}
+	addresses := map[ids.ObjectAddress]bool{}
 	for i, address := range ext.members {
 		proc := view.state.descriptors[address].(*procedureDescriptor)
 		member := intaggMembers[i]
@@ -45,7 +46,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *procedureDescriptor) { p.volatility = Stable }, func(p *procedureDescriptor) { p.revision = 0 },
 			func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
 			func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
-			func(p *procedureDescriptor) { p.namespace = ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ObjectAddress{} },
+			func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
 			func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
 			func(p *procedureDescriptor) { p.provider = stockUnaccent }, func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
 			func(p *procedureDescriptor) { p.intagg = &intaggProvider{version: "1.1"} },
@@ -59,7 +60,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			}
 		}
 	}
-	for _, members := range [][]ObjectAddress{nil, {ext.members[0]}, {ext.members[0], ext.members[0]}, {ext.members[1], ext.members[1]}} {
+	for _, members := range [][]ids.ObjectAddress{nil, {ext.members[0]}, {ext.members[0], ext.members[0]}, {ext.members[1], ext.members[1]}} {
 		bad := *ext
 		bad.members = members
 		if err := stockIntagg.validate(view, &bad); err == nil {
@@ -92,7 +93,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			op, done := roleOperation(t, other, "postgres")
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
-			installed := other.state.descriptors[other.state.names[NameKey{ClassID: ExtensionClassID, Name: name}]].(*extensionDescriptor)
+			installed := other.state.descriptors[other.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: name}]].(*extensionDescriptor)
 			var member *procedureDescriptor
 			for _, address := range installed.members {
 				if proc, ok := other.state.descriptors[address].(*procedureDescriptor); ok {

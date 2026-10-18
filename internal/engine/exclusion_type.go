@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,7 +67,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if err != nil {
 			return nil, err
 		}
-		c.Index = ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}
+		c.Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}
 		copy := *evolved
 		copy.address = c.Index
 		copy.revision, err = e.revisionLocked()

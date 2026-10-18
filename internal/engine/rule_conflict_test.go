@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -68,7 +69,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(next)
-	mapped, err := remapRuleBinding(view, b, func(ref ObjectRef) ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+	mapped, err := remapRuleBinding(view, b, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

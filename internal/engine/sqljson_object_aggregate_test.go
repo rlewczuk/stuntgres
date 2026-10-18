@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -58,7 +59,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		root := &aggregateNode{querySchema: querySchema{{Name: "v", Usage: result.Usage()}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: aggregateJSONObjectStrict, includeNulls: true}}}
-		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
 		})

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -265,7 +266,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		for _, descriptor := range view.state.descriptors {
 			if domain, ok := descriptor.(*typeDescriptor); ok {
 				for _, def := range domain.domainChecks {
-					if def.OID != OID(id) {
+					if def.OID != ids.OID(id) {
 						continue
 					}
 					found = true
@@ -285,7 +286,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				continue
 			}
 			for _, def := range relation.notNullConstraints {
-				if def.OID != OID(id) {
+				if def.OID != ids.OID(id) {
 					continue
 				}
 				found = true
@@ -302,7 +303,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 			}
 			for _, def := range relation.checkConstraints {
-				if def.OID != OID(id) {
+				if def.OID != ids.OID(id) {
 					continue
 				}
 				found = true
@@ -320,7 +321,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 			}
 			for _, def := range relation.uniqueConstraints {
-				if def.OID != OID(id) {
+				if def.OID != ids.OID(id) {
 					continue
 				}
 				found = true
@@ -330,7 +331,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 			}
 			for _, def := range relation.foreignKeys {
-				if def.OID != OID(id) {
+				if def.OID != ids.OID(id) {
 					continue
 				}
 				found = true
@@ -340,7 +341,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 			}
 			for _, def := range relation.exclusionConstraints {
-				if def.OID != OID(id) {
+				if def.OID != ids.OID(id) {
 					continue
 				}
 				found = true
@@ -368,7 +369,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		var relation *relationDescriptor
 		if id != 0 {
-			relation, ok = view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(id)}].(*relationDescriptor)
+			relation, ok = view.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(id)}].(*relationDescriptor)
 			if !ok {
 				return sqltype.Null(e.usage.Type), nil
 			}
@@ -419,7 +420,7 @@ func validateDeparseExpression(e deparseExpression) error {
 func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value, pretty bool) (sqltype.Value, error) {
 	scope := c.liveScope()
 	catalog := scope.commentCatalog
-	var address ObjectAddress
+	var address ids.ObjectAddress
 	if e.signature == deparseViewText || e.signature == deparseViewTextPretty {
 		text, err := values[0].Text()
 		if err != nil {
@@ -445,7 +446,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		address = ObjectAddress{ClassID: RelationClassID, ObjectID: OID(id)}
+		address = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: ids.OID(id)}
 	}
 	relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {

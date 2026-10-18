@@ -4,12 +4,14 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Standalone sequences are emitted before this graph. An identity sequence is
 // instead created by its owning table's inline declaration, so dependencies on
 // it must wait for that exact reciprocal owner, even after address remapping.
-func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, error) {
+func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
 	if address.ClassID == ProcedureClassID {
 		if _, builtin := routineByOID[address.ObjectID]; builtin {
@@ -51,16 +53,16 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	}
 	if typ, ok := object.(*typeDescriptor); ok {
 		if typ.typ.IsArray() {
-			return dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.typ.Element().ID())}, consumer)
+			return dumpPredecessor(view, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.typ.Element().ID())}, consumer)
 		}
-		if typ.extension != (ObjectAddress{}) {
+		if typ.extension != (ids.ObjectAddress{}) {
 			return dumpPredecessor(view, typ.extension, consumer)
 		}
-		if typ.owningRelation == (ObjectAddress{}) && typ.typ.IsUserDefined() {
+		if typ.owningRelation == (ids.ObjectAddress{}) && typ.typ.IsUserDefined() {
 			return typ.Address().ObjectID, nil
 		}
 	}
-	if typ, ok := object.(*typeDescriptor); ok && typ.owningRelation != (ObjectAddress{}) {
+	if typ, ok := object.(*typeDescriptor); ok && typ.owningRelation != (ids.ObjectAddress{}) {
 		object, exists = view.Descriptor(typ.owningRelation)
 		if !exists {
 			return 0, fmt.Errorf("stuntgres: missing row type dump owner")
@@ -140,11 +142,11 @@ const (
 )
 
 type dumpEventKey struct {
-	oid   OID
+	oid   ids.OID
 	phase dumpPhase
 }
 
-func dumpDeclarationEvents(ids []OID) []dumpEventKey {
+func dumpDeclarationEvents(ids []ids.OID) []dumpEventKey {
 	events := make([]dumpEventKey, len(ids))
 	for i, oid := range ids {
 		events[i] = dumpEventKey{oid: oid}
@@ -152,8 +154,8 @@ func dumpDeclarationEvents(ids []OID) []dumpEventKey {
 	return events
 }
 
-func dumpDeclarationIDs(events []dumpEventKey) []OID {
-	ids := make([]OID, 0, len(events))
+func dumpDeclarationIDs(events []dumpEventKey) []ids.OID {
+	ids := make([]ids.OID, 0, len(events))
 	for _, event := range events {
 		if event.phase == dumpDeclaration {
 			ids = append(ids, event.oid)
@@ -164,7 +166,7 @@ func dumpDeclarationIDs(events []dumpEventKey) []OID {
 
 type viewDumpReady struct {
 	ids        []dumpEventKey
-	priorities map[OID]OID
+	priorities map[ids.OID]ids.OID
 }
 
 func (h viewDumpReady) Len() int { return len(h.ids) }
@@ -196,7 +198,7 @@ func (h *viewDumpReady) Pop() any {
 
 // This sorts the captured dump graph, without reading a possibly replaced
 // catalog after unlock. Cyclic replacement graphs, including self edges, fail.
-func viewDumpOrder(ctx context.Context, predecessors map[dumpEventKey][]dumpEventKey, priorities map[OID]OID) ([]dumpEventKey, error) {
+func viewDumpOrder(ctx context.Context, predecessors map[dumpEventKey][]dumpEventKey, priorities map[ids.OID]ids.OID) ([]dumpEventKey, error) {
 	indegree := make(map[dumpEventKey]int, len(predecessors))
 	dependents := make(map[dumpEventKey][]dumpEventKey, len(predecessors))
 	ready := viewDumpReady{ids: make([]dumpEventKey, 0, len(predecessors)), priorities: priorities}

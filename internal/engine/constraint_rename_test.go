@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 			ref := roleTableRef(t, e, "t")
 			parent := e.state.descriptors[ref.Address].(*relationDescriptor)
-			var indexAddress ObjectAddress
+			var indexAddress ids.ObjectAddress
 			if len(parent.uniqueConstraints) > 0 {
 				indexAddress = parent.uniqueConstraints[0].Index
 			} else {
@@ -67,7 +68,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 				t.Fatal("copied immutable keys")
 			}
 			candidate := *after
-			candidate.revision = DefinitionRevision(^uint64(0))
+			candidate.revision = ids.DefinitionRevision(^uint64(0))
 			exhaustedBase := cloneCatalog(e.state)
 			exhaustedBase.descriptors[ref.Address] = &candidate
 			failed := e.BeginCatalogStage(CatalogRead{e, exhaustedBase})

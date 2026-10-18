@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -62,14 +63,14 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 				prior := parse("UPDATE t SET v=11")
 				rollback := parse("ROLLBACK")
 				command := parse("INSERT INTO t VALUES" + conflictUpdateBatchValues(size, 1) + " ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
-				ref := func() ObjectAddress {
+				ref := func() ids.ObjectAddress {
 					for address, descriptor := range e.state.descriptors {
 						if relation, ok := descriptor.(*relationDescriptor); ok && relation.sqlIndex == nil && relation.name == "t" {
 							return address
 						}
 					}
 					b.Fatal("missing benchmark target")
-					return ObjectAddress{}
+					return ids.ObjectAddress{}
 				}()
 				b.ReportAllocs()
 				b.ResetTimer()

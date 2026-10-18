@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,11 +18,11 @@ type viewDefinition struct {
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	sources           []viewLeaf
 	dependencies      []expressionDependency
-	sequenceRefs      map[int]ObjectRef
+	sequenceRefs      map[int]ids.ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
-	intaggRefs        map[viewLiteralPath]ObjectRef
-	operatorRefs      map[viewLiteralPath]ObjectRef
+	intaggRefs        map[viewLiteralPath]ids.ObjectRef
+	operatorRefs      map[viewLiteralPath]ids.ObjectRef
 	composites        map[viewLiteralPath]compositeOccurrence
 	similarSubstrings map[viewLiteralPath]bool
 	posixSubstrings   map[viewLiteralPath]bool
@@ -33,18 +34,18 @@ type viewDefinition struct {
 	barrier, invoker  bool
 	checkOption       viewCheckMode
 	options           []string // Immutable ordered installed name=value facts, including explicit false.
-	rule              OID
-	consumer          ObjectAddress
+	rule              ids.OID
+	consumer          ids.ObjectAddress
 	temporary         SessionToken
-	references        map[ObjectRef]Descriptor
+	references        map[ids.ObjectRef]Descriptor
 	collations        map[viewLiteralPath]uint32
-	quoteRevision     DefinitionRevision // frozen defining revision, not later relation renames
+	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
 }
 
 // Stored leaves contain identities and frozen layout, never live storage or
 // descriptors. Ordinals are SQL occurrences, including repeated self-joins.
 type viewLeaf struct {
-	ref          ObjectRef
+	ref          ids.ObjectRef
 	only         bool
 	attributes   []int32
 	reads        []int32
@@ -55,7 +56,7 @@ type viewLeaf struct {
 type viewColumn struct {
 	frame    uint32
 	slot     int
-	ruleRef  ObjectRef
+	ruleRef  ids.ObjectRef
 	ruleSide uint32
 }
 
@@ -217,7 +218,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
-	b, err := e.describe(s.op.Context(), view, auth, ObjectRef{}, s.input, s.op, nil, &s.queryLockAdmission)
+	b, err := e.describe(s.op.Context(), view, auth, ids.ObjectRef{}, s.input, s.op, nil, &s.queryLockAdmission)
 	if err != nil {
 		return err
 	}
@@ -306,7 +307,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
 	var old *relationDescriptor
-	if address, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
+	if address, exists := auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name}]; exists {
 		if !view.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
@@ -403,7 +404,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 		}
 	}
-	var oid, rule OID
+	var oid, rule ids.OID
 	if old != nil {
 		oid, rule = old.address.ObjectID, old.view.rule
 	} else {
@@ -429,7 +430,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.revision, d.view = revision, definition

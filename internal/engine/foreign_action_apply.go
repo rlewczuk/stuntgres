@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -144,7 +145,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	}
 	reportAuth := foreignActionOwner(auth, event.owner)
 	if action == parser.ForeignKeyRestrict {
-		children, err := s.captureForeignKeyRows(ref, ObjectAddress{})
+		children, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
@@ -341,7 +342,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if action == parser.ForeignKeySetDefault {
 		// RI SET DEFAULT performs its NO ACTION recheck even if the new datum is
 		// unchanged. This preserves the parent-side diagnostic for a deleted default.
-		final, err := s.captureForeignKeyRows(ref, ObjectAddress{})
+		final, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}

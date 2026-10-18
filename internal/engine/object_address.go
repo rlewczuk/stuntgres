@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -302,7 +303,7 @@ func (n objectAddressExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	address := ObjectAddress{OID(class), OID(object), int32(sub)}
+	address := ids.ObjectAddress{ids.OID(class), ids.OID(object), int32(sub)}
 	if n.op == describeObject && class == 0 && object == 0 {
 		return sqltype.Null(n.usage.Type), nil
 	}

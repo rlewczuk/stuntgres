@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -97,7 +98,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 	if mutation.next == old {
 		return mutation, nil
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return mutation, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *mutation.next
@@ -237,14 +238,14 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 		for _, build := range builds {
 			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
 			stage.indexCandidates[build.index.address] = indexRootCandidate{index: build.index, root: build.root, storage: indexStorageIdentity(replacement), generation: replacement.generation, ends: replacement.ends, length: len(replacement.versions)}
 		}
 	}
 	if replacement != store {
 		if stage.rowShapes == nil {
-			stage.rowShapes = make(map[ObjectAddress]catalogRowShape)
+			stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 		}
 		stage.rowShapes[old.address] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
 	}
@@ -256,7 +257,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 		for address, candidate := range transported.indexCandidates {
 			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
 			stage.indexCandidates[address] = candidate
 		}

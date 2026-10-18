@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 // consumers and index support keep ordinary sqltype.Grouping.
 type queryGrouping struct {
 	sqltype.Grouping
-	routine     ObjectRef
+	routine     ids.ObjectRef
 	privateTree bool
 	conversion  sqltype.CoercionPlan
 	converted   sqltype.Grouping
@@ -55,9 +56,9 @@ func privateTreeGrouping(d *sqltype.Descriptor) bool {
 	return d.ID() == sqltype.PgNodeTree
 }
 
-func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ObjectRef, bool, error) {
+func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.ObjectRef, bool, error) {
 	if privateTreeGrouping(usage.Type) {
-		return ObjectRef{}, true, nil
+		return ids.ObjectRef{}, true, nil
 	}
 	base := usage.Type.BaseType()
 	var declaration *builtinRoutineDeclaration
@@ -67,11 +68,11 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (Object
 		var err error
 		declaration, _, err = b.comparisonRoutineDeclaration("=", base, base)
 		if err != nil {
-			return ObjectRef{}, false, err
+			return ids.ObjectRef{}, false, err
 		}
 	}
 	if declaration == nil {
-		return ObjectRef{}, false, fmt.Errorf("stuntgres: missing query equality routine association")
+		return ids.ObjectRef{}, false, fmt.Errorf("stuntgres: missing query equality routine association")
 	}
 	_, ref, err := b.captureBuiltinRoutineDeclaration(declaration)
 	return ref, false, err

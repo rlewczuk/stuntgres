@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -411,7 +412,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		collectAuth := auth
 		collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
-		refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, b.querySources, []ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
+		refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err

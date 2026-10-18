@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 const foreignHandlerSignature procedureSignature = ""
@@ -69,31 +70,31 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	e.foreignWrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)
 	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	install := func(name ForeignFunctionName, p *foreignProcedure, result OID, signature procedureSignature) error {
-		namespace := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Schema}]
-		if namespace == (ObjectAddress{}) {
+	install := func(name ForeignFunctionName, p *foreignProcedure, result ids.OID, signature procedureSignature) error {
+		namespace := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: name.Schema}]
+		if namespace == (ids.ObjectAddress{}) {
 			oid, err := e.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
-			namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}
+			namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}
 			ns := &namespaceDescriptor{address: namespace, name: name.Schema, revision: 1, owner: owner}
 			e.state.descriptors[namespace] = ns
 			e.state.names[descriptorNameKey(ns)] = namespace
 			if e.foreignNamespaces == nil {
-				e.foreignNamespaces = make(map[ObjectAddress]string)
+				e.foreignNamespaces = make(map[ids.ObjectAddress]string)
 			}
 			e.foreignNamespaces[namespace] = name.Schema
 		}
-		key := NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
-		if e.state.names[key] != (ObjectAddress{}) {
+		key := ids.NameKey{ClassID: ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
+		if e.state.names[key] != (ids.ObjectAddress{}) {
 			return RegistrationError("foreign procedure signature already installed")
 		}
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		d := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: name.Name, signature: signature, owner: owner, routineKind: functionRoutine, result: result, strict: true, volatility: Volatile, foreign: p}
+		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: name.Name, signature: signature, owner: owner, routineKind: functionRoutine, result: result, strict: true, volatility: Volatile, foreign: p}
 		e.state.descriptors[d.address] = d
 		e.state.names[key] = d.address
 		return nil

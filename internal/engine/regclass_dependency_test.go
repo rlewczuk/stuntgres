@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -87,8 +88,8 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	target.SubID = owner.attributes[owner.index["v"]]
 	stage := e.BeginCatalogStage(catalog)
 	defer e.DiscardCatalogStage(stage)
-	views := viewDependencyClosure(catalog, []ObjectAddress{target}, stage)
-	expanded := []ObjectAddress{target}
+	views := viewDependencyClosure(catalog, []ids.ObjectAddress{target}, stage)
+	expanded := []ids.ObjectAddress{target}
 	for _, edge := range views {
 		expanded = append(expanded, edge.view.address)
 	}
@@ -100,7 +101,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordered := supportedDependentLabels(catalog, []ObjectAddress{target}, checks, views, defaults, nil)
+	ordered := supportedDependentLabels(catalog, []ids.ObjectAddress{target}, checks, views, defaults, nil)
 	var labels []string
 	for _, dependent := range ordered {
 		if dependent.oid == 0 {
@@ -112,13 +113,13 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.defaults[owner.attributes[owner.index["r"]]].OID || ordered[3].oid != checks[0].check.OID || ordered[4].oid != checks[1].check.OID || ordered[3].oid <= ordered[4].oid {
 		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
 	}
-	duplicate := supportedDependentLabels(catalog, []ObjectAddress{target, target}, checks, views, defaults, nil)
+	duplicate := supportedDependentLabels(catalog, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
 	if !reflect.DeepEqual(duplicate, ordered) {
 		t.Fatal("duplicate roots emitted consumers twice", duplicate)
 	}
 	other := target
 	other.SubID = owner.attributes[owner.index["r"]]
-	if got := supportedDependentLabels(catalog, []ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
+	if got := supportedDependentLabels(catalog, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
 		t.Fatal("column identity ignored", got)
 	}
 }

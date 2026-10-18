@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,9 +25,9 @@ type dumpRelation struct {
 	recipes             map[int32]inheritedColumn
 	deferredChecks      map[string]bool
 	recipePlaceholders  bool
-	recipeComponent     ObjectAddress
+	recipeComponent     ids.ObjectAddress
 	identities          map[int32]columnIdentity
-	identitySequences   map[ObjectAddress]dumpSequence
+	identitySequences   map[ids.ObjectAddress]dumpSequence
 }
 
 func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
@@ -123,7 +124,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 // Stored regclass values need the actual replay name, not merely the table's
 // type declaration. Reuse the ordinary scalar reference walker for arrays and
 // opaque owned values, and the same captured visibility frontier as emitRows.
-func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogRead, add func(ObjectAddress) error) error {
+func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogRead, add func(ids.ObjectAddress) error) error {
 	for _, version := range t.versions {
 		if err := ctx.Err(); err != nil {
 			return err

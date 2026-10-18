@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestPgClassBuiltinIndexMetadata(t *testing.T) {
@@ -11,7 +13,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 	// Independent released identity/fact matrix, not helper-generated expected
 	// output. Exercise initialized descriptors and the real typed projection.
 	tables := []struct {
-		oid  OID
+		oid  ids.OID
 		name string
 	}{
 		{1213, "pg_tablespace"}, {1249, "pg_attribute"}, {1255, "pg_proc"}, {1259, "pg_class"},
@@ -41,7 +43,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			}
 		}
 		for _, fact := range tables {
-			d, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: fact.oid}].(*relationDescriptor)
+			d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: fact.oid}].(*relationDescriptor)
 			if !ok || d.name != fact.name || d.relationKind != catalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
@@ -62,7 +64,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 200555}, name: "unindexed", relationKind: tableRelation, owner: e.authorizationDomain.Principal(10)}
+		ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 200555}, name: "unindexed", relationKind: tableRelation, owner: e.authorizationDomain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

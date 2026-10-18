@@ -4,12 +4,13 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func inheritanceControlsTemporary(e *Engine, id OID, name string, parents ...ObjectAddress) *relationDescriptor {
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 21000}
+func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 21000}
 	if e.state.descriptors[ns] == nil {
 		e.state = cloneCatalog(e.state)
 		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.domain.Session(99)}
@@ -30,7 +31,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	state, oid, revision, epoch, storage := e.state, e.nextOID, e.nextRevision, e.state.epoch, e.storage[temp.address]
 	next := cloneCatalog(New().state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
@@ -57,10 +58,10 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.address)
 	inheritanceLifecycleInstall(source, parent, child)
 	next := cloneCatalog(source.state)
-	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
+	storage := map[ids.ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	e.nextOID = 30000
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +82,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	order, err := viewDumpOrder(context.Background(), map[dumpEventKey][]dumpEventKey{{oid: child.address.ObjectID}: {{oid: predecessor}}, {oid: mapped.ObjectID}: nil}, nil)
-	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []OID{mapped.ObjectID, child.address.ObjectID}) {
+	if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{mapped.ObjectID, child.address.ObjectID}) {
 		t.Fatal(order, err)
 	}
 }
@@ -92,7 +93,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	child := inheritanceLifecycleTable(e, 20001, "c", parent.address)
 	parent.notNullConstraints = []notNullConstraint{{OID: 22000, Name: "nn", Attribute: 1}}
 	child.inheritance.notNull[1] = inheritedConstraint{origins: []inheritanceOrigin{{parent: parent.address, attribute: 1, constraint: 22000}}}
-	old := map[ObjectAddress]Descriptor{parent.address: parent, child.address: child}
+	old := map[ids.ObjectAddress]Descriptor{parent.address: parent, child.address: child}
 	changed := *parent
 	changed.notNullConstraints = []notNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
 	next := cloneCatalog(e.state)
@@ -120,9 +121,9 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.address)
 	inheritanceLifecycleInstall(source, parent, child)
 	next := cloneCatalog(source.state)
-	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
+	storage := map[ids.ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -169,10 +170,10 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	installDefinitions(source, parent, child)
 	inheritanceLifecycleInstall(source, parent, child)
 	next := cloneCatalog(source.state)
-	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
+	storage := map[ids.ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	retainedStorage := e.storage[tempChild.address]
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -253,9 +254,9 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	originalIndex := index.sqlIndex
 	next := cloneCatalog(source.state)
 	parentStorage, childStorage := &relationStorage{}, &relationStorage{}
-	storage := map[ObjectAddress]*relationStorage{parent.address: parentStorage, child.address: childStorage}
+	storage := map[ids.ObjectAddress]*relationStorage{parent.address: parentStorage, child.address: childStorage}
 	e.mu.Lock()
-	err = e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err = e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -82,7 +83,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 // Admit normalized actual targets before canonical CTE static preflight. The
 // original parsed contexts remain present for caller/name/storage fences.
 // Enter held; success retains Engine.mu, failure releases it.
-func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *binding) ([]ObjectRef, error) {
+func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *binding) ([]ids.ObjectRef, error) {
 	if len(b.ruleCTEs) == 0 {
 		return nil, nil
 	}

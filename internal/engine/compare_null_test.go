@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -271,7 +272,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	describe := func(q string) (binding, ObjectRef) {
+	describe := func(q string) (binding, ids.ObjectRef) {
 		t.Helper()
 		ast := statement(t, q)
 		e.mu.Lock()

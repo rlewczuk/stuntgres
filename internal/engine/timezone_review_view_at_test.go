@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -61,8 +62,8 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	for _, expression := range project.expressions {
 		original := expression.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
 		before := original
-		mapped, err := remapBoundExpression(original, func(ref ObjectRef) ObjectRef {
-			if ref != (ObjectRef{}) {
+		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef {
+			if ref != (ids.ObjectRef{}) {
 				ref.Address.ObjectID += 1000
 			}
 			return ref

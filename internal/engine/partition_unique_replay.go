@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -83,7 +84,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	}
 	captured := &partitionUniqueReplay{target: table, syntax: raw, definition: definition, snapshot: *definition, descriptors: []*relationDescriptor{parent, selected}}
 	captured.snapshot.Columns = slices.Clone(definition.Columns)
-	tables := make(map[ObjectAddress]bool)
+	tables := make(map[ids.ObjectAddress]bool)
 	var capture func(*relationDescriptor) bool
 	capture = func(node *relationDescriptor) bool {
 		if node.inheritance != nil {
@@ -182,7 +183,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	if err != nil {
 		return Result{}, err
 	}
-	if next.revision == DefinitionRevision(^uint64(0)) {
+	if next.revision == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next.revision++

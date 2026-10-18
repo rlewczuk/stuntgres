@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,10 +20,10 @@ type conflictKey struct {
 type boundInsertConflict struct {
 	keys          []conflictKey
 	predicate     BoundExpr
-	constraint    ObjectAddress
-	namedIndex    ObjectAddress
+	constraint    ids.ObjectAddress
+	namedIndex    ids.ObjectAddress
 	reads         []int
-	selected      []ObjectAddress
+	selected      []ids.ObjectAddress
 	catalog       *catalogState
 	checkpoint    relationLockCheckpoint
 	statementKeys relationLockCheckpoint
@@ -69,7 +70,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	if raw.Constraint.Text != "" {
 		for _, u := range b.relation.uniqueConstraints {
 			if u.Name == raw.Constraint.Text {
-				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: u.OID}
+				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
 				for _, a := range u.Attributes {
 					c.reads = append(c.reads, slices.Index(b.relation.attributes, a))
@@ -81,7 +82,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
-			c.constraint = ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
+			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
 			c.namedIndex = definition.Index
 			index, ok := auth.catalog.state.descriptors[definition.Index].(*relationDescriptor)
 			if !ok {
@@ -105,13 +106,13 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		}
 		for _, check := range b.relation.checkConstraints {
 			if check.Name == raw.Constraint.Text {
-				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
 		for _, nn := range b.relation.notNullConstraints {
 			if nn.Name == raw.Constraint.Text {
-				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
+				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
 			}
 		}
@@ -202,7 +203,7 @@ func expressionErrorFrom(err error, pos parser.Position) error {
 
 func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationDescriptor, view CatalogRead) error {
 	c.selected = c.selected[:0]
-	if c.constraint != (ObjectAddress{}) && c.namedIndex == (ObjectAddress{}) {
+	if c.constraint != (ids.ObjectAddress{}) && c.namedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
 	for _, descriptor := range view.state.descriptors {
@@ -214,7 +215,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
 			continue
 		}
-		if c.constraint != (ObjectAddress{}) {
+		if c.constraint != (ids.ObjectAddress{}) {
 			if index.address == c.namedIndex {
 				if c.update != nil && def.isExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
@@ -252,7 +253,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			c.selected = append(c.selected, index.address)
 		}
 	}
-	if (len(c.keys) != 0 || c.constraint != (ObjectAddress{})) && len(c.selected) == 0 {
+	if (len(c.keys) != 0 || c.constraint != (ids.ObjectAddress{})) && len(c.selected) == 0 {
 		return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 	}
 	c.catalog = view.state

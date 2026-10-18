@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -341,7 +342,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		t.Fatal("immutable recursive rewrite", err)
 	}
 	destination := New()
-	mapped, err := remapViewQuery(destination.CatalogRead(), project, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, err := remapViewQuery(destination.CatalogRead(), project, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, ok := destination.CatalogRead().LookupType(old.ID())
 		if !ok {
 			t.Fatal(old.ID())

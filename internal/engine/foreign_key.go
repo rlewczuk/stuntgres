@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,12 +15,12 @@ import (
 
 // All links are stable catalog addresses/attributes, never descriptor pointers.
 type foreignKeyConstraint struct {
-	OID              OID
+	OID              ids.OID
 	Name             string
 	Attributes       []int32
-	Target           ObjectAddress
+	Target           ids.ObjectAddress
 	Referenced       []int32
-	Index            ObjectAddress
+	Index            ids.ObjectAddress
 	Full             bool
 	UpdateAction     parser.ForeignKeyAction
 	DeleteAction     parser.ForeignKeyAction
@@ -169,13 +170,13 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 	return nil
 }
 
-func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, raw parser.ForeignKeyConstraint, target, supporting ObjectAddress) error {
+func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
 	view := e.stageRead(stage)
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
 	ref := e.domain.Ref(view.Epoch(), target)
 	var err error
-	if target == (ObjectAddress{}) {
+	if target == (ids.ObjectAddress{}) {
 		ref, err = e.resolveReference(auth, raw.Target)
 		if err != nil {
 			return err
@@ -257,7 +258,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		}
 	}
 	var index *relationDescriptor
-	if supporting == (ObjectAddress{}) {
+	if supporting == (ids.ObjectAddress{}) {
 		index, err = foreignKeyIndex(view, parent, referenced)
 	} else {
 		var ok bool
@@ -302,13 +303,13 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	return nil
 }
 
-func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, s *parser.CreateTable, targets []ObjectRef) error {
+func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, s *parser.CreateTable, targets []ids.ObjectRef) error {
 	declarations := foreignKeyDeclarations(s)
 	if len(targets) != 0 && len(targets) != len(declarations) {
 		return fmt.Errorf("stuntgres: invalid foreign-key creation authority")
 	}
 	for i, raw := range declarations {
-		var target ObjectAddress
+		var target ids.ObjectAddress
 		if len(targets) != 0 {
 			auth.catalog = e.stageRead(stage)
 			auth.recaptureCatalog(auth.catalog)
@@ -317,7 +318,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 				return err
 			}
 			captured := targets[i]
-			if captured == (ObjectRef{}) {
+			if captured == (ids.ObjectRef{}) {
 				if current.Address != child.address {
 					return ErrCatalogReplaced
 				}
@@ -326,7 +327,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 			}
 			target = current.Address
 		}
-		if err := e.stageForeignKey(auth, stage, child, raw, target, ObjectAddress{}); err != nil {
+		if err := e.stageForeignKey(auth, stage, child, raw, target, ids.ObjectAddress{}); err != nil {
 			return err
 		}
 	}

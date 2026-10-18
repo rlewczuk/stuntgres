@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -71,7 +72,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if walked != 1 || plannedVolatility(original) != Immutable || !sameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
-		clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}

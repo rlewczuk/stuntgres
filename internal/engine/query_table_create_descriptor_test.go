@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &typeDescriptor{typ: typ, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &typeDescriptor{typ: typ, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -84,9 +85,9 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	}
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
-	drop.domainTargets = []ObjectAddress{domain.Address()}
+	drop.domainTargets = []ids.ObjectAddress{domain.Address()}
 	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
-	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ObjectAddress{ClassID: RelationClassID, ObjectID: d.address.ObjectID, SubID: 2}) {
+	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: d.address.ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
 }

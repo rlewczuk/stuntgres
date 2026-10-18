@@ -5,12 +5,13 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) ([]ObjectAddress, error) {
-	var refs []ObjectAddress
-	add := func(items []ObjectAddress) {
+func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) ([]ids.ObjectAddress, error) {
+	var refs []ids.ObjectAddress
+	add := func(items []ids.ObjectAddress) {
 		for _, a := range items {
 			if !slices.Contains(refs, a) {
 				refs = append(refs, a)
@@ -53,10 +54,10 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			for _, slot := range b.targets {
 				a := b.ref.Address
 				a.SubID = b.relation.attributes[slot]
-				add([]ObjectAddress{a})
+				add([]ids.ObjectAddress{a})
 			}
 			if len(b.targets) == 0 {
-				add([]ObjectAddress{b.ref.Address})
+				add([]ids.ObjectAddress{b.ref.Address})
 			}
 		}
 		items, err := pgDependQueryRefs(ctx, catalog, b.query)
@@ -107,8 +108,8 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			}
 		}
 		if b.conflict != nil {
-			if b.conflict.constraint != (ObjectAddress{}) {
-				add([]ObjectAddress{b.conflict.constraint})
+			if b.conflict.constraint != (ids.ObjectAddress{}) {
+				add([]ids.ObjectAddress{b.conflict.constraint})
 			}
 			for _, key := range b.conflict.keys {
 				if err := expr(key.expression); err != nil {
@@ -124,7 +125,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 				for _, attribute := range b.relation.attributes {
 					a := b.ref.Address
 					a.SubID = attribute
-					add([]ObjectAddress{a})
+					add([]ids.ObjectAddress{a})
 				}
 				if err := targets(b.conflict.update.arrayTargets); err != nil {
 					return err
@@ -135,7 +136,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 					}
 					a := b.ref.Address
 					a.SubID = b.relation.attributes[b.conflict.updateTargets[i]]
-					add([]ObjectAddress{a})
+					add([]ids.ObjectAddress{a})
 				}
 				if err := expr(b.conflict.update.predicate); err != nil {
 					return err
@@ -143,7 +144,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			}
 		}
 		for _, dependency := range b.dependencies {
-			add([]ObjectAddress{dependency.ref.Address})
+			add([]ids.ObjectAddress{dependency.ref.Address})
 		}
 		for _, definition := range b.ctes {
 			if definition.mutation == nil || seen[definition] {
@@ -167,7 +168,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 	return refs, nil
 }
 
-func ruleDepends(catalog CatalogRead, r ruleDefinition, target ObjectAddress) bool {
+func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress) bool {
 	for _, a := range r.references {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
@@ -176,18 +177,18 @@ func ruleDepends(catalog CatalogRead, r ruleDefinition, target ObjectAddress) bo
 	return false
 }
 
-func ruleDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress) []supportedDependent {
+func ruleDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
 	return ruleDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors), nil)
 }
 
-func (provider *dropProvider) ruleDependentLabels(targets []ObjectAddress) []supportedDependent {
+func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []supportedDependent {
 	if provider.prepared == nil {
 		return ruleDependentLabels(provider.base, targets, provider.path)
 	}
 	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
 }
 
-func ruleDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress, descriptors iter.Seq2[ObjectAddress, Descriptor], observe func(ObjectAddress)) []supportedDependent {
+func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -209,11 +210,11 @@ func ruleDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, path 
 	return dependents
 }
 
-func stageRuleDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func stageRuleDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).ruleDependents(targets, mode)
 }
 
-func (provider *dropProvider) ruleDependents(targets []ObjectAddress, mode parser.DropMode) error {
+func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {
 	if mode == parser.DropRestrict {
 		return nil
 	}

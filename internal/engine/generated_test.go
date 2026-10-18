@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,14 +19,14 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 	if !ok {
 		t.Fatal("missing int4")
 	}
-	var namespace ObjectAddress
+	var namespace ids.ObjectAddress
 	for address, descriptor := range view.state.descriptors {
-		if descriptor.Kind() == NamespaceObject && descriptor.Name() == "public" {
+		if descriptor.Kind() == ids.NamespaceObject && descriptor.Name() == "public" {
 			namespace = address
 			break
 		}
 	}
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 25000}, namespace: namespace, name: "g", revision: 1, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"a": 0, "b": 1}}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 25000}, namespace: namespace, name: "g", revision: 1, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"a": 0, "b": 1}}
 	return e, view, d
 }
 
@@ -105,7 +106,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
-	remapped, err := remapBoundExpression(pruned, func(old ObjectRef) ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
+	remapped, err := remapBoundExpression(pruned, func(old ids.ObjectRef) ids.ObjectRef { old.Address.ObjectID = 26000; return old }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	}
 	candidate := cloneCatalog(view.state)
 	candidate.descriptors[d.address] = d
-	candidate.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	candidate.names[ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 	read := CatalogRead{owner: e, state: candidate}
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
@@ -219,8 +220,8 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	rows := &relationStorage{versions: []rowVersion{{values: source}}}
 	candidate := cloneCatalog(view.state)
 	candidate.descriptors[d.address] = d
-	storage := map[ObjectAddress]*relationStorage{d.address: rows}
-	mapping := map[ObjectAddress]ObjectAddress{oldAddress: d.address}
+	storage := map[ids.ObjectAddress]*relationStorage{d.address: rows}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
 		t.Fatal(err)
 	}

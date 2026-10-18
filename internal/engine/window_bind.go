@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -70,7 +71,7 @@ type windowCall struct {
 	expression   *windowExpression
 	spec         boundWindowSpec
 	operation    windowOperation
-	routine      ObjectRef // Selected callable, independently of peer/partition equality.
+	routine      ids.ObjectRef // Selected callable, independently of peer/partition equality.
 	argument     BoundExpr
 	ordinal      BoundExpr
 	defaultValue BoundExpr

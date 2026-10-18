@@ -2,20 +2,21 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // AUTO dependencies use stable attribute SubIDs, never compacted column slots.
-func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
+func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
 	return stageOwnedExpressionDependencies(s.op.Context(), stage, targets, mode, s, changes, nil)
 }
 
-func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
+func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
 	return stageDropProvider(ctx, stage, scope, changes, project).ownedExpressionDependencies(targets, mode)
 }
 
-func (provider *dropProvider) ownedExpressionDependencies(targets []ObjectAddress, mode parser.DropMode) error {
-	var closure []ObjectAddress
+func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAddress, mode parser.DropMode) error {
+	var closure []ids.ObjectAddress
 	extended := false
 	// Include removed hierarchy owners, not unrelated removals staged by an
 	// earlier pass. Ordinary column projection retains its existing ordering.
@@ -30,19 +31,19 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ObjectAddres
 		}
 		if !present {
 			if !extended {
-				targets = append([]ObjectAddress(nil), targets...)
+				targets = append([]ids.ObjectAddress(nil), targets...)
 				extended = true
 			}
 			targets = append(targets, address)
 		}
 	}
-	return provider.ownedSequences(targets, func(ref ObjectRef) error {
+	return provider.ownedSequences(targets, func(ref ids.ObjectRef) error {
 		if closure == nil {
-			closure = make([]ObjectAddress, len(targets)+1)
+			closure = make([]ids.ObjectAddress, len(targets)+1)
 			copy(closure, targets)
 		}
 		closure[len(targets)] = ref.Address
-		if err := provider.expressionDependencies(closure, mode, ObjectAddress{}); err != nil {
+		if err := provider.expressionDependencies(closure, mode, ids.ObjectAddress{}); err != nil {
 			return err
 		}
 		if provider.scope != nil {
@@ -54,11 +55,11 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ObjectAddres
 
 // Every owner supplies the same complete expression traversal; real SQL
 // additionally acquires its existing grants. No view-only automatic fallback.
-func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, prepare func(ObjectRef) error) error {
+func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, prepare func(ids.ObjectRef) error) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).ownedSequences(targets, prepare)
 }
 
-func (provider *dropProvider) ownedSequences(targets []ObjectAddress, prepare func(ObjectRef) error) error {
+func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepare func(ids.ObjectRef) error) error {
 	for a, d := range provider.inputDescriptors() {
 		if provider.removed(a) {
 			continue
@@ -67,7 +68,7 @@ func (provider *dropProvider) ownedSequences(targets []ObjectAddress, prepare fu
 			d = replacement
 		}
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.relationKind != sequenceRelation || r.sequence.owned == (ObjectAddress{}) {
+		if !ok || r.relationKind != sequenceRelation || r.sequence.owned == (ids.ObjectAddress{}) {
 			continue
 		}
 		owned := r.sequence.owned

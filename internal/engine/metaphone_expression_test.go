@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -60,14 +61,14 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	nonmember := *n.procedure
-	nonmember.address = ObjectAddress{ClassID: ProcedureClassID, ObjectID: 999999}
+	nonmember.address = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.state)
 	foreignState.descriptors[nonmember.address] = &nonmember
 	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-	if err != nil || !reflect.DeepEqual(refs, []ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal(refs, err)
 	}
 	var children []BoundExpr
@@ -81,7 +82,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if sameGroupExpression(n, changed) {
 		t.Fatal("argument identity collapsed")
 	}
-	consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ObjectRef{n.ref}}}}
+	consumer := &relationDescriptor{generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal(err)
 	}
@@ -173,9 +174,9 @@ func TestMetaphoneRemap(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	call := metaphoneUnitExpression(t, e)
 	before := e.CatalogRead()
-	mapping := map[ObjectAddress]ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.members {
-		mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900001 + i)}
+		mapping[address] = ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
@@ -187,8 +188,8 @@ func TestMetaphoneRemap(t *testing.T) {
 		next.descriptors[destination] = descriptor
 		next.names[descriptorNameKey(descriptor)] = destination
 	}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
-	consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ObjectRef{call.ref}}}}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 900010}
+	consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
 	next.descriptors[address] = consumer
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {

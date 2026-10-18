@@ -1,22 +1,24 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Membership only: descriptors, signatures and authorization always come from
 // the same captured catalog root, never from this derived index.
 type operatorNameKey struct {
-	namespace ObjectAddress
+	namespace ids.ObjectAddress
 	name      string
 }
 
 type operatorNameIndex struct {
-	buckets map[operatorNameKey][]ObjectAddress
+	buckets map[operatorNameKey][]ids.ObjectAddress
 }
 
 var seededOperatorNames = func() *operatorNameIndex {
-	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ObjectAddress)}
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		key := operatorNameKey{namespace, row.name}
-		index.buckets[key] = append(index.buckets[key], ObjectAddress{ClassID: OperatorClassID, ObjectID: row.oid})
+		index.buckets[key] = append(index.buckets[key], ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: row.oid})
 	}
 	return index
 }()
@@ -29,13 +31,13 @@ type operatorIndexEdit struct {
 	touched map[operatorNameKey]bool
 }
 
-func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ObjectAddress {
+func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.ObjectAddress {
 	if edit.touched == nil {
 		size := 1
 		if edit.index != nil {
 			size += len(edit.index.buckets)
 		}
-		buckets := make(map[operatorNameKey][]ObjectAddress, size)
+		buckets := make(map[operatorNameKey][]ids.ObjectAddress, size)
 		if edit.index != nil {
 			for key, addresses := range edit.index.buckets {
 				buckets[key] = addresses
@@ -46,7 +48,7 @@ func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ObjectAd
 	}
 	addresses := edit.index.buckets[key]
 	if !edit.touched[key] {
-		detached := make([]ObjectAddress, len(addresses), len(addresses)+extra)
+		detached := make([]ids.ObjectAddress, len(addresses), len(addresses)+extra)
 		copy(detached, addresses)
 		addresses = detached
 		edit.touched[key] = true
@@ -85,8 +87,8 @@ func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 
 // Wholesale identity reconstruction only; ordinary catalog changes use deltas.
 // Call before any repair binder can capture the reconstructed descriptor maps.
-func rebuildOperatorNames(descriptors map[ObjectAddress]Descriptor) *operatorNameIndex {
-	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ObjectAddress)}
+func rebuildOperatorNames(descriptors map[ids.ObjectAddress]Descriptor) *operatorNameIndex {
+	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
 	for address, descriptor := range descriptors {
 		if operator, ok := descriptor.(*operatorDescriptor); ok {
 			key := operatorNameKey{operator.namespace, operator.name}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,7 +15,7 @@ import (
 // this is neither an execution dispatcher nor a permission/identity cache.
 type builtinRoutineKey struct {
 	name   string
-	inputs [7]OID
+	inputs [7]ids.OID
 	arity  uint8
 }
 
@@ -32,7 +33,7 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*builtinRoutineDeclarati
 			if err != nil || int(key.arity) == len(key.inputs) {
 				panic("stuntgres: invalid builtin routine formal declaration")
 			}
-			key.inputs[key.arity] = OID(id)
+			key.inputs[key.arity] = ids.OID(id)
 			key.arity++
 			remaining = rest
 		}
@@ -50,8 +51,8 @@ func (e *Engine) initializeBuiltinRoutines() {
 		declaration := &builtinRoutineDeclarations[i]
 		d := &storage[i]
 		*d = procedureDescriptor{
-			address:   ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id},
-			namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: declaration.identity.namespace},
+			address:   ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id},
+			namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: declaration.identity.namespace},
 			revision:  1, name: declaration.identity.name, signature: declaration.identity.signature,
 			routineKind: declaration.kind, builtin: declaration, owner: owner,
 			result: declaration.result, volatility: declaration.volatility, strict: declaration.strict,
@@ -72,7 +73,7 @@ func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inpu
 	}
 	key := builtinRoutineKey{name: name, arity: uint8(len(inputs))}
 	for i, input := range inputs {
-		key.inputs[i] = OID(input)
+		key.inputs[i] = ids.OID(input)
 	}
 	declaration := builtinRoutineByDeclaration[key]
 	if declaration == nil || declaration.providers&provider == 0 {
@@ -89,10 +90,10 @@ func (b *expressionBinder) builtinRoutineInfo(info expressionInfo, provider rout
 	return b.selectedBuiltinRoutineInfo(info, declaration)
 }
 
-func (b *expressionBinder) builtinRoutineReference(provider routineProvider, name string, inputs ...sqltype.ID) (ObjectRef, error) {
+func (b *expressionBinder) builtinRoutineReference(provider routineProvider, name string, inputs ...sqltype.ID) (ids.ObjectRef, error) {
 	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	_, ref, err := b.captureBuiltinRoutineDeclaration(declaration)
 	return ref, err
@@ -107,17 +108,17 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expressionInfo, decla
 	return info, nil
 }
 
-func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtinRoutineDeclaration) (*procedureDescriptor, ObjectRef, error) {
+func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtinRoutineDeclaration) (*procedureDescriptor, ids.ObjectRef, error) {
 	view := b.bindingCatalog()
-	address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id}
+	address := ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id}
 	d, ok := view.state.descriptors[address].(*procedureDescriptor)
 	if !ok || d.builtin != declaration {
-		return nil, ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
+		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
 	}
 	ref := view.owner.domain.Ref(view.Epoch(), address)
 	b.dependency(ref, d.revision)
 	if err := b.captureRoutineBody(d); err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	return d, ref, nil
 }

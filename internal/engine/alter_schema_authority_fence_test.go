@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	stmt := statement(t, "ALTER TABLE protected.t SET SCHEMA s2")
 	acl.Entries[0].Privileges = authorization.CreatePrivilege
 	var once sync.Once
-	var frontier DefinitionRevision
+	var frontier ids.DefinitionRevision
 	provider := e.providers[RelationClassID]
 	defer func() { e.providers[RelationClassID] = provider }()
 	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
@@ -63,11 +64,11 @@ func TestAlterSchemaUnrelatedNamespacePublication(t *testing.T) {
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
 	e.providers[RelationClassID] = provider
-	destination := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	destination := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s2"}]
 	for _, name := range []string{"t", "q1", "q2"} {
 		NameAddressForTempMove(t, e, destination, name)
 	}
-	if _, ok := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "unrelated"}]; !ok {
+	if _, ok := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "unrelated"}]; !ok {
 		t.Fatal("unrelated publication lost")
 	}
 	lockEmpty(t, e)
@@ -76,15 +77,15 @@ func TestAlterSchemaUnrelatedNamespacePublication(t *testing.T) {
 func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
-	original := make(map[ObjectAddress]Descriptor)
+	source := e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+	original := make(map[ids.ObjectAddress]Descriptor)
 	for _, name := range []string{"t", "q1", "q2"} {
 		a := NameAddressForTempMove(t, e, source, name)
 		original[a] = e.state.descriptors[a]
 	}
 	provider := e.providers[RelationClassID]
 	var once sync.Once
-	var frontier DefinitionRevision
+	var frontier ids.DefinitionRevision
 	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 		once.Do(func() {
 			run(t, e, "ALTER SCHEMA s1 RENAME TO renamed_source")
@@ -101,7 +102,7 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 			t.Fatal("source rename allowed partial move", a)
 		}
 	}
-	if e.nextRevision != frontier || e.state.names[NameKey{ClassID: NamespaceClassID, Name: "renamed_source"}] != source {
+	if e.nextRevision != frontier || e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "renamed_source"}] != source {
 		t.Fatal("source callback mutation lost")
 	}
 	run(t, e, "ALTER TABLE renamed_source.t SET SCHEMA s2")

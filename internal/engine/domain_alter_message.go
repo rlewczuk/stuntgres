@@ -1,13 +1,17 @@
 package engine
 
-import "maps"
+import (
+	"maps"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Stage observations describe the exact private entry roots. Outer publication
 // instead fences their committed predecessors, never private-vs-committed pointer
 // equality and never another execution of the selected CHECK.
 func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalogState) error {
 	if fence := stage.domainValidation; fence != nil {
-		stores := make(map[ObjectAddress]*relationStorage, len(fence.uses))
+		stores := make(map[ids.ObjectAddress]*relationStorage, len(fence.uses))
 		for _, use := range fence.uses {
 			stores[use.relation.address] = e.stageStorageLocked(stage, use.relation.address)
 		}
@@ -35,7 +39,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	if len(stage.domainIndexRoots) != 0 {
 		changes.domainIndexRoots = maps.Clone(changes.domainIndexRoots)
 		if changes.domainIndexRoots == nil {
-			changes.domainIndexRoots = make(map[ObjectAddress]*logicalIndexRoot)
+			changes.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
 		}
 		for address, root := range stage.domainIndexRoots {
 			if e.domainStageIndexRootLocked(stage, address) != root {
@@ -47,7 +51,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	return nil
 }
 
-func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ObjectAddress) *logicalIndexRoot {
+func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *logicalIndexRoot {
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		if changes := stage.authSession.transactions.catalog; changes != nil {
 			if root := changes.uniqueRoots[address]; root != nil {
@@ -82,7 +86,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 		if len(shape.fills) != 0 {
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
-				target := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(value.Type().ID())}].(*typeDescriptor)
+				target := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
 				shape.fills[attribute], err = reownDomainDatum(value, target.typ, nil, next.scalarImports, next.aclItemImport)
 				if err != nil {
 					return err

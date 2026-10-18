@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,7 +13,7 @@ import (
 type viewWriteFixture struct {
 	e                *Engine
 	base, view       *relationDescriptor
-	baseRef, viewRef ObjectRef
+	baseRef, viewRef ids.ObjectRef
 	integer, boolean *sqltype.Descriptor
 }
 
@@ -23,24 +24,24 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	ns := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	base := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
+	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
 	baseRef := e.domain.Ref(e.state.epoch, base.address)
 	column := func(slot int) BoundExpr {
 		ref := baseRef
 		ref.Address.SubID = base.attributes[slot]
 		return columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 	}
-	view := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
+	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: ns, name: "logical", revision: 1, owner: owner, relationKind: viewRelation, attributes: []int32{1, 2}, attributeHighWater: 2, columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []BoundExpr{column(1), column(0)}}
 	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.domain.Ref(e.state.epoch, view.address)
 	e.state.descriptors[base.address] = base
 	e.state.descriptors[view.address] = view
-	e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: base.name}] = base.address
-	e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: view.name}] = view.address
+	e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: base.name}] = base.address
+	e.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: ns, Name: view.name}] = view.address
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -165,7 +166,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	}
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
-	indexAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: 20002}
+	indexAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 20002}
 	f.e.state.descriptors[indexAddress] = &relationDescriptor{
 		address:  indexAddress,
 		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},

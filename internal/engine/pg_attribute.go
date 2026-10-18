@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-const pgAttributeOID OID = 1249
+const pgAttributeOID ids.OID = 1249
 
 var pgAttributeTypeIDs = [...]sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 
@@ -79,11 +80,11 @@ func hasSystemAttributes(catalog CatalogRead, relation *relationDescriptor) bool
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and
 // paired role roots, not the live catalog, source origins or stored row data.
-func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ObjectAddress{ClassID: RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {

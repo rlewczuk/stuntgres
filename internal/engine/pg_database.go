@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,11 +22,11 @@ func databaseCollationActualVersion() (*string, error) {
 
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
-func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source.address != (ObjectAddress{ClassID: RelationClassID, ObjectID: 1262}) || ref.Domain() != e.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address {
+	if catalog.owner != e || catalog.state == nil || source.address != (ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 1262}) || ref.Domain() != e.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address {
 		return nil, fmt.Errorf("stuntgres: foreign database source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}

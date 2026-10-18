@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		if count != sample.children {
 			t.Fatal("typed child traversal", sample.name, count)
 		}
-		mapped, err := remapBoundExpression(sample.node, func(ref ObjectRef) ObjectRef { return ref }, nil)
+		mapped, err := remapBoundExpression(sample.node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
 		if err != nil || !sameGroupExpression(sample.node, mapped) {
 			t.Fatal("stored remap", sample.name, err)
 		}

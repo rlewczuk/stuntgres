@@ -1,6 +1,10 @@
 package engine
 
-import "iter"
+import (
+	"iter"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Each link is an actual provider result, never a reconstructed candidate
 // catalog. Readers retain the exact base captured for that cooking invocation.
@@ -11,8 +15,8 @@ type inheritanceDefinitionEffect struct {
 	drop       *preparedDrop
 }
 type inheritanceDefinitionObservations struct {
-	descriptors map[ObjectAddress]Descriptor
-	names       map[NameKey]ObjectAddress
+	descriptors map[ids.ObjectAddress]Descriptor
+	names       map[ids.NameKey]ids.ObjectAddress
 }
 type inheritanceDefinitionReader struct {
 	base         CatalogRead
@@ -20,18 +24,18 @@ type inheritanceDefinitionReader struct {
 	observations *inheritanceDefinitionObservations
 }
 
-func (r inheritanceDefinitionReader) observe(address ObjectAddress) {
+func (r inheritanceDefinitionReader) observe(address ids.ObjectAddress) {
 	if r.observations == nil {
 		return
 	}
 	if r.observations.descriptors == nil {
-		r.observations.descriptors = make(map[ObjectAddress]Descriptor)
+		r.observations.descriptors = make(map[ids.ObjectAddress]Descriptor)
 	}
 	if _, seen := r.observations.descriptors[address]; !seen {
 		r.observations.descriptors[address] = r.base.state.descriptors[address]
 	}
 }
-func (r inheritanceDefinitionReader) descriptor(address ObjectAddress) (Descriptor, bool) {
+func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
 	r.observe(address)
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.descriptor != nil && effect.descriptor.Address() == address {
@@ -57,11 +61,11 @@ func (r inheritanceDefinitionReader) descriptor(address ObjectAddress) (Descript
 	}
 	return r.base.Descriptor(address)
 }
-func (r inheritanceDefinitionReader) lookup(key NameKey) ObjectAddress {
+func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
 	address := r.base.state.names[key]
 	if r.observations != nil {
 		if r.observations.names == nil {
-			r.observations.names = make(map[NameKey]ObjectAddress)
+			r.observations.names = make(map[ids.NameKey]ids.ObjectAddress)
 		}
 		if _, seen := r.observations.names[key]; !seen {
 			r.observations.names[key] = address
@@ -79,13 +83,13 @@ func (r inheritanceDefinitionReader) lookup(key NameKey) ObjectAddress {
 	if present && descriptorNameKey(descriptor) == key {
 		return address
 	}
-	return ObjectAddress{}
+	return ids.ObjectAddress{}
 }
-func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ObjectAddress, Descriptor] {
+func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	// Enumeration alone does not authorize a new global invalidation fence. The
 	// selected provider's ordinary binding records its exact dependency identity.
 	r.observations = nil
-	return func(yield func(ObjectAddress, Descriptor) bool) {
+	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
 		for address := range r.base.state.descriptors {
 			if descriptor, present := r.descriptor(address); present && !yield(address, descriptor) {
 				return
@@ -93,7 +97,7 @@ func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ObjectAddress, Desc
 		}
 	}
 }
-func (r inheritanceDefinitionReader) indexLayout(address ObjectAddress) (indexLayoutLineage, bool) {
+func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.drop != nil {
 			if slot := effect.drop.slots[address]; slot.layout != 0 {
@@ -136,7 +140,7 @@ func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
 	}
 	return nil
 }
-func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address ObjectAddress) *relationDescriptor {
+func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address ids.ObjectAddress) *relationDescriptor {
 	if state.preparing {
 		descriptor, _ := state.definition.descriptor(address)
 		relation, _ := descriptor.(*relationDescriptor)

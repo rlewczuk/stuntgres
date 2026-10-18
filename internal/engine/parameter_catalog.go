@@ -4,27 +4,28 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 )
 
 // A parameter descriptor represents an ACL, not a setting value or provider.
 // Baseline-equivalent ACLs have no catalog row.
 type parameterDescriptor struct {
-	address  ObjectAddress
-	revision DefinitionRevision
+	address  ids.ObjectAddress
+	revision ids.DefinitionRevision
 	name     string
 	owner    authorization.PrincipalRef
 	acl      authorization.ACLValue
 }
 
-func (d *parameterDescriptor) Address() ObjectAddress       { return d.address }
-func (d *parameterDescriptor) Revision() DefinitionRevision { return d.revision }
-func (*parameterDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
-func (d *parameterDescriptor) Name() string                 { return d.name }
-func (*parameterDescriptor) Kind() ObjectKind               { return ParameterObject }
+func (d *parameterDescriptor) Address() ids.ObjectAddress       { return d.address }
+func (d *parameterDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (*parameterDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
+func (d *parameterDescriptor) Name() string                     { return d.name }
+func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.ParameterObject }
 
 type parameterProvider struct{}
 
-func (parameterProvider) ClassID() OID { return ParameterClassID }
+func (parameterProvider) ClassID() ids.OID { return ParameterClassID }
 func (parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
 	if !ok || d == nil || v.owner == nil || v.state == nil || v.state.descriptors[d.address] != d {
@@ -59,7 +60,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	if address := v.catalog.state.names[NameKey{ClassID: ParameterClassID, Name: key}]; address != (ObjectAddress{}) {
+	if address := v.catalog.state.names[ids.NameKey{ClassID: ParameterClassID, Name: key}]; address != (ids.ObjectAddress{}) {
 		d, ok := v.catalog.state.descriptors[address].(*parameterDescriptor)
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
@@ -74,7 +75,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	return &parameterDescriptor{address: ObjectAddress{ClassID: ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+	return &parameterDescriptor{address: ids.ObjectAddress{ClassID: ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
 
 // installParameterGrant changes only the detached central catalog candidate.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -59,7 +60,7 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 				roleExecute(t, e, op, "INSERT INTO t VALUES(9)")
 				worker, _ := e.Roles().Lookup("worker")
 				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-				grant := func(ref ObjectRef, mask authorization.Privileges) {
+				grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 					t.Helper()
 					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 						t.Fatal(err)
@@ -128,7 +129,7 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO t VALUES(9,9)")
 			worker, _ := e.Roles().Lookup("worker")
 			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-			grant := func(ref ObjectRef, mask authorization.Privileges) {
+			grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 				t.Helper()
 				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 					t.Fatal(err)

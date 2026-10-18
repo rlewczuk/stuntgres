@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -256,15 +257,18 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *re
 	if relation.rowType == 0 {
 		return nil, nil
 	}
-	descriptor, _ := reader.descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)})
+	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(relation.rowType)})
 	row, ok := descriptor.(*typeDescriptor)
 	if !ok {
 		return nil, nil
 	}
 	var effects []Descriptor
-	err := synchronizeRowTypeMetadata(relation, row, func(address ObjectAddress) Descriptor { descriptor, _ := reader.descriptor(address); return descriptor }, func(namespace ObjectAddress, name string) string {
+	err := synchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) Descriptor {
+		descriptor, _ := reader.descriptor(address)
+		return descriptor
+	}, func(namespace ids.ObjectAddress, name string) string {
 		return chooseAssociatedArrayName(name, func(candidate string) bool {
-			return reader.lookup(NameKey{ClassID: TypeClassID, Namespace: namespace, Name: candidate}) != (ObjectAddress{})
+			return reader.lookup(ids.NameKey{ClassID: TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
 	}, func(descriptor Descriptor) error {
 		reader.appendDescriptor(descriptor)
@@ -281,7 +285,7 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritanceAlter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *relationDescriptor, ref ObjectRef, changes *catalogChanges) (*relationDescriptor, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *relationDescriptor, ref ids.ObjectRef, changes *catalogChanges) (*relationDescriptor, addedColumn, bool, error) {
 	if prepared == nil {
 		return nil, addedColumn{}, false, nil
 	}

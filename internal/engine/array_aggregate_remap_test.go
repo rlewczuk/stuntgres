@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -39,7 +40,7 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 			child:       &valuesNode{},
 			calls:       []aggregateCall{{provider: p, includeNulls: true}},
 		}
-		mapped, err := remapViewQuery(CatalogRead{e, e.state}, root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(CatalogRead{e, e.state}, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == p.ResultUsage().Type {
 				return array
 			}
@@ -83,7 +84,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 	sourceView, destinationView := source.CatalogRead(), destination.CatalogRead()
 	capability := func(view CatalogRead, name string) sqltype.CollationRef {
 		t.Helper()
-		address := view.state.names[NameKey{ClassID: CollationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]
+		address := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: name}]
 		provider, ok := view.state.descriptors[address].(*collationDescriptor)
 		if !ok {
 			t.Fatal("missing genuine registered collation", name)
@@ -129,7 +130,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 			child:       &valuesNode{},
 			calls:       []aggregateCall{{provider: p, includeNulls: true}},
 		}
-		mapped, err := remapViewQuery(destinationView, root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(destinationView, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == sourceElement {
 				return destinationElement
 			}

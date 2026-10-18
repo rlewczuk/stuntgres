@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -238,7 +239,7 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	e, admin, _, ref := generatedAuthorizationFixture(t)
 	old := e.state.descriptors[ref.Address].(*relationDescriptor)
 	limit := *old
-	limit.revision = DefinitionRevision(^uint64(0))
+	limit.revision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&limit); err != nil {
 		t.Fatal(err)

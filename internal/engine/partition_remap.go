@@ -2,11 +2,12 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ObjectAddress]ObjectAddress, typesOnly bool, collation collationRemapper) (*relationDescriptor, error) {
+func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation collationRemapper) (*relationDescriptor, error) {
 	next := *d
 	if d.partition != nil {
 		definition := *d.partition
@@ -14,9 +15,9 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 		if !typesOnly {
 			definition.children = slices.Clone(definition.children)
 			for i, address := range definition.children {
-				definition.children[i] = ref(ObjectRef{Address: address}).Address
+				definition.children[i] = ref(ids.ObjectRef{Address: address}).Address
 			}
-			definition.defaultChild = ref(ObjectRef{Address: definition.defaultChild}).Address
+			definition.defaultChild = ref(ids.ObjectRef{Address: definition.defaultChild}).Address
 		}
 		for i, key := range definition.keys {
 			key.usage.Type = typ(key.usage.Type)
@@ -27,7 +28,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					return nil, err
 				}
 				if key.collation != 0 {
-					if target, ok := mapping[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.collation)}]; ok {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
 						key.collation = uint32(target.ObjectID)
 					}
 				}
@@ -72,7 +73,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 	}
 	if d.membership != nil {
 		membership := *d.membership
-		membership.parent = ref(ObjectRef{Address: membership.parent}).Address
+		membership.parent = ref(ids.ObjectRef{Address: membership.parent}).Address
 		membership.lower, membership.upper = slices.Clone(membership.lower), slices.Clone(membership.upper)
 		for _, tuple := range [][]partitionDatum{membership.lower, membership.upper} {
 			for i, datum := range tuple {
@@ -84,8 +85,8 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					return nil, err
 				}
 				if !typesOnly && value.Type().ContainsRegclass() {
-					value, err = remapRegclassDatum(value, func(id OID) OID {
-						if address, ok := mapping[ObjectAddress{ClassID: RelationClassID, ObjectID: id}]; ok {
+					value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id
@@ -95,7 +96,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					}
 				}
 				if !typesOnly && (value.Type().ContainsRegtype() || value.Type().ContainsRegObject()) {
-					value, err = remapCatalogAliasDatum(value, func(source ObjectAddress) ObjectAddress {
+					value, err = remapCatalogAliasDatum(value, func(source ids.ObjectAddress) ids.ObjectAddress {
 						if address, ok := mapping[source]; ok {
 							return address
 						}
@@ -106,8 +107,8 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					}
 				}
 				if !typesOnly && value.Type().ContainsRegproc() {
-					value, err = remapRoutineDatum(value, func(id OID) OID {
-						if address, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+					value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id
@@ -117,8 +118,8 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					}
 				}
 				if !typesOnly && value.Type().ContainsOperatorAlias() {
-					value, err = remapOperatorDatum(value, func(id OID) OID {
-						if address, ok := mapping[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
+					value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
+						if address, ok := mapping[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
 							return address.ObjectID
 						}
 						return id
@@ -128,7 +129,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					}
 				}
 				if !typesOnly && value.Type().ContainsRegTS() {
-					value, err = remapRegTSDatum(value, func(address ObjectAddress) ObjectAddress {
+					value, err = remapRegTSDatum(value, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if target, ok := mapping[address]; ok {
 							return target
 						}

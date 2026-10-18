@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,11 +16,11 @@ func (dumpOperatorOutput) FormatRegoper(id uint32) (string, error) {
 func (dumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
-func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkOperatorReferencesAt(view, nil, value, record)
 }
 
-func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
+func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
@@ -43,7 +44,7 @@ func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value s
 	if err != nil {
 		return err
 	}
-	address := ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(id)}
+	address := ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(id)}
 	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
@@ -56,18 +57,18 @@ func operatorLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	d, known := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(id)}].(*operatorDescriptor)
+	d, known := view.state.descriptors[ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: ids.OID(id)}].(*operatorDescriptor)
 	if !known || d.seeded() {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
-	text := operatorSpelling(view, nil, collectOperatorGroups(view), OID(id), sqltype.Regoperator)
+	text := operatorSpelling(view, nil, collectOperatorGroups(view), ids.OID(id), sqltype.Regoperator)
 	literal := "'" + strings.ReplaceAll(text, "'", "''") + "'::regoperator"
 	if value.Type().BaseType().ID() == sqltype.Regoper {
 		literal += "::regoper"
 	}
 	return literal, nil
 }
-func remapOperatorDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {
+func remapOperatorDatum(value sqltype.Value, destination func(ids.OID) ids.OID) (sqltype.Value, error) {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return value, nil
 	}
@@ -85,8 +86,8 @@ func remapOperatorDatum(value sqltype.Value, destination func(OID) OID) (sqltype
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	target := destination(OID(id))
-	if target == OID(id) {
+	target := destination(ids.OID(id))
+	if target == ids.OID(id) {
 		return value, nil
 	}
 	physical, err := sqltype.OperatorValue(value.Type().BaseType(), uint32(target))

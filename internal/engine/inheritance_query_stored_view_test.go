@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,7 +41,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				predecessor, before := parent, e.CatalogRead()
 				storage := e.storage[parent.address]
 				childStage, d := queryCreateStage(t, e, "c", 1)
-				d.inheritance = &tableInheritance{parents: []ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+				d.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
 					t.Fatal(err)
 				}
@@ -51,7 +52,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}
-			ref := func(d *relationDescriptor) ObjectRef {
+			ref := func(d *relationDescriptor) ids.ObjectRef {
 				return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 			}
 			parentRef, parentStorage := ref(parent), e.storage[parent.address]
@@ -62,7 +63,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
-			addView := func(name string, only, local bool) (*relationDescriptor, ObjectRef) {
+			addView := func(name string, only, local bool) (*relationDescriptor, ids.ObjectRef) {
 				t.Helper()
 				query := "SELECT i FROM p"
 				if only {
@@ -78,13 +79,13 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				auth, bindErr := e.authorizationLocked(op)
 				var b binding
 				if bindErr == nil {
-					b, bindErr = e.describe(op.Context(), raw, auth, ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
+					b, bindErr = e.describe(op.Context(), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
 				}
 				var definition *viewDefinition
 				if bindErr == nil {
 					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, viewRelation, false)
 				}
-				var oid OID
+				var oid ids.OID
 				if bindErr == nil {
 					oid, bindErr = e.allocateOIDLocked()
 				}
@@ -92,7 +93,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(bindErr)
 				}
-				d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: 1, owner: parent.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"i": 0}, attributes: []int32{1}, attributeHighWater: 1}
+				d := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: 1, owner: parent.owner, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: map[string]int{"i": 0}, attributes: []int32{1}, attributeHighWater: 1}
 				d.columns[0].OriginTable, d.columns[0].OriginAttribute = uint32(oid), 1
 				viewStage := e.BeginCatalogStage(auth.catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)
@@ -108,7 +109,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			view, viewRef := addView("v", tc.only, tc.local)
 			var otherView *relationDescriptor
-			var otherRef ObjectRef
+			var otherRef ids.ObjectRef
 			if tc.overlapping {
 				otherView, otherRef = addView("marked_v", false, true)
 			}
@@ -142,10 +143,10 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 			}
 			if tc.weak {
-				if err = scope.acquireBoundViewRelationModes([]ObjectRef{parentRef}, nil); err != nil {
+				if err = scope.acquireBoundViewRelationModes([]ids.ObjectRef{parentRef}, nil); err != nil {
 					t.Fatal(err)
 				}
-				err = scope.acquireInheritanceSources(map[ObjectRef]relationLockMode{parentRef: 0})
+				err = scope.acquireInheritanceSources(map[ids.ObjectRef]relationLockMode{parentRef: 0})
 			} else if tc.wait {
 				holderOp, holderDone, holdErr := testOperation(e, context.Background())
 				if holdErr != nil {
@@ -215,15 +216,15 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					wantChild = relationRowShare
 				}
 			}
-			var childRef ObjectRef
+			var childRef ids.ObjectRef
 			if child != nil {
 				childRef = ref(child)
 			}
 			for _, want := range []struct {
-				ref  ObjectRef
+				ref  ids.ObjectRef
 				mode relationLockMode
 			}{{parentRef, wantBase}, {childRef, wantChild}} {
-				if want.ref == (ObjectRef{}) {
+				if want.ref == (ids.ObjectRef{}) {
 					continue
 				}
 				e.locks.mu.Lock()

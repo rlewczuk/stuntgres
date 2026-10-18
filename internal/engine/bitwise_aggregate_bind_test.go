@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -106,7 +107,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 		for _, op := range []aggregateOperation{aggregateBitAnd, aggregateBitOr, aggregateBitXor} {
 			provider := bitwiseAggregateUnitProvider(t, oldType, op)
 			root := &aggregateNode{querySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: provider, operation: op}}}
-			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				d, _ := destination.CatalogRead().LookupType(old.ID())
 				return d
 			})

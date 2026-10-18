@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -53,7 +54,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
-	stage.indexParents = make(map[ObjectAddress]*relationDescriptor, len(g.parents))
+	stage.indexParents = make(map[ids.ObjectAddress]*relationDescriptor, len(g.parents))
 	for _, ref := range g.parents {
 		stage.indexParents[ref.Address] = g.descriptors[ref.Address]
 		stage.domainBases = append(stage.domainBases, g.descriptors[ref.Address])
@@ -65,7 +66,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, reindex := stmt.(*parser.Reindex); reindex {
-		stage.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(g.indexes))
+		stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(g.indexes))
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
@@ -73,7 +74,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 				next, definition := *original, *original.sqlIndex
 				definition.ready, definition.valid, definition.live = true, true, true
 				next.sqlIndex = &definition
-				if next.revision == DefinitionRevision(^uint64(0)) {
+				if next.revision == ids.DefinitionRevision(^uint64(0)) {
 					e.mu.Unlock()
 					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
 				}
@@ -102,7 +103,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 				return Result{}, err
 			}
 		}
-		roots := make([]ObjectAddress, len(g.indexes))
+		roots := make([]ids.ObjectAddress, len(g.indexes))
 		for i, ref := range g.indexes {
 			roots[i] = ref.Address
 		}
@@ -112,7 +113,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, ok := stmt.(*parser.DropIndex); ok {
-		if err := e.stagePartitionIndexValidity(stage, ObjectAddress{}); err != nil {
+		if err := e.stagePartitionIndexValidity(stage, ids.ObjectAddress{}); err != nil {
 			return Result{}, err
 		}
 	}

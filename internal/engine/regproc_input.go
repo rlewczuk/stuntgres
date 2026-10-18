@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 // as type input. Its function path excludes temporary namespaces.
 type capturedRoutineInput struct {
 	types    capturedRegtypeInput
-	path     []ObjectAddress
+	path     []ids.ObjectAddress
 	operands *[]expressionDependency
 }
 
@@ -96,11 +97,11 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	selection := namespaceSelection{path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
-		namespace := r.types.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
+		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			namespace = r.types.temporary
 		}
-		if namespace == (ObjectAddress{}) {
+		if namespace == (ids.ObjectAddress{}) {
 			return missing()
 		}
 		if err := r.types.auth.CanUse(r.types.auth.engine.domain.Ref(r.types.auth.catalog.Epoch(), namespace)); err != nil {

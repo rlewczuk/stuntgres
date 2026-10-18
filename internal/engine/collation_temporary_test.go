@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func collationPrivateSession(t *testing.T, e *Engine) *Session {
@@ -96,7 +98,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_first FROM pg_catalog."C"`)
 	base := e.CatalogRead()
 	ns := base.state.descriptors[owner.temporaryNamespace].(*namespaceDescriptor)
-	var children []ObjectAddress
+	var children []ids.ObjectAddress
 	for a, d := range base.state.descriptors {
 		if d.Namespace() == ns.address {
 			children = append(children, a)
@@ -112,7 +114,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 		t.Fatal("stale candidate partially published namespace or children")
 	}
 	for _, name := range []string{"coll_cleanup_first", "coll_cleanup_late"} {
-		if len(current.Lookup(NameKey{ClassID: CollationClassID, Namespace: ns.address, Name: name})) != 1 {
+		if len(current.Lookup(ids.NameKey{ClassID: CollationClassID, Namespace: ns.address, Name: name})) != 1 {
 			t.Fatal("cleanup lost owned child", name)
 		}
 	}
@@ -143,7 +145,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 		t.Fatal("child-only cleanup failed at namespace-generation exhaustion", err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.state.namespaceGeneration != ^uint64(0) || owner.temporaryNamespace != (ObjectAddress{}) {
+	if after.state == before.state || after.state.namespaceGeneration != ^uint64(0) || owner.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)

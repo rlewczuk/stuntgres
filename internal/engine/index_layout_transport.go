@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // evolveIndexRevision records this only for its explicit slot-only path, with
@@ -230,7 +232,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if !ok {
 			return nil, false, ErrCatalogReplaced
 		}
-		var outputs map[ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]indexRowOutput
 		for _, captured := range captures {
 			lineage := captured.lineage
 			output, ok := sourceWrites[position].indexOutputs[lineage.source.address]
@@ -243,7 +245,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if outputs == nil {
 				outputs = maps.Clone(row.indexOutputs)
 				if outputs == nil {
-					outputs = make(map[ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]indexRowOutput)
 				}
 			}
 			output.index = lineage.target
@@ -262,7 +264,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 
 // Preserve exact committed descriptor predecessors while empty roots are built
 // unlocked; the normal catalog preflight owns the publication veto.
-func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ObjectAddress) {
+func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
 	for _, descriptor := range catalog.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != address {
@@ -277,7 +279,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, changes *catalogChanges, stage *CatalogStage, address ObjectAddress, store *relationStorage) error {
+func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
 	parent, ok := catalog.descriptors[address].(*relationDescriptor)
 	if !ok || store == nil || len(store.versions) != 0 {
 		return ErrCatalogReplaced
@@ -311,7 +313,7 @@ func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, chan
 		retainIndexBuild(changes, index, store, root)
 		if stage != nil {
 			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
 			stage.indexCandidates[index.address] = changes.indexCandidates[index.address]
 		}

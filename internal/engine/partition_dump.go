@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, predecessors []OID) ([]OID, error) {
-	add := func(address ObjectAddress) error {
+func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
+	add := func(address ids.ObjectAddress) error {
 		id, err := dumpPredecessor(catalog, address, d.address)
 		if err != nil {
 			return err
@@ -43,7 +44,7 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 					if err := regclassReplayReferences(catalog, literal, add); err != nil {
 						return nil, err
 					}
-					var buffer [1]ObjectRef
+					var buffer [1]ids.ObjectRef
 					references := buffer[:0]
 					if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasReferences(catalog, datum.value); err != nil {
 						return nil, err

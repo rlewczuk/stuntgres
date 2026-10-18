@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type derivedIndexKey struct {
 	definition, execution BoundExpr
-	dependencies          []ObjectRef
+	dependencies          []ids.ObjectRef
 	attributes            []int32 // Immutable parent layout used by both bound row frames.
 }
 
@@ -94,7 +95,7 @@ func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage,
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
 
-func indexExpressionDepends(d *relationDescriptor, target ObjectAddress) bool {
+func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	if d.sqlIndex == nil {
 		return false
 	}

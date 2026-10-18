@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func TestNetworkFormatOriginalAuthority(t *testing.T) {
 	for _, tc := range []struct {
 		expr, name, sig string
-		id, result      OID
+		id, result      ids.OID
 	}{
 		{"abbrev(ip)", "abbrev", "869", 598, 25}, {"abbrev(net)", "abbrev", "650", 599, 25}, {"host(ip)", "host", "869", 699, 25}, {"text(ip)", "text", "869", 730, 25}, {"family(ip)", "family", "869", 711, 23}, {"masklen(ip)", "masklen", "869", 697, 23}, {"broadcast(ip)", "broadcast", "869", 698, 869}, {"inet_same_family(ip,ip)", "inet_same_family", "869,869", 4071, 16},
 	} {
@@ -44,16 +45,16 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.builtin
-			if d.identity != (routineIdentity{tc.id, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.identity != (routineIdentity{tc.id, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
-			found := map[OID]bool{}
+			found := map[ids.OID]bool{}
 			for _, dep := range binder.dependencies {
 				if dep.ref.Address.ClassID == ProcedureClassID {
 					found[dep.ref.Address.ObjectID] = true
 				}
 			}
-			if !reflect.DeepEqual(found, map[OID]bool{tc.id: true}) {
+			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
 				t.Fatal("exact selected dependencies", found)
 			}
 			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
@@ -64,7 +65,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			for _, mode := range []string{"missing", "foreign", "stale"} {
 				var checks []expressionDependency
 				for _, dep := range binder.dependencies {
-					if dep.ref.Address == (ObjectAddress{ClassID: ProcedureClassID, ObjectID: tc.id}) {
+					if dep.ref.Address == (ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: tc.id}) {
 						switch mode {
 						case "missing":
 							continue

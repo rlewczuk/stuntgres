@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,17 +14,17 @@ type installedFunctionExpression struct {
 	procedure  *procedureDescriptor
 	dictionary *tsDictionaryDescriptor
 	template   *tsTemplateDescriptor
-	ref        ObjectRef
+	ref        ids.ObjectRef
 }
 
 // Validate provider-specific captured authority without assuming a dictionary.
 func (n installedFunctionExpression) validProvider() bool {
 	p := n.procedure
-	if p == nil || n.arg == nil || n.usage.Type == nil || n.arg.ResultUsage().Type == nil || p.signature != unaccentTextSignature || n.arg.ResultUsage().Type.ID() != sqltype.Text || OID(n.usage.Type.ID()) != p.result {
+	if p == nil || n.arg == nil || n.usage.Type == nil || n.arg.ResultUsage().Type == nil || p.signature != unaccentTextSignature || n.arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.usage.Type.ID()) != p.result {
 		return false
 	}
 	if p.fuzzy != nil {
-		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.usage.Type.IsArray() && n.usage.Type.Element() == n.arg.ResultUsage().Type
+		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.usage.Type.IsArray() && n.usage.Type.Element() == n.arg.ResultUsage().Type
 	}
 	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == Stable && p.strict && n.usage.Type == n.arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
 }

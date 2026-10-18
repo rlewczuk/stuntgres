@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -15,7 +16,7 @@ func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string
 		fourCount, fiveCount int
-		want                 OID
+		want                 ids.OID
 		count                int
 		code, message        string
 	}{
@@ -45,7 +46,7 @@ func TestUserOperatorCatalogEstimatorMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		name               string
 		join               bool
-		result             OID
+		result             ids.OID
 		builtin, superuser bool
 		code, message      string
 	}{
@@ -82,13 +83,13 @@ func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		join bool
-		want OID
+		want ids.OID
 	}{{"eqsel", false, 101}, {"eqjoinsel", true, 105}} {
 		id, err := e.operatorEstimator(auth, operatorUnitName("pg_catalog", tc.name), tc.join)
 		if err != nil || id != tc.want || releasedOperatorEstimatorResult(id) != 701 {
 			t.Fatal(id, err)
 		}
-		if _, callable := auth.catalog.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; callable {
+		if _, callable := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; callable {
 			t.Fatal("estimator identity fabricated a callable declaration", id)
 		}
 	}

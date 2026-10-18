@@ -3,12 +3,13 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Enter with Engine.mu held. Success retains it; failure releases it. This
 // acquires the original ticket's locks, not data views or command effects.
-func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *ruleProgram) ([]ObjectRef, error) {
+func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *ruleProgram) ([]ids.ObjectRef, error) {
 	commands, events := program.commands, program.events
 	var seen map[*cteDefinition]bool
 	expanded := false
@@ -38,14 +39,14 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			events = append(events, rewrite.events...)
 		}
 	}
-	var refs []ObjectRef
+	var refs []ids.ObjectRef
 	var requests []struct {
-		ref  ObjectRef
+		ref  ids.ObjectRef
 		mode relationLockMode
 	}
 	for _, event := range events {
 		requests = append(requests, struct {
-			ref  ObjectRef
+			ref  ids.ObjectRef
 			mode relationLockMode
 		}{event.ref, accessShare})
 	}
@@ -53,7 +54,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		physical := command.binding.physicalBinding()
 		if physical.relation != nil && physical.relation.relationKind != viewRelation {
 			requests = append(requests, struct {
-				ref  ObjectRef
+				ref  ids.ObjectRef
 				mode relationLockMode
 			}{physical.ref, rowExclusive})
 			if !slices.Contains(refs, physical.ref) {
@@ -68,7 +69,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			return command.auth.state.CurrentUser
 		}
-		var queryRefs []ObjectRef
+		var queryRefs []ids.ObjectRef
 		for start := 0; start < len(command.binding.querySources); {
 			invoker := principal(command.binding.querySources[start])
 			end := start + 1
@@ -86,7 +87,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 		for _, ref := range queryRefs {
 			requests = append(requests, struct {
-				ref  ObjectRef
+				ref  ids.ObjectRef
 				mode relationLockMode
 			}{ref, accessShare})
 			if !slices.Contains(refs, ref) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -93,7 +94,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				next.address.ObjectID += 100000
 				expectedAddress = next.address
 				delete(nextState.descriptors, d.address)
-				nextState.names[NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}] = next.address
+				nextState.names[ids.NameKey{ClassID: d.address.ClassID, Namespace: d.namespace, Name: d.name}] = next.address
 				storage := *oldStorage
 				expectedStorage = &storage
 				e.storage = maps.Clone(e.storage)
@@ -117,7 +118,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if !errors.Is(err, ErrCatalogReplaced) {
 				t.Fatal("changed frozen authority was admitted", phase, err)
 			}
-			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ObjectRef{}) || len(scope.materializedSources) != 0 {
+			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
 			if e.state.descriptors[expectedAddress] != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {

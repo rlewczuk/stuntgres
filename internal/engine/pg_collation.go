@@ -3,10 +3,11 @@ package engine
 import (
 	"context"
 	"sort"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	var definitions []*collationDescriptor
 	for _, d := range catalog.state.descriptors {
 		if c, ok := d.(*collationDescriptor); ok {

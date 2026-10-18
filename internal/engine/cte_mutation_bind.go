@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // The existing command binders share a single statement expression binder.
 // Parameter finishing, dependencies and source occurrence ordinals stay outer.
-func (e *Engine) bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ObjectRef, statement parser.Statement) (binding, error) {
+func (e *Engine) bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
 	b := binding{}
 	op := binder.op
 	switch s := statement.(type) {
@@ -206,7 +207,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 		b.subqueryDemand, b.visibilitySnapshot = subqueries, visibility
 		b.stringSingleInsert = singleInsert
 	}()
-	b.relation, b.ref, b.insertTarget = nil, ObjectRef{}, nil
+	b.relation, b.ref, b.insertTarget = nil, ids.ObjectRef{}, nil
 	b.updateParameters, b.updateInputParameters = false, nil
 	b.deleteTarget, b.deleteUsingSources, b.mergeWhen, b.mergeInput = false, false, false, false
 	b.targetName, b.targetAlias, b.uses = "", "", nil
@@ -220,7 +221,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			return binding{}, err
 		}
 	}
-	var required ObjectRef
+	var required ids.ObjectRef
 	if b.queryLockAdmission != nil {
 		for _, target := range b.queryLockAdmission.mutationTargets {
 			if target.statement == statement {

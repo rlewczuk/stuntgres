@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -359,7 +360,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10),
 				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70),
 			}
-			addresses := [2]ObjectAddress{
+			addresses := [2]ids.ObjectAddress{
 				catalogRef(t, e, e.CatalogRead(), "t").Address,
 				catalogRef(t, e, e.CatalogRead(), "u").Address,
 			}

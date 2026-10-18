@@ -1,6 +1,8 @@
 package engine
 
-func materializedExtensionDepends(relation *relationDescriptor, target ObjectAddress) bool {
+import "stuntgres/internal/engine/ids"
+
+func materializedExtensionDepends(relation *relationDescriptor, target ids.ObjectAddress) bool {
 	if target.ClassID != ExtensionClassID || target.SubID != 0 {
 		return false
 	}

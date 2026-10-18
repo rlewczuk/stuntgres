@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -16,7 +17,7 @@ func TestDeleteReturningAuthorization(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("returning_reader")
-	grant := func(target ObjectRef, mask authorization.Privileges) {
+	grant := func(target ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}}
 		if err := e.SetObjectACL(context.Background(), target, acl); err != nil {

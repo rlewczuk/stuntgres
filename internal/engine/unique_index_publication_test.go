@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,17 +17,17 @@ import (
 type uniquePublicationFixture struct {
 	e              *Engine
 	parent, index  *relationDescriptor
-	ref            ObjectRef
+	ref            ids.ObjectRef
 	auth           AuthorizationView
 	keys           int
 	catalog        *catalogState
-	descriptors    map[ObjectAddress]Descriptor
-	names          map[NameKey]ObjectAddress
+	descriptors    map[ids.ObjectAddress]Descriptor
+	names          map[ids.NameKey]ids.ObjectAddress
 	roles          *roleCatalog
-	stores         map[ObjectAddress]*relationStorage
-	storeSnapshots map[ObjectAddress]relationStorage
-	roots          map[ObjectAddress]*logicalIndexRoot
-	entries        map[ObjectAddress][]logicalIndexEntry
+	stores         map[ids.ObjectAddress]*relationStorage
+	storeSnapshots map[ids.ObjectAddress]relationStorage
+	roots          map[ids.ObjectAddress]*logicalIndexRoot
+	entries        map[ids.ObjectAddress][]logicalIndexEntry
 	nextRow        uint64
 	nextVersion    uint64
 	frontier       CommitSeq
@@ -126,7 +127,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -178,7 +179,7 @@ func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	}
 }
 
-func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	t.Helper()
 	if store == nil {
 		store = f.stores[f.parent.address]
@@ -191,7 +192,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	}
 	stores := captureIndexStores(f.e.storage, f.catalog)
 	stores[f.parent.address] = store
-	parents := map[ObjectAddress]bool{f.parent.address: rebuild}
+	parents := map[ids.ObjectAddress]bool{f.parent.address: rebuild}
 	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
 	if materialize {
 		if err := f.e.prepareRowPublication(&publication, f.e.domain.Tx(SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
@@ -207,7 +208,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	return roots, err
 }
 
-func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ObjectAddress]*logicalIndexRoot, err error, building bool, detail string) {
+func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, err error, building bool, detail string) {
 	t.Helper()
 	if roots != nil {
 		t.Fatal("failed preparation returned installation roots")
@@ -219,7 +220,7 @@ func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ObjectAddre
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: message, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 }
 
-func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
+func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
 	t.Helper()
 	if !materialize {
 		if roots != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -12,13 +13,13 @@ import (
 // Resolved identities survive waits. The descriptor observations are refreshed
 // at grant time, then fenced during execution/publication; names are not retried.
 type indexMaintenanceGrant struct {
-	targets     []ObjectRef
-	parents     []ObjectRef
-	indexes     []ObjectRef
-	descriptors map[ObjectAddress]*relationDescriptor
-	indexSets   map[ObjectAddress]int
+	targets     []ids.ObjectRef
+	parents     []ids.ObjectRef
+	indexes     []ids.ObjectRef
+	descriptors map[ids.ObjectAddress]*relationDescriptor
+	indexSets   map[ids.ObjectAddress]int
 	notices     []sqlstate.Error
-	attach      ObjectRef
+	attach      ids.ObjectRef
 	partition   bool
 }
 
@@ -143,7 +144,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 		names = []parser.ObjectName{v.Name}
 	}
-	g := &indexMaintenanceGrant{descriptors: make(map[ObjectAddress]*relationDescriptor)}
+	g := &indexMaintenanceGrant{descriptors: make(map[ids.ObjectAddress]*relationDescriptor)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
 	if s.txRef.Epoch() != e.state.epoch {
@@ -204,7 +205,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
 			g.descriptors[parent] = auth.catalog.state.descriptors[parent].(*relationDescriptor)
 			if v.Kind.Text == "table" {
-				g.indexSets = map[ObjectAddress]int{parent: 0}
+				g.indexSets = map[ids.ObjectAddress]int{parent: 0}
 				for address, descriptor := range auth.catalog.state.descriptors {
 					index, ok := descriptor.(*relationDescriptor)
 					if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent {
@@ -266,10 +267,10 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	slices.SortFunc(g.parents, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	slices.SortFunc(g.indexes, func(a, b ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(g.parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(g.indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	acquire := func(ref ObjectRef, mode relationLockMode) error {
+	acquire := func(ref ids.ObjectRef, mode relationLockMode) error {
 		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			err = request.wait()
@@ -299,7 +300,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		return nil
 	}
 	parentMode := relationShare
-	if drop || g.attach != (ObjectRef{}) {
+	if drop || g.attach != (ids.ObjectRef{}) {
 		parentMode = accessExclusive
 	}
 	for _, ref := range g.parents {

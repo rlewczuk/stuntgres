@@ -6,20 +6,21 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // Stable attributes own defaults, ACLs, comments, constraints and dependency edges.
-func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, error) {
+func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, error) {
 	return dropColumnCandidate(scope.op.Context(), stage, old, ref, a, scope, changes, nil)
 }
 
-func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) (*relationDescriptor, error) {
+func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) (*relationDescriptor, error) {
 	return ordinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
 }
 
-func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction) (*relationDescriptor, error) {
+func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction) (*relationDescriptor, error) {
 	ctx := provider.ctx
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
@@ -89,7 +90,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref Obj
 	if err != nil {
 		return nil, err
 	}
-	if err := provider.applyViewDependents([]ObjectAddress{target}, a.Mode, foreign...); err != nil {
+	if err := provider.applyViewDependents([]ids.ObjectAddress{target}, a.Mode, foreign...); err != nil {
 		return nil, err
 	}
 	// The dependency pass can prune surviving definitions on this same table.
@@ -105,7 +106,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref Obj
 	if err := provider.replace(next); err != nil {
 		return nil, err
 	}
-	if err := provider.ownedExpressionDependencies([]ObjectAddress{target}, a.Mode); err != nil {
+	if err := provider.ownedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
 	return provider.descriptor(ref.Address).(*relationDescriptor), nil
@@ -113,7 +114,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref Obj
 
 // dropColumnMetadata cooks the stable-slot migration once. Dependency effects
 // supply the actual surviving provider descriptor and index identities.
-func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ObjectAddress) Descriptor, old *relationDescriptor, target ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
+func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ids.ObjectAddress) Descriptor, old *relationDescriptor, target ids.ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
 	slot := old.indexForAttribute(target.SubID)
 	next := *old
 	if old.foreign != nil {
@@ -198,7 +199,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 			if dependent {
 				continue
 			}
-			expression, err := remapBoundExpression(c.expression, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			expression, err := remapBoundExpression(c.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
@@ -228,12 +229,12 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 			if attribute == target.SubID {
 				continue
 			}
-			planned, err := remapBoundExpression(definition.planned, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			planned, err := remapBoundExpression(definition.planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
 			definition.planned = planned
-			node, err := remapBoundExpression(definition.expression, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			node, err := remapBoundExpression(definition.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}

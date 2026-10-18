@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := func(path []ObjectAddress) []string {
+	names := func(path []ids.ObjectAddress) []string {
 		result := make([]string, len(path))
 		for i, a := range path {
 			result[i] = auth.catalog.state.descriptors[a].Name()

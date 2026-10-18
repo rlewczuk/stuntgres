@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,15 +22,15 @@ type Engine struct {
 	replacementMu        replacementAdmission
 	domain               *Domain
 	state                *catalogState
-	providers            map[OID]CatalogProvider
+	providers            map[ids.OID]CatalogProvider
 	extensions           map[string]registeredExtension
 	databaseName         string
 	databaseNameError    error
-	storage              map[ObjectAddress]*relationStorage
-	sequences            map[ObjectAddress]*sequenceGenerator
-	indexRoots           map[ObjectAddress]*logicalIndexRoot
-	nextOID              OID
-	nextRevision         DefinitionRevision
+	storage              map[ids.ObjectAddress]*relationStorage
+	sequences            map[ids.ObjectAddress]*sequenceGenerator
+	indexRoots           map[ids.ObjectAddress]*logicalIndexRoot
+	nextOID              ids.OID
+	nextRevision         ids.DefinitionRevision
 	nextEnumMember       int64
 	sessionMu            sync.Mutex
 	sessions             map[SessionToken]*Session
@@ -49,7 +50,7 @@ type Engine struct {
 	commitTimestamps     map[uint64]commitTimestampEntry
 	lastCommittedXID     uint32
 	lastCommitTimestamp  commitTimestampEntry
-	indexBuildWaits      map[ObjectAddress]indexBuildWait
+	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
 	exclusionPending     map[*relationTicket]*exclusionProjection
 	exclusionGeneration  uint64
 	serializable         serializableTracker
@@ -61,7 +62,7 @@ type Engine struct {
 	importTargets        map[authorization.PrincipalRef]authorization.PrincipalRef
 	foreignWrappers      []ForeignDataWrapperDefinition
 	foreignValidators    []ForeignValidatorDefinition
-	foreignNamespaces    map[ObjectAddress]string // Immutable auto-installed namespace identities.
+	foreignNamespaces    map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	foreignValueImporter ForeignValueImporter
 	foreignValueExporter ForeignValueExporter
 	roleReferences       map[string][]authorization.PrincipalRef
@@ -76,14 +77,14 @@ type Result struct {
 	Count      int64
 	Rows       RowResult
 	RowSets    []RowResult
-	created    ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
+	created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 type binding struct {
 	ruleTemplate          bool
 	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
 	relation              *relationDescriptor
 	storage               *relationStorage
-	ref                   ObjectRef
+	ref                   ids.ObjectRef
 	viewWrite             *viewWrite
 	targets               []int
 	arrayTargets          []*arrayAssignmentTarget
@@ -97,8 +98,8 @@ type binding struct {
 	subqueryDemand        bool
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
-	viewIntaggRefs        map[viewLiteralPath]ObjectRef
-	viewOperatorRefs      map[viewLiteralPath]ObjectRef
+	viewIntaggRefs        map[viewLiteralPath]ids.ObjectRef
+	viewOperatorRefs      map[viewLiteralPath]ids.ObjectRef
 	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
@@ -174,11 +175,11 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{domain: &Domain{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
+	e := &Engine{domain: &Domain{}, providers: map[ids.OID]CatalogProvider{}, storage: map[ids.ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = newRelationLockManager(e.domain)
-	e.sequences = make(map[ObjectAddress]*sequenceGenerator)
+	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
 	for _, p := range providers {
@@ -201,12 +202,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
 		return nil, err
 	}
-	for _, class := range []OID{ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID} {
+	for _, class := range []ids.OID{ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID} {
 		if err := e.RegisterCatalogProvider(foreignCatalogProvider{class}); err != nil {
 			return nil, err
 		}
 	}
-	for _, class := range []OID{ExtensionClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
+	for _, class := range []ids.OID{ExtensionClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
 		if err := e.RegisterCatalogProvider(extensionCatalogProvider{class}); err != nil {
 			return nil, err
 		}
@@ -247,16 +248,16 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("uuid-ossp", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUUIDOssp}); err != nil {
 		return nil, err
 	}
-	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
+	e.state = &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, ns := range []struct {
-		oid  OID
+		oid  ids.OID
 		name string
 	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PGToastNamespaceOID, "pg_toast"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if ns.oid == PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
+		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
 		if ns.oid != PGToastNamespaceOID {
 			d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -265,7 +266,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		}
 		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
-		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
+		e.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -273,7 +274,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			d.revision = 1
 		}
 		if typ.NamespaceName() == "information_schema" {
-			d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
+			d.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}
 		}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
@@ -292,7 +293,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
 		d.owner = e.authorizationDomain.Principal(10)
-		d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		d.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 		d.revision = 1
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
@@ -322,10 +323,10 @@ func (e *Engine) CatalogRead() CatalogRead {
 	defer e.mu.Unlock()
 	return CatalogRead{owner: e, state: e.state}
 }
-func (e *Engine) allocateOIDLocked() (OID, error) {
+func (e *Engine) allocateOIDLocked() (ids.OID, error) {
 	for e.nextOID != 0 {
 		n := e.nextOID
-		if n == ^OID(0) {
+		if n == ^ids.OID(0) {
 			e.nextOID = 0
 		} else {
 			e.nextOID++
@@ -333,13 +334,13 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 		if n == NamespaceClassID || n == RelationClassID || n == PGCatalogNamespaceOID || n == PublicNamespaceOID {
 			continue
 		}
-		if _, ok := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: n}]; ok {
+		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: n}]; ok {
 			continue
 		}
 		usedRule := false
@@ -356,8 +357,8 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 	}
 	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
 }
-func (e *Engine) revisionLocked() (DefinitionRevision, error) {
-	if e.nextRevision == DefinitionRevision(^uint64(0)) {
+func (e *Engine) revisionLocked() (ids.DefinitionRevision, error) {
+	if e.nextRevision == ids.DefinitionRevision(^uint64(0)) {
 		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
 	}
 	r := e.nextRevision
@@ -535,11 +536,11 @@ func objectNameText(n parser.ObjectName) string {
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
 	return e.describeWithRule(ctx, stmt, auth, requiredRef, input, op, expected, admission, nil, initial...)
 }
 
-func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
+func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	binder.ruleNamespace = rule
@@ -698,7 +699,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.relationKind == compositeRelation {
-					typeRef := e.domain.Ref(auth.catalog.Epoch(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)})
+					typeRef := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.rowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
@@ -917,7 +918,7 @@ func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 	return nil
 }
 
-func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	ref, err := e.resolveRelationReference(auth, name, false)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "42501") && len(name.Parts) > 0 {
 		// Analyzed relation names retain their raw identifier occurrence.
@@ -933,28 +934,28 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
-func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ObjectRef, error) {
+func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	return e.resolveRelationSnapshot(auth, name, utility)
 }
 
-func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ObjectRef, error) {
+func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
 	view := auth.catalog
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
-		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
+		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}
 	relname := name.Parts[len(name.Parts)-1].Text
-	var a ObjectAddress
+	var a ids.ObjectAddress
 	var ok bool
 	if utility && len(name.Parts) == 2 {
-		ns := auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
+		ns := auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
 		}
-		if ns == (ObjectAddress{}) {
-			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
+		if ns == (ids.ObjectAddress{}) {
+			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
 	path, err := e.lookupNamespacesSnapshot(auth, name, relationLookup)
@@ -964,22 +965,22 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			copy.Position = ""
 			err = &copy
 		}
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		a = auth.definitionLookup(NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname})
-		ok = a != (ObjectAddress{})
+		a = auth.definitionLookup(ids.NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname})
+		ok = a != (ids.ObjectAddress{})
 		if ok {
 			break
 		}
 	}
 	if !ok {
-		return ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
+		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 	}
 	descriptor, exists := auth.definitionDescriptor(a)
 	d, valid := descriptor.(*relationDescriptor)
 	if !exists || !valid {
-		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
+		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.namespace)
@@ -1024,7 +1025,7 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 		} else {
 			source = literalTypeName(value)
 			if literal, ok := raw.(parser.TypedLiteralExpr); ok {
-				found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
+				found := view.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
 				if len(found) == 1 {
 					if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
 						source = typ.DiagnosticName()

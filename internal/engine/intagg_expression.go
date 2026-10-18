@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions
 	return operands, nil
 }
 
-func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, *procedureDescriptor, ObjectRef, error) {
+func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
 	var small [1]string
 	var names []string
 	if len(operands) <= 1 {
@@ -57,16 +58,16 @@ func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []fun
 		}
 		names[i] = functionNamedType(raw, i, names[i])
 	}
-	failure := func() (BoundExpr, *procedureDescriptor, ObjectRef, error) {
-		return nil, nil, ObjectRef{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	failure := func() (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
+		return nil, nil, ids.ObjectRef{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	auth, err := b.bindingAuthorization()
 	if err != nil {
-		return nil, nil, ObjectRef{}, err
+		return nil, nil, ids.ObjectRef{}, err
 	}
 	path, err := b.engine.lookupNamespacesSnapshot(auth, raw.Name, installedFunctionLookup)
 	if err != nil {
-		return nil, nil, ObjectRef{}, err
+		return nil, nil, ids.ObjectRef{}, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	formal := b.typ(sqltype.Int4).Usage()
@@ -74,7 +75,7 @@ func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []fun
 	if strings.EqualFold(name, "int_array_enum") {
 		array, ok := b.definitionArray(b.typ(sqltype.Int4))
 		if !ok {
-			return nil, nil, ObjectRef{}, fmt.Errorf("stuntgres: missing integer array descriptor")
+			return nil, nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing integer array descriptor")
 		}
 		formal, signature = array.Usage(), "1007"
 	}
@@ -91,11 +92,11 @@ func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []fun
 		return failure()
 	}
 	if err := stockIntagg.validateProcedure(auth.catalog, proc); err != nil {
-		return nil, nil, ObjectRef{}, err
+		return nil, nil, ids.ObjectRef{}, err
 	}
 	arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.DirectFormalArgument, Target: formal})
 	if err != nil {
-		return nil, nil, ObjectRef{}, err
+		return nil, nil, ids.ObjectRef{}, err
 	}
 	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
@@ -175,16 +176,16 @@ func (b *expressionBinder) bindIntaggFunction(raw parser.FunctionExpr) (BoundExp
 	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}, procedure: proc, ref: ref}, nil
 }
 
-func sameIntaggIdentity(a *procedureDescriptor, ar ObjectRef, b *procedureDescriptor, br ObjectRef) bool {
+func sameIntaggIdentity(a *procedureDescriptor, ar ids.ObjectRef, b *procedureDescriptor, br ids.ObjectRef) bool {
 	if ar != br || (a == nil) != (b == nil) {
 		return false
 	}
 	return a == nil || a.address == b.address && a.revision == b.revision
 }
 
-func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ObjectRef, name string) error {
+func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.ObjectRef, name string) error {
 	if proc == nil {
-		if ref != (ObjectRef{}) {
+		if ref != (ids.ObjectRef{}) {
 			return fmt.Errorf("stuntgres: missing installed intagg identity")
 		}
 		return nil

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,7 +63,7 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 		if slots == nil {
 			continue
 		}
-		remap := func(ref ObjectRef) ObjectRef { return ref }
+		remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
 		node, err := remapBoundExpression(key.derived.definition, remap, slots)
 		if err != nil {
 			return nil, err
@@ -93,7 +94,7 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 			for slot, id := range parent.attributes {
 				slots[id] = slot
 			}
-			remap := func(ref ObjectRef) ObjectRef { return ref }
+			remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
 			node, err := remapBoundExpression(predicate.definition, remap, slots)
 			if err != nil {
 				return nil, err
@@ -173,7 +174,7 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	}
 	return &clone, nil
 }
-func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ObjectAddress, transformations []columnTransformation) error {
+func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
 	// relation must not allocate an adapter/iterator/yield closure.
 	provider := dropProvider{base: stage.base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
@@ -191,7 +192,7 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent Object
 
 // The selector is shared and read-only. It cannot retain its adapter; the value
 // receiver of the effect worker below is entered only for an affected parent.
-func (provider *dropProvider) indexEvolutionInput(address ObjectAddress, descriptor Descriptor) (*relationDescriptor, *relationDescriptor, bool, bool) {
+func (provider *dropProvider) indexEvolutionInput(address ids.ObjectAddress, descriptor Descriptor) (*relationDescriptor, *relationDescriptor, bool, bool) {
 	index, ok := descriptor.(*relationDescriptor)
 	if !ok || index.sqlIndex == nil || provider.removed(address) {
 		return nil, nil, false, false
@@ -218,7 +219,7 @@ func (provider *dropProvider) indexEvolutionInput(address ObjectAddress, descrip
 }
 
 // Prepared and ordinary adapters share the exact evolution/application worker.
-func (provider *dropProvider) evolveIndexes(typeParent ObjectAddress, transformations []columnTransformation) error {
+func (provider *dropProvider) evolveIndexes(typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	for address, descriptor := range provider.inputDescriptors() {
 		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
 		if !affected {
@@ -231,7 +232,7 @@ func (provider *dropProvider) evolveIndexes(typeParent ObjectAddress, transforma
 	return nil
 }
 
-func (provider dropProvider) evolveIndex(address ObjectAddress, index, parent *relationDescriptor, staged bool, typeParent ObjectAddress, transformations []columnTransformation) error {
+func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, parent *relationDescriptor, staged bool, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	oldParent := provider.base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	prior, chained := provider.indexLayout(address)
 	chained = chained && prior.target == index
@@ -278,8 +279,8 @@ func (provider dropProvider) evolveIndex(address ObjectAddress, index, parent *r
 
 // Captured heads are immutable; the copied scalar generation/end-root tuple
 // fences every build against row publication, even when catalog is unchanged.
-func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *catalogState) map[ObjectAddress]*relationStorage {
-	var captured map[ObjectAddress]*relationStorage
+func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, catalog *catalogState) map[ids.ObjectAddress]*relationStorage {
+	var captured map[ids.ObjectAddress]*relationStorage
 	for _, d := range catalog.descriptors {
 		index, ok := d.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
@@ -289,7 +290,7 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 			continue
 		}
 		if captured == nil {
-			captured = make(map[ObjectAddress]*relationStorage)
+			captured = make(map[ids.ObjectAddress]*relationStorage)
 		}
 		a := index.sqlIndex.parent
 		if captured[a] != nil {
@@ -303,7 +304,7 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 	}
 	return captured
 }
-func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, current, next *catalogState, prepared, previous map[ObjectAddress]*logicalIndexRoot) bool {
+func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*relationStorage, current, next *catalogState, prepared, previous map[ids.ObjectAddress]*logicalIndexRoot) bool {
 	if len(prepared) == 0 && len(captured) == 0 {
 		return true
 	}
@@ -333,13 +334,13 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ObjectAddress]authorization.PrincipalRef, candidates map[ObjectAddress]indexRootCandidate) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*relationDescriptor, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	return e.prepareIndexPublication(evaluation, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
 }
 
-func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ObjectAddress]authorization.PrincipalRef, candidates map[ObjectAddress]indexRootCandidate) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	ctx := evaluation.Context
-	var result map[ObjectAddress]*logicalIndexRoot
+	var result map[ids.ObjectAddress]*logicalIndexRoot
 	catalog := CatalogRead{owner: e, state: next}
 	evaluation.catalog, evaluation.Output = catalog, output
 	if auth == nil {
@@ -396,7 +397,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			continue
 		}
 		if materialize && result == nil {
-			result = make(map[ObjectAddress]*logicalIndexRoot, len(roots))
+			result = make(map[ids.ObjectAddress]*logicalIndexRoot, len(roots))
 		}
 		root := roots[a]
 		candidate, produced := candidates[a]
@@ -566,7 +567,7 @@ func sameIndexDefinitionSemantics(a, b *indexDefinition) bool {
 
 // Only changed roots require a storage fence. Unchanged siblings may have
 // committed while preparation ran; retain their newest immutable roots.
-func preserveUnchangedIndexRoots(prepared, previous, live map[ObjectAddress]*logicalIndexRoot) {
+func preserveUnchangedIndexRoots(prepared, previous, live map[ids.ObjectAddress]*logicalIndexRoot) {
 	for address, root := range prepared {
 		if root == previous[address] {
 			prepared[address] = live[address]
@@ -577,7 +578,7 @@ func preserveUnchangedIndexRoots(prepared, previous, live map[ObjectAddress]*log
 // Explicit statements must discover derived-key errors before installing private
 // rows, not defer them to COMMIT. Admission owns these rows; the captured catalog
 // and execution trees are immutable. Finish retains its final publication veto.
-func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges, deletes map[ObjectAddress]*privateDeletionRoot) error {
+func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
 	if len(s.stage.rows) == 0 {
 		return nil
 	}
@@ -684,7 +685,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				}
 				outputs := maps.Clone(row.indexOutputs)
 				if outputs == nil {
-					outputs = make(map[ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]indexRowOutput)
 				}
 				outputs[index.address] = output
 				if !copied {

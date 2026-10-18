@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -46,7 +47,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *relationTicket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
+	d := e.state.descriptors[ids.ObjectAddress{ClassID: RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
 	if !d.virtualView || d.relationKind != catalogRelation || d.rowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -56,8 +57,8 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	for _, id := range []OID{12075, 12074} {
-		typ := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
+	for _, id := range []ids.OID{12075, 12074} {
+		typ := catalog.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
 		if typ.owningRelation != d.address {
 			t.Fatal("type owner", typ)
 		}

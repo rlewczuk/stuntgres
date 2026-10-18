@@ -3,14 +3,15 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress, typesOnly bool) error {
+func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
 	view := CatalogRead{owner: e, state: next}
 	collation := remappedCollationCapabilities(next, mapping)
-	ref := func(old ObjectRef) ObjectRef {
-		if old == (ObjectRef{}) || typesOnly {
+	ref := func(old ids.ObjectRef) ids.ObjectRef {
+		if old == (ids.ObjectRef{}) || typesOnly {
 			return old
 		}
 		address := old.Address
@@ -27,7 +28,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 		if old == nil {
 			return nil
 		}
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.ID())}
+		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(old.ID())}
 		if target, ok := mapping[address]; ok {
 			address = target
 		}
@@ -103,7 +104,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					return err
 				}
 				definition.expression = node
-				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
+				definition.dependencies = append([]ids.ObjectRef(nil), definition.dependencies...)
 				for i := range definition.dependencies {
 					definition.dependencies[i] = ref(definition.dependencies[i])
 				}
@@ -134,7 +135,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					return err
 				}
 				definition.planned = planned
-				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
+				definition.dependencies = append([]ids.ObjectRef(nil), definition.dependencies...)
 				for i := range definition.dependencies {
 					definition.dependencies[i] = ref(definition.dependencies[i])
 				}
@@ -186,7 +187,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 						return err
 					}
 					definition.keys[i].collationRef = capability
-					if target, ok := mapping[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(key.collation)}]; ok {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(key.collation)}]; ok {
 						definition.keys[i].collation = uint32(target.ObjectID)
 					}
 				}
@@ -212,7 +213,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					return err
 				}
 				derived.execution = node
-				derived.dependencies = append([]ObjectRef(nil), derived.dependencies...)
+				derived.dependencies = append([]ids.ObjectRef(nil), derived.dependencies...)
 				for j := range derived.dependencies {
 					derived.dependencies[j] = ref(derived.dependencies[j])
 				}
@@ -236,7 +237,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 				if err != nil {
 					return err
 				}
-				p.dependencies = append([]ObjectRef(nil), p.dependencies...)
+				p.dependencies = append([]ids.ObjectRef(nil), p.dependencies...)
 				for j := range p.dependencies {
 					p.dependencies[j] = ref(p.dependencies[j])
 				}

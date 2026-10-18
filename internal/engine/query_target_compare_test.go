@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -52,7 +53,7 @@ func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	remapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(r ObjectRef) ObjectRef { return r }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	remapped, err := remapViewQuery(New().CatalogRead(), query.Root, func(r ids.ObjectRef) ids.ObjectRef { return r }, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	root := query.Root.(*projectNode).expressions[0].(subqueryExpression).queryPlan.Root.(*projectNode)
 	leaf := root.child.(*sourceNode)
 	changed := *leaf
-	changed.ref = ObjectRef{}
+	changed.ref = ids.ObjectRef{}
 	var occurrences [4]queryTargetOccurrence
 	c = queryTargetComparison{frames: frames[:0], occurrences: occurrences[:0]}
 	if c.sameQuery(nil, leaf, &changed) {

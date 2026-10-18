@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func intarrayUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor, *typeDe
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", ""))
-	ext := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 	return e, ext, e.state.descriptors[ext.members[0]].(*typeDescriptor)
 }
 
@@ -51,11 +52,11 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if !ok || array.Concrete() || array.Element() != base.typ || array.ID() == base.typ.ID() {
 		t.Fatal("lookup-only reciprocal array")
 	}
-	arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}
+	arrayAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}
 	if pgDependPinned(view, base.Address()) || pgDependPinned(view, arrayAddress) {
 		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
 	}
-	if !pgDependPinned(view, ObjectAddress{ClassID: TypeClassID, ObjectID: 1007}) {
+	if !pgDependPinned(view, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
 	for i, address := range ext.members {
@@ -79,13 +80,13 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	members := map[ObjectAddress]bool{}
+	members := map[ids.ObjectAddress]bool{}
 	arrayInternal := false
 	for _, edge := range edges {
 		if edge.referenced == ext.address && edge.deptype == 'e' {
 			members[edge.dependent] = true
 		}
-		if edge.dependent == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
+		if edge.dependent == (ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
 			arrayInternal = true
 		}
 	}
@@ -164,7 +165,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		}
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
-		namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 		owner := op.RoleState().CurrentUser
 		for _, d := range []*typeDescriptor{
 			{typ: typ, namespace: namespace, owner: owner, revision: revision, array: array.ID()},
@@ -204,7 +205,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				state.descriptors[proc.address] = &proc
 			},
 			func(state *catalogState, _ *extensionDescriptor) {
-				address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}
+				address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}
 				array := *state.descriptors[address].(*typeDescriptor)
 				array.typ = sqltype.LookupArray(array.typ.ID(), array.Name(), text)
 				state.descriptors[address] = &array
@@ -222,7 +223,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				t.Fatal("negative validation mutated original manifest")
 			}
 		}
-		mapped := remapExtensionDescriptor(ext, map[ObjectAddress]ObjectAddress{ext.members[1]: {ClassID: ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
+		mapped := remapExtensionDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.members[1]: {ClassID: ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
 		if mapped.members[1] == ext.members[1] || !slices.Equal(original, ext.members) {
 			t.Fatal("remapping aliased source membership")
 		}
@@ -268,13 +269,13 @@ func TestIntarrayProviderControls(t *testing.T) {
 		op, close := extensionTemporaryOperation(t, e, "postgres")
 		namespace := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.name))
-		ext := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 		base := e.state.descriptors[ext.members[0]].(*typeDescriptor)
-		array := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}
+		array := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(base.array)}
 		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		addresses := append([]ObjectAddress{ext.address, array}, ext.members...)
+		addresses := append([]ids.ObjectAddress{ext.address, array}, ext.members...)
 		close()
 		assertTemporaryNamespacePair(t, e, namespace.temporary, namespace.address)
 		for _, address := range addresses {
@@ -299,12 +300,12 @@ func TestIntarrayProviderControls(t *testing.T) {
 		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
-		unaccent := target.state.descriptors[target.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]]
+		unaccent := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]]
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		ext := target.state.descriptors[target.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		ext := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
 		imported := target.state.descriptors[ext.members[0]].(*typeDescriptor)
 		if imported.typ == base.typ || imported.typ.ID() == base.typ.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")

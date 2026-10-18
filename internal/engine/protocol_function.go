@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -45,9 +46,9 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, err
 	}
-	d, ok := auth.catalog.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(oid)}].(*procedureDescriptor)
+	d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: ids.OID(oid)}].(*procedureDescriptor)
 	if !ok {
-		identity, found := routineIdentityByOID(auth.catalog, OID(oid))
+		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
 			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.name))

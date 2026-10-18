@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,9 +18,9 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 	e := New()
 	base := e.CatalogRead()
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	namespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	usage := testUsage(e, sqltype.Int4)
-	mint := func() OID {
+	mint := func() ids.OID {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		oid, err := e.allocateOIDLocked()
@@ -28,12 +29,12 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 		}
 		return oid
 	}
-	parent := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}, namespace: namespace, name: "p", owner: owner, revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, attributes: []int32{2}, index: map[string]int{"b": 0}, attributeHighWater: 2, droppedAttributes: map[int32]attributeMetadata{1: {number: 1, dropped: true}}}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
-	indexAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}, namespace: namespace, name: "p", owner: owner, revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, attributes: []int32{2}, index: map[string]int{"b": 0}, attributeHighWater: 2, droppedAttributes: map[int32]attributeMetadata{1: {number: 1, dropped: true}}}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
+	indexAddress := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
 	primary := uniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
 	history := retiredInheritanceOrigin{parent: e.domain.Ref(base.Epoch(), parent.address), attribute: 1, column: "a", name: "nn", constraint: 20001, lifetime: uint64(base.Epoch()), own: 20002}
-	old := &relationDescriptor{address: address, namespace: namespace, name: "c", owner: owner, revision: 1, relationKind: tableRelation, hasIndexes: true, columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, attributes: []int32{1, 2}, index: map[string]int{"a": 0, "b": 1}, attributeHighWater: 2, notNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, uniqueConstraints: []uniqueConstraint{primary}, inheritance: &tableInheritance{parents: []ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{1: {local: true}, 2: {local: true}}, notNull: map[int32]inheritedConstraint{1: {retired: []retiredInheritanceOrigin{history}}, 2: {local: true}}}}
+	old := &relationDescriptor{address: address, namespace: namespace, name: "c", owner: owner, revision: 1, relationKind: tableRelation, hasIndexes: true, columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, attributes: []int32{1, 2}, index: map[string]int{"a": 0, "b": 1}, attributeHighWater: 2, notNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, uniqueConstraints: []uniqueConstraint{primary}, inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{1: {local: true}, 2: {local: true}}, notNull: map[int32]inheritedConstraint{1: {retired: []retiredInheritanceOrigin{history}}, 2: {local: true}}}}
 	index := &relationDescriptor{address: indexAddress, namespace: namespace, name: "c_key", owner: owner, revision: 1, relationKind: indexRelation, columns: slices.Clone(old.columns), attributes: []int32{1, 2}, index: map[string]int{"a": 0, "b": 1}, attributeHighWater: 2, sqlIndex: &indexDefinition{parent: address, keys: []indexKey{{attribute: 1}, {attribute: 2}}, unique: true, ready: true, valid: true, live: true, constraint: uniqueBacking(&primary)}}
 	parent.hasSubclasses = true
 	old.inheritance.columns[2] = inheritedColumn{local: true, origins: []inheritanceOrigin{{parent: parent.address, attribute: 2}}}
@@ -180,7 +181,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	next.columns[1].Usage = testUsage(e, sqltype.Int8)
 	next.uniqueConstraints = slices.Clone(clean.uniqueConstraints)
 	next.uniqueConstraints[0].OID = constraintOID
-	next.uniqueConstraints[0].Index = ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}
+	next.uniqueConstraints[0].Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}
 	oldIndex := base.state.descriptors[clean.uniqueConstraints[0].Index].(*relationDescriptor)
 	index := *oldIndex
 	index.address = next.uniqueConstraints[0].Index

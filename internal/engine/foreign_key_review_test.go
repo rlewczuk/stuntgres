@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -117,7 +118,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	}
 	// A reader lacking the exact selected input generation cannot borrow it.
 	state := cloneCatalog(view.state)
-	delete(state.descriptors, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Int4)})
+	delete(state.descriptors, ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 	if _, err := bindForeignKeyComparison(CatalogRead{e, state}, child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
@@ -191,7 +192,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 	ordinary, ordinaryErr := e.authorizationLocked(op)
 	trusted, trustedErr := e.statementAuthorizationLocked(op, statement(t, "INSERT INTO nowhere VALUES(1)"))
-	var path []ObjectAddress
+	var path []ids.ObjectAddress
 	var pathErr error
 	if trustedErr == nil {
 		path, _, pathErr = e.explicitPath(trusted)
@@ -201,7 +202,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	if ordinaryErr != nil || trustedErr != nil || pathErr != nil {
 		t.Fatal(ordinaryErr, trustedErr, pathErr)
 	}
-	alpha := ordinary.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: "fk_namespace_alpha"}]
+	alpha := ordinary.catalog.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: "fk_namespace_alpha"}]
 	if ordinary.state.CurrentUser == ordinary.state.Authenticated || trusted.state.CurrentUser != ordinary.state.Authenticated || trusted.namespaceUser != ordinary.state.CurrentUser || !slices.Contains(path, alpha) || trusted.sessionRoleState != ordinary.sessionRoleState {
 		t.Fatal("permission elevation replaced semantic namespace principal", ordinary.state, trusted.state, trusted.namespaceUser, path)
 	}
@@ -221,7 +222,7 @@ func TestForeignKeyCreateOutcomeIdentity(t *testing.T) {
 		t.Fatal("creator did not return its exact minted reference", created, ref)
 	}
 	skipped := sessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").created
-	if skipped != (ObjectRef{}) || e.CatalogRead().state != view.state {
+	if skipped != (ids.ObjectRef{}) || e.CatalogRead().state != view.state {
 		t.Fatal("no-op masqueraded as a successful creation", skipped)
 	}
 	if len(view.state.descriptors[ref.Address].(*relationDescriptor).foreignKeys) != 0 {

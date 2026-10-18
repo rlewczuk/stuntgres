@@ -2,31 +2,32 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Record the actual result of a named, qualified CREATE INDEX on a table freshly
 // created by this import. No generated name, eligibility rebinding or index
 // metadata is synthesized here; the ordinary provider already completed it.
-func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.CreateIndex, created map[ObjectAddress]ObjectRef) *relationDescriptor {
+func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.CreateIndex, created map[ids.ObjectAddress]ids.ObjectRef) *relationDescriptor {
 	if raw.Name.Text == "" || raw.IfNotExists || raw.Concurrent.Character != 0 || len(raw.Table.Parts) != 2 {
 		return nil
 	}
 	after := e.CatalogRead()
-	namespace := after.state.names[NameKey{ClassID: NamespaceClassID, Name: raw.Table.Parts[0].Text}]
-	if namespace == (ObjectAddress{}) {
+	namespace := after.state.names[ids.NameKey{ClassID: NamespaceClassID, Name: raw.Table.Parts[0].Text}]
+	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
-	key := NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Name.Text}
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Name.Text}
 	address := after.state.names[key]
-	if before.state.names[key] != (ObjectAddress{}) || before.state.descriptors[address] != nil {
+	if before.state.names[key] != (ids.ObjectAddress{}) || before.state.descriptors[address] != nil {
 		return nil
 	}
 	index, ok := after.state.descriptors[address].(*relationDescriptor)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.constraint != nil {
 		return nil
 	}
-	parent := after.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
+	parent := after.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
 	ref := created[parent]
 	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.domain || ref.Epoch != after.Epoch() {
 		return nil
@@ -51,7 +52,7 @@ func physicalImportedIndexMatches(source *relationDescriptor, constructor *physi
 // A keyless physical cleanup may be followed immediately by the captured,
 // unrelated ordinary primary declaration. It cannot certify one of its own
 // flag-only attributes as a primary key (or as an INCLUDE payload key).
-func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ObjectAddress]ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
 	if pair == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
 		return nil, nil
 	}

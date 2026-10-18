@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -22,7 +23,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				stage := e.BeginCatalogStage(original)
 				defer e.DiscardCatalogStage(stage)
 				if owner == (authorization.PrincipalRef{}) {
-					if member.Kind() != TSTemplateObject {
+					if member.Kind() != ids.TSTemplateObject {
 						t.Fatal("unexpected ownerless member", member)
 					}
 					if err := stageOwnership(stage, member, source.Ref); err == nil {

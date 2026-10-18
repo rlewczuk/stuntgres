@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,7 +43,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			originalIndex := index
 			if mode != "Ordinary" {
 				maximum := *index
-				maximum.revision = DefinitionRevision(^uint64(0))
+				maximum.revision = ids.DefinitionRevision(^uint64(0))
 				if mode == "OrdinaryOverflow" {
 					maximum.revision--
 				}
@@ -66,7 +67,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project, ObjectAddress{}); err != nil {
+			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			intermediate := stage.descriptors[index.address].(*relationDescriptor)
@@ -105,7 +106,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if intermediate == index || intermediate.sqlIndex.keys[0].derived == index.sqlIndex.keys[0].derived {
 				t.Fatal("first candidate mutated original")
 			}
-			err := stageOwnedExpressionDependencies(context.Background(), stage, []ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project)
+			err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project)
 			if mode == "OrdinaryOverflow" {
 				if err == nil || err.Error() != "stuntgres: index revision exhausted" {
 					t.Fatal("ordinary second evolution overflow", err)
@@ -150,7 +151,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				t.Fatal("composition revision frontier")
 			}
 			e.mu.Lock()
-			err = e.evolveStageIndexesLocked(stage, ObjectAddress{}, nil)
+			err = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 			if err == nil {
 				e.stageCatalogChangesLocked(stage, changes)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"time"
@@ -17,11 +18,11 @@ type preparedTransaction struct {
 	prepared time.Time
 	database string
 	ticket   *relationTicket
-	writes   map[ObjectAddress][]rowVersion
-	deletes  map[ObjectAddress]*privateDeletionRoot
+	writes   map[ids.ObjectAddress][]rowVersion
+	deletes  map[ids.ObjectAddress]*privateDeletionRoot
 	catalog  *catalogChanges
 	claimed  bool
-	roots    map[ObjectAddress]transactionRoot
+	roots    map[ids.ObjectAddress]transactionRoot
 	frontier CommitSeq
 	options  TxOptions
 }

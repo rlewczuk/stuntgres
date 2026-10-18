@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -368,7 +369,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT DEFAULT 1 NOT NULL,CHECK(a>0))")
 	view := e.CatalogRead()
 	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
-	for _, id := range []OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
+	for _, id := range []ids.OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
 		e.mu.Lock()
 		e.nextOID = id
 		next, err := e.allocateOIDLocked()
@@ -411,7 +412,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
+		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

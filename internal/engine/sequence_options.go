@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,23 +31,23 @@ type sequenceOptions struct {
 	increment, min, max, start, cache int64
 	cycle                             bool
 	persistence                       string
-	owned                             ObjectAddress
+	owned                             ids.ObjectAddress
 	identity                          bool
 }
 type sequenceGenerator struct {
 	last       int64
 	called     bool
-	generation DefinitionRevision
+	generation ids.DefinitionRevision
 }
 type sequenceMemory struct {
 	value      int64
 	valid      bool
 	next       int64
 	remaining  uint64
-	generation DefinitionRevision
+	generation ids.DefinitionRevision
 	// Local relation-source invalidation survives reverted reset without
 	// borrowing generator/cache identity or changing currval/lastval.
-	analysisStamp DefinitionRevision
+	analysisStamp ids.DefinitionRevision
 }
 
 func sequenceTypeLimits(id sqltype.ID) (int64, int64, string) {

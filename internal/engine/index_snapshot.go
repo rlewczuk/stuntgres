@@ -4,16 +4,17 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Captured under the source catalog/storage mutex. Replacement owns these
 // containers; roots, descriptors and scalar payloads remain immutable source data.
 type indexSnapshot struct {
-	sources       map[ObjectAddress]indexSnapshotSource
-	mapping       map[ObjectAddress]ObjectAddress
+	sources       map[ids.ObjectAddress]indexSnapshotSource
+	mapping       map[ids.ObjectAddress]ids.ObjectAddress
 	imports       map[*sqltype.Descriptor]*sqltype.Descriptor
-	partitionRows map[ObjectAddress]partitionRowHistory
+	partitionRows map[ids.ObjectAddress]partitionRowHistory
 }
 
 type indexSnapshotSource struct {
@@ -23,11 +24,11 @@ type indexSnapshotSource struct {
 	frontier      CommitSeq
 }
 
-func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, frontier CommitSeq) (*indexSnapshot, error) {
+func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier CommitSeq) (*indexSnapshot, error) {
 	return captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, frontier CommitSeq, parents map[ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -38,7 +39,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 	if private != nil {
 		authority = catalog.owner.privateCatalogLocked(private).state
 	}
-	actualRoot := func(address ObjectAddress) *logicalIndexRoot {
+	actualRoot := func(address ids.ObjectAddress) *logicalIndexRoot {
 		if private != nil {
 			if root := private.uniqueRoots[address]; root != nil {
 				return root
@@ -46,7 +47,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 		}
 		return catalog.owner.indexRoots[address]
 	}
-	snapshot := &indexSnapshot{sources: make(map[ObjectAddress]indexSnapshotSource)}
+	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range catalog.state.descriptors {
 		if parents != nil {
 			index, ok := descriptor.(*relationDescriptor)
@@ -63,7 +64,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 				return nil, ErrCatalogReplaced
 			}
 			if snapshot.partitionRows == nil {
-				snapshot.partitionRows = make(map[ObjectAddress]partitionRowHistory)
+				snapshot.partitionRows = make(map[ids.ObjectAddress]partitionRowHistory)
 			}
 			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
 		}
@@ -132,13 +133,13 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 	return snapshot, nil
 }
 
-func (snapshot *indexSnapshot) captureMapping(mapping map[ObjectAddress]ObjectAddress, imports map[*sqltype.Descriptor]*sqltype.Descriptor) {
+func (snapshot *indexSnapshot) captureMapping(mapping map[ids.ObjectAddress]ids.ObjectAddress, imports map[*sqltype.Descriptor]*sqltype.Descriptor) {
 	if snapshot == nil {
 		return
 	}
 	snapshot.mapping, snapshot.imports = maps.Clone(mapping), maps.Clone(imports)
 	if len(mapping) != 0 && len(snapshot.partitionRows) != 0 {
-		histories := make(map[ObjectAddress]partitionRowHistory, len(snapshot.partitionRows))
+		histories := make(map[ids.ObjectAddress]partitionRowHistory, len(snapshot.partitionRows))
 		for address, history := range snapshot.partitionRows {
 			histories[snapshot.destination(address)] = history
 		}
@@ -146,7 +147,7 @@ func (snapshot *indexSnapshot) captureMapping(mapping map[ObjectAddress]ObjectAd
 	}
 }
 
-func (snapshot *indexSnapshot) destination(address ObjectAddress) ObjectAddress {
+func (snapshot *indexSnapshot) destination(address ids.ObjectAddress) ids.ObjectAddress {
 	if destination, ok := snapshot.mapping[address]; ok {
 		return destination
 	}
@@ -159,8 +160,8 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		return sqltype.Value{}, err
 	}
 	if !value.IsNull() && target.ContainsRegclass() {
-		value, err = remapRegclassDatum(value, func(id OID) OID {
-			return snapshot.destination(ObjectAddress{ClassID: RelationClassID, ObjectID: id}).ObjectID
+		value, err = remapRegclassDatum(value, func(id ids.OID) ids.OID {
+			return snapshot.destination(ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err
@@ -173,16 +174,16 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 		}
 	}
 	if !value.IsNull() && target.ContainsRegproc() {
-		value, err = remapRoutineDatum(value, func(id OID) OID {
-			return snapshot.destination(ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}).ObjectID
+		value, err = remapRoutineDatum(value, func(id ids.OID) ids.OID {
+			return snapshot.destination(ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
 	if !value.IsNull() && target.ContainsOperatorAlias() {
-		value, err = remapOperatorDatum(value, func(id OID) OID {
-			return snapshot.destination(ObjectAddress{ClassID: OperatorClassID, ObjectID: id}).ObjectID
+		value, err = remapOperatorDatum(value, func(id ids.OID) ids.OID {
+			return snapshot.destination(ids.ObjectAddress{ClassID: OperatorClassID, ObjectID: id}).ObjectID
 		})
 		if err != nil {
 			return sqltype.Value{}, err
@@ -196,15 +197,15 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
-func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, positions map[ObjectAddress]map[indexRowIdentity]int) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	return snapshot.transportRows(ctx, next, storage, positions, false)
 }
 
 // Same-logical-ID domain generation changes retain every physical version and
 // produced key. Replacement's ordinary transport still compacts live rows.
-func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, positions map[ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ObjectAddress]*logicalIndexRoot, error) {
-	roots := make(map[ObjectAddress]*logicalIndexRoot, len(snapshot.sources))
-	checkedParents := make(map[ObjectAddress]bool)
+func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(snapshot.sources))
+	checkedParents := make(map[ids.ObjectAddress]bool)
 	collation := remappedCollationCapabilities(next, snapshot.mapping)
 	for sourceAddress, source := range snapshot.sources {
 		if err := ctx.Err(); err != nil {

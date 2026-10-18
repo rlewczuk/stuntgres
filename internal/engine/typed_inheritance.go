@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func typedClosure(catalog CatalogRead, source ObjectAddress) map[ObjectAddress]Descriptor {
-	result := make(map[ObjectAddress]Descriptor)
+func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddress]Descriptor {
+	result := make(map[ids.ObjectAddress]Descriptor)
 	var visit func(*relationDescriptor)
 	visit = func(table *relationDescriptor) {
 		if result[table.address] != nil {
@@ -58,7 +59,7 @@ func typedClosure(catalog CatalogRead, source ObjectAddress) map[ObjectAddress]D
 }
 
 func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
-	if stage.typedSource == (ObjectAddress{}) {
+	if stage.typedSource == (ids.ObjectAddress{}) {
 		return true
 	}
 	observed := typedClosure(current, stage.typedSource)
@@ -74,8 +75,8 @@ func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
 }
 
 // Parent-before-child order processes a diamond only after both incoming edges.
-func typedPropagationOrder(catalog CatalogRead, source ObjectAddress) []*relationDescriptor {
-	selected := make(map[ObjectAddress]*relationDescriptor)
+func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*relationDescriptor {
+	selected := make(map[ids.ObjectAddress]*relationDescriptor)
 	var selectTable func(*relationDescriptor)
 	selectTable = func(table *relationDescriptor) {
 		if selected[table.address] != nil {
@@ -92,7 +93,7 @@ func typedPropagationOrder(catalog CatalogRead, source ObjectAddress) []*relatio
 		}
 	}
 	var ordered []*relationDescriptor
-	seen := make(map[ObjectAddress]bool, len(selected))
+	seen := make(map[ids.ObjectAddress]bool, len(selected))
 	var visit func(*relationDescriptor)
 	visit = func(table *relationDescriptor) {
 		if seen[table.address] {
@@ -108,11 +109,11 @@ func typedPropagationOrder(catalog CatalogRead, source ObjectAddress) []*relatio
 		}
 		ordered = append(ordered, table)
 	}
-	addresses := make([]ObjectAddress, 0, len(selected))
+	addresses := make([]ids.ObjectAddress, 0, len(selected))
 	for address := range selected {
 		addresses = append(addresses, address)
 	}
-	slices.SortFunc(addresses, func(a, b ObjectAddress) int {
+	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
 		}
@@ -156,7 +157,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 	return actions, renames
 }
 
-func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map[ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *tableInheritance, error) {
+func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *tableInheritance, error) {
 	graph := *old.inheritance
 	graph.columns = maps.Clone(graph.columns)
 	graph.checks = maps.Clone(graph.checks)
@@ -327,12 +328,12 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 	next.inheritance = graph
 }
 
-func typedSortedAddresses(tables []*relationDescriptor) []ObjectAddress {
-	addresses := make([]ObjectAddress, len(tables))
+func typedSortedAddresses(tables []*relationDescriptor) []ids.ObjectAddress {
+	addresses := make([]ids.ObjectAddress, len(tables))
 	for i, table := range tables {
 		addresses[i] = table.address
 	}
-	slices.SortFunc(addresses, func(a, b ObjectAddress) int {
+	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {
 			return -1
 		}

@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 func (e *Engine) stageDropCompositeLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropComposite) error {
-	seen := make(map[ObjectAddress]bool, len(s.Names))
+	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		typ, err := e.namedType(auth, name)
 		if err != nil {

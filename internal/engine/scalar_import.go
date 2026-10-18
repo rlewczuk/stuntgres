@@ -1,12 +1,15 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
 
 // The isolated candidate belongs to a different lifetime. Reserve destination
 // enum members and installed base codecs, retaining exact source-pointer import
 // authority for the existing nested datum/expression remapping pass. Engine.mu
 // is held.
-func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
+func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	for address, descriptor := range next.descriptors {
 		d, ok := descriptor.(*typeDescriptor)
 		if !ok || !d.typ.IsEnum() && !d.typ.IsQueryInt() {
@@ -50,7 +53,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ObjectA
 // Translation remains keyed by the source pointer and points at that final codec.
 func refreshScalarImportDestinations(next *catalogState) {
 	for source := range next.scalarImports {
-		if d, ok := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.ID())}].(*typeDescriptor); ok {
+		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(source.ID())}].(*typeDescriptor); ok {
 			next.scalarImports[source] = d.typ
 		}
 	}

@@ -2,6 +2,8 @@ package engine
 
 import (
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
@@ -53,7 +55,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	storage := e.storage[old.address]
-	snapshot := &visibilityData{catalog: catalog, committed: map[ObjectAddress][]rowVersion{old.address: storage.versions}, singleGeneration: storage}
+	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.address: storage.versions}, singleGeneration: storage}
 	fence := materializedSourceFence{ref: e.domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()

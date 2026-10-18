@@ -4,16 +4,17 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func serializableUnitRelation(t *testing.T, e *Engine) ObjectRef {
+func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}
-	d := &relationDescriptor{address: address, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}
+	d := &relationDescriptor{address: address, namespace: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -152,7 +153,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	catalog := cloneCatalog(e.state)
 	original := catalog.descriptors[ref.Address].(*relationDescriptor)
 	copy := *original
-	copy.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	copy.namespace = ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	catalog.descriptors[ref.Address] = &copy
 	e.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
@@ -184,12 +185,12 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	if err := e.serializableWriteLocked(scope, relation, create[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.writes = map[ObjectAddress][]rowVersion{relation.Address: {{row: 41, version: 73}}}
+	owner.writes = map[ids.ObjectAddress][]rowVersion{relation.Address: {{row: 41, version: 73}}}
 	ending := [1]serializableWrite{{row: 41, version: 73, base: 73, creator: writer.ref, deletion: true}}
 	if err := e.serializableWriteLocked(scope, relation, ending[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.deletes = map[ObjectAddress]*privateDeletionRoot{relation.Address: {rows: map[RowID]deleteCandidate{41: {row: 41, version: 73, own: true}}}}
+	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {rows: map[RowID]deleteCandidate{41: {row: 41, version: 73, own: true}}}}
 	e.reconcileSerializableWritesLocked(owner)
 	if len(writer.writes[relation.Address]) != 2 {
 		t.Fatal("ending overwrote same-version creator")
@@ -222,7 +223,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
 	sessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
 	view := e.CatalogRead()
-	matches := view.Lookup(NameKey{ClassID: RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
+	matches := view.Lookup(ids.NameKey{ClassID: RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}

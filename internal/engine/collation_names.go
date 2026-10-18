@@ -1,11 +1,13 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Presentation uses the same namespace-first identity lookup as binding.
-func collationDisplayName(view CatalogRead, id uint32, path []ObjectAddress) string {
+func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress) string {
 	if view.state == nil {
 		return pgIdentifier(collationName(view, id))
 	}
-	d, ok := view.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(id)}].(*collationDescriptor)
+	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
 	if !ok {
 		return ""
 	}
@@ -13,7 +15,7 @@ func collationDisplayName(view CatalogRead, id uint32, path []ObjectAddress) str
 		return pgIdentifier(d.name)
 	}
 	for _, ns := range path {
-		if a, ok := view.state.names[NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
+		if a, ok := view.state.names[ids.NameKey{ClassID: CollationClassID, Namespace: ns, Name: d.name}]; ok {
 			if a == d.Address() {
 				return pgIdentifier(d.name)
 			}

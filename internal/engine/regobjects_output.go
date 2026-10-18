@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func regObjectSpelling(view CatalogRead, path []ObjectAddress, class, id OID) string {
+func regObjectSpelling(view CatalogRead, path []ids.ObjectAddress, class, id ids.OID) string {
 	if id == 0 {
 		return "-"
 	}
-	d := view.state.descriptors[ObjectAddress{ClassID: class, ObjectID: id}]
+	d := view.state.descriptors[ids.ObjectAddress{ClassID: class, ObjectID: id}]
 	if d == nil {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -26,13 +27,13 @@ func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regcollation output snapshot")
 	}
-	return regObjectSpelling(s.commentCatalog, s.collationPath, CollationClassID, OID(id)), nil
+	return regObjectSpelling(s.commentCatalog, s.collationPath, CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regnamespace output snapshot")
 	}
-	return regObjectSpelling(s.commentCatalog, nil, NamespaceClassID, OID(id)), nil
+	return regObjectSpelling(s.commentCatalog, nil, NamespaceClassID, ids.OID(id)), nil
 }
 func (r *finalRows) FormatRegcollation(id uint32) (string, error) {
 	return r.regObjectText(CollationClassID, id)
@@ -40,15 +41,15 @@ func (r *finalRows) FormatRegcollation(id uint32) (string, error) {
 func (r *finalRows) FormatRegnamespace(id uint32) (string, error) {
 	return r.regObjectText(NamespaceClassID, id)
 }
-func (r *finalRows) regObjectText(class OID, id uint32) (string, error) {
-	text, exists := r.regobjectOutput[ObjectAddress{ClassID: class, ObjectID: OID(id)}]
+func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
+	text, exists := r.regobjectOutput[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}]
 	if !exists {
 		return "", fmt.Errorf("stuntgres: missing collation/namespace output snapshot")
 	}
 	return text, nil
 }
 
-func captureRegObjectOutputValue(rows *finalRows, view CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureRegObjectOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}
@@ -76,14 +77,14 @@ func captureRegObjectOutputValue(rows *finalRows, view CatalogRead, path []Objec
 		return nil
 	}
 	if rows.regobjectOutput == nil {
-		rows.regobjectOutput = make(map[ObjectAddress]string)
+		rows.regobjectOutput = make(map[ids.ObjectAddress]string)
 	}
 	rows.regobjectOutput[address] = regObjectSpelling(view, path, address.ClassID, address.ObjectID)
 	rows.output.Regcollation, rows.output.Regnamespace = rows, rows
 	return nil
 }
 
-func (e *Engine) captureRegObjectRowsValueLocked(rows *finalRows, auth AuthorizationView, path *[]ObjectAddress, value sqltype.Value) error {
+func (e *Engine) captureRegObjectRowsValueLocked(rows *finalRows, auth AuthorizationView, path *[]ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}

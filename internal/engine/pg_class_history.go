@@ -3,11 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Visit only owned graph edges. An ordinary index's table is not its subclass
 // parent; attached indexes use the separate partitionParent identity.
-func visitSubclassParents(child *relationDescriptor, visit func(ObjectAddress) error) error {
+func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddress) error) error {
 	if child.inheritance != nil {
 		for _, parent := range child.inheritance.parents {
 			if err := visit(parent); err != nil {
@@ -20,7 +22,7 @@ func visitSubclassParents(child *relationDescriptor, visit func(ObjectAddress) e
 			return err
 		}
 	}
-	if child.sqlIndex != nil && child.sqlIndex.partitionParent != (ObjectAddress{}) {
+	if child.sqlIndex != nil && child.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 		if err := visit(child.sqlIndex.partitionParent); err != nil {
 			return err
 		}
@@ -34,7 +36,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 		if !ok {
 			continue
 		}
-		if err := visitSubclassParents(child, func(address ObjectAddress) error {
+		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
 			descriptor, staged := stage.descriptors[address]
 			if !staged {
 				descriptor = stage.base.state.descriptors[address]
@@ -77,7 +79,7 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 		if !ok {
 			continue
 		}
-		if err := visitSubclassParents(child, func(address ObjectAddress) error {
+		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
 			parent, ok := catalog.state.descriptors[address].(*relationDescriptor)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")

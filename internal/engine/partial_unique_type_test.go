@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -74,7 +75,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	predicate := *definition.predicate
 	definition.predicate = &predicate
 	next.sqlIndex = &definition
-	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{next.address: &next}, originals: map[ObjectAddress]Descriptor{next.address: f.index}}
+	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{next.address: &next}, originals: map[ids.ObjectAddress]Descriptor{next.address: f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}

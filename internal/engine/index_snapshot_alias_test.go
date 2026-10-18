@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -84,7 +85,7 @@ func TestDomainCheckIndexSnapshotAliasRecursive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshot := &indexSnapshot{mapping: map[ObjectAddress]ObjectAddress{
+			snapshot := &indexSnapshot{mapping: map[ids.ObjectAddress]ids.ObjectAddress{
 				{ClassID: ProcedureClassID, ObjectID: 41000}:    {ClassID: ProcedureClassID, ObjectID: 42000},
 				{ClassID: TSDictionaryClassID, ObjectID: 41000}: {ClassID: TSDictionaryClassID, ObjectID: 43000},
 				{ClassID: RelationClassID, ObjectID: 41000}:     {ClassID: RelationClassID, ObjectID: 44000},

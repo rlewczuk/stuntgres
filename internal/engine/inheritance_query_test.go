@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,8 +18,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	d := inheritanceLifecycleTable(e, 20003, "d", l.address, r.address, p.address)
 	own := e.domain.Session(1)
 	peer := e.domain.Session(2)
-	ownNamespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20004}
-	peerNamespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20005}
+	ownNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20004}
+	peerNamespace := ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20005}
 	o := inheritanceLifecycleTable(e, 20006, "own", p.address)
 	o.namespace = ownNamespace
 	f := inheritanceLifecycleTable(e, 20007, "foreign", p.address)
@@ -29,18 +30,18 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	e.state.descriptors[ownNamespace] = &namespaceDescriptor{address: ownNamespace, temporary: own}
 	e.state.descriptors[peerNamespace] = &namespaceDescriptor{address: peerNamespace, temporary: peer}
 	for range 2 {
-		var got []ObjectAddress
+		var got []ids.ObjectAddress
 		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *relationDescriptor) error { got = append(got, d.address); return nil }); err != nil {
 			t.Fatal(err)
 		}
-		want := []ObjectAddress{p.address, l.address, d.address, r.address, o.address}
+		want := []ids.ObjectAddress{p.address, l.address, d.address, r.address, o.address}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal(got, want)
 		}
 	}
 }
 
-func inheritanceQueryUnitColumns(e *Engine, id OID, names ...string) *relationDescriptor {
+func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *relationDescriptor {
 	d := inheritanceLifecycleTable(e, id, "layout")
 	for i, name := range names {
 		d.columns = append(d.columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
@@ -103,7 +104,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	e := New()
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
-	ref := func(d *relationDescriptor) ObjectRef {
+	ref := func(d *relationDescriptor) ids.ObjectRef {
 		return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
@@ -217,7 +218,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	incomplete, err := failed.acquireDataViewsLocked(e, []ObjectRef{ref})
+	incomplete, err := failed.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
 	var partial *querySource
 	if err == nil {
 		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.session.token)
@@ -261,7 +262,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 		old := ref
 		old.Epoch++
 		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &BoundQuery{Root: &sourceNode{ref: old}}}
-		mapped, err := remapFrozenPresentation(e.CatalogRead(), frozen, nil, func(source ObjectRef) ObjectRef {
+		mapped, err := remapFrozenPresentation(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref
 			}
@@ -274,9 +275,9 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*sourceNode).ref != ref {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
-		var got []ObjectAddress
+		var got []ids.ObjectAddress
 		err = inheritanceQueryLeaves(e.CatalogRead(), []queryLeaf{{ref: remapped.ref, only: remapped.only}}, SessionToken{}, func(leaf queryLeaf) error { got = append(got, leaf.ref.Address); return nil })
-		want := []ObjectAddress{p.address}
+		want := []ids.ObjectAddress{p.address}
 		if !only {
 			want = append(want, c.address)
 		}

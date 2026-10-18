@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *relationDescriptor {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := e.describe(context.Background(), stmt, auth, ObjectRef{}, input, op, nil, nil)
+	bound, err := e.describe(context.Background(), stmt, auth, ids.ObjectRef{}, input, op, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
@@ -113,7 +114,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.frontier != frontier || len(snapshot.committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
-		for address, storage := range map[ObjectAddress]*relationStorage{inner.address: innerStorage, gate.address: gateStorage} {
+		for address, storage := range map[ids.ObjectAddress]*relationStorage{inner.address: innerStorage, gate.address: gateStorage} {
 			versions, ends := innerVersions, innerEnds
 			if address == gate.address {
 				versions, ends = gateVersions, gateEnds
@@ -164,7 +165,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = snapshot
-	provider := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(outer.rowType)}]
+	provider := stage.base.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(outer.rowType)}]
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}

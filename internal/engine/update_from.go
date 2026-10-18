@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/authorization"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+)
 
 // Mutation target columns retain independent physical write/read authority.
 // Exposed source columns follow them; source-internal ON expressions stay local.
@@ -38,7 +41,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ObjectRef, token SessionToken, inherited queryRowMark) ([]ObjectRef, error) {
+func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
 	if auth.engine != e || catalog.owner != e || catalog.state == nil {
 		return nil, ErrCatalogReplaced
@@ -46,9 +49,9 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	// Authorize every executable view occurrence before admitting any physical
 	// source or target. Only the recursion path detects cycles; shared views
 	// retain each occurrence's row marks without a permission cache.
-	var active []ObjectRef
-	var authorize func(ObjectRef, authorization.PrincipalRef, queryRowMark) error
-	authorize = func(ref ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
+	var active []ids.ObjectRef
+	var authorize func(ids.ObjectRef, authorization.PrincipalRef, queryRowMark) error
+	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
 		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
@@ -103,9 +106,9 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			return nil, err
 		}
 	}
-	var visited map[ObjectRef]bool
-	var collect func(ObjectRef, bool) error
-	collect = func(ref ObjectRef, only bool) error {
+	var visited map[ids.ObjectRef]bool
+	var collect func(ids.ObjectRef, bool) error
+	collect = func(ref ids.ObjectRef, only bool) error {
 		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
@@ -115,7 +118,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				return nil
 			}
 			if visited == nil {
-				visited = make(map[ObjectRef]bool)
+				visited = make(map[ids.ObjectRef]bool)
 			}
 			visited[ref] = true
 			for _, child := range relation.view.sources {

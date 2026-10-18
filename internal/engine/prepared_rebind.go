@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -11,21 +12,21 @@ import (
 // Engine.mu and physical-session admission own this cell; no data or grants do.
 type preparedAnalysis struct {
 	domain          *Domain
-	epoch           CatalogEpoch
+	epoch           ids.CatalogEpoch
 	session         SessionToken
 	private         *catalogChanges
 	path            sequenceEnvironment
 	namespace       uint64
-	target          ObjectRef
-	targets         map[parser.Statement]ObjectRef
+	target          ids.ObjectRef
+	targets         map[parser.Statement]ids.ObjectRef
 	sources         map[*parser.TableReference]preparedSource
 	dependencies    []expressionDependency
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
 type preparedSource struct {
 	query   *parser.Select
-	ref     ObjectRef
-	lexical ObjectRef // Statement-local name observation, never a retained lock choice.
+	ref     ids.ObjectRef
+	lexical ids.ObjectRef // Statement-local name observation, never a retained lock choice.
 }
 
 func preparableBody(stmt parser.Statement) bool {
@@ -83,7 +84,7 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // Caller holds Engine.mu. Sequence source events are independent of generator
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
-func preparedDefinitionStamp(d Descriptor, session *Session) DefinitionRevision {
+func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevision {
 	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == sequenceRelation {
 		stamp := relation.sequencePlanStamp
 		if session != nil {
@@ -105,9 +106,9 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		target = b.viewWrite.logical.ref
 	}
 	cell := &preparedAnalysis{domain: e.domain, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
-	seen := make(map[ObjectRef]bool)
-	var visit func(ObjectRef) error
-	visit = func(ref ObjectRef) error {
+	seen := make(map[ids.ObjectRef]bool)
+	var visit func(ids.ObjectRef) error
+	visit = func(ref ids.ObjectRef) error {
 		if ref.Domain() == nil {
 			return nil
 		}
@@ -147,7 +148,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		return nil, err
 	}
 	if len(s.mutations) != 0 {
-		cell.targets = make(map[parser.Statement]ObjectRef, len(s.queryLockAdmission.mutationTargets))
+		cell.targets = make(map[parser.Statement]ids.ObjectRef, len(s.queryLockAdmission.mutationTargets))
 		for i := range s.mutations {
 			mutation := s.mutations[i]
 			if i == s.activeMutation {
@@ -187,13 +188,13 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 
 // Admission selects an exact identity before waiting. Analysis checks current
 // namespace authority on that identity, not whether its spelling now shadows it.
-func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectName, ref ObjectRef) (ObjectRef, error) {
+func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
 	if ref.Domain() == nil {
 		return e.resolveReference(auth, name)
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.Domain() != e.domain || ref.Epoch != auth.catalog.Epoch() {
-		return ObjectRef{}, ErrCatalogReplaced
+		return ids.ObjectRef{}, ErrCatalogReplaced
 	}
 	ns := e.domain.Ref(ref.Epoch, d.namespace)
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
@@ -202,7 +203,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 			copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
 			err = &copy
 		}
-		return ObjectRef{}, err
+		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
 		if namespace, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && namespace.temporary == auth.session.token {
@@ -214,10 +215,10 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 
 // An unchanged prepared identity may outlive its original spelling (for example
 // a moved relation). Missing spelling is an observation, not a chosen resource.
-func (e *Engine) admissionNameReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+func (e *Engine) admissionNameReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	ref, err := e.resolveReference(auth, name)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42P01" {
-		return ObjectRef{}, nil
+		return ids.ObjectRef{}, nil
 	}
 	return ref, err
 }
@@ -229,7 +230,7 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 	if !s.admissionWaited {
 		return nil
 	}
-	check := func(name parser.ObjectName, before ObjectRef) error {
+	check := func(name parser.ObjectName, before ids.ObjectRef) error {
 		after, err := e.admissionNameReference(auth, name)
 		if err != nil {
 			return err

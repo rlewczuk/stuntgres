@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -42,9 +43,9 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 		t.Run(map[parser.DiscardCategory]string{parser.DiscardPlans: "plans", parser.DiscardSequences: "sequences", parser.DiscardAll: "all"}[category], func(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			address := ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
+			address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
 			memory := &sequenceMemory{valid: true, value: 7}
-			a.sequences, b.sequences = make(map[ObjectAddress]*sequenceMemory), make(map[ObjectAddress]*sequenceMemory)
+			a.sequences, b.sequences = make(map[ids.ObjectAddress]*sequenceMemory), make(map[ids.ObjectAddress]*sequenceMemory)
 			a.sequences[address], b.sequences[address] = memory, &sequenceMemory{valid: true, value: 8}
 			a.lastSequence, b.lastSequence = address, address
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
@@ -75,7 +76,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 				if a.sequences[address] != memory || a.lastSequence != address {
 					t.Fatal("PLANS lost sequence memory")
 				}
-			} else if len(a.sequences) != 0 || a.lastSequence != (ObjectAddress{}) {
+			} else if len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) {
 				t.Fatal("sequence memories retained")
 			}
 			if category != parser.DiscardAll {
@@ -90,8 +91,8 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		for _, before := range []bool{false, true} {
 			t.Run(map[bool]string{true: "cancel-before", false: "cancel-after"}[before], func(t *testing.T) {
 				s := sessionStart(t, New(), nil)
-				address := ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
-				s.sequences = make(map[ObjectAddress]*sequenceMemory)
+				address := ids.ObjectAddress{ClassID: RelationClassID, ObjectID: 90001}
+				s.sequences = make(map[ids.ObjectAddress]*sequenceMemory)
 				s.sequences[address] = &sequenceMemory{valid: true, value: 7}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -150,7 +151,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO discard_pending VALUES(7)")
 		sessionSQL(t, s, "SAVEPOINT mark")
 		catalog, marks := s.transactions.catalog, len(s.transactions.savepoints)
-		var address ObjectAddress
+		var address ids.ObjectAddress
 		for a, rows := range s.transactions.writes {
 			if len(rows) != 0 {
 				address = a
@@ -300,7 +301,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
 	private := e.privateCatalogLocked(s.transactions.catalog)
-	var privateAddress ObjectAddress
+	var privateAddress ids.ObjectAddress
 	for a, d := range private.state.descriptors {
 		if d.Name() == "discard_private" {
 			privateAddress = a
@@ -375,7 +376,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				sessionSQL(t, s, "INSERT INTO discard_private_survivor VALUES(7,'a')")
 				sessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
 				var survivor *relationDescriptor
-				var providerAddress, indexAddress ObjectAddress
+				var providerAddress, indexAddress ids.ObjectAddress
 				for a, d := range e.state.descriptors {
 					switch d.Name() {
 					case "discard_private_survivor":

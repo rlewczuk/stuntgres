@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (s *StatementScope) checkExclusionEvents(all bool, selected map[OID]bool) error {
+func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]bool) error {
 	if !s.exclusionStarted {
 		s.exclusionModes = s.owner.exclusionModes
 	}
@@ -93,7 +94,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	e.mu.Unlock()
 	candidate := s.exclusionModes
 	candidate.byConstraint = maps.Clone(candidate.byConstraint)
-	selected := make(map[OID]bool)
+	selected := make(map[ids.OID]bool)
 	if raw.All {
 		candidate.allSet, candidate.allDeferred = true, raw.Deferred
 		candidate.byConstraint = nil
@@ -175,7 +176,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			}
 		}
 		if candidate.byConstraint == nil {
-			candidate.byConstraint = make(map[OID]bool, len(selected))
+			candidate.byConstraint = make(map[ids.OID]bool, len(selected))
 		}
 		for oid := range selected {
 			candidate.byConstraint[oid] = raw.Deferred

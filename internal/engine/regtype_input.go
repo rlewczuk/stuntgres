@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,15 +17,15 @@ import (
 // separate registry. The catalog generation and effective type path are immutable.
 type capturedRegtypeInput struct {
 	auth      AuthorizationView
-	path      []ObjectAddress
+	path      []ids.ObjectAddress
 	database  string
-	temporary ObjectAddress
+	temporary ids.ObjectAddress
 	token     SessionToken
 	op        *Operation
 	authority *queryAuthority
 	position  parser.Position
 	portal    string
-	qualified *[]ObjectAddress
+	qualified *[]ids.ObjectAddress
 	resolved  *[]expressionDependency
 }
 
@@ -134,13 +135,13 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	name := parts[len(parts)-1].Text
 	path := namespaceSelection{path: r.path}
 	if raw.System {
-		path = namespaceSelection{qualified: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}
+		path = namespaceSelection{qualified: ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}
 	} else if len(parts) == 2 {
-		ns := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
+		ns := r.auth.definitionLookup(ids.NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
-		if ns == (ObjectAddress{}) {
+		if ns == (ids.ObjectAddress{}) {
 			return 0, sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text))
 		}
 		namespace, _ := r.auth.definitionNamespace(ns)
@@ -157,7 +158,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	}
 	var typ *sqltype.Descriptor
 	for i := range path.count() {
-		if address := r.auth.definitionLookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name}); address != (ObjectAddress{}) {
+		if address := r.auth.definitionLookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name}); address != (ids.ObjectAddress{}) {
 			typ, _ = r.auth.definitionType(sqltype.ID(address.ObjectID))
 			break
 		}
@@ -226,7 +227,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		}
 	}
 	if r.resolved != nil {
-		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(typ.ID())}
 		d, _ := r.auth.definitionDescriptor(address)
 		ref := r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), address)
 		*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.Revision()})

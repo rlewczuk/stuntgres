@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,8 +14,8 @@ type indexPresentation struct {
 	dump      bool
 	column    int64
 	pretty    bool
-	path      []ObjectAddress
-	temporary ObjectAddress
+	path      []ids.ObjectAddress
+	temporary ids.ObjectAddress
 	// TYPE buffers retain original expression trees and old-Usage decoration.
 	reconstruct bool
 	output      sqltype.OutputEnvironment

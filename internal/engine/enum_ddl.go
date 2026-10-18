@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -45,7 +46,7 @@ func enumInsertionOrder(members []sqltype.EnumMember, at int) float32 {
 	return midpoint
 }
 
-func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ObjectRef, error) {
+func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ids.ObjectRef, error) {
 	// Utility object lookup has no cursor position, unlike expression type input.
 	lookupName := name
 	if len(name.Parts) == 2 {
@@ -55,16 +56,16 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 	}
 	path, err := e.lookupNamespaces(auth, lookupName, typeLookup)
 	if err != nil {
-		return nil, ObjectRef{}, err
+		return nil, ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.catalog.Lookup(ids.NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}
 		d, ok := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
 		if !ok {
-			return nil, ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
+			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
 		ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
 		if !d.typ.IsEnum() {
@@ -83,7 +84,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		}
 		return d, ref, nil
 	}
-	return nil, ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
+	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
 }
 
 func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
@@ -91,11 +92,11 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	op := scope.op
-	var locked ObjectRef
+	var locked ids.ObjectRef
 	if alter, ok := stmt.(*parser.AlterEnum); ok {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
-		var ref ObjectRef
+		var ref ids.ObjectRef
 		if err == nil {
 			_, ref, err = e.resolveAlterEnumLocked(auth, alter.Name)
 		}
@@ -130,10 +131,10 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if err := e.stageCreateEnumLocked(op, auth, stage, create); err != nil {
 			return Result{}, err
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ObjectRef{}, nil)
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		if len(scope.owner.savepoints) == 0 {
 			if changes.enumCreated == nil {
-				changes.enumCreated = make(map[ObjectAddress]bool)
+				changes.enumCreated = make(map[ids.ObjectAddress]bool)
 			}
 			for a, d := range stage.descriptors {
 				if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsEnum() {
@@ -221,7 +222,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		// rather than the committed stores they already superseded.
 		for a, shape := range changes.storage {
 			if stage.rowShapes == nil {
-				stage.rowShapes = make(map[ObjectAddress]catalogRowShape)
+				stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 			}
 			stage.rowShapes[a] = catalogRowShape{original: shape.original, replacement: shape.replacement, generation: shape.generation, observedEnds: shape.ends, observedLength: len(shape.root)}
 		}

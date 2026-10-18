@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestHashIndexFinalPublicationVeto(t *testing.T) {
@@ -58,7 +60,7 @@ func TestHashIndexDerivedBatchFailureAndIndexSetFence(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(3)")
 	stage := indexMaintenanceStage(t, e, "t", "hn", "hd")
 	for parent := range stage.indexParents {
-		stage.indexSets = map[ObjectAddress]int{parent: 2}
+		stage.indexSets = map[ids.ObjectAddress]int{parent: 2}
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {

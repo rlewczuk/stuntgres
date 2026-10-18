@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestCommentPublicationFailures(t *testing.T) {
@@ -29,7 +31,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 		t.Fatal("invalid provider mutation")
 	}
 	original := e.nextRevision
-	e.nextRevision = DefinitionRevision(^uint64(0))
+	e.nextRevision = ids.DefinitionRevision(^uint64(0))
 	if _, err := e.Execute(op, statement(t, "COMMENT ON TABLE t IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}

@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func regtypeSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+func regtypeSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
 	return regtypeSpellingMode(view, path, id, false)
 }
 
 // Machine object identities qualify nonspecial SQL type names, including the
 // canonical temporary namespace alias, without changing ordinary regtype output.
-func regtypeSpellingMode(view CatalogRead, path []ObjectAddress, id OID, qualified bool) string {
+func regtypeSpellingMode(view CatalogRead, path []ids.ObjectAddress, id ids.OID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -22,7 +23,7 @@ func regtypeSpellingMode(view CatalogRead, path []ObjectAddress, id OID, qualifi
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	if typ.IsArray() {
-		return regtypeSpellingMode(view, path, OID(typ.Element().ID()), qualified) + "[]"
+		return regtypeSpellingMode(view, path, ids.OID(typ.Element().ID()), qualified) + "[]"
 	}
 	switch typ.ID() {
 	case sqltype.Bool:
@@ -60,7 +61,7 @@ func regtypeSpellingMode(view CatalogRead, path []ObjectAddress, id OID, qualifi
 	case sqltype.JSON:
 		return "json"
 	}
-	d := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: id}]
+	d := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: id}]
 	name := regclassIdentifier(d.Name())
 	if !qualified && namedObjectVisible(view, path, d) {
 		return name
@@ -77,7 +78,7 @@ func (s *StatementScope) FormatRegtype(id uint32) (string, error) {
 	if s == nil || s.commentCatalog.state == nil {
 		return "", fmt.Errorf("stuntgres: missing regtype output snapshot")
 	}
-	return regtypeSpelling(s.commentCatalog, s.deparsePath, OID(id)), nil
+	return regtypeSpelling(s.commentCatalog, s.deparsePath, ids.OID(id)), nil
 }
 
 func (r *finalRows) FormatRegtype(id uint32) (string, error) {
@@ -88,7 +89,7 @@ func (r *finalRows) FormatRegtype(id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegtypeOutputValue(rows *finalRows, view CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureRegtypeOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}
@@ -118,16 +119,16 @@ func captureRegtypeOutputValue(rows *finalRows, view CatalogRead, path []ObjectA
 	if rows.regtypeOutput == nil {
 		rows.regtypeOutput = make(map[uint32]string)
 	}
-	rows.regtypeOutput[id] = regtypeSpelling(view, path, OID(id))
+	rows.regtypeOutput[id] = regtypeSpelling(view, path, ids.OID(id))
 	rows.output.Regtype = rows
 	return nil
 }
 
 type catalogRegtypeOutput struct {
 	view CatalogRead
-	path []ObjectAddress
+	path []ids.ObjectAddress
 }
 
 func (r catalogRegtypeOutput) FormatRegtype(id uint32) (string, error) {
-	return regtypeSpelling(r.view, r.path, OID(id)), nil
+	return regtypeSpelling(r.view, r.path, ids.OID(id)), nil
 }

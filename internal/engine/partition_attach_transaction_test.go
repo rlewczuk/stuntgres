@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func partitionAttachUnitBegin(t *testing.T, e *Engine, session *Session, isolati
 	return ref
 }
 
-func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ObjectRef, values ...int64) {
+func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids.ObjectRef, values ...int64) {
 	t.Helper()
 	scope, op := partitionAttachUnitScope(t, e, session)
 	rows := make([][]sqltype.Value, len(values))
@@ -58,7 +59,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref Obj
 	op.Done()
 }
 
-func partitionAttachUnitValues(t *testing.T, view *VisibilityView, ref ObjectRef) []int64 {
+func partitionAttachUnitValues(t *testing.T, view *VisibilityView, ref ids.ObjectRef) []int64 {
 	t.Helper()
 	source, err := captureQuerySource(context.Background(), view, ref)
 	if err != nil {
@@ -129,7 +130,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		latest, err := validation.acquirePartitionValidationViewsLocked(e, []ObjectRef{ref})
+		latest, err := validation.acquirePartitionValidationViewsLocked(e, []ids.ObjectRef{ref})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

@@ -3,15 +3,16 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 const restoreNoInheritBoundary = "restore accepts only paired canonical pg_constraint no-inherit repairs"
 
 type restoredNotNull struct {
-	ref        ObjectRef
+	ref        ids.ObjectRef
 	attribute  int32
-	constraint OID
+	constraint ids.OID
 }
 
 // The declaration supplies the exact captured name, even when another object
@@ -46,7 +47,7 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 	return nil
 }
 
-func (e *Engine) captureRestoredNotNulls(created ObjectRef, raw *parser.CreateTable, origins map[OID]restoredNotNull) {
+func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]restoredNotNull) {
 	relation, ok := e.CatalogRead().state.descriptors[created.Address].(*relationDescriptor)
 	if !ok {
 		return
@@ -87,7 +88,7 @@ func (e *Engine) captureRestoredNotNulls(created ObjectRef, raw *parser.CreateTa
 	}
 }
 
-func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, origins map[OID]restoredNotNull) (restoredNotNull, error) {
+func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, origins map[ids.OID]restoredNotNull) (restoredNotNull, error) {
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetNotNull {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
@@ -184,7 +185,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return nil
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}

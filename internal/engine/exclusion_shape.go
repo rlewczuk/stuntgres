@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -10,7 +11,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	if len(original.exclusionConstraints)+len(parent.exclusionConstraints) == 0 {
 		return nil
 	}
-	entries := make(map[ObjectAddress][]exclusionEntry, len(parent.exclusionConstraints))
+	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.exclusionConstraints))
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: catalog}
 	for _, c := range parent.exclusionConstraints {
 		index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,7 @@ func validateRules(view CatalogRead, d *relationDescriptor) error {
 					return fmt.Errorf("stuntgres: invalid rule RETURNING contract")
 				}
 			}
-			if action.binding.ref != (ObjectRef{}) {
+			if action.binding.ref != (ids.ObjectRef{}) {
 				address := action.binding.ref.Address
 				provider, ok := view.state.descriptors[address].(*relationDescriptor)
 				if !ok || !storedReferenceEpochValid(view, d, action.binding.ref) || provider == nil {

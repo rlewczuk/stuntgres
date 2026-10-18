@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...string) *CatalogStage {
@@ -13,8 +15,8 @@ func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...str
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := roleTableRef(t, e, table)
-	stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.Address: base.state.descriptors[parent.Address].(*relationDescriptor)}
-	stage.indexRebuilds = make(map[ObjectAddress]*relationDescriptor, len(indexes))
+	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address: base.state.descriptors[parent.Address].(*relationDescriptor)}
+	stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(indexes))
 	for _, name := range indexes {
 		ref := roleTableRef(t, e, name)
 		stage.indexRebuilds[ref.Address] = base.state.descriptors[ref.Address].(*relationDescriptor)
@@ -57,7 +59,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 			}
 			stage := indexMaintenanceStage(t, e, "t", "a")
 			for parent := range stage.indexParents {
-				stage.indexSets = map[ObjectAddress]int{parent: 1}
+				stage.indexSets = map[ids.ObjectAddress]int{parent: 1}
 			}
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {

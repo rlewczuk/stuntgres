@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Invalid domain CHECKs are post-data events. Their providers do not constrain
 // CREATE DOMAIN, which would invent cycles through a later table/derived type.
-func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, domains map[OID]*typeDescriptor) error {
+func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*typeDescriptor) error {
 	var data []dumpEventKey
 	for event := range graph {
 		if event.phase == dumpTableCompletion {
@@ -26,8 +27,8 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 			if _, exists := graph[event]; !exists {
 				graph[event] = append([]dumpEventKey{{oid: oid}}, data...)
 			}
-			add := func(address ObjectAddress) error {
-				predecessor, err := dumpPredecessor(view, address, ObjectAddress{})
+			add := func(address ids.ObjectAddress) error {
+				predecessor, err := dumpPredecessor(view, address, ids.ObjectAddress{})
 				if err != nil {
 					return err
 				}
@@ -82,7 +83,7 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 const restoreDomainOwnerBoundary = "restore accepts only immediately paired fresh domain ownership"
 
 type restoredDomainOwner struct {
-	ref            ObjectRef
+	ref            ids.ObjectRef
 	domain         *typeDescriptor
 	namespace      *namespaceDescriptor
 	owner, creator authorization.PrincipalRef
@@ -91,7 +92,7 @@ type restoredDomainOwner struct {
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func (e *Engine) captureRestoredDomainOwner(op *Operation, created ObjectRef, owner authorization.PrincipalRef) (restoredDomainOwner, error) {
+func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (restoredDomainOwner, error) {
 	reject := func() (restoredDomainOwner, error) {
 		return restoredDomainOwner{}, sqlError("0A000", restoreDomainOwnerBoundary)
 	}
@@ -136,7 +137,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ObjectRef, ow
 
 func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair restoredDomainOwner) error {
 	reject := func() error { return sqlError("0A000", restoreDomainOwnerBoundary) }
-	if raw == nil || raw.Kind != "domain" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.ref == (ObjectRef{}) {
+	if raw == nil || raw.Kind != "domain" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.ref == (ids.ObjectRef{}) {
 		return reject()
 	}
 	current, err := e.captureRestoredDomainOwner(op, pair.ref, pair.owner)

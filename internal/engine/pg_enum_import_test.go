@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -43,7 +44,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	auth, err := source.authorizationLocked(op)
 	if err == nil {
 		stage = source.BeginCatalogStage(auth.catalog)
-		err = source.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = source.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	source.mu.Unlock()
 	if err != nil {

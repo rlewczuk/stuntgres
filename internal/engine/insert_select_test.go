@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -296,7 +297,7 @@ func TestInsertSelectIndependentACL(t *testing.T) {
 	source := roleTableRef(t, e, "s")
 	worker, _ := e.Roles().Lookup("worker")
 	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	grant := func(ref ObjectRef, mask authorization.Privileges) {
+	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)

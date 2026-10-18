@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func commentWant(t *testing.T, read CatalogRead, ref ObjectRef, want string) {
+func commentWant(t *testing.T, read CatalogRead, ref ids.ObjectRef, want string) {
 	t.Helper()
 	got, present, err := read.Comment(ref)
 	if err != nil || got != want || present != (want != "") {
@@ -47,7 +48,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	for _, tc := range []struct {
-		ref  ObjectRef
+		ref  ids.ObjectRef
 		text string
 	}{{table, "table"}, {a, "first"}, {b, "second"}, {ns, "schema"}} {
 		commentWant(t, e.CatalogRead(), tc.ref, tc.text)
@@ -75,7 +76,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 	commentWant(t, e.CatalogRead(), b, "")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.b IS ' '")
 	commentWant(t, e.CatalogRead(), b, " ")
-	for _, bad := range []ObjectRef{{}, New().domain.Ref(table.Epoch, table.Address), e.domain.Ref(table.Epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.domain.Ref(ns.Epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
+	for _, bad := range []ids.ObjectRef{{}, New().domain.Ref(table.Epoch, table.Address), e.domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
 		if _, _, err := e.CatalogRead().Comment(bad); err == nil {
 			t.Fatal("accepted invalid comment reference", bad)
 		}

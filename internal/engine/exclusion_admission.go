@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -17,18 +18,18 @@ type exclusionEntry struct {
 	admitted bool
 }
 type exclusionProjection struct {
-	entries map[ObjectAddress][]exclusionEntry
-	ended   map[ObjectAddress]map[RowID]VersionID
+	entries map[ids.ObjectAddress][]exclusionEntry
+	ended   map[ids.ObjectAddress]map[RowID]VersionID
 }
 type exclusionEvent struct {
-	parent, index ObjectRef
-	constraint    OID
+	parent, index ids.ObjectRef
+	constraint    ids.OID
 	row           RowID
 	version       VersionID
 }
 type exclusionModes struct {
 	allSet, allDeferred bool
-	byConstraint        map[OID]bool
+	byConstraint        map[ids.OID]bool
 	events              []exclusionEvent
 }
 
@@ -89,7 +90,7 @@ func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []s
 	return true, nil
 }
 func cloneExclusionProjection(old *exclusionProjection) *exclusionProjection {
-	p := &exclusionProjection{entries: make(map[ObjectAddress][]exclusionEntry), ended: make(map[ObjectAddress]map[RowID]VersionID)}
+	p := &exclusionProjection{entries: make(map[ids.ObjectAddress][]exclusionEntry), ended: make(map[ids.ObjectAddress]map[RowID]VersionID)}
 	if old != nil {
 		p.entries = maps.Clone(old.entries)
 		p.ended = maps.Clone(old.ended)
@@ -134,7 +135,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 	}
 	return row, nil
 }
-func (s *StatementScope) publishExclusionCandidate(ref ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, precheck bool, purpose indexProbePurpose) (rowVersion, error) {
+func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, precheck bool, purpose indexProbePurpose) (rowVersion, error) {
 	e := s.op.session.Engine()
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: CatalogRead{owner: e, state: binding.catalog}}
 	if binding.typeName != nil {
@@ -202,7 +203,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ObjectRef, binding *uniqu
 	s.installExclusionProjectionLocked(e, p)
 	return row, nil
 }
-func (s *StatementScope) discardExclusionCandidate(ref ObjectRef, proposal *indexWriteCandidate) {
+func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *indexWriteCandidate) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -262,14 +263,14 @@ type exclusionScan struct {
 	auth            AuthorizationView
 	view            CatalogRead
 	schema          string
-	parent          ObjectAddress
+	parent          ids.ObjectAddress
 	store           *relationStorage
 	storeGeneration uint64
 	versions        []rowVersion
 	ends            *deletionRoot
 }
 
-func (s *StatementScope) captureExclusionScan(ref ObjectRef, binding *uniqueWriteBinding, index *relationDescriptor) (exclusionScan, error) {
+func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *uniqueWriteBinding, index *relationDescriptor) (exclusionScan, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -302,7 +303,7 @@ func (s *StatementScope) captureExclusionScan(ref ObjectRef, binding *uniqueWrit
 	}
 	return exclusionScan{generation: e.exclusionGeneration, root: root, pending: maps.Clone(e.exclusionPending), auth: auth, view: view, schema: ns.name, parent: binding.parent.address, store: store, storeGeneration: store.generation, versions: store.versions, ends: store.ends}, nil
 }
-func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ObjectAddress) bool {
+func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.ObjectAddress) bool {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -315,7 +316,7 @@ func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ObjectAd
 	store := e.privateStorageLocked(s.owner.catalog, scan.parent)
 	return scan.generation == e.exclusionGeneration && scan.view.state == e.privateCatalogLocked(s.owner.catalog).state && scan.root == root && store == scan.store && store.generation == scan.storeGeneration && len(store.versions) == len(scan.versions) && store.ends == scan.ends
 }
-func (s *StatementScope) probeExclusion(ref ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, candidate rowVersion, recheck bool, purpose indexProbePurpose) (uniqueConflict, bool, error) {
+func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, candidate rowVersion, recheck bool, purpose indexProbePurpose) (uniqueConflict, bool, error) {
 	index := bound.index
 	for {
 		scan, err := s.captureExclusionScan(ref, binding, index)
@@ -445,7 +446,7 @@ func (s *StatementScope) probeExclusion(ref ObjectRef, binding *uniqueWriteBindi
 		return hit, potential, nil
 	}
 }
-func (s *StatementScope) probeExclusionRow(ref ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
 	index := bound.index
 	if action != nil && !slices.Contains(action.selected, index.address) {
 		return uniqueConflict{}, nil

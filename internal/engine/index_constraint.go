@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // A backing index owns a common constraint address, not a UNIQUE alias. Key and
 // timing semantics remain with their distinct immutable parent definitions.
 type backingConstraintKind uint8
@@ -10,9 +12,9 @@ const (
 )
 
 type backingConstraint struct {
-	OID     OID
+	OID     ids.OID
 	Name    string
-	Index   ObjectAddress
+	Index   ids.ObjectAddress
 	kind    backingConstraintKind
 	Primary bool // UNIQUE-family backing identity; EXCLUDE is never primary.
 }

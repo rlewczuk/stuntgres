@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,7 +18,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
-	return e, e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 }
 
 func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFunctionExpression {
@@ -41,8 +42,8 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
-	expected := map[string]OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
-	addresses := map[ObjectAddress]bool{}
+	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
+	addresses := map[ids.ObjectAddress]bool{}
 	for _, address := range ext.members {
 		member := view.state.descriptors[address].(*procedureDescriptor)
 		key := member.name + ":" + string(member.signature)
@@ -84,7 +85,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.volatility = Stable },
 		func(p *procedureDescriptor) { p.strict = false }, func(p *procedureDescriptor) { p.provider = stockUnaccent },
 		func(p *procedureDescriptor) { p.queryCodec = stockIntarray }, func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
-		func(p *procedureDescriptor) { p.namespace = ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ObjectAddress{} },
+		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
 		func(p *procedureDescriptor) { p.dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
 	} {
 		state := cloneCatalog(e.state)
@@ -95,7 +96,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
-	for _, members := range [][]ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: TypeClassID, ObjectID: proc.address.ObjectID}}} {
+	for _, members := range [][]ids.ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: TypeClassID, ObjectID: proc.address.ObjectID}}} {
 		bad := *ext
 		bad.members = members
 		if err := stockFuzzystrmatch.validate(view, &bad); err == nil {
@@ -103,7 +104,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		}
 	}
 	duplicate := *ext
-	duplicate.members = append([]ObjectAddress(nil), ext.members...)
+	duplicate.members = append([]ids.ObjectAddress(nil), ext.members...)
 	duplicate.members[4] = duplicate.members[1]
 	if err := stockFuzzystrmatch.validate(view, &duplicate); err == nil {
 		t.Fatal("full-size duplicate inventory admitted")
@@ -164,7 +165,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.name))
-		ext := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 		if err := stockFuzzystrmatch.validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
@@ -210,11 +211,11 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		}
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-	if err != nil || !reflect.DeepEqual(refs, []ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("dependency", refs, err)
 	}
 	consumer := &relationDescriptor{generations: map[int32]columnGeneration{
-		1: {expression: n, dependencies: []ObjectRef{n.ref}},
+		1: {expression: n, dependencies: []ids.ObjectRef{n.ref}},
 	}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal("installed generation procedure dependency", err)
@@ -223,7 +224,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	badRef.Address.SubID = 1
 	invalid := *consumer
 	invalid.generations = map[int32]columnGeneration{
-		1: {expression: n, dependencies: []ObjectRef{badRef}},
+		1: {expression: n, dependencies: []ids.ObjectRef{badRef}},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
@@ -303,8 +304,8 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.state.descriptors[target.state.names[NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
-	mapped, err := remapBoundExpression(old, func(ref ObjectRef) ObjectRef {
+	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == ext.members[0] {
 			ref.Address = imported.members[0]
 		}

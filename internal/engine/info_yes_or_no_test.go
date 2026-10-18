@@ -5,15 +5,16 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDescriptor {
 	t.Helper()
-	address := ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}
+	address := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}
 	d, ok := view.state.descriptors[address].(*typeDescriptor)
-	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
+	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
 	base, ok := view.LookupType(sqltype.VarChar)
@@ -124,7 +125,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	originalView := source.CatalogRead()
 	original := infoYesOrNoUnitCatalog(t, source, originalView)
 	next := cloneCatalog(originalView.state)
-	baseAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.VarChar)}
+	baseAddress := ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
 	base := *next.descriptors[baseAddress].(*typeDescriptor)
 	base.typ, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.descriptors[baseAddress] = &base

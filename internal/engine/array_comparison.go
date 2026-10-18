@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -206,7 +207,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 		if err != nil {
 			return nil, err
 		}
-		if selected.result != OID(sqltype.Bool) {
+		if selected.result != ids.OID(sqltype.Bool) {
 			return nil, expressionError("42809", "op ANY/ALL (array) requires operator to yield boolean", raw.Pos)
 		}
 		if err := requireBuiltinComparison(selected, raw.Pos); err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -189,7 +190,7 @@ func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []expressi
 // Aggregate/window carriers already contain the actual provenance-bearing ref.
 // Their admission is once per executable graph occurrence, including empty
 // inputs, and is independent of any comparator or aggregate support function.
-func admitRoutineReference(c *EvalContext, ref ObjectRef, noun string) error {
+func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error {
 	auth, dependencies, err := c.routineAdmissionAuthority()
 	if err != nil || auth.engine == nil {
 		return err

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -80,7 +81,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
+	if old.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	original := e.authorizationStorageLocked(auth, ref.Address)

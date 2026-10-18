@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -69,8 +70,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 20}].(*typeDescriptor).typ
-	oldBool := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 16}].(*typeDescriptor).typ
+	oldInt8 := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 20}].(*typeDescriptor).typ
+	oldBool := e.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: 16}].(*typeDescriptor).typ
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)
@@ -106,7 +107,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	previous := definition.sources[0].ref
 	definition.sources[0].ref = wref
-	root, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ObjectRef) ObjectRef {
+	root, err := remapViewQuery(New().CatalogRead(), definition.query.Root, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address.ClassID == RelationClassID && ref.Address.ObjectID == previous.Address.ObjectID {
 			ref.Address.ObjectID = wref.Address.ObjectID
 		}

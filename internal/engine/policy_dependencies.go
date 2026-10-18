@@ -6,11 +6,12 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func policyDepends(p policyDefinition, target ObjectAddress) bool {
+func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
 	for _, expr := range []*policyExpression{p.using, p.check} {
 		if expr == nil {
 			continue
@@ -29,11 +30,11 @@ func policyDepends(p policyDefinition, target ObjectAddress) bool {
 	}
 	return false
 }
-func policyDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress) []supportedDependent {
+func policyDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
 	return policyDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors))
 }
 
-func policyDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress, descriptors iter.Seq2[ObjectAddress, Descriptor]) []supportedDependent {
+func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -54,11 +55,11 @@ func policyDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, pat
 	}
 	return dependents
 }
-func stagePolicyDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func stagePolicyDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) error {
 	return stageDropProvider(context.Background(), stage, nil, nil, nil).policyDependents(targets, mode)
 }
 
-func (provider *dropProvider) policyDependents(targets []ObjectAddress, mode parser.DropMode) error {
+func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode parser.DropMode) error {
 	if mode == parser.DropRestrict {
 		return nil
 	}
@@ -102,7 +103,7 @@ func (provider *dropProvider) policyDependents(targets []ObjectAddress, mode par
 	}
 	return nil
 }
-func policyTypeChangeError(catalog CatalogRead, target ObjectAddress) error {
+func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error {
 	var owners []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {
 		if d, ok := descriptor.(*relationDescriptor); ok {
@@ -123,7 +124,7 @@ func policyTypeChangeError(catalog CatalogRead, target ObjectAddress) error {
 			if !policyDepends(p, target) {
 				continue
 			}
-			provider := catalog.state.descriptors[ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID}].(*relationDescriptor)
+			provider := catalog.state.descriptors[ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID}].(*relationDescriptor)
 			column := ""
 			for i, a := range provider.attributes {
 				if a == target.SubID {

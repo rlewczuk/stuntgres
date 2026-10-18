@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -79,7 +80,7 @@ const (
 
 type aggregateCall struct {
 	provider     aggregateProvider
-	routine      ObjectRef // Selected owning declaration; fresh caller ACL at admission.
+	routine      ids.ObjectRef // Selected owning declaration; fresh caller ACL at admission.
 	argument     BoundExpr
 	separator    BoundExpr
 	direct       []BoundExpr
@@ -90,7 +91,7 @@ type aggregateCall struct {
 	operation    aggregateOperation
 	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
 	procedure    *procedureDescriptor
-	ref          ObjectRef
+	ref          ids.ObjectRef
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -15,7 +16,7 @@ func truncateUnitAST(names ...string) *parser.Truncate {
 	}
 	return stmt
 }
-func truncateUnitFixture(t *testing.T) (*Engine, *Session, ObjectRef, ObjectRef) {
+func truncateUnitFixture(t *testing.T) (*Engine, *Session, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -66,7 +67,7 @@ func TestTruncateGeneration(t *testing.T) {
 			versions, ends, generation := originalP.versions, originalP.ends, originalP.generation
 			descriptor, frontier := e.state.descriptors[p.Address], e.commitSeq
 			scope := truncateUnitStage(t, e, s, "p", "q")
-			for _, ref := range []ObjectRef{p, q} {
+			for _, ref := range []ids.ObjectRef{p, q} {
 				shape := scope.catalog.storage[ref.Address]
 				if shape.original != e.storage[ref.Address] || len(shape.replacement.versions) != 0 || shape.replacement.ends != nil || !shape.truncated || !shape.rewritten || shape.replacement.generation != shape.original.generation+1 {
 					t.Fatal("not an empty generation replacement", shape)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -198,7 +199,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	if err := s.acquireSerializableSnapshot(); err != nil {
 		return err
 	}
-	needsProjection := func(roots map[ObjectAddress]transactionRoot) bool {
+	needsProjection := func(roots map[ids.ObjectAddress]transactionRoot) bool {
 		if !stableIsolation(t.isolation) || t.catalog == nil {
 			return false
 		}
@@ -237,7 +238,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 			e.mu.Unlock()
 			return err
 		}
-		roots = make(map[ObjectAddress]transactionRoot, len(e.storage))
+		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
 			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}

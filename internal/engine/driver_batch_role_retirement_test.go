@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -62,7 +63,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						}
 					}
 				}
-				var address ObjectAddress
+				var address ids.ObjectAddress
 				var descriptor Descriptor
 				switch dependency {
 				case "schema":
@@ -118,7 +119,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if err == nil || dependency != "registered" && !errors.Is(err, ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.state != base || e.roles != roles || e.commitSeq != frontier || address != (ObjectAddress{}) && e.state.descriptors[address] != descriptor {
+				if e.state != base || e.roles != roles || e.commitSeq != frontier || address != (ids.ObjectAddress{}) && e.state.descriptors[address] != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {

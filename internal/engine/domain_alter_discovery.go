@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -21,16 +22,16 @@ type domainValidationUse struct {
 // The observation is the incoming type-use graph, not a catalog-wide epoch
 // comparison. Unrelated declarations can publish without replaying CHECK truth.
 type domainValidationFence struct {
-	target          ObjectAddress
-	objects         map[ObjectAddress]Descriptor
+	target          ids.ObjectAddress
+	objects         map[ids.ObjectAddress]Descriptor
 	uses            []domainValidationUse
-	path            []ObjectAddress
+	path            []ids.ObjectAddress
 	reads           []*relationDescriptor
 	allowContainers bool // Committed predecessors may be hidden by prior own DDL.
 }
 
-func domainUsesAt(view CatalogRead, target ObjectAddress, path []ObjectAddress) (*domainValidationFence, error) {
-	fence := &domainValidationFence{target: target, objects: make(map[ObjectAddress]Descriptor), path: path}
+func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
+	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]Descriptor), path: path}
 	cache := make(map[sqltype.ID]sqltype.ID)
 	active := make(map[sqltype.ID]bool)
 	var contains func(sqltype.ID) (sqltype.ID, error)
@@ -41,7 +42,7 @@ func domainUsesAt(view CatalogRead, target ObjectAddress, path []ObjectAddress) 
 		if active[id] {
 			return 0, fmt.Errorf("stuntgres: cyclic domain use graph")
 		}
-		d, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
+		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing domain use type")
 		}
@@ -58,7 +59,7 @@ func domainUsesAt(view CatalogRead, target ObjectAddress, path []ObjectAddress) 
 			}
 		case d.typ.IsArray():
 			found, err = contains(d.typ.Element().ID())
-		case d.owningRelation != (ObjectAddress{}):
+		case d.owningRelation != (ids.ObjectAddress{}):
 			relation, ok := view.state.descriptors[d.owningRelation].(*relationDescriptor)
 			if !ok {
 				return 0, fmt.Errorf("stuntgres: missing domain use rowtype owner")
@@ -125,7 +126,7 @@ func domainUsesAt(view CatalogRead, target ObjectAddress, path []ObjectAddress) 
 					columns = append(columns, i)
 				}
 			} else if stored {
-				d := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(found)}].(*typeDescriptor)
+				d := view.state.descriptors[ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(found)}].(*typeDescriptor)
 				name := typeDiagnosticNameAt(view, d, path)
 				if blocker == nil {
 					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.name+"."+column.Name))
@@ -139,9 +140,9 @@ func domainUsesAt(view CatalogRead, target ObjectAddress, path []ObjectAddress) 
 	return fence, blocker
 }
 
-func domainDescendsFrom(typ *sqltype.Descriptor, target OID) bool {
+func domainDescendsFrom(typ *sqltype.Descriptor, target ids.OID) bool {
 	for typ.IsDomain() {
-		if OID(typ.ID()) == target {
+		if ids.OID(typ.ID()) == target {
 			return true
 		}
 		typ = typ.DomainBase().Type
@@ -152,7 +153,7 @@ func domainGraphEqual(a, b *domainValidationFence) bool {
 	return a.target == b.target && maps.Equal(a.objects, b.objects)
 }
 
-func (f *domainValidationFence) current(view CatalogRead, storage map[ObjectAddress]*relationStorage) bool {
+func (f *domainValidationFence) current(view CatalogRead, storage map[ids.ObjectAddress]*relationStorage) bool {
 	next, err := domainUsesAt(view, f.target, f.path)
 	if next == nil || err != nil && !f.allowContainers || !maps.Equal(f.objects, next.objects) {
 		return false

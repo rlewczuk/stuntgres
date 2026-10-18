@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -13,13 +14,13 @@ import (
 
 // Constraint and backing relation are separate identities published together.
 type uniqueConstraint struct {
-	OID              OID
+	OID              ids.OID
 	Name             string
 	Attributes       []int32
 	Primary          bool
 	NullsNotDistinct bool
-	Index            ObjectAddress
-	Parent           OID
+	Index            ids.ObjectAddress
+	Parent           ids.OID
 	IsLocal          bool
 }
 
@@ -157,8 +158,8 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		// An existing backing relation wins over a same-named local NN/CHECK
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
-			key := NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
-			if stage.lookupName(key) != (ObjectAddress{}) {
+			key := ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
+			if stage.lookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -166,8 +167,8 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, c.Name, d.name))
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
-		key := NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
-		if stage.lookupName(key) != (ObjectAddress{}) {
+		key := ids.NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: c.Name}
+		if stage.lookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		for _, index := range indices {
@@ -185,7 +186,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		if err != nil {
 			return err
 		}
-		c.Index = ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+		c.Index = ids.ObjectAddress{ClassID: RelationClassID, ObjectID: id}
 		revision, err := e.revisionLocked()
 		if err != nil {
 			return err
@@ -197,7 +198,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.sqlIndex
 			definition.parent, definition.constraint = d.address, uniqueBacking(c)
-			definition.partitionParent = ObjectAddress{}
+			definition.partitionParent = ids.ObjectAddress{}
 			definition.ready, definition.valid, definition.live = true, true, true
 			definition.keys = slices.Clone(source.sqlIndex.keys)
 			for j := range definition.keys {
@@ -286,7 +287,7 @@ func uniqueHasNull(key []sqltype.Value) bool {
 }
 
 // DDL ownership is independent of ordinary key SELECT disclosure rights.
-func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexKey) (bool, error) {
+func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []indexKey) (bool, error) {
 	// RLS applicability is captured metadata/role authority, not a policy-row
 	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
 	descriptor, ok := auth.catalog.Descriptor(ref.Address)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Delayed virtual definitions own a local constraint origin. Recursive UNIQUE
@@ -12,7 +14,7 @@ func partitionReplayVirtualUniqueRoot(view CatalogRead, index *relationDescripto
 	if index.sqlIndex == nil || index.sqlIndex.constraint == nil {
 		return nil
 	}
-	for index.sqlIndex.partitionParent != (ObjectAddress{}) {
+	for index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 		index = view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
 		if index.sqlIndex.constraint == nil {
 			return nil
@@ -32,7 +34,7 @@ func partitionReplaySeparateConstraint(view CatalogRead, index *relationDescript
 // ONLY declarations create just the local origin. Captured covered providers
 // are created later by their table membership, never by index attachment.
 func partitionReplayOnlyExclusion(index *relationDescriptor) bool {
-	return index.sqlIndex != nil && index.sqlIndex.isExclusion() && !index.sqlIndex.valid && index.sqlIndex.partitionParent == (ObjectAddress{})
+	return index.sqlIndex != nil && index.sqlIndex.isExclusion() && !index.sqlIndex.valid && index.sqlIndex.partitionParent == (ids.ObjectAddress{})
 }
 
 func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dumpEventKey {
@@ -43,13 +45,13 @@ func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dum
 	// UNIQUE can adopt a provider declared on the standalone child before
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
-	if !index.sqlIndex.isExclusion() || index.sqlIndex.partitionParent == (ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
-		oid, _ := dumpPredecessor(view, index.address, ObjectAddress{})
+	if !index.sqlIndex.isExclusion() || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
+		oid, _ := dumpPredecessor(view, index.address, ids.ObjectAddress{})
 		return dumpEventKey{oid: oid}
 	}
 	table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	creator := dumpEventKey{oid: table.address.ObjectID}
-	for index.sqlIndex.partitionParent != (ObjectAddress{}) {
+	for index.sqlIndex.partitionParent != (ids.ObjectAddress{}) {
 		table = view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 		if partitionDumpNeedsAttach(view, table) {
 			creator = dumpEventKey{oid: table.address.ObjectID, phase: dumpTableAttachment}

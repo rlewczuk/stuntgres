@@ -1,10 +1,12 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // routineIdentity is lookup-only metadata. It is deliberately not a Descriptor:
 // finding a routine alias must never grant execution or expand pg_proc SQL rows.
 type routineIdentity struct {
-	id        OID
-	namespace OID
+	id        ids.OID
+	namespace ids.OID
 	name      string
 	signature procedureSignature
 }
@@ -15,8 +17,8 @@ type routineKey struct {
 
 var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
 
-func indexBuiltinRoutines() (map[OID]routineIdentity, map[string][]routineIdentity, map[routineKey]routineIdentity) {
-	byOID := make(map[OID]routineIdentity, len(builtinRoutineIdentities))
+func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineIdentity, map[routineKey]routineIdentity) {
+	byOID := make(map[ids.OID]routineIdentity, len(builtinRoutineIdentities))
 	byName := make(map[string][]routineIdentity)
 	bySignature := make(map[routineKey]routineIdentity, len(builtinRoutineIdentities))
 	for _, p := range builtinRoutineIdentities {
@@ -27,8 +29,8 @@ func indexBuiltinRoutines() (map[OID]routineIdentity, map[string][]routineIdenti
 	return byOID, byName, bySignature
 }
 
-func routineIdentityByOID(view CatalogRead, id OID) (routineIdentity, bool) {
-	if p, ok := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
+func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) {
+	if p, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
 		return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, true
 	}
 	if p, ok := routineByOID[id]; ok {
@@ -44,7 +46,7 @@ func routineIdentityByOID(view CatalogRead, id OID) (routineIdentity, bool) {
 	return routineIdentity{}, false
 }
 
-func routineNamespaceVisible(view CatalogRead, namespace ObjectAddress) bool {
+func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool {
 	ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor)
 	return ok && ns.temporary == (SessionToken{})
 }

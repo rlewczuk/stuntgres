@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -66,7 +67,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
-	key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := ids.NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if _, exists := auth.catalog.state.names[key]; exists {
 		e.mu.Unlock()
 		if s.IfNotExists {
@@ -217,7 +218,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if len(stage.initialTables) > 0 {
 		if scope.stage.rows == nil {
-			scope.stage.rows = make(map[ObjectAddress][]rowVersion, len(stage.initialTables))
+			scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion, len(stage.initialTables))
 		}
 		for a, store := range stage.initialTables {
 			scope.stage.rows[a] = store.versions
@@ -298,10 +299,10 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for address, candidate := range stage.indexCandidates {
 		if changes.indexCandidates == nil {
-			changes.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+			changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}
 		if changes.uniqueRoots == nil {
-			changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
+			changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
 		}
 		changes.indexCandidates[address], changes.uniqueRoots[address] = candidate, candidate.root
 	}
@@ -345,13 +346,13 @@ func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
 		rows, deletes = s.stage.rows, s.stage.deletes
 	}
 	s.projectedRoots = true
-	s.stage.rows = make(map[ObjectAddress][]rowVersion, len(rows))
+	s.stage.rows = make(map[ids.ObjectAddress][]rowVersion, len(rows))
 	for a, values := range rows {
 		if _, removed := stage.removals[a]; !removed {
 			s.stage.rows[a] = values
 		}
 	}
-	s.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot, len(deletes))
+	s.stage.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot, len(deletes))
 	for a, root := range deletes {
 		if _, removed := stage.removals[a]; !removed {
 			s.stage.deletes[a] = root

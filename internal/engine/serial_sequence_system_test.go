@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	f.table.columns[0].Name = "ctid"
 	delete(f.table.index, "ID")
 	f.table.index["ctid"] = 0
-	f.sequence.sequence.owned = ObjectAddress{}
+	f.sequence.sequence.owned = ids.ObjectAddress{}
 	text := f.node.ResultUsage().Type
 	f.node.args[1] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "ctid")}
 	value, err := f.node.Eval(f.context)

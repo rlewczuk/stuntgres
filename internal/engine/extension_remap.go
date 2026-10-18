@@ -4,11 +4,12 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddress) Descriptor {
-	address := func(a ObjectAddress) ObjectAddress {
+func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) Descriptor {
+	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
 			return next
 		}
@@ -24,11 +25,11 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n.extension = next
 		return &n
 	case *relationDescriptor:
-		var addresses []ObjectAddress
+		var addresses []ids.ObjectAddress
 		for i, a := range d.autoExtensions {
 			next := address(a)
 			if next != a && addresses == nil {
-				addresses = append([]ObjectAddress(nil), d.autoExtensions...)
+				addresses = append([]ids.ObjectAddress(nil), d.autoExtensions...)
 			}
 			if addresses != nil {
 				addresses[i] = next
@@ -45,7 +46,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n := *d
 		n.address = address(n.address)
 		n.targetNamespace = address(n.targetNamespace)
-		var members []ObjectAddress
+		var members []ids.ObjectAddress
 		for i, a := range d.members {
 			mapped := address(a)
 			if mapped != a && members == nil {
@@ -71,11 +72,11 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n.aggregate = remapOwnedAggregate(d.aggregate, n.address, n.namespace, mapping)
 		if n.queryCodec != nil {
 			if n.name == "bqarr_in" {
-				n.result = address(ObjectAddress{ClassID: TypeClassID, ObjectID: n.result}).ObjectID
+				n.result = address(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: n.result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.signature), 10, 32); err == nil {
-					next := address(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(oid)})
-					if next.ObjectID != OID(oid) {
+					next := address(ids.ObjectAddress{ClassID: TypeClassID, ObjectID: ids.OID(oid)})
+					if next.ObjectID != ids.OID(oid) {
 						n.signature = queryIntSignature(sqltype.ID(next.ObjectID))
 					}
 				}

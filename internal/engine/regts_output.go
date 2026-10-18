@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,14 +13,14 @@ type regTSOutputKey struct {
 	alias sqltype.ID
 }
 
-func regTSSpelling(view CatalogRead, path []ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
+func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
 	if alias != sqltype.Regdictionary {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	d, ok := view.state.descriptors[ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: OID(id)}].(*tsDictionaryDescriptor)
+	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: ids.OID(id)}].(*tsDictionaryDescriptor)
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -29,8 +30,8 @@ func regTSSpelling(view CatalogRead, path []ObjectAddress, id uint32, alias sqlt
 			if namespace, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
 				continue
 			}
-			address := view.state.names[NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]
-			if address != (ObjectAddress{}) {
+			address := view.state.names[ids.NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: d.name}]
+			if address != (ids.ObjectAddress{}) {
 				visible = address == d.address
 				break
 			}
@@ -76,7 +77,7 @@ func (r *finalRows) FormatRegconfig(id uint32) (string, error) {
 func (r *finalRows) FormatRegdictionary(id uint32) (string, error) {
 	return r.formatRegTS(id, sqltype.Regdictionary)
 }
-func captureRegTSOutputValue(rows *finalRows, view CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+func captureRegTSOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}

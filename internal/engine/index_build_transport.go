@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type indexRowIdentity struct {
@@ -60,10 +62,10 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescr
 
 func retainIndexBuild(changes *catalogChanges, index *relationDescriptor, baseline *relationStorage, root *logicalIndexRoot) {
 	if changes.uniqueRoots == nil {
-		changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
+		changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
 	}
 	if changes.indexCandidates == nil {
-		changes.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+		changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 	}
 	changes.uniqueRoots[index.address] = root
 	changes.indexCandidates[index.address] = indexRootCandidate{index: index, root: root, storage: indexStorageIdentity(baseline), generation: baseline.generation, ends: baseline.ends, length: len(baseline.versions)}
@@ -101,7 +103,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 		if !ok {
 			continue
 		}
-		var outputs map[ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]indexRowOutput
 		for _, build := range builds {
 			if len(build.outputs) == 0 {
 				continue
@@ -119,7 +121,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 			if outputs == nil {
 				outputs = maps.Clone(row.indexOutputs)
 				if outputs == nil {
-					outputs = make(map[ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]indexRowOutput)
 				}
 			}
 			outputs[build.index.address] = output

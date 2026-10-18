@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -11,10 +12,10 @@ import (
 )
 
 type exclusionConstraint struct {
-	OID                           OID
+	OID                           ids.OID
 	Name                          string
-	Index                         ObjectAddress
-	Parent                        OID
+	Index                         ids.ObjectAddress
+	Parent                        ids.OID
 	IsLocal                       bool
 	Operators                     []sqltype.ExclusionOperator
 	Deferrable, InitiallyDeferred bool
@@ -72,7 +73,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		}
 		visible := false
 		for j := range path.count() {
-			if path.at(j) == (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
+			if path.at(j) == (ids.ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
 				visible = true
 				break
 			}
@@ -114,7 +115,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		name = generatedConstraintName(parent.name, strings.Join(labels, "_"), "excl", used)
 	} else {
 		if _, altering := stage.base.state.descriptors[parent.address]; altering {
-			if auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}] != (ObjectAddress{}) {
+			if auth.catalog.state.names[ids.NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name}] != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
@@ -159,7 +160,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err != nil {
 		return err
 	}
-	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
+	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	definition.constraint = exclusionBacking(&c)
 	definition.exclusion = operators
 	if err := partitionUniqueCoverage(parent, definition); err != nil {

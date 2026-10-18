@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,7 +17,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, parentStage)
 	inherit := func(d *relationDescriptor) {
-		d.inheritance = &tableInheritance{parents: []ObjectAddress{p.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+		d.inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
@@ -24,7 +25,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
-	ref := func(d *relationDescriptor) ObjectRef {
+	ref := func(d *relationDescriptor) ids.ObjectRef {
 		return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	originalRef := ref(c)
@@ -109,7 +110,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admitted := map[ObjectRef]bool{}
+	admitted := map[ids.ObjectRef]bool{}
 	for _, leaf := range scope.inheritanceRelations {
 		admitted[leaf.ref] = true
 	}
@@ -117,7 +118,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal("late identity omitted from final physical manifest", admitted)
 	}
 	e.locks.mu.Lock()
-	for _, physical := range []ObjectRef{originalRef, lateRef} {
+	for _, physical := range []ids.ObjectRef{originalRef, lateRef} {
 		entry := e.locks.entries[lockResource{ObjectRef: physical}]
 		if entry == nil || entry.holders[scope.ticket].mode&accessShare == 0 {
 			e.locks.mu.Unlock()
