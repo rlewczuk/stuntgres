@@ -198,7 +198,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				}
 			}
 			if kind == "reset" || kind == "restore" {
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			} else {

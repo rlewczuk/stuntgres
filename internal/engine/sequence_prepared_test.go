@@ -415,7 +415,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 			r.Rows.Close()
 			t.Fatal("fenced authority returned cursor")
 		}
-		if !errors.Is(err, ErrCatalogReplaced) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("replacement provenance was rescued", err)
 		}
 	}

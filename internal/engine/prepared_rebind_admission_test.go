@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					early = e.catalog.domain.Ref(e.catalog.state.epoch, address)
 					e.mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)
-					if err := e.locks.Acquire(context.Background(), ddl.transactions.ticket, lockResource{ObjectRef: early}, accessExclusive); err != nil {
+					if err := e.locks.Acquire(context.Background(), ddl.transactions.ticket, lock.Resource{ObjectRef: early}, lock.AccessExclusive); err != nil {
 						t.Fatal(err)
 					}
 					earlyHeld = true
@@ -109,7 +110,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					sessionSQL(t, ddl, "ALTER TABLE b.t ADD unused INT")
 				}
 				holderRef := transactionBegin(t, holder)
-				if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: late}, accessExclusive); err != nil {
+				if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: late}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
 				}
 				if action == "grant_definition" {
@@ -150,12 +151,12 @@ func TestPreparedRebindAdmission(t *testing.T) {
 						t.Fatal("cancellation leaked result/publication", out)
 					}
 				} else if action == "shadow_during_wait" {
-					if !errors.Is(out.err, ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
 						t.Fatal("new shadow during admission crossed native conflict fence", out)
 					}
 					transactionRows(t, caller, "SELECT v FROM b.t")
 				} else if action == "reset" || action == "restore" {
-					if !errors.Is(out.err, ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
 						t.Fatal("admitted replacement retargeted/published", out)
 					}
 					if action == "reset" {

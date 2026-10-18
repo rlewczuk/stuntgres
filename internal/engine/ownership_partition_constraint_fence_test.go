@@ -190,7 +190,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					return
 				}
 				var conflict CatalogConflict
-				if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)

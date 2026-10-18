@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -37,7 +38,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		if current.Epoch() != auth.catalog.Epoch() {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		targets := inheritanceAlterOrder(current, state.root)
 		e.mu.Unlock()
@@ -57,7 +58,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			ref := original.lockedRef
 			ref.Address = observed.address
 			if !locked[observed.address] {
-				if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+				if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 					return err
 				}
 				locked[observed.address] = true
@@ -67,7 +68,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			actual, _ := actualCatalog.Relation(observed.address)
 			if actualCatalog.Epoch() != auth.catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			currentAuth, err := e.statementAuthorizationLocked(op, raw)
 			if err == nil && !preparatory && (index == 0 || inheritanceEntryOwner(incoming)) {

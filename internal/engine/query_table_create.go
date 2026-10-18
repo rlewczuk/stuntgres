@@ -168,7 +168,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 		return errors.New("stuntgres: invalid initial table stage")
 	}
 	if stage.base.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	// A demanded producer can enroll reads even when every row is filtered out.
 	// NO DATA and existing-target skips never attach a producer transaction.

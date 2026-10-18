@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -34,7 +35,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	}
 	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil {
 		op.restorePartitionCheck = d

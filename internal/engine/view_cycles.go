@@ -36,7 +36,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		for _, leaf := range d.view.sources {
 			child, ok := catalog.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			if err := visit(child); err != nil {
 				return err
@@ -52,7 +52,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		}
 		current, ok := catalog.Relation(leaf.relation.address)
 		if !ok {
-			return false, ErrCatalogReplaced
+			return false, ids.ErrCatalogReplaced
 		}
 		if err := visit(current); err != nil {
 			return false, err

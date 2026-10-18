@@ -70,7 +70,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				op := transactionOperation(t, s)
 				_, err := e.Commit(op, ref)
 				op.Done()
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "foreign_ref":

@@ -24,14 +24,14 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 // Identity/metadata providers do not acquire another session's stored TEMP data.
 func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) error {
 	if relation == nil {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if !relation.relationKind.stored() {
 		return nil
 	}
 	namespace, ok := catalog.Namespace(relation.namespace)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token {
 		return sqlError("0A000", "cannot access temporary tables of other sessions")
@@ -44,7 +44,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
 	if auth.engine != e || catalog.owner != e.catalog.owner() || catalog.state == nil {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	// Authorize every executable view occurrence before admitting any physical
 	// source or target. Only the recursion path detects cycles; shared views
@@ -54,7 +54,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
 		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if relation.relationKind != viewRelation {
 			return nil
@@ -100,7 +100,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	for _, ref := range refs {
 		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
 			return nil, err
@@ -111,7 +111,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	collect = func(ref ids.ObjectRef, only bool) error {
 		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if relation.relationKind == viewRelation {
 			if visited[ref] {
@@ -138,7 +138,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			for _, address := range relation.partition.children {
 				child, ok := catalog.Relation(address)
 				if !ok {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				if err := collect(ref.Domain().Ref(ref.Epoch, address), child.partition == nil); err != nil {
 					return err

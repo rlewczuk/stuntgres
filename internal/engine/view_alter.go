@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -70,7 +71,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.catalog.MustRelation(ref.Address)
 	if err = alterViewAuthority(auth, ref, s); err != nil {
@@ -97,7 +98,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		}
 		extension, _ = auth.catalog.Extension(address)
 		if extension == nil {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		slot := sort.Search(len(old.autoExtensions), func(i int) bool { return old.autoExtensions[i].ObjectID >= address.ObjectID })
 		present := slot < len(old.autoExtensions) && old.autoExtensions[slot] == address
@@ -263,9 +264,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	epoch := auth.catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
 	for _, ref := range refs {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
 			if scope.replacementRead {
 				e.replacementMu.RUnlock()
@@ -289,13 +290,13 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	if epoch != auth.catalog.Epoch() {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		if err := viewDropOwner(auth, ref, d); err != nil {
 			e.mu.Unlock()
@@ -334,7 +335,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	sort.Slice(cascade, func(i, j int) bool { return cascade[i].Address.ObjectID < cascade[j].Address.ObjectID })
 	for _, ref := range cascade {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
 			err = request.Wait()
 		}

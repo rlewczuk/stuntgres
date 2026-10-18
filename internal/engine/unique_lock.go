@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,10 +23,10 @@ func (k *uniqueKeyValues) OwnedKey() any { return slices.Clone(k.values) }
 
 // pinUniqueKey hashes the claimed values, then pins their interned lock
 // resource. Hashing and comparison run outside every metadata mutex.
-func (e *Engine) pinUniqueKey(ctx context.Context, ticket *relationTicket, ref ids.ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lockResource, func(), error) {
+func (e *Engine) pinUniqueKey(ctx context.Context, ticket *lock.Ticket, ref ids.ObjectRef, ordering indexOrdering, grouping []sqltype.Grouping, values []sqltype.Value) (lock.Resource, func(), error) {
 	hash, err := uniqueKeyHash(ctx, ordering, grouping, values)
 	if err != nil {
-		return lockResource{}, nil, err
+		return lock.Resource{}, nil, err
 	}
 	return e.locks.PinUniqueKey(ctx, ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: values})
 }
@@ -59,8 +60,8 @@ func (s *StatementScope) acquireUnique(ref ids.ObjectRef, bound *uniqueBoundKey,
 		return err
 	}
 	defer unpin()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, uniqueClaim, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, lock.UniqueClaim, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()

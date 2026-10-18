@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -134,7 +135,7 @@ func (s *StatementScope) Finish(err error) error {
 				session.mu.Lock()
 				err = publicationOperationLocked(e, s.op)
 				if err == nil && t.ref.Epoch() != e.catalog.state.epoch {
-					err = ErrCatalogReplaced
+					err = ids.ErrCatalogReplaced
 				}
 				if err == nil && s.catalog != nil {
 					err = e.catalogPreflightLocked(catalog)
@@ -171,7 +172,7 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-	var endedTicket *relationTicket
+	var endedTicket *lock.Ticket
 	if t.state == TxImplicit && (!t.retainsTransaction() || err != nil) {
 		t.session.settings.finishTransaction(err == nil)
 		e.endSerializable(t.ref, err == nil)
@@ -180,7 +181,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.clear()
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
-		if errors.Is(err, ErrCatalogReplaced) {
+		if errors.Is(err, ids.ErrCatalogReplaced) {
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.clear()...)
 			t.truncateSavepoints(0)
 		}

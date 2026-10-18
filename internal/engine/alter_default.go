@@ -21,7 +21,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	ref, err := e.resolveReference(auth, s.Name)
 	if err == nil && ref != scope.lockedRef {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})

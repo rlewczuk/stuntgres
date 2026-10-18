@@ -116,7 +116,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						err = end
 					}
 				}
-				if err == nil || dependency != "registered" && !errors.Is(err, ErrCatalogReplaced) {
+				if err == nil || dependency != "registered" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
 				if e.catalog.state != base || e.roles != roles || e.commitSeq != frontier || address != (ids.ObjectAddress{}) && e.catalog.state.Get(address) != descriptor {

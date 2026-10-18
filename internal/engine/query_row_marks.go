@@ -3,15 +3,16 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
 // Strength and wait precedence are independent. A manifest belongs to a bound
 // query occurrence, never to its physical relation or column namespace.
 type queryRowMark struct {
-	mode           relationLockMode
+	mode           lock.Mode
 	wait           parser.RowLockWait
-	diagnosticMode relationLockMode
+	diagnosticMode lock.Mode
 	// One-based first insertion order, independent of FROM order and upgrades.
 	order int
 }
@@ -60,7 +61,7 @@ func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
 	return a
 }
 
-func queryRowDiagnostic(mark queryRowMark) relationLockMode {
+func queryRowDiagnostic(mark queryRowMark) lock.Mode {
 	if mark.diagnosticMode != 0 {
 		return mark.diagnosticMode
 	}

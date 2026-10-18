@@ -14,15 +14,15 @@ import (
 
 // The phase witness is an actual completion request owned by the builder, not
 // worker start, a timing delay, or descriptor visibility standing in for a queue.
-func concurrentUnitCompletion(t *testing.T, e *Engine, owner *relationTicket, builder *Session) *relationRequest {
+func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, builder *Session) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		var found *relationRequest
+		var found *lock.Request
 		if entry := lockState.Resources[lock.CompletionOf(owner)]; entry != nil {
 			for _, request := range entry.Pending {
-				if !request.Terminal && request.Ticket.Ref().Session() == builder.token && request.Mode == transactionCompletion {
+				if !request.Terminal && request.Ticket.Ref().Session() == builder.token && request.Mode == lock.TransactionCompletion {
 					found = request.Request
 					break
 				}

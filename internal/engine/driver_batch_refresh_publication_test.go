@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
@@ -176,7 +178,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			if err == nil || e.catalog.state != state || e.storage[target.Address] != store || e.commitSeq != frontier || e.indexRoots[index.Address] != indexRoot || e.indexRoots[pending.Address] != nil || len(e.storage[source.Address].versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
-			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ErrCatalogReplaced) {
+			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("publication primary changed", err)
 			}
 			for _, row := range replacement.versions {

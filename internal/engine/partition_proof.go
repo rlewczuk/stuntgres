@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -82,7 +83,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	for i, column := range parent.columns {
 		slot, ok := relation.index[column.Name]
 		if !ok {
-			return false, ErrCatalogReplaced
+			return false, ids.ErrCatalogReplaced
 		}
 		in.targetSlots[i] = slot
 	}

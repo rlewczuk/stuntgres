@@ -101,7 +101,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	if s.databasePredecessor != nil {
 		if current.Get(currentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if original, ok := c.originals[currentDatabaseAddress]; ok && original != s.databasePredecessor {
 			return CatalogConflict{}
@@ -303,7 +303,7 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
 	}
 	if token.Epoch != p.epoch {
-		return ChangeSet{}, ErrCatalogReplaced
+		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
 	if err := e.stageCatalogOverlay(scope, p.stage, cloneCatalogChanges(scope.owner.catalog)); err != nil {
 		return ChangeSet{}, err

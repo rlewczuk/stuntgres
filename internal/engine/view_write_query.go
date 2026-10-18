@@ -33,7 +33,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 	}
 	mapOccurrence := func(occurrence int) (int, error) {
 		if occurrence < 0 || occurrence >= len(definition.sources) {
-			return 0, ErrCatalogReplaced
+			return 0, ids.ErrCatalogReplaced
 		}
 		key := viewWriteOccurrence{definition, occurrence}
 		slot, found := w.queryOccurrences[key]
@@ -41,7 +41,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 			leaf := definition.sources[occurrence]
 			relation, ok := view.Relation(leaf.ref.Address)
 			if !ok {
-				return 0, ErrCatalogReplaced
+				return 0, ids.ErrCatalogReplaced
 			}
 			slot = len(b.querySources)
 			if w.queryOccurrences == nil {

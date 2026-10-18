@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 type advisoryScopeOutcome struct{ err, finish error }
 
-func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource, lifetime advisoryLifetime) (*relationTicket, ids.TxRef, <-chan advisoryScopeOutcome) {
+func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime advisoryLifetime) (*lock.Ticket, ids.TxRef, <-chan advisoryScopeOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)
@@ -35,7 +36,7 @@ func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource, lifetime 
 	done := make(chan advisoryScopeOutcome, 1)
 	joined := make(chan struct{})
 	go func() {
-		_, err := scope.acquireAdvisory(op.Context(), key, advisoryExclusive, lifetime, false)
+		_, err := scope.acquireAdvisory(op.Context(), key, lock.AdvisoryExclusive, lifetime, false)
 		finish := scope.Finish(err)
 		op.Done()
 		done <- advisoryScopeOutcome{err, finish}
@@ -118,9 +119,9 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lockResource{Kind: advisoryBigintResource, High: 0x80000000, Low: 9}
-			advisoryUnitGrant(t, a, ra, key, advisoryShared)
-			advisoryUnitGrant(t, b, rb, key, advisoryShared)
+			key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
+			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
+			advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
 			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 			m := e.locks
@@ -139,7 +140,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 						e.replacementMu.Unlock()
 					}
 				})
-				advisoryUnitUnlock(t, a, key, advisoryShared, true)
+				advisoryUnitUnlock(t, a, key, lock.AdvisoryShare, true)
 				granted := request.Terminal() && request.Err() == nil
 				count := m.Inspect().Resources[key].Holders[b.advisory.ticket]
 				if !granted || count.Shared != 1 || count.Exclusive != 1 {
@@ -158,7 +159,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			advisoryUnitScopeResult(t, done, ErrCatalogReplaced)
+			advisoryUnitScopeResult(t, done, ids.ErrCatalogReplaced)
 			lockState = m.Inspect(ticket)
 			liveSource := lockState.Valid(ticket)
 			journal := len(lockState.Journals[ticket])
@@ -172,7 +173,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				t.Fatal("fence crossed physical lifetime or lost actual grant", liveSource, journal, persistentLive, count, b.TransactionState())
 			}
 			c, rc := advisoryUnitOwner(t, e)
-			if _, err := advisoryUnitAcquire(t, c, rc, key, advisoryExclusive, true); !errors.Is(err, errRelationUnavailable) {
+			if _, err := advisoryUnitAcquire(t, c, rc, key, lock.AdvisoryExclusive, true); !errors.Is(err, lock.ErrUnavailable) {
 				t.Fatal("new epoch ignored physical holds", err)
 			}
 			if err := m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
@@ -181,16 +182,16 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			if err := m.UnlockAdvisoryAll(b.advisory.ticket); err != nil {
 				t.Fatal(err)
 			}
-			advisoryUnitGrant(t, c, rc, key, advisoryExclusive)
+			advisoryUnitGrant(t, c, rc, key, lock.AdvisoryExclusive)
 		})
 	}
 	t.Run("physical delegate after lease drain and transaction cleanup", func(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{Kind: advisoryPairResource, High: 10, Low: 11}
-		advisoryUnitGrant(t, a, ra, key, advisoryShared)
-		advisoryUnitGrant(t, b, rb, key, advisoryShared)
+		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
+		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
+		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		transactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
 		// Inject a cleanup observer in place of the now-installed SQL-name owner.
@@ -226,7 +227,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		persistentLive := lockState.Valid(b.advisory.ticket)
 		sourceLive := lockState.Valid(ticket)
 		journal := len(lockState.Journals[b.advisory.ticket])
-		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(a, key).Shared != 1 {
+		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (lock.Hold{}) || advisoryUnitHold(a, key).Shared != 1 {
 			t.Fatal("physical cleanup scope", persistentLive, sourceLive, journal)
 		}
 		if err = b.advisory.EndSession(b.token, CleanClose); err != nil {

@@ -72,7 +72,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return err
 	}
 	if ref != requiredRef {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	out.ref = ref
 	out.relation = auth.catalog.MustRelation(ref.Address)

@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
 // pgLocksUnitWaiter is the queued copy of r, or the zero waiter once r left
 // its queue.
-func pgLocksUnitWaiter(e *Engine, r *relationRequest) lockWaiter {
+func pgLocksUnitWaiter(e *Engine, r *lock.Request) lock.Waiter {
 	if state := e.locks.Inspect().Resources[r.Resource()]; state != nil {
 		for _, w := range state.Pending {
 			if w.Request == r {
@@ -21,7 +22,7 @@ func pgLocksUnitWaiter(e *Engine, r *relationRequest) lockWaiter {
 			}
 		}
 	}
-	return lockWaiter{}
+	return lock.Waiter{}
 }
 
 // pgLocksUnitKey is a unique-key claim that equals no stored key.
@@ -33,23 +34,23 @@ func (pgLocksUnitKey) OwnedKey() any                               { return nil 
 // pgLocksUnitKeyGrant interns a new unique key of the unit relation and grants
 // ticket its claim, pinning the key only across the acquisition as the
 // engine's unique-key path does.
-func pgLocksUnitKeyGrant(t *testing.T, e *Engine, ticket *relationTicket) lockResource {
+func pgLocksUnitKeyGrant(t *testing.T, e *Engine, ticket *lock.Ticket) lock.Resource {
 	t.Helper()
 	resource, unpin, err := e.locks.PinUniqueKey(context.Background(), ticket, blockingUnitResource(e).ObjectRef, 17, pgLocksUnitKey{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer unpin()
-	if err := e.locks.Acquire(context.Background(), ticket, resource, uniqueClaim); err != nil {
+	if err := e.locks.Acquire(context.Background(), ticket, resource, lock.UniqueClaim); err != nil {
 		t.Fatal(err)
 	}
 	return resource
 }
 
-func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *relationTicket, resource lockResource, mode relationLockMode, purpose completionLockPurpose) (*relationRequest, context.CancelFunc) {
+func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode, purpose lock.CompletionPurpose) (*lock.Request, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, relationLockPolicy{CompletionPurpose: purpose})
+	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: purpose})
 	if err != nil {
 		cancel()
 		t.Fatal(err)
@@ -67,9 +68,9 @@ func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *relationTicket, resourc
 	return r, cancel
 }
 
-func pgLocksUnitWait(t *testing.T, e *Engine, ticket *relationTicket) pgLockRecord {
+func pgLocksUnitWait(t *testing.T, e *Engine, ticket *lock.Ticket) lock.Record {
 	t.Helper()
-	var waits []pgLockRecord
+	var waits []lock.Record
 	for _, r := range pgLocksUnitCapture(t, e) {
 		if r.Waiting && r.Owner.Session == ticket.Ref().Session().ID() {
 			waits = append(waits, r)
@@ -89,18 +90,18 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, waiter := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
 		resource.Row = 1
-		for _, ticket := range []*relationTicket{a, b} {
-			if err := e.locks.Acquire(context.Background(), ticket, resource, keyShare); err != nil {
+		for _, ticket := range []*lock.Ticket{a, b} {
+			if err := e.locks.Acquire(context.Background(), ticket, resource, lock.ForKeyShare); err != nil {
 				t.Fatal(err)
 			}
 		}
 		first, second := pgLocksUnitAssign(t, e, a), pgLocksUnitAssign(t, e, b)
-		r, _ := pgLocksUnitRequest(t, e, waiter, resource, rowUpdate, completionTransaction)
+		r, _ := pgLocksUnitRequest(t, e, waiter, resource, lock.ForUpdate, lock.CompletionTransaction)
 		if r == nil {
 			t.Fatal("UPDATE failed to queue")
 		}
 		before := pgLocksUnitWait(t, e, waiter)
-		if before.Kind != pgTransactionLock || before.XID != first || before.WaitStart != pgLocksUnitWaiter(e, r).EnqueuedAt {
+		if before.Kind != lock.TransactionRecord || before.XID != first || before.WaitStart != pgLocksUnitWaiter(e, r).EnqueuedAt {
 			t.Fatal("first actual holder", before)
 		}
 		if again := pgLocksUnitWait(t, e, waiter); again != before {
@@ -116,7 +117,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, r := range pgLocksUnitCapture(t, e) {
-			if r.Waiting || r.Kind == pgRelationLock && r.Object == uint32(resource.Address.ObjectID) {
+			if r.Waiting || r.Kind == lock.RelationRecord && r.Object == uint32(resource.Address.ObjectID) {
 				t.Fatal("durable row hold became tuple/relation resource", r)
 			}
 		}
@@ -129,19 +130,19 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, bypass := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
 		resource.Row = 1
-		if err := e.locks.Acquire(context.Background(), a, resource, keyShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), a, resource, lock.ForKeyShare); err != nil {
 			t.Fatal(err)
 		}
-		br, cancelB := pgLocksUnitRequest(t, e, b, resource, rowUpdate, completionTransaction)
-		cr, _ := pgLocksUnitRequest(t, e, c, resource, keyShare, completionTransaction)
+		br, cancelB := pgLocksUnitRequest(t, e, b, resource, lock.ForUpdate, lock.CompletionTransaction)
+		cr, _ := pgLocksUnitRequest(t, e, c, resource, lock.ForKeyShare, lock.CompletionTransaction)
 		if br == nil || cr == nil {
 			t.Fatal("missing actual queue-only predecessor")
 		}
 		before := pgLocksUnitWait(t, e, c)
-		if before.Kind != pgVirtualLock || before.Target.Session != b.Ref().Session().ID() || before.Target.Local != b.Ref().ID() || before.XID != 0 {
+		if before.Kind != lock.VirtualRecord || before.Target.Session != b.Ref().Session().ID() || before.Target.Local != b.Ref().ID() || before.XID != 0 {
 			t.Fatal("queue-only target fabricated/dropped", before)
 		}
-		if r, _ := pgLocksUnitRequest(t, e, bypass, resource, noKeyUpdate, completionTransaction); r != nil {
+		if r, _ := pgLocksUnitRequest(t, e, bypass, resource, lock.ForNoKeyUpdate, lock.CompletionTransaction); r != nil {
 			t.Fatal("NO KEY UPDATE bypass was changed")
 		}
 		// Snapshot cannot settle; both actual queued requests remain journaled.
@@ -169,15 +170,15 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		// A genuine interned key with an arbitrary hash. No SQL value or hash is
 		// consulted by snapshotting or becomes a public target.
 		resource := pgLocksUnitKeyGrant(t, e, a)
-		br, _ := pgLocksUnitRequest(t, e, b, resource, uniqueClaim, completionTransaction)
-		cr, _ := pgLocksUnitRequest(t, e, c, resource, uniqueClaim, completionTransaction)
+		br, _ := pgLocksUnitRequest(t, e, b, resource, lock.UniqueClaim, lock.CompletionTransaction)
+		cr, _ := pgLocksUnitRequest(t, e, c, resource, lock.UniqueClaim, lock.CompletionTransaction)
 		before := pgLocksUnitWait(t, e, b)
-		if before.Kind != pgVirtualLock || before.Target.Session != a.Ref().Session().ID() {
+		if before.Kind != lock.VirtualRecord || before.Target.Session != a.Ref().Session().ID() {
 			t.Fatal("unassigned unique holder", before)
 		}
 		xid := pgLocksUnitAssign(t, e, a)
 		after := pgLocksUnitWait(t, e, b)
-		if after.Kind != pgTransactionLock || after.XID != xid || after.WaitStart != before.WaitStart {
+		if after.Kind != lock.TransactionRecord || after.XID != xid || after.WaitStart != before.WaitStart {
 			t.Fatal("assignment transition", after)
 		}
 		pgLocksUnitAssign(t, e, b)
@@ -199,27 +200,27 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, holder := blockingUnitOwner(t, e)
 		_, waiter := blockingUnitOwner(t, e)
 		xid := pgLocksUnitAssign(t, e, holder)
-		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), lock.TransactionCompletion, lock.CompletionVirtual)
 		if request == nil {
 			t.Fatal("index completion did not enqueue")
 		}
 		before := pgLocksUnitWait(t, e, waiter)
-		if before.Kind != pgVirtualLock || before.Target.Local != holder.Ref().ID() || before.Target.Session != holder.Ref().Session().ID() {
+		if before.Kind != lock.VirtualRecord || before.Target.Local != holder.Ref().ID() || before.Target.Session != holder.Ref().Session().ID() {
 			t.Fatal("live index completion target", before)
 		}
 		e.locks.DetachPrepared(holder)
 		after := pgLocksUnitWait(t, e, waiter)
-		if after.Kind != pgTransactionLock || after.XID != xid || after.WaitStart != before.WaitStart || after.WaitStart != pgLocksUnitWaiter(e, request).EnqueuedAt {
+		if after.Kind != lock.TransactionRecord || after.XID != xid || after.WaitStart != before.WaitStart || after.WaitStart != pgLocksUnitWaiter(e, request).EnqueuedAt {
 			t.Fatal("prepared target did not retarget same original wait", before, after)
 		}
-		if request.Resource().Completion() != holder || pgLocksUnitWaiter(e, request).Policy.CompletionPurpose != completionVirtual || request.Terminal() {
+		if request.Resource().Completion() != holder || pgLocksUnitWaiter(e, request).Policy.CompletionPurpose != lock.CompletionVirtual || request.Terminal() {
 			t.Fatal("observation replaced or settled completion request")
 		}
 		records := pgLocksUnitCapture(t, e)
-		if len(pgLocksUnitOwnerRecords(records, holder, pgVirtualLock)) != 0 {
+		if len(pgLocksUnitOwnerRecords(records, holder, lock.VirtualRecord)) != 0 {
 			t.Fatal("prepared target retained retired VXID", records)
 		}
-		xids := pgLocksUnitOwnerRecords(records, holder, pgTransactionLock)
+		xids := pgLocksUnitOwnerRecords(records, holder, lock.TransactionRecord)
 		if len(xids) != 1 || !xids[0].Owner.Prepared || xids[0].XID != xid {
 			t.Fatal("prepared target lost genuine XID ownership", records)
 		}
@@ -241,19 +242,19 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			}
 		}
 	})
-	for _, purpose := range []completionLockPurpose{completionVirtual, completionTransaction} {
-		t.Run(map[completionLockPurpose]string{completionVirtual: "index_completion_VXID", completionTransaction: "exclusion_completion_XID"}[purpose], func(t *testing.T) {
+	for _, purpose := range []lock.CompletionPurpose{lock.CompletionVirtual, lock.CompletionTransaction} {
+		t.Run(map[lock.CompletionPurpose]string{lock.CompletionVirtual: "index_completion_VXID", lock.CompletionTransaction: "exclusion_completion_XID"}[purpose], func(t *testing.T) {
 			e := New()
 			_, holder := blockingUnitOwner(t, e)
 			_, waiter := blockingUnitOwner(t, e)
 			xid := pgLocksUnitAssign(t, e, holder)
-			r, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), transactionCompletion, purpose)
+			r, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), lock.TransactionCompletion, purpose)
 			pending := pgLocksUnitWait(t, e, waiter)
-			if purpose == completionVirtual && (pending.Kind != pgVirtualLock || pending.Target.Local != holder.Ref().ID()) || purpose == completionTransaction && (pending.Kind != pgTransactionLock || pending.XID != xid) {
+			if purpose == lock.CompletionVirtual && (pending.Kind != lock.VirtualRecord || pending.Target.Local != holder.Ref().ID()) || purpose == lock.CompletionTransaction && (pending.Kind != lock.TransactionRecord || pending.XID != xid) {
 				t.Fatal("caller-selected completion purpose", pending)
 			}
 			captured := pgLocksUnitCapture(t, e)
-			if len(pgLocksUnitOwnerRecords(captured, holder, pgTransactionLock)) != 1 || len(pgLocksUnitOwnerRecords(captured, holder, pgVirtualLock)) != 1 {
+			if len(pgLocksUnitOwnerRecords(captured, holder, lock.TransactionRecord)) != 1 || len(pgLocksUnitOwnerRecords(captured, holder, lock.VirtualRecord)) != 1 {
 				t.Fatal("lazy completion duplicated exclusive ownership", captured)
 			}
 			e.endLockOwner(holder)
@@ -261,7 +262,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, r := range pgLocksUnitCapture(t, e) {
-				if r.Waiting || r.Owner.Session == waiter.Ref().Session().ID() && (r.Kind == pgTransactionLock || r.Mode == transactionCompletion) {
+				if r.Waiting || r.Owner.Session == waiter.Ref().Session().ID() && (r.Kind == lock.TransactionRecord || r.Mode == lock.TransactionCompletion) {
 					t.Fatal("transient completion retained ShareLock", r)
 				}
 			}
@@ -276,15 +277,15 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 			_, a := blockingUnitOwner(t, e)
 			_, b := blockingUnitOwner(t, e)
 			resource := blockingUnitResource(e)
-			if err := e.locks.Acquire(context.Background(), a, resource, accessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), a, resource, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
-			r, cancel := pgLocksUnitRequest(t, e, b, resource, accessExclusive, completionVirtual)
+			r, cancel := pgLocksUnitRequest(t, e, b, resource, lock.AccessExclusive, lock.CompletionVirtual)
 			if r == nil {
 				t.Fatal("missing owned request")
 			}
 			before := pgLocksUnitCapture(t, e)
-			saved := append([]pgLockRecord(nil), before...)
+			saved := append([]lock.Record(nil), before...)
 			// Mutation of caller-owned scalars cannot alter the authoritative queue.
 			for i := range before {
 				before[i].Owner.Session = 0
@@ -310,13 +311,13 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 				// A capture is coherent at its manager linearization point. A
 				// terminal outcome after capture need not invalidate owned history.
 				_, err := e.locks.PGLocks(a.Ref().Epoch())
-				if err != nil && !errors.Is(err, ErrCatalogReplaced) {
+				if err != nil && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Error(err)
 				}
 			}
 			wg.Wait()
 			err := deadlockResult(t, r)
-			if ending == "grant" && err != nil || ending == "cancel" && !errors.Is(err, context.Canceled) || ending == "fence" && !errors.Is(err, ErrCatalogReplaced) {
+			if ending == "grant" && err != nil || ending == "cancel" && !errors.Is(err, context.Canceled) || ending == "fence" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("terminal outcome", ending, err)
 			}
 			epoch := a.Ref().Epoch()
@@ -339,7 +340,7 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 	}
 }
 
-func pgLocksUnitBagEqual(a, b []pgLockRecord) bool {
+func pgLocksUnitBagEqual(a, b []lock.Record) bool {
 	if len(a) != len(b) {
 		return false
 	}

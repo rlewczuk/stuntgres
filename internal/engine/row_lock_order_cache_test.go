@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 					transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 					sessionSQL(t, a, change)
 					done := rowLockViewAsync(t, b, context.Background(), query)
-					rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+					rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 					transactionEnd(t, a, ar, commit)
 					if commit {
 						if change[0] == 'D' {
@@ -70,7 +71,7 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 						transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 						sessionSQL(t, a, "UPDATE t SET v=30 WHERE id=1")
 						done := rowLockViewAsync(t, b, context.Background(), query)
-						rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+						rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 						transactionEnd(t, a, ar, commit)
 						if commit && source != "stored_rows" {
 							want = 2
@@ -118,7 +119,7 @@ func TestRowLockOrderedCacheRejection(t *testing.T) {
 	transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 	sessionSQL(t, a, "UPDATE t SET v=30 WHERE id=1")
 	done := rowLockViewAsync(t, b, context.Background(), "SELECT k+1 AS output FROM w ORDER BY output,id FOR UPDATE")
-	rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+	rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 	transactionEnd(t, a, ar, true)
 	rowLockAwait(t, done, 22, 22)
 	lockEmpty(t, e)
@@ -128,7 +129,7 @@ func TestRowLockOrderedCacheRejection(t *testing.T) {
 	transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 30)
 	sessionSQL(t, a, "UPDATE t SET v=40 WHERE id=1")
 	done = rowLockViewAsync(t, b, context.Background(), "SELECT n FROM grouped")
-	rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+	rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 	transactionEnd(t, a, ar, true)
 	rowLockAwait(t, done, 1)
 	lockEmpty(t, e)

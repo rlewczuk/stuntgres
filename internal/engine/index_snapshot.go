@@ -34,7 +34,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		return nil, err
 	}
 	if catalog.owner == nil || catalog.owner != e.catalog.owner() || catalog.state == nil || e.catalog.state.epoch != catalog.Epoch() || frontier != e.commitSeq {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	authority := e.catalog.state
 	if private != nil {
@@ -62,7 +62,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
 			store := storage[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			if snapshot.partitionRows == nil {
 				snapshot.partitionRows = make(map[ids.ObjectAddress]partitionRowHistory)
@@ -75,33 +75,33 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		}
 		parent, ok := catalog.Relation(index.sqlIndex.parent)
 		if !ok {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		actual, exists := authority.Relation(address)
 		actualParent, parentExists := authority.Relation(parent.address)
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if parent.partition != nil {
 			continue
 		}
 		store, root := storage[parent.address], roots[address]
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if (root.hash != nil) != (index.sqlIndex.method == hashMethod) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		check := func(row ids.RowID, version ids.VersionID, position int) error {
 			if position < 0 || position >= len(store.versions) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			actual := store.versions[position]
 			if actual.row != row || actual.version != version {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			return nil
 		}
@@ -122,7 +122,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 					return nil, err
 				}
 				if len(entry.keys) != len(index.sqlIndex.keys) {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				if err := check(entry.row, entry.version, entry.position); err != nil {
 					return nil, err
@@ -215,15 +215,15 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 		address := snapshot.destination(sourceAddress)
 		index, ok := next.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != snapshot.destination(source.parent.address) || len(index.sqlIndex.keys) != len(source.index.sqlIndex.keys) || index.sqlIndex.method != source.index.sqlIndex.method {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		parent, ok := next.Relation(index.sqlIndex.parent)
 		if !ok {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		store, selected := storage[parent.address], positions[parent.address]
 		if store == nil || selected == nil {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if !checkedParents[parent.address] {
 			count := 0
@@ -236,12 +236,12 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				}
 				position, ok := selected[indexRowIdentity{row: row.row, version: row.version}]
 				if !ok || position < 0 || position >= len(store.versions) {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				count++
 			}
 			if count != len(selected) || count != len(store.versions) {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			checkedParents[parent.address] = true
 		}

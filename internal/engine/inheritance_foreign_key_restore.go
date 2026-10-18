@@ -262,12 +262,12 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	auth.catalog = view
 	auth.recaptureCatalog(view)
 	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.domain || receipt.target.Domain() != e.catalog.domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	source, _ := view.Relation(receipt.source.Address)
 	target, _ := view.Relation(receipt.target.Address)
 	if !inheritedForeignRelationUnchanged(source, receipt.beforeSource) || !inheritedForeignRelationUnchanged(target, receipt.beforeTarget) || !inheritedForeignKeyDescendant(view, target, source.address) || !inheritedForeignColumnsUnchanged(source, receipt.columns) || !inheritedForeignColumnsUnchanged(source, receipt.deleted) || !inheritedForeignColumnsUnchanged(target, receipt.referenced) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	seen := 0
 	for address, descriptor := range view.Descriptors() {
@@ -277,17 +277,17 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 		}
 		observed, exists := receipt.providers[address]
 		if !exists || index.sqlIndex != observed.current.sqlIndex || index.owner != observed.current.owner || index.namespace != observed.current.namespace || index.name != observed.current.name || len(index.columns) != len(observed.current.columns) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		for i, column := range index.columns {
 			if column.Usage != observed.current.columns[i].Usage {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 		seen++
 	}
 	if seen != len(receipt.providers) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return auth.Check(AccessRequirement{Object: receipt.source, OwnerOnly: true})
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestTransactionIsolationConflicts(t *testing.T) {
@@ -130,7 +132,7 @@ func TestTransactionIsolationRootLifecycle(t *testing.T) {
 	done := lockAsync(e, a, context.Background(), "SELECT num_nonnulls(1)", false)
 	select {
 	case err := <-done:
-		if !errors.Is(err, ErrCatalogReplaced) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal(err)
 		}
 	case <-time.After(5 * time.Second):

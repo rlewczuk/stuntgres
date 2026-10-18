@@ -157,7 +157,7 @@ func TestAlterNullabilityProviderReplacement(t *testing.T) {
 			op := transactionOperation(t, s)
 			_, err := e.Execute(op, statement(t, "ALTER TABLE t DROP b, ALTER a SET NOT NULL"), 0, nil)
 			op.Done()
-			if !fired || !errors.Is(err, ErrCatalogReplaced) {
+			if !fired || !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(fired, err)
 			}
 			if len(e.storage) != 0 {

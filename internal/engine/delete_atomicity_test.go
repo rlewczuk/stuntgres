@@ -260,13 +260,13 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	replacement := *b.storage
 	e.storage[b.ref.Address] = &replacement
 	e.mu.Unlock()
-	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
 	}
-	if err := scope.acquireRow(candidate); !errors.Is(err, ErrCatalogReplaced) {
+	if err := scope.acquireRow(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted row acquisition", err)
 	}
-	_ = scope.Finish(ErrCatalogReplaced)
+	_ = scope.Finish(ids.ErrCatalogReplaced)
 	transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2)
 	lockEmpty(t, e)
 }

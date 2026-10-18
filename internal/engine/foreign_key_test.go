@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -24,11 +25,11 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session,
 	e.mu.Unlock()
 	return e, a, b, c, ref, row
 }
-func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *relationTicket, want relationLockMode) {
+func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
-	var actual relationLockMode
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
+	var actual lock.Mode
 	if entry != nil {
 		actual = entry.Holders[ticket].Mode
 	}
@@ -36,11 +37,11 @@ func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowI
 		t.Fatal("exact canonical parent row grant", ref, row, actual, want)
 	}
 }
-func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, holder *relationTicket, want relationLockMode) {
+func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
 	found := false
 	if entry != nil {
 		for _, request := range entry.Pending {
@@ -92,21 +93,21 @@ func TestForeignKeyCanonicalRowAdmission(t *testing.T) {
 				}()
 				if parentFirst {
 					sessionSQL(t, a, "UPDATE p SET id=2 WHERE id=1")
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, noKeyUpdate|rowUpdate)
+					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForNoKeyUpdate|lock.ForUpdate)
 					statement(t, "INSERT INTO c VALUES(1)")
 					done = lockAsync(e, b, ctx, "INSERT INTO c VALUES(1)", false)
-					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, keyShare)
+					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
 				} else {
 					sessionSQL(t, a, "INSERT INTO c VALUES(1)")
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, keyShare)
+					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
 					other := transactionBegin(t, b)
 					sessionSQL(t, b, "UPDATE p SET note=11 WHERE id=1")
-					foreignKeyHeldMode(t, e, ref, row, b.transactions.ticket, noKeyUpdate)
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, keyShare)
+					foreignKeyHeldMode(t, e, ref, row, b.transactions.ticket, lock.ForNoKeyUpdate)
+					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
 					transactionEnd(t, b, other, true)
 					statement(t, "UPDATE p SET id=2 WHERE id=1")
 					done = lockAsync(e, b, ctx, "UPDATE p SET id=2 WHERE id=1", false)
-					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, rowUpdate)
+					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
 				}
 				transactionEnd(t, a, tx, commit)
 				ended = true
@@ -146,7 +147,7 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 			e, a, b, c, ref, row := foreignKeyLockFixture(t)
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "DELETE FROM p WHERE id=1")
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, rowUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			statement(t, "INSERT INTO c VALUES(1)")
@@ -161,12 +162,12 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, keyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
 			if replace {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 			} else {
 				cancel()
 				lockAwait(t, done, context.Canceled)
@@ -213,12 +214,12 @@ func TestForeignKeySavepointGrantRestoration(t *testing.T) {
 	if !errors.As(err, &d) || d.Code != "23503" {
 		t.Fatal(err)
 	}
-	foreignKeyHeldMode(t, e, ref, row, ticket, keyShare)
+	foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForKeyShare)
 	foreignKeyHeldMode(t, e, ref, second, ticket, 0)
 	sessionSQL(t, a, "ROLLBACK TO mark")
 	transactionRows(t, a, "SELECT pid FROM c", 1)
 	sessionSQL(t, a, "INSERT INTO c VALUES(2)")
-	foreignKeyHeldMode(t, e, ref, second, ticket, keyShare)
+	foreignKeyHeldMode(t, e, ref, second, ticket, lock.ForKeyShare)
 }
 
 func TestForeignKeyDefinitionAuthority(t *testing.T) {
@@ -351,11 +352,11 @@ func TestForeignKeyCreationIdentityAfterWait(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	found := false
 	if entry != nil {
 		for _, request := range entry.Pending {
-			found = found || !request.Terminal && request.Mode == shareRowExclusive
+			found = found || !request.Terminal && request.Mode == lock.ShareRowExclusive
 		}
 	}
 	if !found {
@@ -364,7 +365,7 @@ func TestForeignKeyCreationIdentityAfterWait(t *testing.T) {
 	sessionSQL(t, c, "CREATE TABLE shadow.p(id INT PRIMARY KEY)")
 	transactionEnd(t, a, tx, true)
 	ended = true
-	lockAwait(t, done, ErrCatalogReplaced)
+	lockAwait(t, done, ids.ErrCatalogReplaced)
 	joined = true
 	transactionRows(t, c, "SELECT count(*)::int FROM pg_class WHERE relname='c'", 1)
 	sessionSQL(t, b, "CREATE TABLE c(pid INT REFERENCES p)")
@@ -393,8 +394,8 @@ func TestForeignKeyQueuedNonKeyCompatibility(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, keyShare)
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, rowUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
 			other := transactionBegin(t, c)
 			otherEnded := false
 			defer func() {
@@ -414,9 +415,9 @@ func TestForeignKeyQueuedNonKeyCompatibility(t *testing.T) {
 			if err != nil || result.Count != 1 {
 				t.Fatal("compatible non-key write waited behind pending DELETE", result.Count, err)
 			}
-			foreignKeyHeldMode(t, e, ref, row, c.transactions.ticket, noKeyUpdate)
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, keyShare)
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, rowUpdate)
+			foreignKeyHeldMode(t, e, ref, row, c.transactions.ticket, lock.ForNoKeyUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, c, other, true)
 			otherEnded = true
 			transactionEnd(t, a, tx, commit)

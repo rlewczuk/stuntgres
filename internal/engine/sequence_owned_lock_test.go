@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -33,13 +34,13 @@ func ownedLockAsync(e *Engine, s *Session, ctx context.Context, ast parser.State
 	return done
 }
 
-func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode relationLockMode, done <-chan error) *relationRequest {
+func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		var request *relationRequest
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		var request *lock.Request
 		if entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == mode {
 			request = entry.Pending[0].Request
 		}
@@ -89,12 +90,12 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				defer cancel()
 				done := ownedLockAsync(e, b, ctx, ast, d)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				ownedLockQueued(t, e, ref, accessShare, done)
+				ownedLockQueued(t, e, ref, lock.AccessShare, done)
 				transactionEnd(t, a, ar, false)
 				lockAwait(t, done, nil)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
-				retained := entry != nil && entry.Holders[b.transactions.ticket].Mode&accessShare != 0
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+				retained := entry != nil && entry.Holders[b.transactions.ticket].Mode&lock.AccessShare != 0
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
 				}
@@ -133,10 +134,10 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 				defer cancel()
 				dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
 				blocker := catalogRef(t, e, e.CatalogRead(), "blocker")
-				ownedLockQueued(t, e, blocker, accessExclusive, dropping)
+				ownedLockQueued(t, e, blocker, lock.AccessExclusive, dropping)
 				late := ownedLockAsync(e, c, ctx, ast, d)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				ownedLockQueued(t, e, ref, accessShare, late)
+				ownedLockQueued(t, e, ref, lock.AccessShare, late)
 				transactionEnd(t, b, br, false)
 				lockAwait(t, dropping, nil)
 				select {
@@ -198,7 +199,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					defer cancel()
 					done := ownedLockAsync(e, b, ctx, ast, d)
 					ref := catalogRef(t, e, before, "t")
-					request := ownedLockQueued(t, e, ref, accessShare, done)
+					request := ownedLockQueued(t, e, ref, lock.AccessShare, done)
 					if failure == "Cancel" {
 						cancel()
 					} else {
@@ -260,16 +261,16 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			sequence := catalogRef(t, e, before, "late")
 			table := catalogRef(t, e, before, "t")
 			// Real admission fixes sequence-first ordering without a pause hook.
-			if err := e.locks.Acquire(context.Background(), bticket, lockResource{ObjectRef: sequence}, shareRowExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), bticket, lock.Resource{ObjectRef: sequence}, lock.ShareRowExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
-			dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
+			dropRequest := ownedLockQueued(t, e, sequence, lock.AccessExclusive, dropping)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: table}]
-			cycle := entry != nil && entry.Holders[dropRequest.Ticket()].Mode&accessExclusive != 0
+			entry := lockState.Resources[lock.Resource{ObjectRef: table}]
+			cycle := entry != nil && entry.Holders[dropRequest.Ticket()].Mode&lock.AccessExclusive != 0
 			if !cycle {
 				t.Fatal("drop did not retain table AX while waiting for sequence")
 			}
@@ -286,7 +287,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 				}
 				expected := make(map[string]bool, 2)
 				for _, edge := range []struct {
-					waiter, blocker *relationTicket
+					waiter, blocker *lock.Ticket
 					ref             ids.ObjectRef
 					mode            string
 				}{{bticket, dropRequest.Ticket(), table, "AccessShareLock"}, {dropRequest.Ticket(), bticket, sequence, "AccessExclusiveLock"}} {
@@ -389,11 +390,11 @@ func TestSequenceOwnedTableLockReplacement(t *testing.T) {
 				defer cancel()
 				done := ownedLockAsync(e, b, ctx, ast, d)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				ownedLockQueued(t, e, ref, accessShare, done)
+				ownedLockQueued(t, e, ref, lock.AccessShare, done)
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, a, ar, false)
 				assertTemporaryProjectionProviders(t, e)
 				sessionSQL(t, b, "CREATE TABLE t(c INT)")

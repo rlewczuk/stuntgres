@@ -13,15 +13,15 @@ import (
 	"testing"
 )
 
-func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *relationTicket) {
+func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *lock.Ticket) {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
 	return s, s.transactions.ticket
 }
 
-func blockingUnitResource(e *Engine) lockResource {
-	return lockResource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
+func blockingUnitResource(e *Engine) lock.Resource {
+	return lock.Resource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {
@@ -80,10 +80,10 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	owner, holder := blockingUnitOwner(t, e)
 	waiter, waiting := blockingUnitOwner(t, e)
 	resource := blockingUnitResource(e)
-	if err := e.locks.Acquire(context.Background(), holder, resource, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder, resource, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	request := deadlockRequest(t, e, waiting, resource, accessExclusive)
+	request := deadlockRequest(t, e, waiting, resource, lock.AccessExclusive)
 	if request == nil {
 		t.Fatal("missing live evaluation wait")
 	}
@@ -147,15 +147,15 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), at, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.locks.Acquire(context.Background(), bt, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), bt, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
 		// A is both a conflicting holder and an earlier queued upgrader for C.
-		ar := deadlockRequest(t, e, at, resource, accessExclusive)
-		cr := deadlockRequest(t, e, ct, resource, accessExclusive)
+		ar := deadlockRequest(t, e, at, resource, lock.AccessExclusive)
+		cr := deadlockRequest(t, e, ct, resource, lock.AccessExclusive)
 		if ar == nil || cr == nil {
 			t.Fatal("missing actual upgrade queue")
 		}
@@ -180,18 +180,18 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), at, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
-		br := deadlockRequest(t, e, bt, resource, accessExclusive)
-		cr := deadlockRequest(t, e, ct, resource, accessShare)
+		br := deadlockRequest(t, e, bt, resource, lock.AccessExclusive)
+		cr := deadlockRequest(t, e, ct, resource, lock.AccessShare)
 		if br == nil || cr == nil {
 			t.Fatal("missing soft queue")
 		}
 		blockingUnitWant(t, e, b.token.ID(), int64(a.token.ID()))
 		blockingUnitWant(t, e, c.token.ID(), int64(b.token.ID()))
 		e.endLockOwner(bt)
-		if !errors.Is(deadlockResult(t, br), errRelationOwnerEnded) {
+		if !errors.Is(deadlockResult(t, br), lock.ErrOwnerEnded) {
 			t.Fatal("ended requester not terminated")
 		}
 		if err := deadlockResult(t, cr); err != nil {
@@ -205,13 +205,13 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		_, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		for _, owner := range []*relationTicket{at, bt} {
-			if err := e.locks.Acquire(context.Background(), owner, resource, accessShare); err != nil {
+		for _, owner := range []*lock.Ticket{at, bt} {
+			if err := e.locks.Acquire(context.Background(), owner, resource, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
 			e.locks.DetachPrepared(owner)
 		}
-		cr := deadlockRequest(t, e, ct, resource, accessExclusive)
+		cr := deadlockRequest(t, e, ct, resource, lock.AccessExclusive)
 		if cr == nil {
 			t.Fatal("prepared owners did not block")
 		}
@@ -241,10 +241,10 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		transactionBegin(t, high)
 		ht := high.transactions.ticket
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), lt, resource, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
-		request := deadlockRequest(t, e, ht, resource, accessExclusive)
+		request := deadlockRequest(t, e, ht, resource, lock.AccessExclusive)
 		if request == nil {
 			t.Fatal("high identity did not queue")
 		}
@@ -257,7 +257,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		// A high live blocker is a truthful ordinary range failure, not zero,
 		// a wrapped alias or silent omission.
 		_, next := blockingUnitOwner(t, e)
-		request = deadlockRequest(t, e, next, resource, accessExclusive)
+		request = deadlockRequest(t, e, next, resource, lock.AccessExclusive)
 		if request == nil {
 			t.Fatal("high holder did not block")
 		}
@@ -276,13 +276,13 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			_, bt := blockingUnitOwner(t, e)
 			c, ct := blockingUnitOwner(t, e)
 			resource := blockingUnitResource(e)
-			first, later := rowUpdate, noKeyUpdate
+			first, later := lock.ForUpdate, lock.ForNoKeyUpdate
 			if completion {
 				resource = lock.CompletionOf(at)
-				first, later = transactionCompletion, transactionCompletion
+				first, later = lock.TransactionCompletion, lock.TransactionCompletion
 			} else {
 				resource.Row = 1
-				if err := e.locks.Acquire(context.Background(), at, resource, keyShare); err != nil {
+				if err := e.locks.Acquire(context.Background(), at, resource, lock.ForKeyShare); err != nil {
 					t.Fatal(err)
 				}
 			}

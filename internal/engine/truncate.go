@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -44,7 +45,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
 	namespace, ok := catalog.Namespace(relation.namespace)
 	if !ok {
-		return false, ErrCatalogReplaced
+		return false, ids.ErrCatalogReplaced
 	}
 	return namespace.temporary != (ids.SessionToken{}) && namespace.temporary != token, nil
 }
@@ -69,11 +70,11 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		otherTemporary := false
 		if err == nil {
 			if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.Relation(ref.Address)
 				if before == nil {
-					err = ErrCatalogReplaced
+					err = ids.ErrCatalogReplaced
 				} else {
 					if !privilege {
 						otherTemporary, err = truncateOtherTemporary(auth.catalog, before, s.op.session.token)
@@ -103,8 +104,8 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				return err
 			}
 		}
-		policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		waited := request != nil
 		if waited {
 			if s.replacementRead {
@@ -127,14 +128,14 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
 			}
 			if err == nil && !privilege {
 				otherTemporary, err = truncateOtherTemporary(auth.catalog, d, s.op.session.token)
 				if err == nil && otherTemporary {
-					err = ErrCatalogReplaced
+					err = ids.ErrCatalogReplaced
 				}
 			}
 			if err == nil && cascade {
@@ -167,7 +168,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				for _, address := range d.partition.children {
 					child, ok := auth.catalog.Relation(address)
 					if !ok {
-						err = ErrCatalogReplaced
+						err = ids.ErrCatalogReplaced
 						break
 					}
 					children = append(children, child)
@@ -192,7 +193,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var ref ids.ObjectRef
 		observation := truncateName{name: target.Name}
 		if err == nil && s.txRef.Epoch() != e.catalog.state.epoch {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
 			ref, err = e.resolveRelationReference(auth, target.Name, true)
@@ -200,7 +201,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			descriptor, ok := auth.catalog.Relation(ref.Address)
 			if !ok {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			} else {
 				observation.ref, observation.namespace = ref, descriptor.namespace
 			}

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestUpdateCurrentOfIdentity(t *testing.T) {
@@ -128,15 +130,15 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref, Row: identity.row}]
-		ordinary := entry != nil && entry.Holders[s.transactions.ticket].Mode&noKeyUpdate != 0
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+		ordinary := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForNoKeyUpdate != 0
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
 		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
 		lockState = e.locks.Inspect()
-		entry = lockState.Resources[lockResource{ObjectRef: ref, Row: identity.row}]
-		escalated := entry != nil && entry.Holders[s.transactions.ticket].Mode&rowUpdate != 0
+		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+		escalated := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForUpdate != 0
 		if !escalated {
 			t.Fatal("positioned unique-key change skipped rowUpdate escalation")
 		}
@@ -171,8 +173,8 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: identity.row}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == noKeyUpdate
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == lock.ForNoKeyUpdate
 	if !queued {
 		t.Fatal("UPDATE did not request original duplicate RowID with automatic mode")
 	}

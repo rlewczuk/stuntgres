@@ -316,7 +316,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		if ref != scope.lockedRef {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			e.mu.Unlock()
@@ -328,7 +328,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	} else if scope.lockedRef.Domain() != nil {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	b := scope.viewBinding
 	if err := scope.validateQuerySources(b.querySources); err != nil {

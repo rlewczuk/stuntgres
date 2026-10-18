@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func rowLockViewExecute(t *testing.T, e *Engine, s *Session, q string, prepared bool) (Result, error) {
@@ -53,17 +55,17 @@ func rowLockViewRows(t *testing.T, e *Engine, s *Session, q string, prepared boo
 		t.Fatal(q, got, expected)
 	}
 }
-func rowLockViewGrants(t *testing.T, e *Engine, ticket *relationTicket, table string, ids ...int) {
+func rowLockViewGrants(t *testing.T, e *Engine, ticket *lock.Ticket, table string, ids ...int) {
 	t.Helper()
 	ref := roleTableRef(t, e, table)
 	e.mu.Lock()
-	want := make(map[lockResource]bool, len(ids))
+	want := make(map[lock.Resource]bool, len(ids))
 	for _, id := range ids {
-		want[lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
+		want[lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
 	}
 	e.mu.Unlock()
 	lockState := e.locks.Inspect()
-	got := make(map[lockResource]bool)
+	got := make(map[lock.Resource]bool)
 	for resource, entry := range lockState.Resources {
 		if resource.Row != 0 && entry.Holders[ticket].Mode != 0 {
 			got[resource] = true
@@ -130,13 +132,13 @@ func TestRowLockViews(t *testing.T) {
 				} else {
 					ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 					done := rowLockViewAsync(t, b, ctx, "UPDATE t SET v=40 WHERE id=1")
-					rowLockQueued(t, e, a.transactions.ticket, noKeyUpdate)
+					rowLockQueued(t, e, a.transactions.ticket, lock.ForNoKeyUpdate)
 					deleteAwait(t, done, 0, context.DeadlineExceeded)
 					cancel()
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 				done := rowLockViewAsync(t, b, ctx, "DELETE FROM t WHERE id=1")
-				rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+				rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 				deleteAwait(t, done, 0, context.DeadlineExceeded)
 				cancel()
 				transactionEnd(t, a, ar, false)
@@ -173,7 +175,7 @@ func TestRowLockViewProvenance(t *testing.T) {
 		for _, query := range []string{"DELETE FROM t WHERE id=1", "DELETE FROM u WHERE id=1"} {
 			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 			done := rowLockViewAsync(t, b, ctx, query)
-			rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 			deleteAwait(t, done, 0, context.DeadlineExceeded)
 			cancel()
 		}
@@ -224,7 +226,7 @@ func TestRowLockViewRecheck(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := rowLockViewAsync(t, b, ctx, tc.query)
-			rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, a, ar, true)
 			rowLockAwait(t, done, tc.want...)
 			lockEmpty(t, e)
@@ -285,7 +287,7 @@ func TestRowLockViewStored(t *testing.T) {
 		transactionRows(t, b, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		done := rowLockViewAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 FOR SHARE")
-		rowLockQueued(t, e, a.transactions.ticket, rowShare)
+		rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 		deleteAwait(t, done, 0, context.DeadlineExceeded)
 		cancel()
 		transactionEnd(t, a, ar, false)
@@ -326,7 +328,7 @@ func TestRowLockViewStored(t *testing.T) {
 		transactionRows(t, a, "SELECT v FROM stored FOR KEY SHARE", 10, 20)
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		done := rowLockViewAsync(t, b, ctx, "SELECT val FROM t WHERE val=10 FOR KEY SHARE")
-		rowLockQueued(t, e, a.transactions.ticket, keyShare)
+		rowLockQueued(t, e, a.transactions.ticket, lock.ForKeyShare)
 		deleteAwait(t, done, 0, context.DeadlineExceeded)
 		cancel()
 		transactionEnd(t, a, ar, false)

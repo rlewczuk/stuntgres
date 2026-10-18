@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ type mergeActionRow struct {
 	action     parser.MergeAction
 	payload    int
 	deletion   deleteCandidate
-	updateMode multiMode
+	updateMode lock.MultiMode
 }
 type mergeRows struct {
 	indexWriteBatch
@@ -266,7 +267,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					return nil, err
 				}
 				if strong && arm.action != parser.MergeDeleteAction {
-					if err := scope.acquireUpdateRowMode(b.ref, old.row, rowUpdate); err != nil {
+					if err := scope.acquireUpdateRowMode(b.ref, old.row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
 					latest, live, err = e.latestMergeRow(scope, b.ref, candidate.updateCandidate)
@@ -274,9 +275,9 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 						return nil, err
 					}
 				}
-				lockMode := multiNoKeyLock
+				lockMode := lock.MultiNoKeyLock
 				if strong || arm.action == parser.MergeDeleteAction {
-					lockMode = multiUpdateLock
+					lockMode = lock.MultiUpdateLock
 				}
 				if err := scope.physicalRowEvent(b.ref, latest, lockMode, 0); err != nil {
 					return nil, err
@@ -367,7 +368,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		if err := scope.claimUniqueRow(b.ref, old); err != nil {
 			return err
 		}
-		if err := scope.physicalRowEvent(b.ref, old, multiUpdateAction, 0); err != nil {
+		if err := scope.physicalRowEvent(b.ref, old, lock.MultiUpdateAction, 0); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
@@ -419,7 +420,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		return err
 	}
 	predecessor := rowVersion{}
-	var actionMode multiMode
+	var actionMode lock.MultiMode
 	if arm.action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
 		if accepted[old.row] {
@@ -430,7 +431,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			return err
 		}
 		if keyChanged {
-			if err := scope.acquireUpdateRowMode(b.ref, old.row, rowUpdate); err != nil {
+			if err := scope.acquireUpdateRowMode(b.ref, old.row, lock.ForUpdate); err != nil {
 				return err
 			}
 		}
@@ -438,9 +439,9 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
-		actionMode = multiNoKeyAction
+		actionMode = lock.MultiNoKeyAction
 		if keyChanged {
-			actionMode = multiUpdateAction
+			actionMode = lock.MultiUpdateAction
 		}
 		if err := scope.physicalRowEvent(b.ref, old, actionMode, 0); err != nil {
 			return err
@@ -516,11 +517,11 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 		return rowVersion{}, false, err
 	}
 	if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if store == nil {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current, hint := store.versions, candidate.slot
 	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.row, -1); found {

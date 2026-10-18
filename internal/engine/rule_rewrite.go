@@ -216,7 +216,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 				continue
 			}
 			if !storedReferenceEpochValid(view, parent, original) {
-				failure = ErrCatalogReplaced
+				failure = ids.ErrCatalogReplaced
 				return
 			}
 			ref := original
@@ -365,7 +365,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	if b.relation != nil {
 		current, ok := catalog.Relation(b.ref.Address)
 		if !ok {
-			return b, ErrCatalogReplaced
+			return b, ids.ErrCatalogReplaced
 		}
 		b, err = refreshRuleBinding(catalog, b, current)
 		if err != nil {
@@ -473,7 +473,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			}
 			slot := slices.Index(original.relation.attributes, column.origin.Address.SubID)
 			if slot < 0 || slot >= len(recipes) {
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 			if column.frame == 2 && len(original.defaults) > slot && original.defaults[slot] != nil {
 				if err := loanRuleDefaultDependencies(catalog, original.relation, slot, &b.dependencies, &dependenciesPrivate); err != nil {
@@ -732,7 +732,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	}
 	current, ok := auth.catalog.Relation(b.ref.Address)
 	if !ok || b.ref.Epoch != auth.catalog.Epoch() {
-		return -1, ErrCatalogReplaced
+		return -1, ids.ErrCatalogReplaced
 	}
 	var err error
 	b, err = refreshRuleBinding(auth.catalog, b, current)
@@ -936,7 +936,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 				}
 				slot := slices.Index(b.relation.attributes, column.origin.Address.SubID)
 				if slot < 0 || slot >= len(recipes) {
-					return nil, false, ErrCatalogReplaced
+					return nil, false, ids.ErrCatalogReplaced
 				}
 				recipe := recipes[slot]
 				return recipe, true, nil
@@ -993,7 +993,7 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 				return expr, false, nil
 			}
 			if column.slot >= len(provider.expressions) {
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 			return provider.expressions[column.slot], true, nil
 		})
@@ -1030,11 +1030,11 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		next := slices.Clone(original)
 		for i, slot := range original {
 			if slot < 0 || slot >= len(old.attributes) {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			next[i] = slices.Index(current.attributes, old.attributes[slot])
 			if next[i] < 0 {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 		}
 		return next, nil
@@ -1071,7 +1071,7 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		}
 		column.slot = slices.Index(current.attributes, column.origin.Address.SubID)
 		if column.slot < 0 {
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		return column, true, nil
 	}
@@ -1138,7 +1138,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	for i, source := range b.querySources {
 		current, ok := catalog.Relation(source.ref.Address)
 		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
-			return b, ErrCatalogReplaced
+			return b, ids.ErrCatalogReplaced
 		}
 		storage := auth.engine.authorizationStorageLocked(auth, source.ref.Address)
 		if current == source.relation && storage == source.storage {
@@ -1154,11 +1154,11 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 			updated.uses = slices.Clone(source.uses)
 			for j, slot := range source.uses {
 				if slot < 0 || slot >= len(source.relation.attributes) {
-					return b, ErrCatalogReplaced
+					return b, ids.ErrCatalogReplaced
 				}
 				updated.uses[j] = slices.Index(current.attributes, source.relation.attributes[slot])
 				if updated.uses[j] < 0 {
-					return b, ErrCatalogReplaced
+					return b, ids.ErrCatalogReplaced
 				}
 			}
 		}
@@ -1200,7 +1200,7 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 		}
 		slot := current.indexForAttribute(column.origin.Address.SubID)
 		if slot < 0 {
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		if column.scope == 1 && column.frame == 1 && column.slot >= oldWidth {
 			slot += width

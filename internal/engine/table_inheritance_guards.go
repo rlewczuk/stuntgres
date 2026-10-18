@@ -33,7 +33,7 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 	for _, source := range relation.view.sources {
 		live, ok := catalog.Relation(source.ref.Address)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if err := inheritanceViewTargetGuard(catalog, live, visited); err != nil {
 			return err

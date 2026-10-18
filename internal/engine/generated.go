@@ -551,7 +551,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 				}
 				slot := slices.Index(descriptor.attributes, attribute)
 				if slot < 0 {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				comparison, err := sqltype.BindGrouping(descriptor.columns[slot].Usage)
 				if err != nil {

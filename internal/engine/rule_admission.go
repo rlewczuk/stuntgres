@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -42,21 +43,21 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	var refs []ids.ObjectRef
 	var requests []struct {
 		ref  ids.ObjectRef
-		mode relationLockMode
+		mode lock.Mode
 	}
 	for _, event := range events {
 		requests = append(requests, struct {
 			ref  ids.ObjectRef
-			mode relationLockMode
-		}{event.ref, accessShare})
+			mode lock.Mode
+		}{event.ref, lock.AccessShare})
 	}
 	for _, command := range commands {
 		physical := command.binding.physicalBinding()
 		if physical.relation != nil && physical.relation.relationKind != viewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
-				mode relationLockMode
-			}{physical.ref, rowExclusive})
+				mode lock.Mode
+			}{physical.ref, lock.RowExclusive})
 			if !slices.Contains(refs, physical.ref) {
 				refs = append(refs, physical.ref)
 			}
@@ -88,17 +89,17 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		for _, ref := range queryRefs {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
-				mode relationLockMode
-			}{ref, accessShare})
+				mode lock.Mode
+			}{ref, lock.AccessShare})
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
 			}
 		}
 	}
 	e.mu.Unlock()
-	policy := relationLockPolicy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
 	for _, requested := range requests {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: requested.ref}, requested.mode, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: requested.ref}, requested.mode, policy)
 		if request != nil {
 			if scope.replacementRead {
 				e.replacementMu.RUnlock()
@@ -128,7 +129,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		current, ok := fresh.catalog.Find(event.ref.Address)
 		if !ok || event.ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.revision {
 			e.mu.Unlock()
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	for i := range commands {

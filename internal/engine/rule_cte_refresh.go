@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
 func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
@@ -14,11 +16,11 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		// enclosing statement providers never enter this stored-action path.
 		body.conflict = body.conflict.instantiate()
 		if body.ref.Epoch != auth.catalog.Epoch() {
-			return body, ErrCatalogReplaced
+			return body, ids.ErrCatalogReplaced
 		}
 		current, ok := auth.catalog.Relation(body.ref.Address)
 		if !ok {
-			return body, ErrCatalogReplaced
+			return body, ids.ErrCatalogReplaced
 		}
 		var err error
 		body, err = refreshRuleBinding(auth.catalog, body, current)

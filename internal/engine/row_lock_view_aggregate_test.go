@@ -5,6 +5,8 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestRowLockViewAggregateComposition(t *testing.T) {
@@ -58,7 +60,7 @@ func TestRowLockViewAggregateComposition(t *testing.T) {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 			sessionSQL(t, a, tc.change)
 			done := rowLockViewAsync(t, b, context.Background(), tc.query)
-			rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 			// A newly qualifying row is not in the already captured aggregate input.
 			sessionSQL(t, c, "INSERT INTO t VALUES(3,10)")
 			transactionEnd(t, a, ar, tc.commit)

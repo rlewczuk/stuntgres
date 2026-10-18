@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -15,11 +16,11 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('old')"))
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	resource := lockResource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, mood.Address())}
+	resource := lock.Resource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, mood.Address())}
 	holder := sessionStart(t, e, nil)
 	ref := transactionBegin(t, holder)
 	defer transactionEnd(t, holder, ref, false)
-	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, resource, typeExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, resource, lock.TypeExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(op.ctx, time.Second)

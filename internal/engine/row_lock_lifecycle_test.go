@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestRowLockRepeatableRead(t *testing.T) {
@@ -56,7 +59,7 @@ func TestRowLockControls(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
-			rowLockQueued(t, e, a.transactions.ticket, rowShare)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 			if restore {
 				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99)")); err != nil {
 					t.Fatal(err)
@@ -70,7 +73,7 @@ func TestRowLockControls(t *testing.T) {
 			}
 			select {
 			case outcome := <-done:
-				if !errors.Is(outcome.err, ErrCatalogReplaced) || outcome.result.Rows != nil {
+				if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || outcome.result.Rows != nil {
 					t.Fatal(outcome)
 				}
 			case <-ctx.Done():

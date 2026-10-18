@@ -218,7 +218,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 				r.Rows.Close()
 				t.Fatal("retired authority returned rows")
 			}
-			if !errors.Is(err, ErrCatalogReplaced) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("DISCARD rescued retired sequence provenance", err)
 			}
 			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.temporals[0] != &before.temporals[0] || !reflect.DeepEqual(*d.sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {

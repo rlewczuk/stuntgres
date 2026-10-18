@@ -259,7 +259,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "epoch":
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "frontier":

@@ -15,7 +15,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		s.op.session.mu.Lock()
 		err := publicationOperationLocked(e, s.op)
 		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch) {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
 		if err != nil {
@@ -81,7 +81,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		s.op.session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
 		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch || node.aborted || node.ended) {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
 		if err != nil {

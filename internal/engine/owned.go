@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -212,7 +213,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			return Result{}, err
 		}
 		ref := e.catalog.domain.Ref(stage.base.Epoch(), a)
-		if err = scope.acquireSequence(ref, accessExclusive, true); err != nil {
+		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}

@@ -104,7 +104,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 		t.Fatal(d)
 	}
 	commentWant(t, e, e.CatalogRead(), schemaRef(t, e, "public"), "standard public schema")
-	if _, _, err := e.Comment(old, table); !errors.Is(err, ErrCatalogReplaced) {
+	if _, _, err := e.Comment(old, table); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old epoch survived reset", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -298,7 +299,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	b.ref = s.lockedRef
 	b.relation, _ = auth.catalog.Relation(b.ref.Address)
 	if b.relation == nil {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 		return
 	}
 	b.storage = e.authorizationStorageLocked(auth, b.ref.Address)

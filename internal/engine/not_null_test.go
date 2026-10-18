@@ -311,7 +311,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				t.Fatal(err)
 			}
 			if kind == "reset" || kind == "restore" {
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			} else if kind != "descriptor" && e.catalog.state.Get(ref.Address) != old {

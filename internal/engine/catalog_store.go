@@ -145,7 +145,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
 	if view.state.epoch != s.state.epoch || ref.Epoch != s.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	d, ok := view.Find(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
 	if !ok {
@@ -170,7 +170,7 @@ func (s *catalogStore) validateCatalogViewLocked(view CatalogRead) error {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if view.Epoch() != s.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -194,7 +195,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			if sequenceWait {
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				var pending *lockWaiter
+				var pending *lock.Waiter
 				for _, entry := range lockState.Resources {
 					for i := range entry.Pending {
 						pending = &entry.Pending[i]

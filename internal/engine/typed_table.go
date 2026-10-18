@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -144,7 +145,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	old, ok := scope.lockedDescriptor.(*relationDescriptor)
 	if !ok {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if err := tableKind(old, "OF"); err != nil {
 		return fail(err)
@@ -271,9 +272,9 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		}
 		return 0
 	})
-	mode := accessShare
+	mode := lock.AccessShare
 	if drop {
-		mode = accessExclusive
+		mode = lock.AccessExclusive
 	}
 	for _, source := range addresses {
 		typ, ok := stage.base.Type(source)

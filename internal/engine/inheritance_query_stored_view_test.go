@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,19 +16,19 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 	for _, tc := range []struct {
 		name                                                string
 		child, only, local, direct, overlapping, weak, wait bool
-		mark                                                relationLockMode
+		mark                                                lock.Mode
 	}{
 		{name: "ordinary"},
 		{name: "only_plain", only: true},
 		{name: "only_child", child: true, only: true},
 		{name: "default_child", child: true},
-		{name: "marked_child", child: true, mark: rowUpdate},
-		{name: "marked_only", child: true, only: true, mark: rowUpdate},
+		{name: "marked_child", child: true, mark: lock.ForUpdate},
+		{name: "marked_only", child: true, only: true, mark: lock.ForUpdate},
 		{name: "local_mark", child: true, local: true},
-		{name: "direct_overlap", child: true, direct: true, mark: rowUpdate},
+		{name: "direct_overlap", child: true, direct: true, mark: lock.ForUpdate},
 		{name: "view_overlap", child: true, overlapping: true},
-		{name: "weaker_base", child: true, weak: true, mark: rowUpdate},
-		{name: "waited_base", child: true, wait: true, mark: rowUpdate},
+		{name: "weaker_base", child: true, weak: true, mark: lock.ForUpdate},
+		{name: "waited_base", child: true, wait: true, mark: lock.ForUpdate},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
@@ -123,22 +124,22 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			scope.lockedRef = viewRef
 			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: queryRowMark{mode: tc.mark}}}
-			mode := accessShare
+			mode := lock.AccessShare
 			if tc.mark != 0 {
-				mode = relationRowShare
+				mode = lock.RowShare
 			}
-			if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: viewRef}, mode); err != nil {
+			if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: viewRef}, mode); err != nil {
 				t.Fatal(err)
 			}
 			if tc.direct {
 				scope.querySources = append(scope.querySources, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage})
-				if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if tc.overlapping {
 				scope.querySources = append(scope.querySources, queryLeaf{ref: otherRef, relation: otherView})
-				if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: otherRef}, accessShare); err != nil {
+				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: otherRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -146,7 +147,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				if err = scope.acquireBoundViewRelationModes([]ids.ObjectRef{parentRef}, nil); err != nil {
 					t.Fatal(err)
 				}
-				err = scope.acquireInheritanceSources(map[ids.ObjectRef]relationLockMode{parentRef: 0})
+				err = scope.acquireInheritanceSources(map[ids.ObjectRef]lock.Mode{parentRef: 0})
 			} else if tc.wait {
 				holderOp, holderDone, holdErr := testOperation(e, context.Background())
 				if holdErr != nil {
@@ -161,7 +162,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				if holdErr = holder.gate(&parser.Select{}); holdErr != nil {
 					t.Fatal(holdErr)
 				}
-				if holdErr = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: parentRef}, accessExclusive); holdErr != nil {
+				if holdErr = e.locks.Acquire(holderOp.Context(), holder.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessExclusive); holdErr != nil {
 					t.Fatal(holdErr)
 				}
 				result := make(chan error, 1)
@@ -180,8 +181,8 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}()
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: parentRef}]
-				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == relationRowShare
+				entry := lockState.Resources[lock.Resource{ObjectRef: parentRef}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.RowShare
 				if !queued {
 					t.Fatal("stored view did not wait on exact marked-base identity")
 				}
@@ -201,18 +202,18 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			marked := tc.mark != 0 || tc.local || tc.overlapping
-			wantBase := accessShare
+			wantBase := lock.AccessShare
 			if marked {
-				wantBase = relationRowShare
+				wantBase = lock.RowShare
 				if tc.direct || tc.weak {
-					wantBase |= accessShare
+					wantBase |= lock.AccessShare
 				}
 			}
-			wantChild := relationLockMode(0)
+			wantChild := lock.Mode(0)
 			if tc.child && !tc.only {
-				wantChild = accessShare
+				wantChild = lock.AccessShare
 				if marked {
-					wantChild = relationRowShare
+					wantChild = lock.RowShare
 				}
 			}
 			var childRef ids.ObjectRef
@@ -221,14 +222,14 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			for _, want := range []struct {
 				ref  ids.ObjectRef
-				mode relationLockMode
+				mode lock.Mode
 			}{{parentRef, wantBase}, {childRef, wantChild}} {
 				if want.ref == (ids.ObjectRef{}) {
 					continue
 				}
 				lockState := e.locks.Inspect()
-				var got relationLockMode
-				if entry := lockState.Resources[lockResource{ObjectRef: want.ref}]; entry != nil {
+				var got lock.Mode
+				if entry := lockState.Resources[lock.Resource{ObjectRef: want.ref}]; entry != nil {
 					got = entry.Holders[scope.ticket].Mode
 				}
 				if got != want.mode {
@@ -305,7 +306,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if err = peer.gate(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.StartAcquire(peerCtx, peer.ticket, lockResource{ObjectRef: parentRef}, relationExclusive, relationLockPolicy{TimeoutSlot: &peerOp.lockWait})
+			request, err := e.locks.StartAcquire(peerCtx, peer.ticket, lock.Resource{ObjectRef: parentRef}, lock.Exclusive, lock.Policy{TimeoutSlot: &peerOp.lockWait})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -315,8 +316,8 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: parentRef}]
-				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == peer.ticket && entry.Pending[0].Mode == relationExclusive
+				entry := lockState.Resources[lock.Resource{ObjectRef: parentRef}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == peer.ticket && entry.Pending[0].Mode == lock.Exclusive
 				if !queued {
 					t.Fatal("peer did not queue on exact stored-base identity")
 				}

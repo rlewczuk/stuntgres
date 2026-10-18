@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -46,12 +47,12 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 		for _, address := range d.partition.children {
 			child, ok := view.Relation(address)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			childView := view
 			if lockChildren {
 				ref := s.op.session.Engine().catalog.domain.Ref(view.Epoch(), address)
-				if err := s.acquirePartitionLock(ref, accessExclusive); err != nil {
+				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 					return err
 				}
 				var err error
@@ -77,16 +78,16 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
 		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.address); current != d {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		stage.domainBases = append(stage.domainBases, d)
 		storage := e.privateStorageLocked(scope.owner.catalog, d.address)
 		if storage == nil {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.address, storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
 		return nil

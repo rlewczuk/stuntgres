@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -289,7 +290,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					err := message.end(finishErr)
 					if phase != "healthy" {
 						var conflict CatalogConflict
-						if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 							t.Fatal("missing manual utility DB predecessor veto", err)
 						}
 						indexMaintenanceUnchanged(t, e, before.roots)
@@ -378,7 +379,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if err := reader.Rows.Close(); err != nil {
 					t.Fatal("blocker table reader close failed", err)
 				}
-				if err := blocker.scope.acquireSequence(table, accessExclusive, true); err != nil {
+				if err := blocker.scope.acquireSequence(table, lock.AccessExclusive, true); err != nil {
 					t.Fatal(err)
 				}
 				ctx, cancel := context.WithTimeout(message.op.Context(), 5*time.Second)
@@ -410,7 +411,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 					t.Fatal("CREATE did not reach actual OWNED BY unlock/admission checkpoint")
 				}
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: table}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: table}]
 				actualWait := entry != nil && len(entry.Pending) == 1
 				if !actualWait {
 					t.Fatal("CREATE is not genuinely waiting for the OWNED BY table")
@@ -451,7 +452,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				err = message.end(finishErr)
 				if replace {
 					var conflict CatalogConflict
-					if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before.roots)

@@ -87,7 +87,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWri
 	if binding.checked || prior != nil && prior.checked {
 		purpose = indexProbeRevalidation
 		if prior != nil && !sameRelationRowShape(prior.parent, binding.parent) {
-			return indexWriteBatch{}, ErrCatalogReplaced
+			return indexWriteBatch{}, ids.ErrCatalogReplaced
 		}
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output}

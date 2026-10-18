@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestAlterSchemaGrantTimeShadow(t *testing.T) {
@@ -22,7 +24,7 @@ func TestAlterSchemaGrantTimeShadow(t *testing.T) {
 	shadowDescriptor := e.catalog.state.Get(shadow.Address)
 	frontier := e.catalog.nextRevision
 	transactionEnd(t, a, tx, false)
-	lockAwait(t, done, ErrCatalogReplaced)
+	lockAwait(t, done, ids.ErrCatalogReplaced)
 	if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.catalog.state.Get(shadow.Address) != shadowDescriptor || e.catalog.nextRevision != frontier {
 		t.Fatal("move retargeted grant-time shadow")
 	}
@@ -42,7 +44,7 @@ func TestAlterSchemaGrantTimeReplacement(t *testing.T) {
 	}
 	alterSchemaEngineFixture(t, e)
 	replacement := e.catalog.state
-	lockAwait(t, done, ErrCatalogReplaced)
+	lockAwait(t, done, ids.ErrCatalogReplaced)
 	transactionEnd(t, a, tx, false)
 	if e.catalog.state != replacement {
 		t.Fatal("stale waiter published into replacement")

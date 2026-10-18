@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -114,7 +115,7 @@ func TestViewWriteMapping(t *testing.T) {
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group
@@ -282,11 +283,11 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
 	old := f.e.storage[f.base.address].versions[0]
-	resource := lockResource{ObjectRef: f.baseRef, Row: old.row}
-	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.row}
+	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
-	request, err := f.e.locks.StartAcquire(waiter.op.Context(), waiter.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := f.e.locks.StartAcquire(waiter.op.Context(), waiter.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("not actually queued", request, err)
 	}
@@ -330,8 +331,8 @@ func TestViewWriteCancellation(t *testing.T) {
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
 	originals := f.e.storage[f.base.address].versions
-	resource := lockResource{ObjectRef: f.baseRef, Row: originals[0].row}
-	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, noKeyUpdate, relationLockPolicy{}); err != nil || request != nil {
+	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].row}
+	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
 	row := append([]sqltype.Value(nil), originals[1].values...)
@@ -340,7 +341,7 @@ func TestViewWriteCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())
-	request, err := f.e.locks.StartAcquire(ctx, scope.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := f.e.locks.StartAcquire(ctx, scope.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing actual pending row", request, err)
 	}
@@ -359,7 +360,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	entry := lockState.Resources[resource]
 	pending := len(entry.Pending)
 	hold := entry.Holders[holder.ticket].Mode
-	if pending != 0 || hold != noKeyUpdate {
+	if pending != 0 || hold != lock.ForNoKeyUpdate {
 		t.Fatal("cancel damaged holder or leaked queue", pending, hold)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -379,10 +380,10 @@ func TestViewWriteReplacement(t *testing.T) {
 	f.e.mu.Lock()
 	err := scope.validateLockedRelation(f.e)
 	f.e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old write grant survived replacement", err)
 	}
-	if err := scope.Finish(err); !errors.Is(err, ErrCatalogReplaced) {
+	if err := scope.Finish(err); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	lockEmpty(t, f.e)

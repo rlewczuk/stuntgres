@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -91,7 +92,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 							t.Fatal(got.err)
 						}
 					case "replacement":
-						if !errors.Is(got.err, ErrCatalogReplaced) {
+						if !errors.Is(got.err, ids.ErrCatalogReplaced) {
 							t.Fatal(got.err)
 						}
 					}
@@ -244,7 +245,7 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 				continue
 			}
 			for _, request := range entry.Pending {
-				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == uniqueClaim {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == lock.UniqueClaim {
 					found = true
 					break
 				}

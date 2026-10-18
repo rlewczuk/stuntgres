@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -132,7 +133,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	}
 	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), destination.address)
 	if state.groups[destination.address] == nil {
-		if err := s.acquirePartitionLock(ref, rowExclusive); err != nil {
+		if err := s.acquirePartitionLock(ref, lock.RowExclusive); err != nil {
 			return err
 		}
 	}

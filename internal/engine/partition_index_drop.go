@@ -163,7 +163,7 @@ func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) e
 	}
 	parent, exists := view.Descriptor(index.sqlIndex.partitionParent)
 	if !exists {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because index %s requires it", index.name, parent.Name()), Hint: "You can drop index " + parent.Name() + " instead."}
 }

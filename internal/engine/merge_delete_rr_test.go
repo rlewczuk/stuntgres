@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=11 WHERE id=1")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100")
-			mergeUpdatePendingRow(t, e, ref, original.row, worker, holder.transactions.ticket, noKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, original.row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, holder, tx, true)
 			mergeUpdatePendingOutcome(t, done, 1, nil)
 			transactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21)
@@ -75,7 +76,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "DELETE FROM t")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE")
-			mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, rowUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, holder, tx, commit)
 			if commit {
 				mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})

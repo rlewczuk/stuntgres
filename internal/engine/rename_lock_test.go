@@ -5,11 +5,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestAlterRenameLock(t *testing.T) {
 	for _, q := range []string{"ALTER TABLE t RENAME a TO renamed", "ALTER TABLE t RENAME TO newtable"} {
-		for _, mode := range []relationLockMode{accessShare, rowExclusive, accessExclusive} {
+		for _, mode := range []lock.Mode{lock.AccessShare, lock.RowExclusive, lock.AccessExclusive} {
 			e := New()
 			a := sessionStart(t, e, nil)
 			b := sessionStart(t, e, nil)
@@ -17,7 +20,7 @@ func TestAlterRenameLock(t *testing.T) {
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
 			tx := transactionBegin(t, a)
-			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			done := lockAsync(e, b, context.Background(), q, true)
@@ -82,7 +85,7 @@ func TestAlterRenameLockGrantTime(t *testing.T) {
 				run(t, e, "CREATE TABLE t(a INT)")
 			}
 			if kind == "reset" || kind == "restore" {
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 			} else {
 				transactionEnd(t, a, tx, false)
@@ -93,7 +96,7 @@ func TestAlterRenameLockGrantTime(t *testing.T) {
 						t.Fatal(d)
 					}
 				} else {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
 			}
 			lockEmpty(t, e)

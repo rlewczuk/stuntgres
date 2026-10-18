@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -63,7 +64,7 @@ type transactionOwner struct {
 	admission       sync.Mutex
 	copyScope       *StatementScope
 	copyDone        chan struct{}
-	ticket          *relationTicket
+	ticket          *lock.Ticket
 	mu              sync.Mutex
 	session         *Session
 	state           TxState
@@ -309,8 +310,8 @@ type StatementScope struct {
 	sessionCompleted               bool // Successful session utilities have no private stage to merge.
 	controlOutcome                 controlOutcome
 	replacementRead                bool
-	ticket                         *relationTicket
-	multiEvents                    []multiEvent
+	ticket                         *lock.Ticket
+	multiEvents                    []lock.MultiEvent
 	viewCreationNamespace          ids.ObjectRef
 	viewPersistence                string
 	viewBinding                    binding
@@ -546,7 +547,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	stale := t.ref.Epoch() != e.catalog.state.epoch
 	e.mu.Unlock()
 	if stale {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if t.state == TxAborted {
 		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
@@ -641,7 +642,7 @@ retry:
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return errors.New("stuntgres: relation storage is missing")

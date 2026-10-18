@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -145,7 +146,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 	if len(candidate.foreignKeys) != 1 || candidate.foreignKeys[0].Index != candidate.uniqueConstraints[0].Index {
 		t.Fatal("FK did not bind completed real key", candidate)
 	}
-	foreignKeyHeldMode(t, e, e.catalog.domain.Ref(e.catalog.state.epoch, original.address), 0, scope.ticket, accessExclusive)
+	foreignKeyHeldMode(t, e, e.catalog.domain.Ref(e.catalog.state.epoch, original.address), 0, scope.ticket, lock.AccessExclusive)
 	if len(original.foreignKeys) != 0 || len(original.uniqueConstraints) != 0 {
 		t.Fatal("published before Finish")
 	}
@@ -302,11 +303,11 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	queued := false
 	if entry != nil {
 		for _, request := range entry.Pending {
-			queued = queued || !request.Terminal && request.Mode == shareRowExclusive && request.Ticket != a.transactions.ticket
+			queued = queued || !request.Terminal && request.Mode == lock.ShareRowExclusive && request.Ticket != a.transactions.ticket
 		}
 	}
 	if !queued {
@@ -322,8 +323,8 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	lockEmpty(t, e)
 	tx = transactionBegin(t, b)
 	sessionSQL(t, b, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
-	foreignKeyHeldMode(t, e, ref, 0, b.transactions.ticket, shareRowExclusive)
-	foreignKeyHeldMode(t, e, catalogRef(t, e, e.CatalogRead(), "p"), 0, b.transactions.ticket, shareRowExclusive)
+	foreignKeyHeldMode(t, e, ref, 0, b.transactions.ticket, lock.ShareRowExclusive)
+	foreignKeyHeldMode(t, e, catalogRef(t, e, e.CatalogRead(), "p"), 0, b.transactions.ticket, lock.ShareRowExclusive)
 	transactionEnd(t, b, tx, false)
 	lockEmpty(t, e)
 }

@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"stuntgres/internal/engine/lock"
+)
 
 // Observe the real manager while the initiating explicit transaction remains
 // alive: absence of allocation alone would not prove absence of sequence RX.
@@ -32,11 +36,11 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 				}
 				ticket := a.transactions.ticket
 				lockState := e.locks.Inspect(ticket)
-				entry := lockState.Resources[lockResource{ObjectRef: sequence}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: sequence}]
 				sequenceHeld := entry != nil && entry.Holders[ticket].Mode != 0
-				_, sequenceJournaled := lockState.Journals[ticket][lockResource{ObjectRef: sequence}]
-				targetEntry := lockState.Resources[lockResource{ObjectRef: target}]
-				targetHeld := targetEntry != nil && targetEntry.Holders[ticket].Mode == rowExclusive
+				_, sequenceJournaled := lockState.Journals[ticket][lock.Resource{ObjectRef: sequence}]
+				targetEntry := lockState.Resources[lock.Resource{ObjectRef: target}]
+				targetHeld := targetEntry != nil && targetEntry.Holders[ticket].Mode == lock.RowExclusive
 				if sequenceHeld || sequenceJournaled || !targetHeld {
 					t.Fatal("wrong live transaction grants", sequenceHeld, sequenceJournaled, targetHeld)
 				}
@@ -81,9 +85,9 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 		}
 		ticket := a.transactions.ticket
 		lockState := e.locks.Inspect(ticket)
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		held := entry != nil && entry.Holders[ticket].Mode == rowExclusive
-		_, journaled := lockState.Journals[ticket][lockResource{ObjectRef: ref}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		held := entry != nil && entry.Holders[ticket].Mode == lock.RowExclusive
+		_, journaled := lockState.Journals[ticket][lock.Resource{ObjectRef: ref}]
 		if !held || !journaled {
 			t.Fatal("demanded per-row nextval lacks sequence RX", held, journaled)
 		}

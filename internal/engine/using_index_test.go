@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
 			catalog, store, root := e.catalog.state, e.storage[parent.address], e.indexRoots[index.address]
@@ -462,7 +463,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				if change == "reset" || change == "restore" {
-					if !errors.Is(err, ErrCatalogReplaced) {
+					if !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatal(err)
 					}
 					current := primaryKeyUnitRelation(t, e, "t")

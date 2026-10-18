@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -53,17 +54,17 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	policy := relationLockPolicy{Timeout: 20 * time.Millisecond}
-	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy); r != nil || err != nil {
+	policy := lock.Policy{Timeout: 20 * time.Millisecond}
+	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy); r != nil || err != nil {
 		t.Fatal(r, err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); r != nil || err != nil {
+	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); r != nil || err != nil {
 		t.Fatal("immediate grant retained timer", r, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{})
+	r, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, lock.Policy{})
 	if r == nil || err != nil {
 		t.Fatal(r, err)
 	}
@@ -77,7 +78,7 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	if repeated, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy); repeated != nil || err != nil {
+	if repeated, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); repeated != nil || err != nil {
 		t.Fatal(repeated, err)
 	}
 	transactionEnd(t, b, rb, false)

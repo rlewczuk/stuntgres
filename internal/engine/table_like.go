@@ -121,13 +121,13 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 		return nil
 	}
 	if current.Epoch() != s.base.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, source := range s.likeSources {
 		address := source.Address()
 		if original, incumbent := s.base.Find(address); incumbent {
 			if original != source || current.Get(address) != source {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		} else {
 			staged, ok := s.descriptors[address].(*relationDescriptor)

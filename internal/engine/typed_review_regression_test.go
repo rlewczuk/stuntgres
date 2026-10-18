@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 	}}
 	_, err := e.Execute(op, statement(t, query), 0, nil)
-	if !called || !errors.Is(err, ErrCatalogReplaced) {
+	if !called || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("callback did not reject captured epoch", called, err)
 	}
 	view := e.CatalogRead()
@@ -123,9 +124,9 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				called = true
 				ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), source.address)
 				lockState := e.locks.Inspect()
-				if entry := lockState.Resources[lockResource{ObjectRef: ref}]; entry != nil {
+				if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
 					for _, holder := range entry.Holders {
-						granted = granted || holder.Mode == accessShare
+						granted = granted || holder.Mode == lock.AccessShare
 					}
 				}
 			}}

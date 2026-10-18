@@ -94,7 +94,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 		if definition.dependencies[i].ref.Address.ClassID == ids.ProcedureClassID {
 			procedure, ok := view.Procedure(definition.dependencies[i].ref.Address)
 			if !ok {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			definition.dependencies[i].revision = procedure.revision
 		}

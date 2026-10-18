@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -27,12 +28,12 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 	for address, observed := range g.descriptors {
 		current, ok := auth.catalog.Relation(address)
 		if !ok || strict && current != observed {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	for _, ref := range g.targets {
 		if ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		d := auth.catalog.MustRelation(ref.Address)
 		switch s := stmt.(type) {
@@ -86,7 +87,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 	for _, ref := range g.indexes {
 		d := auth.catalog.MustRelation(ref.Address)
 		if d.sqlIndex == nil || g.descriptors[d.sqlIndex.parent] == nil {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	for parent, count := range g.indexSets {
@@ -97,12 +98,12 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				continue
 			}
 			if g.descriptors[address] == nil {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			actual++
 		}
 		if actual != count {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil
@@ -148,7 +149,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
 	if s.txRef.Epoch() != e.catalog.state.epoch {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	if err != nil {
@@ -269,9 +270,9 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	}
 	slices.SortFunc(g.parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	slices.SortFunc(g.indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	acquire := func(ref ids.ObjectRef, mode relationLockMode) error {
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	acquire := func(ref ids.ObjectRef, mode lock.Mode) error {
+		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			err = request.Wait()
 		}
@@ -285,7 +286,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			return err
 		}
 		if s.txRef.Epoch() != e.catalog.state.epoch {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if err := g.check(auth, stmt, false); err != nil {
 			return err
@@ -293,15 +294,15 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		for address, observed := range g.descriptors {
 			current := auth.catalog.MustRelation(address)
 			if g.partition && current != observed {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			g.descriptors[address] = current
 		}
 		return nil
 	}
-	parentMode := relationShare
+	parentMode := lock.Share
 	if drop || g.attach != (ids.ObjectRef{}) {
-		parentMode = accessExclusive
+		parentMode = lock.AccessExclusive
 	}
 	for _, ref := range g.parents {
 		if err := acquire(ref, parentMode); err != nil {
@@ -309,15 +310,15 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 	}
 	for _, ref := range g.indexes {
-		if err := acquire(ref, accessExclusive); err != nil {
+		if err := acquire(ref, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
 	if _, alter := stmt.(*parser.AlterIndex); alter && len(g.targets) > 0 {
 		ref := g.targets[0]
-		mode := accessExclusive
+		mode := lock.AccessExclusive
 		if g.descriptors[ref.Address].relationKind == indexRelation {
-			mode = shareUpdateExclusive
+			mode = lock.ShareUpdateExclusive
 		}
 		if !slices.Contains(g.indexes, ref) {
 			if err := acquire(ref, mode); err != nil {

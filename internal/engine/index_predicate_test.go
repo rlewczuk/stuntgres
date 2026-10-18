@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -454,9 +455,9 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":
-				leaf.mark = queryRowMark{mode: rowUpdate}
+				leaf.mark = queryRowMark{mode: lock.ForUpdate}
 			case "inherited locking":
-				inherited = queryRowMark{mode: keyShare}
+				inherited = queryRowMark{mode: lock.ForKeyShare}
 			case "absent candidate":
 				leaf.partialCandidate = nil
 			}

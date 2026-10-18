@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -461,7 +462,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		leaf := v.sources[occurrence]
 		d, ok := catalog.Relation(leaf.ref.Address)
 		if !ok {
-			return viewRenderFrom{}, ErrCatalogReplaced
+			return viewRenderFrom{}, ids.ErrCatalogReplaced
 		}
 		root := viewSourceAt(viewFromRoot(v.query.Root), occurrence)
 		if root == nil {

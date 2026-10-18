@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -66,7 +67,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	holderTx := transactionBegin(t, holder)
 	gateRef := e.catalog.domain.Ref(e.catalog.state.epoch, gate.address)
 	defer e.endLockOwner(holder.transactions.ticket)
-	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: gateRef}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -93,13 +94,13 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	assertSourceWait := func() {
 		t.Helper()
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: gateRef}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: gateRef}]
 		waiting := entry != nil && len(entry.Pending) == 1 &&
-			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare &&
-			entry.Holders[holder.transactions.ticket].Mode&accessExclusive != 0
+			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare &&
+			entry.Holders[holder.transactions.ticket].Mode&lock.AccessExclusive != 0
 		innerRef := e.catalog.domain.Ref(gateRef.Epoch, inner.address)
-		innerEntry := lockState.Resources[lockResource{ObjectRef: innerRef}]
-		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&accessShare != 0
+		innerEntry := lockState.Resources[lock.Resource{ObjectRef: innerRef}]
+		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 		if !waiting || !granted {
 			t.Fatal("not the actual gate AS wait with inner AS granted")
 		}

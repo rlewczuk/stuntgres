@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"stuntgres/internal/engine/expr"
 )
 
 func preparedBoundaryName(name string) parser.ObjectName {
@@ -153,9 +153,9 @@ type preparedBoundarySnapshot struct {
 	entries         map[string]preparedTransaction
 	ssi             map[ids.TxRef]serializableTransaction
 	creators        map[ids.VersionID]ids.TxRef
-	owners          map[ids.TxRef]*relationTicket
-	resources       map[lockResource]struct{}
-	locks           map[lockResource]lock.ResourceState
+	owners          map[ids.TxRef]*lock.Ticket
+	resources       map[lock.Resource]struct{}
+	locks           map[lock.Resource]lock.ResourceState
 }
 
 func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoundarySnapshot {
@@ -170,7 +170,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
-		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lockResource]lock.ResourceState{},
+		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
 	for address, store := range e.storage {
 		value := *store
@@ -467,7 +467,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	serializableUnitRelation(t, e)
 	owners := []*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	refs := make([]ids.TxRef, 2)
-	tickets := make([]*relationTicket, 2)
+	tickets := make([]*lock.Ticket, 2)
 	for i, owner := range owners {
 		op := transactionOperation(t, owner)
 		var err error
@@ -604,7 +604,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	e, _, entry, parent := preparedBoundaryFixture(t)
 	finisher, waiter := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	waiterRef := transactionBegin(t, waiter)
-	var resource lockResource
+	var resource lock.Resource
 	found := false
 	for held := range e.locks.Inspect(entry.ticket).Journals[entry.ticket] {
 		if held.Row == 0 && held.Key() == nil && held.Address == parent {
@@ -617,7 +617,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	}
 	waitContext, cancelWaiter := context.WithCancel(context.Background())
 	defer cancelWaiter()
-	request, err := e.locks.StartAcquire(waitContext, waiter.transactions.ticket, resource, accessShare, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(waitContext, waiter.transactions.ticket, resource, lock.AccessShare, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("waiter was not queued behind prepared table hold", err)
 	}

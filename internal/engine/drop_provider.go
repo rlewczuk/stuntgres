@@ -6,6 +6,7 @@ import (
 	"iter"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -458,7 +459,7 @@ func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
 }
 
 func (p *dropProvider) acquire(ref ids.ObjectRef, reserveReplacement bool) error {
-	if err := p.scope.acquireSequence(ref, accessExclusive, reserveReplacement); err != nil {
+	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, reserveReplacement); err != nil {
 		return err
 	}
 	if p.prepared != nil && !slices.Contains(p.prepared.grants, ref) {
@@ -472,7 +473,7 @@ func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
 	if scope.ticket == nil || scope.ticket.Ref() != scope.txRef {
 		return false
 	}
-	return scope.op.session.Engine().locks.Holds(scope.ticket, lockResource{ObjectRef: ref}, accessExclusive)
+	return scope.op.session.Engine().locks.Holds(scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 }
 
 // prepareColumnDrop records the actual ordinary provider effects without owning
@@ -504,13 +505,13 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 		return nil, err
 	}
 	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.Relation(ref.Address); !present {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if prior != nil && (prior.scope != scope || prior.txRef != scope.txRef || prior.ref != ref || prior.next == nil) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
 	path, err := e.referencePath(auth)
@@ -544,11 +545,11 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
 	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.owner.domain || prepared.ref.Epoch != catalog.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {
 		if catalog.Get(address) != descriptor {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil
@@ -564,19 +565,19 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		return nil, err
 	}
 	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.next == nil || stage == nil || stage.owner != scope.op.session.Engine() || stage.lifecycle != catalogOpen || stage.invalid != nil || !scope.holdsColumnDropGrant(ref) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if _, consumed := scope.consumedColumnDrops[prepared]; consumed {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.prior != nil {
 		if _, consumed := scope.consumedColumnDrops[prepared.prior]; !consumed {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	for _, grant := range prepared.grants {
 		if !scope.holdsColumnDropGrant(grant) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	e := stage.owner

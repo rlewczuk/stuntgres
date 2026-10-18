@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -132,14 +133,14 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			rightRef := catalogRef(t, e, e.CatalogRead(), "r")
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == noKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			sourcesHeld := false
 			if queued {
 				ticket := entry.Pending[0].Ticket
-				left := lockState.Resources[lockResource{ObjectRef: leftRef}]
-				right := lockState.Resources[lockResource{ObjectRef: rightRef}]
-				sourcesHeld = left != nil && right != nil && left.Holders[ticket].Mode&accessShare != 0 && right.Holders[ticket].Mode&accessShare != 0
+				left := lockState.Resources[lock.Resource{ObjectRef: leftRef}]
+				right := lockState.Resources[lock.Resource{ObjectRef: rightRef}]
+				sourcesHeld = left != nil && right != nil && left.Holders[ticket].Mode&lock.AccessShare != 0 && right.Holders[ticket].Mode&lock.AccessShare != 0
 			}
 			if !queued || !sourcesHeld {
 				t.Fatal("not a genuine same-target queue with both physical outer sides admitted", queued, sourcesHeld)

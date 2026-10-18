@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 // Initial heap replacement uses actual key changes, not the all-arm bitmap.
@@ -21,12 +23,12 @@ func TestMergeSourceUpdateRowModes(t *testing.T) {
 func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 	for _, tc := range []struct {
 		name, arms string
-		mode       relationLockMode
+		mode       lock.Mode
 	}{
-		{"nonkey", "WHEN MATCHED THEN UPDATE SET v=t.v+1", noKeyUpdate},
-		{"sameKey", "WHEN MATCHED THEN UPDATE SET id=t.id", noKeyUpdate},
-		{"changedKey", "WHEN MATCHED THEN UPDATE SET id=t.id+1", noKeyUpdate | rowUpdate},
-		{"unselectedKey", "WHEN MATCHED AND FALSE THEN UPDATE SET id=t.id WHEN MATCHED THEN UPDATE SET v=t.v+1", noKeyUpdate},
+		{"nonkey", "WHEN MATCHED THEN UPDATE SET v=t.v+1", lock.ForNoKeyUpdate},
+		{"sameKey", "WHEN MATCHED THEN UPDATE SET id=t.id", lock.ForNoKeyUpdate},
+		{"changedKey", "WHEN MATCHED THEN UPDATE SET id=t.id+1", lock.ForNoKeyUpdate | lock.ForUpdate},
+		{"unselectedKey", "WHEN MATCHED AND FALSE THEN UPDATE SET id=t.id WHEN MATCHED THEN UPDATE SET v=t.v+1", lock.ForNoKeyUpdate},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
@@ -35,7 +37,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			row := e.storage[ref.Address].versions[0].row
-			resource := lockResource{ObjectRef: ref, Row: row}
+			resource := lock.Resource{ObjectRef: ref, Row: row}
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT before_merge")
 			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
@@ -45,7 +47,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, q)
 			lockState := e.locks.Inspect(s.transactions.ticket)
 			entry := lockState.Resources[resource]
-			var mode relationLockMode
+			var mode lock.Mode
 			if entry != nil {
 				mode = entry.Holders[s.transactions.ticket].Mode
 			}

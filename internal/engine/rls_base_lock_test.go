@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -14,7 +15,7 @@ func rlsBaseLockCancellation(t *testing.T, e *Engine, d *relationDescriptor) {
 	waiter := sessionStart(t, e, nil)
 	tx := transactionBegin(t, holder)
 	ref := catalogRef(t, e, e.CatalogRead(), d.name)
-	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

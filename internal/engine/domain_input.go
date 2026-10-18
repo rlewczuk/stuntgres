@@ -46,7 +46,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 		return sqltype.Value{}, err
 	}
 	if current.catalog.owner != eval.catalog.owner || current.catalog.Epoch() != eval.catalog.Epoch() {
-		return sqltype.Value{}, ErrCatalogReplaced
+		return sqltype.Value{}, ids.ErrCatalogReplaced
 	}
 	for _, provider := range providers {
 		if current.catalog.Get(provider.Address()) != provider {
@@ -103,7 +103,7 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 
 func validateCapturedInputBinding(captured, current CatalogRead, dependencies []expressionDependency) error {
 	if captured.owner != current.owner || captured.Epoch() != current.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, dependency := range dependencies {
 		address := dependency.ref.Address

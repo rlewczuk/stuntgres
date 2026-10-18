@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context, readOnly, deferrable bool) (*StatementScope, *serializableTransaction) {
@@ -257,7 +259,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			err = join()
 			want := error(context.Canceled)
 			if mode != "cancel" {
-				want = ErrCatalogReplaced
+				want = ids.ErrCatalogReplaced
 			}
 			if !errors.Is(err, want) {
 				t.Fatal("safe wait remapped ordinary cause", err, want)

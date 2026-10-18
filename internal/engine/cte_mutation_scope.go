@@ -153,7 +153,7 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *binding, e
 		}
 		index := scope.mutationIndex(definition.statement)
 		if index < 0 {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		scope.activateMutation(index)
 		if execute {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"testing"
 )
 
@@ -24,13 +25,13 @@ func TestTruncateGraphPartitions(t *testing.T) {
 	}
 	for _, ref := range []ids.ObjectRef{root, nested, left, right} {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		var hold relationHold
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		var hold lock.Hold
 		ok := false
 		if entry != nil {
 			hold, ok = entry.Holders[scope.ticket]
 		}
-		if !ok || hold.Mode&accessExclusive == 0 {
+		if !ok || hold.Mode&lock.AccessExclusive == 0 {
 			t.Fatal("missing canonical hierarchy AX", ref)
 		}
 	}
@@ -62,18 +63,18 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: p}]
-	var mode relationLockMode
+	entry := lockState.Resources[lock.Resource{ObjectRef: p}]
+	var mode lock.Mode
 	if entry != nil {
 		mode = entry.Holders[ticket].Mode
 	}
-	if mode&accessExclusive == 0 {
+	if mode&lock.AccessExclusive == 0 {
 		t.Fatal("real prior grant was not upgraded")
 	}
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	sessionSQL(t, waiter, "ROLLBACK TO preserve")
-	foreignKeyHeldMode(t, e, p, 0, ticket, accessShare|rowExclusive)
+	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
 	if !sameVersionRoot(waiter.transactions.writes[p.Address], writes) || waiter.transactions.catalog != nil && len(waiter.transactions.catalog.storage) != 0 {
 		t.Fatal("canceled upgrade lost earlier roots/left empty generation")
 	}
@@ -83,7 +84,7 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	if !sameVersionRoot(waiter.transactions.writes[p.Address], writes) {
 		t.Fatal("rollback-to did not restore roots after later success")
 	}
-	foreignKeyHeldMode(t, e, p, 0, ticket, accessShare|rowExclusive)
+	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
 	transactionEnd(t, waiter, tx, false)
 	lockEmpty(t, e)
 }
@@ -120,7 +121,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			err := scope.Finish(nil)
 			scope.op.Done()
 			if kind == "epoch" {
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch fence", err)
 				}
 			} else if err != (CatalogConflict{}) {
@@ -171,7 +172,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	}
 	truncateUnitPublish(t, e, stage)
 	transactionEnd(t, holder, tx, false)
-	lockAwait(t, done, ErrCatalogReplaced)
+	lockAwait(t, done, ids.ErrCatalogReplaced)
 	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.Get(p.Address).Namespace() != destination {
 		t.Fatal("queued name followed another namespace or undid real control publication")
 	}

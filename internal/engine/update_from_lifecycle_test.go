@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
@@ -105,7 +106,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 				}
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 10, 20, 30)
 			case "reset":
-				if !errors.Is(got.err, ErrCatalogReplaced) || got.count != 0 || got.rows != nil {
+				if !errors.Is(got.err, ids.ErrCatalogReplaced) || got.count != 0 || got.rows != nil {
 					t.Fatal(got)
 				}
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
@@ -173,9 +174,9 @@ func TestUpdateFromQueuedSourceAdmissionAndCancellation(t *testing.T) {
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
 			rref := catalogRef(t, e, e.CatalogRead(), "r")
 			lockState := e.locks.Inspect()
-			te := lockState.Resources[lockResource{ObjectRef: tref}]
-			se := lockState.Resources[lockResource{ObjectRef: sref}]
-			re := lockState.Resources[lockResource{ObjectRef: rref}]
+			te := lockState.Resources[lock.Resource{ObjectRef: tref}]
+			se := lockState.Resources[lock.Resource{ObjectRef: sref}]
+			re := lockState.Resources[lock.Resource{ObjectRef: rref}]
 			admitted := te != nil && len(te.Holders) == 1 && se != nil && len(se.Holders) == 1 && re != nil && len(re.Pending) == 1
 			if !admitted {
 				t.Fatal("source queue did not retain target/first source grants")

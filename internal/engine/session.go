@@ -222,7 +222,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		_, err = op.Attach(Notifications, &s.notifications)
 	}
 	if err == nil {
-		var ticket *relationTicket
+		var ticket *lock.Ticket
 		if sessionTokenAttached(s.token) {
 			ticket, err = e.locks.RegisterSession(s.token)
 		} else {

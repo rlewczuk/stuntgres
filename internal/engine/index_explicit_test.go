@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"testing"
 	"time"
 )
@@ -50,11 +51,11 @@ func TestBtreeIndexExplicitExclusionBeforeTargets(t *testing.T) {
 					lockState := e.locks.Inspect()
 					for _, entry := range lockState.Resources {
 						for _, request := range entry.Pending {
-							if request.Ticket == ticket && request.Mode == relationShare {
+							if request.Ticket == ticket && request.Mode == lock.Share {
 								seenShare = true
 							}
 						}
-						if entry.Holders[ticket].Mode&relationShare != 0 {
+						if entry.Holders[ticket].Mode&lock.Share != 0 {
 							seenShare = true
 						}
 					}
@@ -115,7 +116,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 				lockState := e.locks.Inspect()
 				for _, entry := range lockState.Resources {
 					for _, request := range entry.Pending {
-						if request.Mode == relationShare {
+						if request.Mode == lock.Share {
 							seenShare = true
 						}
 					}

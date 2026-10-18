@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 var rowLockTestClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}
@@ -22,7 +24,7 @@ func rowLockEngineFixture(t *testing.T) (*Engine, *Session, *Session, *Session) 
 	sessionSQL(t, c, "INSERT INTO t VALUES(1,10),(2,20)")
 	return e, a, b, c
 }
-func rowLockQueued(t *testing.T, e *Engine, holder *relationTicket, mode relationLockMode) {
+func rowLockQueued(t *testing.T, e *Engine, holder *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -71,7 +73,7 @@ func rowLockAwait(t *testing.T, done <-chan deleteOutcome, want ...int64) {
 	}
 }
 func TestRowLockManagerMatrix(t *testing.T) {
-	modes := []relationLockMode{keyShare, rowShare, noKeyUpdate, rowUpdate}
+	modes := []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate}
 	for requested := range modes {
 		for held := range modes {
 			t.Run(rowLockTestClauses[requested]+"/"+rowLockTestClauses[held], func(t *testing.T) {
@@ -107,13 +109,13 @@ func TestRowLockManagerMatrix(t *testing.T) {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 "+clause, 10)
 		}
 		lockState := e.locks.Inspect()
-		var held relationLockMode
+		var held lock.Mode
 		for resource, entry := range lockState.Resources {
 			if resource.Row != 0 {
 				held |= entry.Holders[a.transactions.ticket].Mode
 			}
 		}
-		if held != keyShare|rowShare|noKeyUpdate|rowUpdate {
+		if held != lock.ForKeyShare|lock.ForShare|lock.ForNoKeyUpdate|lock.ForUpdate {
 			t.Fatal("mode set lost", held)
 		}
 		transactionEnd(t, a, ar, false)
@@ -127,9 +129,9 @@ func TestRowLockDMLModes(t *testing.T) {
 				e, a, b, c := rowLockEngineFixture(t)
 				ar := transactionBegin(t, a)
 				transactionRows(t, a, "SELECT v FROM t WHERE id=1 "+clause, 10)
-				query, mode := "UPDATE t SET v=v+1 WHERE id=1", noKeyUpdate
+				query, mode := "UPDATE t SET v=v+1 WHERE id=1", lock.ForNoKeyUpdate
 				if deleting {
-					query, mode = "DELETE FROM t WHERE id=1", rowUpdate
+					query, mode = "DELETE FROM t WHERE id=1", lock.ForUpdate
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -169,7 +171,7 @@ func TestRowLockReadCommitted(t *testing.T) {
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					done := deleteAsync(t, b, ctx, query)
-					rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+					rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 					sessionSQL(t, c, "INSERT INTO t VALUES(3,10)")
 					sessionSQL(t, c, "UPDATE t SET v=10 WHERE id=2")
 					transactionEnd(t, a, ar, commit)
@@ -184,7 +186,7 @@ func TestRowLockReadCommitted(t *testing.T) {
 					rowLockAwait(t, done, want...)
 					if commit && predicate && change[0] != 'D' {
 						blocked := deleteAsync(t, c, ctx, "UPDATE t SET v=31 WHERE id=1")
-						rowLockQueued(t, e, b.transactions.ticket, noKeyUpdate)
+						rowLockQueued(t, e, b.transactions.ticket, lock.ForNoKeyUpdate)
 						transactionEnd(t, b, br, false)
 						deleteAwait(t, blocked, 1, nil)
 					} else {
@@ -203,7 +205,7 @@ func TestRowLockOrdering(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
-	rowLockQueued(t, e, a.transactions.ticket, rowShare)
+	rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 	transactionEnd(t, a, ar, true)
 	rowLockAwait(t, done, 30, 20)
 	lockEmpty(t, e)
@@ -219,7 +221,7 @@ func TestRowLockCancellation(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			done := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 FOR KEY SHARE")
-			rowLockQueued(t, e, a.transactions.ticket, keyShare)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForKeyShare)
 			cancel()
 			deleteAwait(t, done, 0, context.Canceled)
 			if explicit {
@@ -244,7 +246,7 @@ func TestRowLockJoins(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			done := deleteAsync(t, b, ctx, "UPDATE t SET v=11 WHERE id=1")
-			rowLockQueued(t, e, a.transactions.ticket, noKeyUpdate)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForNoKeyUpdate)
 			transactionRows(t, c, "SELECT v FROM t WHERE id=1", 10)
 			transactionEnd(t, a, ar, false)
 			deleteAwait(t, done, 1, nil)
@@ -260,7 +262,7 @@ func TestRowLockJoins(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		done := deleteAsync(t, b, ctx, "SELECT t.v FROM t JOIN u ON t.id=u.id FOR SHARE")
-		rowLockQueued(t, e, a.transactions.ticket, rowShare)
+		rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 		transactionEnd(t, a, ar, true)
 		rowLockAwait(t, done)
 		lockEmpty(t, e)
@@ -285,7 +287,7 @@ func TestRowLockDMLCurrentValues(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	done := deleteAsync(t, b, ctx, "UPDATE t SET v=v+1 WHERE id=1")
-	rowLockQueued(t, e, a.transactions.ticket, noKeyUpdate)
+	rowLockQueued(t, e, a.transactions.ticket, lock.ForNoKeyUpdate)
 	transactionEnd(t, a, ar, true)
 	deleteAwait(t, done, 1, nil)
 	transactionRows(t, c, "SELECT v FROM t WHERE id=1", 21)

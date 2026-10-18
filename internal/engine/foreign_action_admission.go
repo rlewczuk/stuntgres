@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,11 +35,11 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 		return errors.New("stuntgres: missing internal action admission")
 	}
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if !ok || !sameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.catalog, ref.Address) != admission.storage {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
 	for _, captured := range admission.jobs {
@@ -74,18 +75,18 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 
 func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
 	e := s.op.session.Engine()
-	required := relationRowShare | rowExclusive
+	required := lock.RowShare | lock.RowExclusive
 	if writable {
-		required = rowExclusive
+		required = lock.RowExclusive
 	}
-	held := e.locks.Holds(s.ticket, lockResource{ObjectRef: ref}, required)
+	held := e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref}, required)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.address {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if !held {
 		return errors.New("stuntgres: internal action admission requires its relation grant")
@@ -93,7 +94,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if !ok || !sameRelationRowShape(current, job.child) || storage == nil {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
 	if err := refreshForeignActionJob(view, job); err != nil {
@@ -156,7 +157,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		}
 	}()
 	e := s.op.session.Engine()
-	if !e.locks.Holds(s.ticket, lockResource{ObjectRef: ref, Row: old.row}, rowUpdate) {
+	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -228,7 +229,7 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	if stableIsolation(s.owner.isolation) && s.owner.snapshotSet {
 		if root, exists := s.owner.roots[ref.Address]; exists {
 			if root.storage != rows.storage {
-				return foreignKeyRows{}, retained, ErrCatalogReplaced
+				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
 			retained.committed, retained.ends, retained.frontier = root.versions, root.ends, s.owner.frontier

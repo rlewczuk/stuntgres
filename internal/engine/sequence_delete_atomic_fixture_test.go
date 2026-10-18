@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -143,7 +144,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 	}
 }
 
-func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *relationTicket) {
+func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *lock.Ticket) {
 	t.Helper()
 	tx := s.transactions
 	if tx.state != TxIdle || tx.ref != (ids.TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {

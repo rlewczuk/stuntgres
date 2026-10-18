@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -258,7 +259,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 				ok = true
 			}
 			if !ok {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			index, err := foreignKeyIndex(view, target, c.Referenced)
 			if err != nil {
@@ -320,7 +321,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 		return 0
 	})
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, relationRowShare, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.RowShare, nil); err != nil {
 			return err
 		}
 	}
@@ -404,7 +405,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		return 0
 	})
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, shareRowExclusive, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
 			return err
 		}
 	}
@@ -434,18 +435,18 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			}
 			parent, ok := auth.catalog.Relation(f.Target)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			index, ok := auth.catalog.Relation(f.Index)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			eligible, err := foreignKeyIndexEligible(parent, index, f.Referenced)
 			if err != nil {
 				return err
 			}
 			if !eligible {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			if _, err := bindForeignKeyComparison(auth.catalog, child, parent, index, f); err != nil {
 				return err

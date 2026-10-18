@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -64,7 +65,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	var defaultScans []partitionAttachScan
 	if !bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
-		if err = scope.acquirePartitionLock(ref, accessExclusive); err != nil {
+		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
 		catalog, root, err := e.partitionAttachRelation(scope, ref)
@@ -95,7 +96,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionLock(candidate, accessExclusive); err != nil {
+	if err = scope.acquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	catalog, child, err := e.partitionAttachRelation(scope, candidate)
@@ -105,7 +106,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = partitionAttachEligibility(catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionDescendants(candidate, accessExclusive); err != nil {
+	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 
@@ -137,7 +138,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if auth.catalog.Get(parent.address) != parent {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	child = auth.catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
@@ -225,7 +226,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
 	current, err := e.resolveRelationReference(auth, name, true)
 	if err != nil || current != held {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }
@@ -236,7 +237,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
-		return CatalogRead{}, nil, ErrCatalogReplaced
+		return CatalogRead{}, nil, ids.ErrCatalogReplaced
 	}
 	return catalog, d, nil
 }

@@ -19,7 +19,7 @@ type indexRowIdentity struct {
 // owner-invisible predecessors have no invented keys.
 func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescriptor, baseline *relationStorage, positions map[indexRowIdentity]int) (*logicalIndexRoot, error) {
 	if b == nil || b.index == nil || !sameIndexKeySemantics(b.index, index) || b.store == nil || baseline == nil {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if b.store == baseline {
 		return b.root, ctx.Err()
@@ -116,7 +116,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 				continue
 			}
 			if !output.matches(build.index) {
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 			if outputs == nil {
 				outputs = maps.Clone(row.indexOutputs)

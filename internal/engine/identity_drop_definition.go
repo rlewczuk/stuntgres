@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -30,7 +31,7 @@ func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor
 	owned := table.address
 	owned.SubID = attribute
 	if !ok || sequence == nil || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	return sequence, nil
 }
@@ -64,7 +65,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	ref := e.catalog.domain.Ref(provider.base.Epoch(), identity.sequence)
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
-	if err := provider.scope.acquireSequence(ref, accessExclusive, false); err != nil {
+	if err := provider.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
 		return old, capture, err
 	}
 	e.mu.Lock()
@@ -107,7 +108,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 		return capture, err
 	}
 	if fresh.catalog.Epoch() != provider.base.Epoch() || provider.removed(ref.Address) {
-		return capture, ErrCatalogReplaced
+		return capture, ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.catalog.Get(ref.Address)
 	if staged := provider.replacement(ref.Address); staged != nil {
@@ -120,7 +121,7 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	// An earlier genuine observation is never overwritten by the refresh.
 	observed := fresh.catalog.Get(ref.Address)
 	if prior, captured := provider.prepared.observed[ref.Address]; captured && prior != observed {
-		return capture, ErrCatalogReplaced
+		return capture, ids.ErrCatalogReplaced
 	}
 	provider.prepared.observed[ref.Address] = observed
 	provider.prepared.grants = append(provider.prepared.grants, ref)
@@ -151,7 +152,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 		return nil, err
 	}
 	if provider.owner != e {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	next, capture, err := e.dropIdentityDefinition(provider, old, action)
 	if err != nil {
@@ -169,7 +170,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 		return nil, err
 	}
 	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.drop == nil {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	e := scope.op.session.Engine()
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
@@ -177,7 +178,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 		unchanged := e.catalog.state.Get(prepared.sequence.Address) == prepared.original
 		e.mu.Unlock()
 		if !unchanged {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	next, err := scope.consumePreparedDrop(stage, prepared.drop, old, ref, nil)

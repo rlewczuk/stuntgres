@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -43,7 +44,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		if old != root {
 			slot, exists := old.index[column]
 			if !exists {
-				return Result{}, ErrCatalogReplaced
+				return Result{}, ids.ErrCatalogReplaced
 			}
 			for _, origin := range old.inheritance.columns[old.attributes[slot]].origins {
 				if !selected[origin.parent] {
@@ -190,12 +191,12 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		}
 		catalog := auth.catalog
 		if catalog.Epoch() != epoch {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		for address, old := range captured {
 			current, _ := catalog.Relation(address)
 			if !inheritanceMarkerPublication(old, current) {
-				return fail(ErrCatalogReplaced)
+				return fail(ids.ErrCatalogReplaced)
 			}
 			if current != old {
 				captured[address] = current
@@ -226,7 +227,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		ref := scope.lockedRef
 		ref.Address = pending.address
 		e.mu.Unlock()
-		if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return nil, AuthorizationView{}, err
 		}
 		e.mu.Lock()

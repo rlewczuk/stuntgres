@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestMergeUpdateMixedPendingCancellation(t *testing.T) {
@@ -64,7 +66,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 			t.Error("cancelled mixed worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, noKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
 	transactionRows(t, peer, "SELECT v FROM t", 10)
 	cancel()
 	select {
@@ -80,7 +82,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	}
 	if targetOnly {
 		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
-		resource := lockResource{ObjectRef: ref, Row: row}
+		resource := lock.Resource{ObjectRef: ref, Row: row}
 		lockState := e.locks.Inspect(worker.transactions.ticket)
 		entry := lockState.Resources[resource]
 		held := entry != nil && entry.Holders[worker.transactions.ticket].Mode != 0

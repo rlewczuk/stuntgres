@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestBtreeIndexOrdinaryBuildAdmission(t *testing.T) {
@@ -22,7 +25,7 @@ func TestBtreeIndexOrdinaryBuildAdmission(t *testing.T) {
 			lockState := e.locks.Inspect()
 			for _, entry := range lockState.Resources {
 				for _, pending := range entry.Pending {
-					if pending.Mode != relationShare {
+					if pending.Mode != lock.Share {
 						t.Fatal("wrong build mode", pending.Mode)
 					}
 				}
@@ -68,7 +71,7 @@ func TestBtreeIndexWaitingCancellationAndEpochFence(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 			} else {
 				cancel()
 				lockAwait(t, done, context.Canceled)

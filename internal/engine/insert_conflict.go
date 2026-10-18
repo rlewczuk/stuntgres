@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,8 +25,8 @@ type boundInsertConflict struct {
 	reads         []int
 	selected      []ids.ObjectAddress
 	catalog       *catalogState
-	checkpoint    relationLockCheckpoint
-	statementKeys relationLockCheckpoint
+	checkpoint    lock.Checkpoint
+	statementKeys lock.Checkpoint
 	affected      int
 	targets       []int
 	update        *boundUpdate

@@ -485,7 +485,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescript
 	}
 	wrapper, ok := auth.catalog.Foreign(object.wrapper)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	recipient := auth
 	recipient.state.CurrentUser = target

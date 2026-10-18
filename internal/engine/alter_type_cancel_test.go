@@ -50,7 +50,7 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 						t.Fatal(err, "published canceled rewrite")
 					}
 					run(t, e, "ALTER TABLE t "+fixture.action)
-				} else if !errors.Is(err, ErrCatalogReplaced) {
+				} else if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("resurrected replaced catalog", err)
 				}
 			})

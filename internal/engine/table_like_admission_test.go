@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestTableLikeSourceAdmission(t *testing.T)          { tableLikeAdmission(t, "source") }
@@ -50,7 +51,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					_ = holder.Finish(nil)
 				}
 			}()
-			if err := holder.acquireSequence(ref, accessExclusive, true); err != nil {
+			if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -123,8 +124,8 @@ func tableLikeAdmission(t *testing.T, provider string) {
 			go func() { result <- scope.acquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: ref}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
 			if !queued {
 				t.Fatal("not queued on exact captured provider", ref)
 			}
@@ -179,8 +180,8 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				}
 				assertHeld := func() {
 					lockState := e.locks.Inspect()
-					entry := lockState.Resources[lockResource{ObjectRef: ref}]
-					held := entry != nil && entry.Holders[scope.ticket].Mode&accessShare != 0
+					entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+					held := entry != nil && entry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 					if !held {
 						t.Fatal("provider hold lost before publication finished")
 					}

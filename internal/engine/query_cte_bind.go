@@ -238,7 +238,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 		if source, ok := node.(*sourceNode); ok {
 			relation, _ := catalog.Relation(source.ref.Address)
 			if relation == nil {
-				sourceErr = ErrCatalogReplaced
+				sourceErr = ids.ErrCatalogReplaced
 			} else if relation.relationKind == viewRelation {
 				leaves = append(leaves, queryLeaf{relation: relation})
 			}

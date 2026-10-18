@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -239,7 +240,7 @@ func copyReplacement(t *testing.T, format copyFormat) {
 			}
 			close(reader.release)
 			released = true
-			if err := <-done; !errors.Is(err, ErrCatalogReplaced) {
+			if err := <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("COPY rebound replacement", err)
 			}
 			if scope.stage.rows != nil || scope.owner.copyScope != nil {
@@ -527,7 +528,7 @@ func TestCopyTextOutputReplacement(t *testing.T) {
 			}
 			close(writer.release)
 			released = true
-			if err = <-done; !errors.Is(err, ErrCatalogReplaced) {
+			if err = <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("output rebound replaced catalog", err)
 			}
 			if scope.owner.copyScope != nil {

@@ -66,7 +66,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("deleted source version changed old-row matching", position, before, err)
 	}
 	position = 0
-	if _, err := history.nextRow(context.Background(), &position, rowVersion{row: 9, version: 9}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := history.nextRow(context.Background(), &position, rowVersion{row: 9, version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: catalog}

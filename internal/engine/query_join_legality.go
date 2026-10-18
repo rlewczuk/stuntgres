@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +11,7 @@ import (
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
-func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited relationLockMode) error {
+func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited lock.Mode) error {
 	reads := queryExecutionSourceReads(node, nil)
 	if source, ok := node.(*sourceNode); ok {
 		reads[source.occurrence] = nil

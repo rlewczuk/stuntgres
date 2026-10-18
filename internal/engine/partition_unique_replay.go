@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -46,7 +47,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	}
 	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if table.partition == nil || table.membership == nil || table.inheritance != nil {
 		return nil
@@ -149,13 +150,13 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), table.address)
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()
-	if err := scope.acquirePartitionDescendants(ref, accessExclusive); err != nil {
+	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
 	auth, err := e.statementAuthorizationLocked(op, raw)
 	if err == nil && !partitionUniqueReplayAllowed(op, auth, raw, table) {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		e.mu.Unlock()

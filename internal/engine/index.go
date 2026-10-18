@@ -548,7 +548,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		parent, ok := auth.catalog.Relation(scope.lockedRef.Address)
 		if !ok {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		if scope.op.restoreTableDestination {
 			bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)

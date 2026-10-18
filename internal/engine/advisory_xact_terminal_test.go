@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"testing"
@@ -19,11 +21,11 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 				b, _ := advisoryUnitOwner(t, e)
 				m := e.locks
 				at, bt := a.transactions.ticket, b.transactions.ticket
-				key := lockResource{Kind: advisoryPairResource, High: 19, Low: 20}
-				advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
+				key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
+				advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				request, err := m.StartAcquire(ctx, bt, key, advisoryShared, relationLockPolicy{Timeout: time.Hour})
+				request, err := m.StartAcquire(ctx, bt, key, lock.AdvisoryShare, lock.Policy{Timeout: time.Hour})
 				if err != nil || request == nil {
 					t.Fatal(request, err)
 				}
@@ -66,11 +68,11 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 							t.Fatal(err)
 						}
 					case "end":
-						if !errors.Is(err, errRelationOwnerEnded) {
+						if !errors.Is(err, lock.ErrOwnerEnded) {
 							t.Fatal(err)
 						}
 					case "fence":
-						if !errors.Is(err, ErrCatalogReplaced) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) {
 							t.Fatal(err)
 						}
 					case "timeout":
@@ -100,10 +102,10 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lockResource{Kind: advisoryBigintResource, Low: 66}
-		advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
+		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 66}
+		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		ctx, cancel := context.WithCancel(context.Background())
-		request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, advisoryExclusive, relationLockPolicy{Timeout: time.Hour})
+		request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})
 		if err != nil || request == nil {
 			cancel()
 			t.Fatal(request, err)
@@ -117,7 +119,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		joined.Wait()
 		err = deadlockResult(t, request)
 		held := advisoryXactUnitHold(b, key).Mode
-		if err == nil && held != advisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
+		if err == nil && held != lock.AdvisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
 			t.Fatal("inconsistent terminal publication", err, held)
 		}
 		e.endLockOwner(b.transactions.ticket)

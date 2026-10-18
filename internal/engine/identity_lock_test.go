@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
@@ -17,9 +19,9 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 			defer cancel()
 			done := lockAsync(e, b, ctx, action, false)
 			ref := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
-			mode := shareRowExclusive
+			mode := lock.ShareRowExclusive
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
-				mode = accessExclusive
+				mode = lock.AccessExclusive
 			}
 			ownedLockQueued(t, e, ref, mode, done)
 			transactionEnd(t, a, tx, true)
@@ -67,9 +69,9 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			done := lockAsync(e, b, ctx, action, false)
-			mode := shareRowExclusive
+			mode := lock.ShareRowExclusive
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
-				mode = accessExclusive
+				mode = lock.AccessExclusive
 			}
 			ownedLockQueued(t, e, sequenceRef, mode, done)
 			cancel()

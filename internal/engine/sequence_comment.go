@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -26,7 +27,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquireSequence(ref, shareUpdateExclusive, true); err != nil {
+	if err = scope.acquireSequence(ref, lock.ShareUpdateExclusive, true); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
@@ -40,7 +41,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	next := *old
 	next.revision, err = e.catalog.revisionLocked()

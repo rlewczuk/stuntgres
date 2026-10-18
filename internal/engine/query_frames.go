@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ type queryBindingScope struct {
 	groupSets           [][]int
 	returning           *returningAliases
 	nonLateral          bool
-	rowDiagnosticMode   relationLockMode
+	rowDiagnosticMode   lock.Mode
 	windowRaw           []parser.WindowDefinition
 	windowDefinitions   map[string]boundWindowSpec
 	windowCalls         []windowCall

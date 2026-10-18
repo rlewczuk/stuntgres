@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // This worker executes the real command and Finish; its owner cancels and joins
@@ -83,10 +84,10 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				await := updateDeleteAsync(t, e, worker, context.Background(), q)
 				lockPending(t, e, 1)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+				resource := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[resource]
-				actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
+				actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
 				if !actual {
 					t.Fatal("not a shared logical-row arbitration wait")
 				}
@@ -284,7 +285,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = e.Commit(op, tx)
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "canceled_final_publication":

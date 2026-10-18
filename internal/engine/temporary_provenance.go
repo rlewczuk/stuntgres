@@ -131,7 +131,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 
 func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) (ids.ObjectRef, error) {
 	if !storedViewReferenceValid(catalog, consumer, ref) {
-		return ids.ObjectRef{}, ErrCatalogReplaced
+		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
 	ref.Epoch = catalog.Epoch()
 	return ref, nil

@@ -194,7 +194,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	for _, address := range added {
 		index, ok := candidate.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		indexes = append(indexes, index)
 	}
@@ -274,7 +274,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 		}
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || !sameIndexKeySemantics(build.index, index) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		root, err := build.baselineRoot(evaluation.Context, index, baseline, positions)
 		if err != nil {

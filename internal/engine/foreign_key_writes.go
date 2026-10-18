@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -68,7 +69,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return foreignKeyRows{}, ErrCatalogReplaced
+		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
@@ -76,7 +77,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	}
 	storage := e.privateStorageLocked(changes, ref.Address)
 	if storage == nil {
-		return foreignKeyRows{}, ErrCatalogReplaced
+		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	r := foreignKeyRows{storage: storage, committed: storage.versions, ends: storage.ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.commitSeq}
 	r.index = index
@@ -105,10 +106,10 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode relationLockMode, storage *relationStorage) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, storage *relationStorage) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, Row: row}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -126,17 +127,17 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}
 	if _, ok := e.privateCatalogLocked(changes).Find(ref.Address); !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if storage != nil && e.privateStorageLocked(changes, ref.Address) != storage {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return s.validateLockedRelation(e)
 }
@@ -215,7 +216,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	s.foreignKeyTargets = targets
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, shareRowExclusive, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
 			return err
 		}
 	}
@@ -371,7 +372,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	return s.op.Context().Err()
 }
 
-func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lock bool) (bool, error) {
+func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
 	if err := prepareForeignKeyChild(s.op.Context(), job.comparisons, child, job.childKey, s.input); err != nil {
 		return false, err
 	}
@@ -380,10 +381,10 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		if err != nil || matching.row == 0 {
 			return false, err
 		}
-		if !lock || matching.born == 0 {
+		if !lockParent || matching.born == 0 {
 			return true, nil
 		}
-		if err := s.foreignKeyGrant(ref, matching.row, keyShare, rows.storage); err != nil {
+		if err := s.foreignKeyGrant(ref, matching.row, lock.ForKeyShare, rows.storage); err != nil {
 			return false, err
 		}
 		if err := s.refreshForeignKeyRows(ref, rows); err != nil {
@@ -394,7 +395,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		if locator.position >= 0 && locator.position < len(rows.committed) {
 			parent := rows.committed[locator.position]
 			if parent.row == locator.row && parent.version == locator.version && rows.committedLive(parent) {
-				if err := s.physicalRowEvent(ref, parent, multiKeyShare, 0); err != nil {
+				if err := s.physicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
 					return false, err
 				}
 				return foreignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.values, s.input)
@@ -408,7 +409,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
@@ -416,7 +417,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	}
 	storage := e.privateStorageLocked(changes, ref.Address)
 	if storage == nil || storage != rows.storage {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	rows.committed, rows.ends, rows.frontier = storage.versions, storage.ends, e.commitSeq
 	rows.root = e.indexRoots[rows.index]

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -33,14 +34,14 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		target          bool
-		held            relationLockMode
+		held            lock.Mode
 		noData, blocked bool
 	}{
-		{"reader_target", true, accessShare, false, true},
-		{"refresh_target", true, accessExclusive, false, true},
-		{"source_exclusive", false, accessExclusive, false, true},
-		{"source_insert", false, rowExclusive, false, false},
-		{"no_data_source_exclusive", false, accessExclusive, true, false},
+		{"reader_target", true, lock.AccessShare, false, true},
+		{"refresh_target", true, lock.AccessExclusive, false, true},
+		{"source_exclusive", false, lock.AccessExclusive, false, true},
+		{"source_insert", false, lock.RowExclusive, false, false},
+		{"no_data_source_exclusive", false, lock.AccessExclusive, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
@@ -57,7 +58,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			if tc.target {
 				ref.Address = d.address
 			}
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())

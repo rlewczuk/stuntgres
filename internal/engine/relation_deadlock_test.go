@@ -6,22 +6,23 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func deadlockRequest(t *testing.T, e *Engine, ticket *relationTicket, resource lockResource, mode relationLockMode) *relationRequest {
+func deadlockRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode) *lock.Request {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
-	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, relationLockPolicy{CompletionPurpose: completionVirtual})
+	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return r
 }
-func deadlockResult(t *testing.T, r *relationRequest) error {
+func deadlockResult(t *testing.T, r *lock.Request) error {
 	t.Helper()
 	if r == nil {
 		return nil
@@ -34,7 +35,7 @@ func deadlockResult(t *testing.T, r *relationRequest) error {
 		return nil
 	}
 }
-func deadlockDiagnostic(t *testing.T, err error, tickets []*relationTicket, resources []lockResource) {
+func deadlockDiagnostic(t *testing.T, err error, tickets []*lock.Ticket, resources []lock.Resource) {
 	t.Helper()
 	var d *sqlstate.Error
 	if !errors.As(err, &d) {
@@ -86,28 +87,28 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				n = 3
 			}
 			sessions := make([]*Session, n)
-			tickets := make([]*relationTicket, n)
-			resources := make([]lockResource, n)
+			tickets := make([]*lock.Ticket, n)
+			resources := make([]lock.Resource, n)
 			for i := range n {
 				sessions[i] = sessionStart(t, e, nil)
 				sessionSQL(t, sessions[i], fmt.Sprintf("CREATE TABLE t%d(v INT)", i))
 				transactionBegin(t, sessions[i])
 				tickets[i] = sessions[i].transactions.ticket
-				resources[i] = lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), fmt.Sprintf("t%d", i))}
+				resources[i] = lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), fmt.Sprintf("t%d", i))}
 				t.Cleanup(func() { e.endLockOwner(tickets[i]) })
 			}
-			modes := make([]relationLockMode, n)
+			modes := make([]lock.Mode, n)
 			for i := range n {
-				modes[i] = accessExclusive
+				modes[i] = lock.AccessExclusive
 				if kind == "row" || kind == "mixed" && i == 1 {
 					resources[i].Row = ids.RowID(i + 1)
-					modes[i] = noKeyUpdate
+					modes[i] = lock.ForNoKeyUpdate
 				}
 				if r := deadlockRequest(t, e, tickets[i], resources[i], modes[i]); r != nil {
 					t.Fatal("uncontended hold queued")
 				}
 			}
-			pending := make([]*relationRequest, n)
+			pending := make([]*lock.Request, n)
 			for i := range n {
 				pending[i] = deadlockRequest(t, e, tickets[i], resources[(i+1)%n], modes[(i+1)%n])
 				if pending[i] == nil {
@@ -167,26 +168,26 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 		ticket := s.transactions.ticket
 		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
-	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t1")}
-	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t2")}
-	deadlockRequest(t, e, a.transactions.ticket, x, accessShare)
-	deadlockRequest(t, e, c.transactions.ticket, y, accessExclusive)
-	rb := deadlockRequest(t, e, b.transactions.ticket, x, accessExclusive)
-	rc := deadlockRequest(t, e, c.transactions.ticket, x, accessShare)
+	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t1")}
+	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t2")}
+	deadlockRequest(t, e, a.transactions.ticket, x, lock.AccessShare)
+	deadlockRequest(t, e, c.transactions.ticket, y, lock.AccessExclusive)
+	rb := deadlockRequest(t, e, b.transactions.ticket, x, lock.AccessExclusive)
+	rc := deadlockRequest(t, e, c.transactions.ticket, x, lock.AccessShare)
 	lockState := e.locks.Inspect()
 	queue := lockState.Resources[x].Pending
 	ordered := len(queue) == 2 && queue[0].Request == rb && queue[1].Request == rc
 	if !ordered {
 		t.Fatal("missing conflicting predecessor queue proof")
 	}
-	ra := deadlockRequest(t, e, a.transactions.ticket, y, accessShare)
+	ra := deadlockRequest(t, e, a.transactions.ticket, y, lock.AccessShare)
 	if err := deadlockResult(t, rc); err != nil {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
 	lockState = e.locks.Inspect()
 	ah := lockState.Resources[x].Holders[a.transactions.ticket].Mode
 	bt := rb.Terminal()
-	if ah != accessShare || bt {
+	if ah != lock.AccessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}
 	e.endLockOwner(c.transactions.ticket)
@@ -208,12 +209,12 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 	transactionBegin(t, a)
 	ticket := a.transactions.ticket
 	defer e.endLockOwner(ticket)
-	resource := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-	if err := e.locks.Acquire(context.Background(), ticket, resource, accessShare); err != nil {
+	resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
+	if err := e.locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	allocations := testing.AllocsPerRun(100, func() {
-		if err := e.locks.Acquire(context.Background(), ticket, resource, accessShare); err != nil {
+		if err := e.locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
 			panic(err)
 		}
 	})

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
@@ -40,7 +42,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = e.Commit(op, tx)
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("stale replacement commit", err)
 				}
 			} else {

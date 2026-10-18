@@ -63,7 +63,7 @@ func TestViewValidationReplacementAdmission(t *testing.T) {
 	if !callbackRan || !admissionReleased {
 		t.Fatal("view validation retains replacement read admission", callbackRan, admissionReleased)
 	}
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	if _, exists := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "v"}); exists {

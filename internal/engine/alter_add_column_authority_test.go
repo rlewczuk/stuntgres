@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // Exercise the real dependency admission before any DEFAULT or CHECK demand.
@@ -34,8 +35,8 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			waiting := lockAsync(e, worker, ctx, q, false)
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: seq}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.transactions.ticket].Mode&accessExclusive != 0
+			entry := lockState.Resources[lock.Resource{ObjectRef: seq}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.transactions.ticket].Mode&lock.AccessExclusive != 0
 			if !queued {
 				t.Fatal("ADD did not queue AS against exact provider")
 			}
@@ -130,8 +131,8 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				}
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: seq}]
-				held := entry != nil && entry.Holders[scope.ticket].Mode&accessShare != 0
+				entry := lockState.Resources[lock.Resource{ObjectRef: seq}]
+				held := entry != nil && entry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 				if !held {
 					t.Fatal("provider hold retired before Finish")
 				}
@@ -161,7 +162,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if veto == "cancel" && !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if veto == "replacement" && !errors.Is(err, ErrCatalogReplaced) {
+				if veto == "replacement" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 				if veto == "authorization" || veto == "storage" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -116,8 +117,8 @@ func TestLockModesOrder(t *testing.T) {
 	first := catalogRef(t, e, e.CatalogRead(), "first")
 	later := catalogRef(t, e, e.CatalogRead(), "later")
 	lockState := e.locks.Inspect()
-	pending := len(lockState.Resources[lockResource{ObjectRef: first}].Pending)
-	entry := lockState.Resources[lockResource{ObjectRef: later}]
+	pending := len(lockState.Resources[lock.Resource{ObjectRef: first}].Pending)
+	entry := lockState.Resources[lock.Resource{ObjectRef: later}]
 	if pending != 1 || entry != nil {
 		t.Fatal("list was preflighted, sorted, or acquired past the blocked first target")
 	}

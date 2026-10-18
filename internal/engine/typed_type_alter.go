@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -37,7 +38,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), accessExclusive, true); err != nil {
+	if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), lock.AccessExclusive, true); err != nil {
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -62,7 +63,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	// independently parent-before-child for multiple-parent inheritance.
 	addresses := typedSortedAddresses(targets)
 	for _, address := range addresses {
-		if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), address), accessExclusive, true); err != nil {
+		if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}

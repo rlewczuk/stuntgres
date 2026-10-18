@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -14,12 +15,12 @@ import (
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
 // A live request on the original RowID establishes the exact interleaving.
-func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, worker *Session, blocker *relationTicket, mode relationLockMode) {
+func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, worker *Session, blocker *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
 		found := false
 		if entry != nil && entry.Holders[blocker].Mode != 0 {
 			for _, request := range entry.Pending {
@@ -349,10 +350,10 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			done := mergeUpdatePendingExecute(t, worker, q)
-			mergeUpdatePendingRow(t, e, ref, row, worker, writer.transactions.ticket, noKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, writer.transactions.ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, writer, b, true)
 			if tc.strong {
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, rowUpdate)
+				mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForUpdate)
 				transactionRows(t, peer, "SELECT v FROM t", 20)
 				transactionEnd(t, holder, a, false)
 			}

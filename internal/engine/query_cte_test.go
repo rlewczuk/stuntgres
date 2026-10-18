@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -568,7 +569,7 @@ func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
 	marked := &querySource{occurrence: 0}
 	unmarked := &querySource{occurrence: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{
-		{source: marked, mark: queryRowMark{mode: rowUpdate}},
+		{source: marked, mark: queryRowMark{mode: lock.ForUpdate}},
 		{source: unmarked},
 	}}
 	marked.locks, unmarked.locks = locks, locks
@@ -629,7 +630,7 @@ func TestQueryCTEDeadZeroWidthOwner(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	_, state, child := cteUnitScan(nil, querySchema{}, 2)
 	state.ctes = nil
-	state.source.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: rowUpdate}}}}
+	state.source.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: lock.ForUpdate}}}}
 	filter := &filterNode{querySchema: child.Schema(), child: child, predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}
 	root := &projectNode{querySchema: child.Schema(), child: filter, frame: 1, cteOwner: true}
 	stage, err := openQueryNode(context.Background(), state, root)

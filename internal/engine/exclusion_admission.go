@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -106,7 +107,7 @@ func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
 }
 func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusionProjection) {
 	if e.exclusionPending == nil {
-		e.exclusionPending = make(map[*relationTicket]*exclusionProjection)
+		e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
 	}
 	e.exclusionPending[s.ticket] = p
 	e.exclusionGeneration++
@@ -143,7 +144,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	}
 	definition := exclusionDefinition(binding.parent, bound.index)
 	if definition == nil {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	member, keys, err := proposal.uniqueOutput(bound, &evaluation, precheck, purpose)
 	if err != nil {
@@ -154,12 +155,12 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Epoch != e.catalog.state.epoch || e.privateCatalogLocked(s.owner.catalog).state != binding.catalog {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
 	row, err := s.exclusionCandidateLocked(e, proposal, excluded, binding.catalog)
@@ -259,7 +260,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 type exclusionScan struct {
 	generation      uint64
 	root            *logicalIndexRoot
-	pending         map[*relationTicket]*exclusionProjection
+	pending         map[*lock.Ticket]*exclusionProjection
 	auth            AuthorizationView
 	view            CatalogRead
 	schema          string
@@ -276,7 +277,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.catalog)
 	if ref.Epoch != e.catalog.state.epoch || view.state != binding.catalog {
-		return exclusionScan{}, ErrCatalogReplaced
+		return exclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
@@ -343,9 +344,9 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			evaluation.Input.TypeDiagnosticName = binding.typeName
 		}
 		potential := false
-		var wait *relationTicket
+		var wait *lock.Ticket
 		var hit uniqueConflict
-		visit := func(entry exclusionEntry, owner *relationTicket, committed bool) error {
+		visit := func(entry exclusionEntry, owner *lock.Ticket, committed bool) error {
 			if owner == s.ticket && entry.row.row == candidate.row {
 				return nil
 			}
@@ -432,13 +433,13 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		}
 		c := exclusionDefinition(binding.parent, index)
 		if c == nil {
-			return uniqueConflict{}, false, ErrCatalogReplaced
+			return uniqueConflict{}, false, ids.ErrCatalogReplaced
 		}
 		if c.Deferrable && !recheck {
 			return uniqueConflict{}, potential, nil
 		}
 		if wait != nil {
-			if err := s.waitCompletion(wait, completionTransaction); err != nil {
+			if err := s.waitCompletion(wait, lock.CompletionTransaction); err != nil {
 				return uniqueConflict{}, false, err
 			}
 			continue
@@ -457,7 +458,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 	}
 	c := exclusionDefinition(binding.parent, index)
 	if c == nil {
-		return uniqueConflict{}, ErrCatalogReplaced
+		return uniqueConflict{}, ids.ErrCatalogReplaced
 	}
 	if action != nil && c.Deferrable {
 		schema := binding.catalog.Get(binding.parent.namespace).Name()

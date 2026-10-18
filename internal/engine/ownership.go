@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -254,7 +255,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {
@@ -297,7 +298,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			if a == old.address {
 				continue
 			}
-			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), accessExclusive, true); err != nil {
+			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -384,7 +385,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	e.mu.Unlock()
 	if err == nil {
 		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
-			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), accessExclusive, true); err != nil {
+			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}

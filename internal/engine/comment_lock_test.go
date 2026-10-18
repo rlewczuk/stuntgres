@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestCommentLocks(t *testing.T) {
@@ -50,7 +52,7 @@ func TestCommentLocks(t *testing.T) {
 		if err := e.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		lockAwait(t, waiting, ErrCatalogReplaced)
+		lockAwait(t, waiting, ids.ErrCatalogReplaced)
 		transactionEnd(t, a, tx, false)
 		sessionSQL(t, b, "CREATE TABLE t(v INT)")
 		commentWant(t, e, e.CatalogRead(), catalogRef(t, e, e.CatalogRead(), "t"), "")
@@ -69,7 +71,7 @@ func TestCommentLocks(t *testing.T) {
 		sessionSQL(t, c, "DROP TABLE t")
 		sessionSQL(t, c, "CREATE TABLE t(v INT)")
 		transactionEnd(t, a, tx, false)
-		lockAwait(t, waiting, ErrCatalogReplaced)
+		lockAwait(t, waiting, ids.ErrCatalogReplaced)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
 		ref.Address.SubID = 1
 		commentWant(t, e, e.CatalogRead(), ref, "")

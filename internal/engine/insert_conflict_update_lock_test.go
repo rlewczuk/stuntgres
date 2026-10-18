@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -61,11 +62,11 @@ func (w *conflictUpdateWorker) await(t *testing.T) conflictUpdateWorkerResult {
 		return conflictUpdateWorkerResult{}
 	}
 }
-func conflictUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, id ids.RowID) (*relationTicket, relationLockMode) {
+func conflictUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, id ids.RowID) (*lock.Ticket, lock.Mode) {
 	t.Helper()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: id}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: id}]
 	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Resource.Key() != nil {
 		t.Fatal("not the exact selected logical-row pending barrier", ref, id)
 	}
@@ -95,28 +96,28 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		frontier := e.commitSeq
 		running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t SELECT src.k,src.v FROM src LEFT JOIN t ON t.k=src.k WHERE t.k IS NULL ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 		lockPending(t, e, 1)
-		request := func() lockWaiter {
+		request := func() lock.Waiter {
 			lockState := e.locks.Inspect()
 			for _, entry := range lockState.Resources {
 				if len(entry.Pending) == 0 {
 					continue
 				}
 				pending := entry.Pending[0]
-				if len(entry.Pending) != 1 || pending.Mode != uniqueClaim || pending.Resource.Key() == nil ||
+				if len(entry.Pending) != 1 || pending.Mode != lock.UniqueClaim || pending.Resource.Key() == nil ||
 					pending.Policy.TimeoutSlot == nil ||
 					len(pending.Resource.Key().Value().([]sqltype.Value)) != 1 || testExport(pending.Resource.Key().Value().([]sqltype.Value)[0]) != int64(1) ||
 					len(entry.Holders) != 1 {
 					t.Fatal("not the actual source proposal's UniqueKey queue", pending)
 				}
 				for ticket, hold := range entry.Holders {
-					if ticket.Ref() != holderTx || hold.Mode != uniqueClaim {
+					if ticket.Ref() != holderTx || hold.Mode != lock.UniqueClaim {
 						t.Fatal("wrong uncommitted insertion blocker", ticket.Ref(), hold)
 					}
 				}
 				return pending
 			}
 			t.Fatal("missing source proposal key request")
-			return lockWaiter{}
+			return lock.Waiter{}
 		}()
 		// The request's timeout slot identifies the worker's admitted operation.
 		worker.mu.Lock()
@@ -173,7 +174,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 					running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,30),(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v WHERE "+condition)
 					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.row)
-					if mode != noKeyUpdate || ticket.Ref() != workerTx {
+					if mode != lock.ForNoKeyUpdate || ticket.Ref() != workerTx {
 						t.Fatal("not the worker's exact selected-row NKU barrier", ticket.Ref(), mode)
 					}
 					sessionSQL(t, holder, "UPDATE t SET v=20 WHERE k=1")
@@ -225,7 +226,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 					running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE "+condition)
 					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.row)
-					if mode != noKeyUpdate {
+					if mode != lock.ForNoKeyUpdate {
 						t.Fatal("payload SET initially requests NKU", mode)
 					}
 					mark := e.locks.CheckpointUnique(ticket, nil)
@@ -262,7 +263,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 							t.Fatal(outcome)
 						}
 					case finish == "reset":
-						if !errors.Is(outcome.err, ErrCatalogReplaced) || outcome.result.Count != 0 || outcome.result.Rows != nil {
+						if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || outcome.result.Count != 0 || outcome.result.Rows != nil {
 							t.Fatal(outcome)
 						}
 					case stable && finish != "rollback":
@@ -321,9 +322,9 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET "+set+" WHERE FALSE")
 			ticket, mode := conflictUpdatePendingRow(t, e, ref, id)
-			wantMode := noKeyUpdate
+			wantMode := lock.ForNoKeyUpdate
 			if set == "k=t.k" {
-				wantMode = rowUpdate
+				wantMode = lock.ForUpdate
 			}
 			if mode != wantMode {
 				t.Fatal("SET-slot initial row class", mode, wantMode)
@@ -351,7 +352,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 					t.Fatal("FALSE branch changed retained claim", resource)
 				}
 			}
-			if e.locks.Checkpoint(ticket)[lockResource{ObjectRef: ref, Row: id}].Mode&wantMode == 0 {
+			if e.locks.Checkpoint(ticket)[lock.Resource{ObjectRef: ref, Row: id}].Mode&wantMode == 0 {
 				t.Fatal("FALSE branch lost row grant")
 			}
 			// Omitting the same key is independent of the retained row lock.

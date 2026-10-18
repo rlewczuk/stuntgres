@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestRelationLockIdentity(t *testing.T) {
@@ -24,24 +25,24 @@ func TestRelationLockIdentity(t *testing.T) {
 	tref := catalogRef(t, e, e.CatalogRead(), "t")
 	uref := catalogRef(t, e, e.CatalogRead(), "u")
 	ticket := a.transactions.ticket
-	if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: tref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: tref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.locks.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: uref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: uref}, lock.AccessExclusive); err != nil {
 		t.Fatal("distinct relation blocked", err)
 	}
-	for _, invalid := range []*relationTicket{nil, foreign.transactions.ticket} {
-		if err := e.locks.Acquire(context.Background(), invalid, lockResource{ObjectRef: tref}, accessShare); err == nil {
+	for _, invalid := range []*lock.Ticket{nil, foreign.transactions.ticket} {
+		if err := e.locks.Acquire(context.Background(), invalid, lock.Resource{ObjectRef: tref}, lock.AccessShare); err == nil {
 			t.Fatal("foreign ticket accepted")
 		}
 	}
 	for _, invalid := range []ids.ObjectRef{{}, catalogRef(t, other, other.CatalogRead(), "t"), tref.Domain().Ref(tref.Epoch+1, tref.Address), tref.Domain().Ref(tref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tref.Address.ObjectID, SubID: 1})} {
-		if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: invalid}, accessShare); err == nil {
+		if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: invalid}, lock.AccessShare); err == nil {
 			t.Fatal("invalid resource accepted", invalid)
 		}
 	}
 	transactionEnd(t, a, ra, false)
-	if err := e.locks.Acquire(context.Background(), ticket, lockResource{ObjectRef: tref}, accessShare); err == nil {
+	if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: tref}, lock.AccessShare); err == nil {
 		t.Fatal("retired ticket accepted")
 	}
 	transactionEnd(t, b, rb, false)
@@ -53,14 +54,14 @@ func TestRelationLockIdentity(t *testing.T) {
 	}
 	ra = transactionBegin(t, a)
 	newref := catalogRef(t, e, e.CatalogRead(), "t")
-	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: newref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: newref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	e.locks.Fence(tref.Epoch)
 	e.endLockOwner(ticket)
 	lockState := e.locks.Inspect()
-	held := lockState.Resources[lockResource{ObjectRef: newref}].Holders[a.transactions.ticket].Mode
-	if held != accessExclusive {
+	held := lockState.Resources[lock.Resource{ObjectRef: newref}].Holders[a.transactions.ticket].Mode
+	if held != lock.AccessExclusive {
 		t.Fatal("delayed old cleanup released newer epoch")
 	}
 	transactionEnd(t, a, ra, false)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -221,7 +222,7 @@ func (n transactionIdentityExpression) Eval(ctx expr.Context) (sqltype.Value, er
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.epoch {
-		return sqltype.Value{}, ErrCatalogReplaced
+		return sqltype.Value{}, ids.ErrCatalogReplaced
 	}
 	switch n.kind {
 	case identityAge:

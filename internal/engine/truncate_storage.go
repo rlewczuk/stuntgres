@@ -108,7 +108,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	if s.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, named := range s.truncateNames {
 		if lookupErr := e.truncateNameCurrent(auth, named); lookupErr != nil {
@@ -124,7 +124,7 @@ func (s *StatementScope) stageTruncate() error {
 		d, ok := auth.catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if !ok || d.namespace != selected.relation.namespace || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 			break
 		}
 		if err = checkTruncate(auth, ref, d, selected.privilege, false); err != nil {
@@ -149,7 +149,7 @@ func (s *StatementScope) stageTruncate() error {
 		if !exists {
 			original := e.storage[ref.Address]
 			if original == nil {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 				break
 			}
 			shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation}
@@ -209,17 +209,17 @@ func (s *StatementScope) stageTruncate() error {
 func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName) error {
 	ref, err := e.resolveRelationReference(auth, named.name, true)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "3F000") {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		return err
 	}
 	if ref != named.ref {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	descriptor, ok := auth.catalog.Relation(ref.Address)
 	if !ok || descriptor.namespace != named.namespace {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }

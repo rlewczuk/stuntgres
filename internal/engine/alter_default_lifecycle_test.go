@@ -58,7 +58,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					run(t, e, "CREATE TABLE t(a INT DEFAULT 99)")
 				}
 				if kind == "reset" || kind == "restore" {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 					transactionEnd(t, a, tx, false)
 				} else {
 					transactionEnd(t, a, tx, false)
@@ -81,7 +81,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 							t.Fatal(got)
 						}
 					} else {
-						lockAwait(t, done, ErrCatalogReplaced)
+						lockAwait(t, done, ids.ErrCatalogReplaced)
 					}
 				}
 				lockEmpty(t, e)

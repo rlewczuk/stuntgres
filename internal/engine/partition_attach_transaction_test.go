@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -172,7 +173,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			childRef := parentRef
 			childRef.Address = child.address
 			before, beforeOp := partitionAttachUnitScope(t, e, owner)
-			partitionAttachUnitGrant(t, before, parentRef, accessShare)
+			partitionAttachUnitGrant(t, before, parentRef, lock.AccessShare)
 			if err := before.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
@@ -187,8 +188,8 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			markOp.Done()
 			attach, attachOp := partitionAttachUnitScope(t, e, owner)
-			partitionAttachUnitGrant(t, attach, parentRef, shareUpdateExclusive)
-			partitionAttachUnitGrant(t, attach, childRef, accessExclusive)
+			partitionAttachUnitGrant(t, attach, parentRef, lock.ShareUpdateExclusive)
+			partitionAttachUnitGrant(t, attach, childRef, lock.AccessExclusive)
 			stage := partitionAttachUnitStage(t, e, attach.ResolutionCatalog(), parent, child)
 			changes := cloneCatalogChanges(attach.owner.catalog)
 			if err := e.stageCatalogOverlay(attach, stage, changes); err != nil {
@@ -216,10 +217,10 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 					t.Fatal("savepoint retained attachment overlay")
 				}
 				lockState := e.locks.Inspect()
-				parentMode := lockState.Resources[lockResource{ObjectRef: parentRef}].Holders[owner.transactions.ticket].Mode
-				childEntry := lockState.Resources[lockResource{ObjectRef: childRef}]
+				parentMode := lockState.Resources[lock.Resource{ObjectRef: parentRef}].Holders[owner.transactions.ticket].Mode
+				childEntry := lockState.Resources[lock.Resource{ObjectRef: childRef}]
 				childHeld := childEntry != nil && childEntry.Holders[owner.transactions.ticket].Mode != 0
-				if parentMode != accessShare || childHeld {
+				if parentMode != lock.AccessShare || childHeld {
 					t.Fatal("savepoint did not restore earlier lock contribution", parentMode, childHeld)
 				}
 			}

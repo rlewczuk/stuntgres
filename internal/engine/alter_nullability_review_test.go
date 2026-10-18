@@ -101,7 +101,7 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					select {
 					case err := <-done:
 						completed = true
-						if !errors.Is(err, ErrCatalogReplaced) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) {
 							t.Fatal(err)
 						}
 					case <-time.After(3 * time.Second):

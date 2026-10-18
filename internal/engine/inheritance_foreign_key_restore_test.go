@@ -182,7 +182,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 			}
 			roleExecute(t, e, op, mutation)
 			before := e.catalog.state
-			if err := e.bindRestoredForeignKeys(context.Background(), op, []restoredForeignKeys{pending}); !errors.Is(err, ErrCatalogReplaced) || e.catalog.state != before {
+			if err := e.bindRestoredForeignKeys(context.Background(), op, []restoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.catalog.state != before {
 				t.Fatal("stale source/key/provider receipt rebound or published", err)
 			}
 		})

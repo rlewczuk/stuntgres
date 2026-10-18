@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -125,8 +127,8 @@ func TestQueryJoinsSecondLeafLockAndCancellation(t *testing.T) {
 			aref := catalogRef(t, e, e.CatalogRead(), "a")
 			bref := catalogRef(t, e, e.CatalogRead(), "b")
 			lockState := e.locks.Inspect()
-			first := lockState.Resources[lockResource{ObjectRef: aref}]
-			second := lockState.Resources[lockResource{ObjectRef: bref}]
+			first := lockState.Resources[lock.Resource{ObjectRef: aref}]
+			second := lockState.Resources[lock.Resource{ObjectRef: bref}]
 			admitted := first != nil && len(first.Holders) == 1 && second != nil && len(second.Pending) == 1
 			if !admitted {
 				t.Fatal("second-leaf wait did not retain first grant")
@@ -154,7 +156,7 @@ func TestQueryJoinsSelfLockAndInsertDestination(t *testing.T) {
 	transactionRows(t, s, "SELECT count(*) FROM a AS x CROSS JOIN a AS y", 4)
 	ref := catalogRef(t, e, e.CatalogRead(), "a")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	ok := len(lockState.Resources) == 1 && entry != nil && len(entry.Holders) == 1 && len(entry.Pending) == 0
 	if !ok {
 		t.Fatal("self occurrences duplicated physical lock authority")
@@ -210,7 +212,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	e.mu.Lock()
 	_, err = currentQuerySourceLocked(e, e.catalog.read(e.catalog.state), nil, grant)
 	e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
 	}
 	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -261,13 +263,13 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 					run(t, e, "CREATE TABLE t(a INT)")
 				}
 				if kind == "reset" || kind == "restore" {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
 				transactionEnd(t, holder, tx, false)
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 				} else if kind != "reset" && kind != "restore" {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
 				lockEmpty(t, e)
 			})
@@ -298,22 +300,22 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			done := lockAsync(e, reader, ctx, "SELECT * FROM a CROSS JOIN b", false)
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: prior}]
-			priorHeld := entry != nil && entry.Holders[readerTicket].Mode&accessShare != 0
-			first := lockState.Resources[lockResource{ObjectRef: left}]
-			joinHeld := first != nil && first.Holders[readerTicket].Mode&accessShare != 0
+			entry := lockState.Resources[lock.Resource{ObjectRef: prior}]
+			priorHeld := entry != nil && entry.Holders[readerTicket].Mode&lock.AccessShare != 0
+			first := lockState.Resources[lock.Resource{ObjectRef: left}]
+			joinHeld := first != nil && first.Holders[readerTicket].Mode&lock.AccessShare != 0
 			if !priorHeld || !joinHeld {
 				t.Fatal("join admission lost earlier authority or failed to acquire its first leaf", priorHeld, joinHeld)
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			lockState = e.locks.Inspect()
-			entry = lockState.Resources[lockResource{ObjectRef: prior}]
-			priorHeld = entry != nil && entry.Holders[readerTicket].Mode&accessShare != 0
-			other := lockState.Resources[lockResource{ObjectRef: right}]
-			holderHeld := other != nil && other.Holders[holderTicket].Mode&accessExclusive != 0 && other.Holders[readerTicket].Mode == 0 && len(other.Pending) == 0
-			first = lockState.Resources[lockResource{ObjectRef: left}]
-			joinHeld = first != nil && first.Holders[readerTicket].Mode&accessShare != 0
+			entry = lockState.Resources[lock.Resource{ObjectRef: prior}]
+			priorHeld = entry != nil && entry.Holders[readerTicket].Mode&lock.AccessShare != 0
+			other := lockState.Resources[lock.Resource{ObjectRef: right}]
+			holderHeld := other != nil && other.Holders[holderTicket].Mode&lock.AccessExclusive != 0 && other.Holders[readerTicket].Mode == 0 && len(other.Pending) == 0
+			first = lockState.Resources[lock.Resource{ObjectRef: left}]
+			joinHeld = first != nil && first.Holders[readerTicket].Mode&lock.AccessShare != 0
 			// Full abort ends the reader ticket and all its grants. Savepoint
 			// abort retains the ticket and premark grant, but releases the
 			// admitted first leaf acquired after the mark. Neither releases

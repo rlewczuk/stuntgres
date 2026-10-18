@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
@@ -14,17 +16,17 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	c := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE advisory_soft_relation(v INT)")
 	ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
-	x := lockResource{Kind: advisoryBigintResource, High: 21, Low: 22}
-	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
-	advisoryUnitGrant(t, a, ra, x, advisoryShared)
-	if err := e.locks.Acquire(context.Background(), c.transactions.ticket, y, accessExclusive); err != nil {
+	x := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
+	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
+	advisoryUnitGrant(t, a, ra, x, lock.AdvisoryShare)
+	if err := e.locks.Acquire(context.Background(), c.transactions.ticket, y, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := advisoryUnitAcquire(t, b, rb, x, advisoryExclusive, false)
+	writer, err := advisoryUnitAcquire(t, b, rb, x, lock.AdvisoryExclusive, false)
 	if err != nil || writer == nil {
 		t.Fatal(writer, err)
 	}
-	reader, err := advisoryUnitAcquire(t, c, rc, x, advisoryShared, false)
+	reader, err := advisoryUnitAcquire(t, c, rc, x, lock.AdvisoryShare, false)
 	if err != nil || reader == nil {
 		t.Fatal(reader, err)
 	}
@@ -34,7 +36,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if !ordered {
 		t.Fatal("exact soft predecessor queue absent")
 	}
-	ordinaryWait := deadlockRequest(t, e, a.transactions.ticket, y, accessShare)
+	ordinaryWait := deadlockRequest(t, e, a.transactions.ticket, y, lock.AccessShare)
 	if ordinaryWait == nil {
 		t.Fatal("ordinary holder dependency absent")
 	}
@@ -59,8 +61,8 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if !writerPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("transaction release crossed persistent lifetime")
 	}
-	advisoryUnitUnlock(t, c, x, advisoryShared, true)
-	advisoryUnitUnlock(t, a, x, advisoryShared, true)
+	advisoryUnitUnlock(t, c, x, lock.AdvisoryShare, true)
+	advisoryUnitUnlock(t, a, x, lock.AdvisoryShare, true)
 	if err = deadlockResult(t, writer); err != nil || advisoryUnitHold(b, x).Exclusive != 1 {
 		t.Fatal("explicit retained-count cleanup did not wake writer", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"maps"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -61,7 +62,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 				return old, expr.ErrorAt("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
 			}
 		}
-		if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
+		if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 			return old, err
 		}
 		e.mu.Lock()
@@ -91,7 +92,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		return err
 	}
 	if _, removed := stage.removals[address]; removed {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	descriptor := stage.descriptors[address]
 	if descriptor == nil {
@@ -99,7 +100,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	}
 	sequence, ok := descriptor.(*relationDescriptor)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	generator := stage.generators[address]
 	if generator == nil {
@@ -140,7 +141,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
 	ref := e.catalog.domain.Ref(stage.base.Epoch(), address)
-	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
+	if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
 	}
 	e.mu.Lock()
@@ -168,7 +169,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		return err
 	}
 	if fresh.catalog.Epoch() != stage.base.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.catalog.Get(address)
 	if staged, exists := stage.descriptors[address]; exists {

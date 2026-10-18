@@ -71,7 +71,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	e.catalog.state.setDescriptor(next.address, &incompatible)
 	err = scope.validateLockedRelation(e)
 	e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("defining authority fence weakened", err)
 	}
 }
@@ -170,7 +170,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				e.catalog.state.setDescriptor(d.address, &copy)
 			}
 			view, err := scope.AcquireDataView(ref)
-			if view != nil || !errors.Is(err, ErrCatalogReplaced) {
+			if view != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("incompatible snapshot replacement bridged lineage", phase, err)
 			}
 		})

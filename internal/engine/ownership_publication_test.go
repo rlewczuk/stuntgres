@@ -132,7 +132,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 			if name == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if name == "database" && !errors.Is(err, ErrCatalogReplaced) {
+			if name == "database" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("missing database predecessor veto", err)
 			}
 		})

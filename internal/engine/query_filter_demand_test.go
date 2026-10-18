@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -32,11 +33,11 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			if name == "semanticFalse" || name == "identityFalse" {
 				// A real captured occurrence below a consuming owner, not merely
 				// a semantic context shared with another query branch.
-				input.locks = &queryLockContext{identityOnly: name == "identityFalse", leaves: []queryLockLeaf{{source: input, mark: queryRowMark{mode: rowUpdate}}}}
+				input.locks = &queryLockContext{identityOnly: name == "identityFalse", leaves: []queryLockLeaf{{source: input, mark: queryRowMark{mode: lock.ForUpdate}}}}
 				bridge.locks = input.locks
 				project.child = &aggregateNode{child: project.child}
 			} else if name == "contextFalse" {
-				bridge.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: rowUpdate}}}}
+				bridge.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: lock.ForUpdate}}}}
 			}
 			t.Cleanup(bridge.close)
 			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: enumSafety(map[int64]bool{102: true})}}

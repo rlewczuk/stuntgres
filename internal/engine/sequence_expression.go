@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -451,7 +452,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		ref.Epoch = before.catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.Domain() != e.catalog.domain || ref.Epoch != before.catalog.Epoch()) {
-		beforeErr = ErrCatalogReplaced
+		beforeErr = ids.ErrCatalogReplaced
 	}
 	if beforeErr == nil {
 		d, ok := before.catalog.Relation(ref.Address)
@@ -469,7 +470,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if beforeErr != nil {
 		return sqltype.Value{}, beforeErr
 	}
-	if err := scope.acquireSequence(ref, rowExclusive, true); err != nil {
+	if err := scope.acquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return sqltype.Value{}, err
 	}
 	e.mu.Lock()

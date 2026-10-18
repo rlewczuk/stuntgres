@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -150,7 +151,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.foreignKeyGrant(ref, old.row, rowUpdate, children.storage); err != nil {
+	if err = scope.foreignKeyGrant(ref, old.row, lock.ForUpdate, children.storage); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.stage.deleteForeignAction(ref, old); err == nil {
@@ -192,7 +193,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
 	admission.jobs[0] = originalJob
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed action definition authority survived", err)
 	}
 	originalStorage := admission.storage
@@ -201,7 +202,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
 	admission.storage = originalStorage
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign child storage survived", err)
 	}
 }

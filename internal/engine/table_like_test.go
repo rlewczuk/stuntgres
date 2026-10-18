@@ -211,7 +211,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	}
 	queryCreatePublish(t, e, update)
 	incumbent := e.CatalogRead()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
 	if e.catalog.state != incumbent.state {

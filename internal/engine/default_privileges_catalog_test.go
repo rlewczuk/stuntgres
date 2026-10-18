@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -129,7 +130,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	changes := newCatalogChanges()
 	changes.roles = removed
 	changes.retiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
-	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); !errors.Is(err, ErrCatalogReplaced) {
+	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("late default recipient retirement", err)
 	}
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
@@ -152,7 +153,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	}
 	candidate := cloneCatalog(f.e.catalog.state)
 	candidate.setDescriptor(table.address, table)
-	if err := f.e.roleRetirementPreflightLocked(changes, candidate); !errors.Is(err, ErrCatalogReplaced) {
+	if err := f.e.roleRetirementPreflightLocked(changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("materialized dependency omitted from final retirement", err)
 	}
 	empty := defaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})

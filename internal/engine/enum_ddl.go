@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		// Same manager/ticket/deadline authority as transactional sequence DDL;
 		// resource is the actual type object, never a fabricated relation alias.
-		if err := scope.acquireSequence(ref, typeExclusive, true); err != nil {
+		if err := scope.acquireSequence(ref, lock.TypeExclusive, true); err != nil {
 			return Result{}, err
 		}
 		locked = ref
@@ -135,7 +136,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 		if ref != locked {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 		members := old.typ.EnumMembers()

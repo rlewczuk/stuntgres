@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestCTEDMLPendingCancellation(t *testing.T)         { cteDMLPendingBoundary(t, false) }
@@ -75,7 +78,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	if scope == nil {
 		t.Fatal("missing worker scope")
 	}
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, noKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
 	// The manager mutex's enqueue/observation ordering publishes this earlier
 	// private stage while the exact original-row worker remains blocked.
 	if len(scope.stage.rows[audit.Address]) != 1 || scope.view == nil || scope.ticket == nil || scope.cteInvocation == nil {
@@ -101,7 +104,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		old := e.storage[audit.Address]
 		e.storage[audit.Address] = &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation}
 		e.mu.Unlock()
-		want = ErrCatalogReplaced
+		want = ids.ErrCatalogReplaced
 		transactionEnd(t, holder, tx, false)
 	} else {
 		cancel()

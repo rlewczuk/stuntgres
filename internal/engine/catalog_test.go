@@ -84,7 +84,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if e.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatal("replacement did not advance epoch once")
 	}
-	if err = e.ValidateObjectRef(old, ref); !errors.Is(err, ErrCatalogReplaced) {
+	if err = e.ValidateObjectRef(old, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old ref error: %v", err)
 	}
 	if _, ok := old.Descriptor(ref.Address); !ok {
@@ -278,7 +278,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	if err = e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old stage after Reset: %v", err)
 	}
 }
@@ -421,7 +421,7 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 				if _, err = e.ReplaceCatalog(context.Background(), e, replacement); err != nil {
 					t.Fatal(err)
 				}
-				if err = scope.Finish(nil); !errors.Is(err, ErrCatalogReplaced) {
+				if err = scope.Finish(nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatalf("explicit statement escaped epoch fence: %v", err)
 				}
 				if _, err = e.Rollback(op, ref); err != nil {
@@ -674,7 +674,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if newRef.Domain() != owner || newRef.Address != sourceRef.Address {
 		t.Fatalf("replacement ref: %#v", newRef)
 	}
-	if err := target.ValidateObjectRef(target.CatalogRead(), oldRef); !errors.Is(err, ErrCatalogReplaced) {
+	if err := target.ValidateObjectRef(target.CatalogRead(), oldRef); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old target ref: %v", err)
 	}
 	if err := target.ValidateObjectRef(target.CatalogRead(), sourceRef); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
@@ -715,7 +715,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	after := target.CatalogRead()
 	for _, receiver := range []*Engine{source, target} {
 		stateBefore := receiver.CatalogRead()
-		if _, err := receiver.ReplaceCatalog(context.Background(), source, sourceView); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := receiver.ReplaceCatalog(context.Background(), source, sourceView); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatalf("stale source replacement: %v", err)
 		}
 		if receiver.CatalogRead().state != stateBefore.state {

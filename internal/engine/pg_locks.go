@@ -15,20 +15,20 @@ import (
 const pgLocksOID ids.OID = 12073
 
 var pgLockModes = [...]struct {
-	mode relationLockMode
+	mode lock.Mode
 	name string
 }{
-	{accessShare, "AccessShareLock"},
-	{relationRowShare, "RowShareLock"},
-	{rowExclusive, "RowExclusiveLock"},
-	{shareUpdateExclusive, "ShareUpdateExclusiveLock"},
-	{relationShare, "ShareLock"},
-	{shareRowExclusive, "ShareRowExclusiveLock"},
-	{relationExclusive, "ExclusiveLock"},
-	{accessExclusive, "AccessExclusiveLock"},
-	{typeExclusive, "ExclusiveLock"},
-	{advisoryShared, "ShareLock"},
-	{advisoryExclusive, "ExclusiveLock"},
+	{lock.AccessShare, "AccessShareLock"},
+	{lock.RowShare, "RowShareLock"},
+	{lock.RowExclusive, "RowExclusiveLock"},
+	{lock.ShareUpdateExclusive, "ShareUpdateExclusiveLock"},
+	{lock.Share, "ShareLock"},
+	{lock.ShareRowExclusive, "ShareRowExclusiveLock"},
+	{lock.Exclusive, "ExclusiveLock"},
+	{lock.AccessExclusive, "AccessExclusiveLock"},
+	{lock.TypeExclusive, "ExclusiveLock"},
+	{lock.AdvisoryShare, "ShareLock"},
+	{lock.AdvisoryExclusive, "ExclusiveLock"},
 }
 
 // virtualTransaction renders owner as a pg_locks virtualxid.
@@ -38,8 +38,8 @@ func virtualTransaction(owner lock.RecordOwner) string {
 
 // Engine.mu is held. The retained node's exact ref supplies original backend
 // association even after commit; no session lookup or live ticket is needed.
-func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
-	var records []pgLockRecord
+func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
+	var records []lock.Record
 	for ref, node := range e.serializable.nodes {
 		if ref.Epoch() != e.catalog.state.epoch || node.ref != ref || !serializableRelevant(node) {
 			continue
@@ -52,7 +52,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 			continue
 		}
 		for address := range node.reads {
-			records = append(records, pgLockRecord{Kind: pgPredicateLock, Owner: owner, Object: uint32(address.ObjectID)})
+			records = append(records, lock.Record{Kind: lock.PredicateRecord, Owner: owner, Object: uint32(address.ObjectID)})
 		}
 	}
 	return records, nil
@@ -80,7 +80,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	current := e.catalog.state.epoch == epoch
 	e.mu.Unlock()
 	if !current {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	rows, err := pgLockRows(ctx, d, databaseOID, records, predicates)
 	if err != nil {
@@ -89,10 +89,10 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ordinary, predicates []pgLockRecord) ([][]sqltype.Value, error) {
+func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ordinary, predicates []lock.Record) ([][]sqltype.Value, error) {
 	count := len(predicates)
 	for _, record := range ordinary {
-		if record.Kind == pgVirtualLock || record.Kind == pgTransactionLock {
+		if record.Kind == lock.VirtualRecord || record.Kind == lock.TransactionRecord {
 			count++
 			continue
 		}
@@ -104,14 +104,14 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 	}
 	rows := make([][]sqltype.Value, 0, count)
 	values := make([]sqltype.Value, count*16)
-	for _, records := range [2][]pgLockRecord{ordinary, predicates} {
+	for _, records := range [2][]lock.Record{ordinary, predicates} {
 		for _, record := range records {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			ownerText := virtualTransaction(record.Owner)
 			switch record.Kind {
-			case pgVirtualLock, pgTransactionLock:
+			case lock.VirtualRecord, lock.TransactionRecord:
 				mode := "ExclusiveLock"
 				if record.Waiting {
 					mode = "ShareLock"
@@ -121,7 +121,7 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 					return nil, err
 				}
 				rows = append(rows, row)
-			case pgPredicateLock:
+			case lock.PredicateRecord:
 				row, err := pgLockRow(d, database, record, "SIReadLock", ownerText, values[len(rows)*16:(len(rows)+1)*16:(len(rows)+1)*16])
 				if err != nil {
 					return nil, err
@@ -147,7 +147,7 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 	return rows, nil
 }
 
-func pgLockRow(d *relationDescriptor, database uint32, record pgLockRecord, mode, ownerText string, row []sqltype.Value) ([]sqltype.Value, error) {
+func pgLockRow(d *relationDescriptor, database uint32, record lock.Record, mode, ownerText string, row []sqltype.Value) ([]sqltype.Value, error) {
 	for i := range row {
 		row[i] = sqltype.Null(d.columns[i].Usage.Type)
 	}
@@ -163,27 +163,27 @@ func pgLockRow(d *relationDescriptor, database uint32, record pgLockRecord, mode
 	text := func(i int, value string) { row[i] = sqltype.String(d.columns[i].Usage.Type, value) }
 	kind := ""
 	switch record.Kind {
-	case pgRelationLock, pgPredicateLock:
+	case lock.RelationRecord, lock.PredicateRecord:
 		kind = "relation"
 		oid(1, database)
 		oid(2, record.Object)
-	case pgObjectLock, pgAdvisoryLock:
+	case lock.ObjectRecord, lock.AdvisoryRecord:
 		kind = "object"
-		if record.Kind == pgAdvisoryLock {
+		if record.Kind == lock.AdvisoryRecord {
 			kind = "advisory"
 		}
 		oid(1, database)
 		oid(7, record.Class)
 		oid(8, record.Object)
 		integer(9, int64(record.Subobject))
-	case pgVirtualLock:
+	case lock.VirtualRecord:
 		kind = "virtualxid"
 		targetText := ownerText
 		if record.Target != record.Owner {
 			targetText = virtualTransaction(record.Target)
 		}
 		text(5, targetText)
-	case pgTransactionLock:
+	case lock.TransactionRecord:
 		kind = "transactionid"
 		row[6] = checked(sqltype.XIDValue(d.columns[6].Usage.Type, record.XID))
 	default:

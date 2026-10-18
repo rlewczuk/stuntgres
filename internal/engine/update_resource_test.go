@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestUpdateCoreRowResourceAuthority(t *testing.T) {
@@ -16,10 +19,10 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	versions := e.storage[ref.Address].versions
 	ta := transactionBegin(t, a)
 	tb := transactionBegin(t, b)
-	resource := lockResource{ObjectRef: ref, Row: versions[0].row}
-	other := lockResource{ObjectRef: ref, Row: versions[1].row}
-	acquire := func(ticket *relationTicket, r lockResource) (*relationRequest, error) {
-		return e.locks.StartAcquire(context.Background(), ticket, r, noKeyUpdate, relationLockPolicy{})
+	resource := lock.Resource{ObjectRef: ref, Row: versions[0].row}
+	other := lock.Resource{ObjectRef: ref, Row: versions[1].row}
+	acquire := func(ticket *lock.Ticket, r lock.Resource) (*lock.Request, error) {
+		return e.locks.StartAcquire(context.Background(), ticket, r, lock.ForNoKeyUpdate, lock.Policy{})
 	}
 	if request, err := acquire(a.transactions.ticket, resource); request != nil || err != nil {
 		t.Fatal(request, err)
@@ -30,17 +33,17 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if request, err := acquire(b.transactions.ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
-	for _, invalid := range []lockResource{{ObjectRef: ref}, {ObjectRef: New().catalog.domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
+	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().catalog.domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
 		if request, err := acquire(b.transactions.ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}
 	}
 	copied := *a.transactions.ticket
-	if request, err := acquire(&copied, resource); request != nil || !errors.Is(err, ErrCatalogReplaced) {
+	if request, err := acquire(&copied, resource); request != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied ticket admitted", request, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, resource, noKeyUpdate, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing exact queued row request", request, err)
 	}
@@ -52,7 +55,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	entry := lockState.Resources[resource]
 	held := entry.Holders[a.transactions.ticket].Mode
 	pending := len(entry.Pending)
-	if held != noKeyUpdate || pending != 0 {
+	if held != lock.ForNoKeyUpdate || pending != 0 {
 		t.Fatal("cancel damaged holder", held, pending)
 	}
 	request, err = acquire(b.transactions.ticket, resource)

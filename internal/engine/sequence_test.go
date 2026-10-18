@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
 )
@@ -223,7 +224,7 @@ func TestSequenceRestartLifecycleMatrix(t *testing.T) {
 				}
 			}
 			if end == "reset" || end == "restore" {
-				lockAwait(t, queued, ErrCatalogReplaced)
+				lockAwait(t, queued, ids.ErrCatalogReplaced)
 				controlsRequire(t, a, "ROLLBACK")
 				if end == "reset" {
 					sessionSQL(t, b, "CREATE SEQUENCE s START 9")

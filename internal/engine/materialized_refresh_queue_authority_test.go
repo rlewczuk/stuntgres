@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -28,11 +29,11 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := e.catalog.domain.Ref(originalEpoch, d.address)
-			mode := accessShare
+			mode := lock.AccessShare
 			if concurrent {
-				mode = relationExclusive
+				mode = lock.Exclusive
 			}
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -115,7 +116,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case <-ctx.Done():
 				t.Fatal("queued authority join", ctx.Err())
 			}
-			if !errors.Is(err, ErrCatalogReplaced) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("changed frozen authority was admitted", phase, err)
 			}
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {

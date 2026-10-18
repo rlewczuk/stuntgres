@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestRelationLockViewAfterWait(t *testing.T) {
@@ -74,7 +77,7 @@ func TestRelationLockReplacementWaitingPhases(t *testing.T) {
 				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9)")); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				lockEmpty(t, e)
 				transactionEnd(t, a, ra, false)
 				transactionRows(t, b, "SELECT v FROM t", 9)
@@ -135,8 +138,8 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	e.mu.Unlock()
 	e.replacementMu.Unlock()
 	e.locks.Fence(epoch)
-	lockAwait(t, done, ErrCatalogReplaced)
-	if err = scope.Finish(ErrCatalogReplaced); !errors.Is(err, ErrCatalogReplaced) {
+	lockAwait(t, done, ids.ErrCatalogReplaced)
+	if err = scope.Finish(ids.ErrCatalogReplaced); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	op.Done()
@@ -151,12 +154,14 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- e.locks.Acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare) }()
+		go func() {
+			done <- e.locks.Acquire(ctx, b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare)
+		}()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
 		go func() { e.endLockOwner(a.transactions.ticket); close(ended) }()
@@ -167,14 +172,14 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 			t.Fatal(err)
 		}
 		lockState := e.locks.Inspect()
-		held := relationLockMode(0)
-		if entry := lockState.Resources[lockResource{ObjectRef: ref}]; entry != nil {
+		held := lock.Mode(0)
+		if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
 			held = entry.Holders[b.transactions.ticket].Mode
 		}
 		if err != nil && held != 0 {
 			t.Fatal("failed acquisition retained contribution")
 		}
-		if err == nil && held != accessShare {
+		if err == nil && held != lock.AccessShare {
 			t.Fatal("grant lost journal")
 		}
 		transactionEnd(t, a, ra, false)

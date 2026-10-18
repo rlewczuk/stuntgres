@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -640,7 +641,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 			case "authority":
 				state(t, executeErr, "42501")
 			case "descriptor", "shape", "epoch":
-				if !errors.Is(executeErr, ErrCatalogReplaced) {
+				if !errors.Is(executeErr, ids.ErrCatalogReplaced) {
 					t.Error(executeErr)
 				}
 			default:

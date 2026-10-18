@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -98,7 +99,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor
 		t.Fatal(err)
 	}
 	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), table.address)
-	if err := e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+	if err := e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	return scope
@@ -137,8 +138,8 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	lockPending(t, c.e, 1)
 	ref := c.e.catalog.domain.Ref(c.e.CatalogRead().Epoch(), table.address)
 	lockState := c.e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == c.scope.ticket && entry.Pending[0].Mode == accessExclusive
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == c.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
 	if !correct {
 		t.Fatal("ALTER did not queue the actual descendant AX request")
 	}
@@ -297,7 +298,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	}
 	holder.Finish(nil)
 	err := inheritanceAlterJoin(t, result, joined)
-	if !errors.Is(err, ErrCatalogReplaced) || state.stage != nil {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || state.stage != nil {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)

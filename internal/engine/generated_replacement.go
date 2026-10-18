@@ -28,7 +28,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	defer func() {
 		e.mu.Lock()
 		if result == nil && (e.catalog.state != catalog || e.roles != roles || e.commitSeq != frontier) {
-			result = ErrCatalogReplaced
+			result = ids.ErrCatalogReplaced
 		}
 	}()
 	var stage *Engine

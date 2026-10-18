@@ -6,6 +6,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestDeleteReturningCurrentPredecessor(t *testing.T) {
@@ -36,10 +38,10 @@ func TestDeleteReturningCurrentPredecessor(t *testing.T) {
 			await := updateDeleteAsync(t, e, worker, context.Background(), query)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+			resource := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[resource]
-			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
+			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
 			if !actual {
 				t.Fatal("not actual predecessor contention")
 			}
@@ -96,13 +98,13 @@ func TestDeleteReturningWaitCancellation(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
-	first := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
-	second := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[1].row}
+	first := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+	second := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[1].row}
 	entry := lockState.Resources[second]
 	actual := entry != nil && len(entry.Pending) == 1 && lockState.Resources[first] != nil
 	if actual {
 		ticket := entry.Pending[0].Ticket
-		actual = lockState.Resources[first].Holders[ticket].Mode&rowUpdate != 0
+		actual = lockState.Resources[first].Holders[ticket].Mode&lock.ForUpdate != 0
 	}
 	if !actual {
 		t.Fatal("wait without independently observed earlier row grant")

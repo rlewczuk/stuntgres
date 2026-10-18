@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 type transactionIdentityRecord struct {
 	state  ids.TxCompletion
-	ticket *relationTicket
+	ticket *lock.Ticket
 }
 
 func nextFullTransactionID(last uint64) (uint64, error) {
@@ -33,7 +34,7 @@ func transactionAge(now, xid uint32) int32 {
 }
 func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
-		return 0, ErrCatalogReplaced
+		return 0, ids.ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
 	if !v.ageDemanded {

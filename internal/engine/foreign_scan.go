@@ -80,11 +80,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	}
 	server, ok := auth.catalog.Foreign(relation.foreign.server)
 	if !ok {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	handler, err := foreignHandlerFor(auth.catalog, wrapper)
 	if err != nil {

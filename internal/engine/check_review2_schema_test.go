@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 const checkReview2SchemaCreate = "CREATE SCHEMA checked CREATE TABLE earlier(a INT CHECK(a=1)) CREATE TABLE t(a INT CONSTRAINT c CHECK(nextval('public.s')>0))"
@@ -33,8 +34,8 @@ func checkReview2SchemaQueued(t *testing.T, e *Engine, holder *Session, ref ids.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.transactions.ticket].Mode&accessExclusive != 0
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.transactions.ticket].Mode&lock.AccessExclusive != 0
 		if queued {
 			lockPending(t, e, 1)
 			return

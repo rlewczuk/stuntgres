@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -21,7 +22,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	e.mu.Lock()
 	tRow, uRow := e.storage[tRef.Address].versions[0].row, e.storage[uRef.Address].versions[0].row
 	e.mu.Unlock()
-	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: uRef, Row: uRow}, rowUpdate); err != nil {
+	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: uRef, Row: uRow}, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	op, err := b.Acquire(context.Background())
@@ -53,7 +54,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	}
 	leaves := scope.querySources
 	join := &joinNode{querySchema: append(append(querySchema(nil), leaves[0].relation.columns...), leaves[1].relation.columns...), left: &sourceNode{querySchema: leaves[0].relation.columns, ref: tRef, occurrence: 0}, right: &sourceNode{querySchema: leaves[1].relation.columns, ref: uRef, occurrence: 1}, leftWidth: len(leaves[0].relation.columns), rightWidth: len(leaves[1].relation.columns)}
-	root := &rowLockNode{querySchema: join.Schema(), child: join, marks: marks, firstMode: rowUpdate}
+	root := &rowLockNode{querySchema: join.Schema(), child: join, marks: marks, firstMode: lock.ForUpdate}
 	e.mu.Lock()
 	err = e.initializeQueryLocksLocked(scope, root, leaves)
 	var inputs *querySource
@@ -80,8 +81,8 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal("partial joined candidate escaped SKIP", present, err)
 	}
 	lockState := e.locks.Inspect()
-	first, second := lockState.Resources[lockResource{ObjectRef: tRef, Row: tRow}], lockState.Resources[lockResource{ObjectRef: uRef, Row: uRow}]
-	bad := first == nil || first.Holders[b.transactions.ticket].Mode != rowUpdate || second == nil || second.Holders[b.transactions.ticket].Mode != 0 || second.Holders[a.transactions.ticket].Mode != rowUpdate || len(second.Pending) != 0
+	first, second := lockState.Resources[lock.Resource{ObjectRef: tRef, Row: tRow}], lockState.Resources[lock.Resource{ObjectRef: uRef, Row: uRow}]
+	bad := first == nil || first.Holders[b.transactions.ticket].Mode != lock.ForUpdate || second == nil || second.Holders[b.transactions.ticket].Mode != 0 || second.Holders[a.transactions.ticket].Mode != lock.ForUpdate || len(second.Pending) != 0
 	if bad {
 		t.Fatal("SKIP undid an acquired contributor, acquired unavailable source, or left a waiter")
 	}

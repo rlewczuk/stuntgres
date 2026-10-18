@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
 	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != materializedViewRelation {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.name))
@@ -45,12 +46,12 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err != nil {
 		return err
 	}
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	mode := accessExclusive
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	mode := lock.AccessExclusive
 	if stmt.Concurrent.Character != 0 {
-		mode = relationExclusive
+		mode = lock.Exclusive
 	}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -72,7 +73,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		current, _ = auth.catalog.Relation(ref.Address)
 	}
 	if err == nil && (s.txRef.Epoch() != e.catalog.state.epoch || !materializedRefreshCompatible(observed, current)) {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
 		err = materializedRefreshAccess(auth, ref)
@@ -127,7 +128,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	d := caller.catalog.MustRelation(ref.Address)
 	if d != scope.lockedDescriptor || e.authorizationStorageLocked(caller, ref.Address) != scope.lockedStorage {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	concurrent := stmt.Concurrent.Character != 0
 	var indices []*relationDescriptor
@@ -285,7 +286,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
 	if s.base.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if d.revision == ids.DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {
 		return fmt.Errorf("stuntgres: materialized replacement generation exhausted")

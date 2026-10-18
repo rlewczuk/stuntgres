@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
@@ -105,12 +106,12 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 	if len(old) != len(rows) {
 		return errors.New("stuntgres: invalid replacement shape")
 	}
-	var smallModes [1]multiMode
-	var modes []multiMode
+	var smallModes [1]lock.MultiMode
+	var modes []lock.MultiMode
 	if batch.actionMode == 0 {
 		modes = smallModes[:min(len(old), 1)]
 		if len(old) > 1 {
-			modes = make([]multiMode, len(old))
+			modes = make([]lock.MultiMode, len(old))
 		}
 	}
 	for i, predecessor := range old {
@@ -120,18 +121,18 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 			if failure != nil {
 				return failure
 			}
-			mode = multiNoKeyAction
+			mode = lock.MultiNoKeyAction
 			if changed {
-				mode = multiUpdateAction
+				mode = lock.MultiUpdateAction
 			}
 			modes[i] = mode
 		}
-		if mode != multiNoKeyAction && mode != multiUpdateAction {
+		if mode != lock.MultiNoKeyAction && mode != lock.MultiUpdateAction {
 			return errors.New("stuntgres: invalid replacement action intent")
 		}
-		grant := noKeyUpdate
-		if mode == multiUpdateAction {
-			grant = rowUpdate
+		grant := lock.ForNoKeyUpdate
+		if mode == lock.MultiUpdateAction {
+			grant = lock.ForUpdate
 		}
 		if err := s.acquireUpdateRowMode(ref, predecessor.row, grant); err != nil {
 			return err
@@ -162,7 +163,7 @@ retry:
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
@@ -247,7 +248,7 @@ retry:
 			if mode == 0 {
 				mode = modes[i]
 			}
-			s.multiEvents = append(s.multiEvents, multiEvent{Tuple: multiTuple{lockResource{ObjectRef: ref, Row: old[i].row}, old[i].version}, Mode: mode, Successor: next.version})
+			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: old[i].row}, old[i].version}, Mode: mode, Successor: next.version})
 			s.recordForeignActionReplacement(ref, old[i], next)
 		}
 	}

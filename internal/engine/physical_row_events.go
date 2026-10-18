@@ -1,8 +1,11 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+)
 
-func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode multiMode, successor ids.VersionID) error {
+func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode lock.MultiMode, successor ids.VersionID) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	err := e.assignTransactionXIDLocked(s.txRef)
@@ -10,7 +13,7 @@ func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mod
 	if err != nil {
 		return err
 	}
-	return s.op.session.Engine().locks.PhysicalEvents(s.ticket, []multiEvent{{Tuple: multiTuple{lockResource{ObjectRef: ref, Row: row.row}, row.version}, Mode: mode, Successor: successor}})
+	return s.op.session.Engine().locks.PhysicalEvents(s.ticket, []lock.MultiEvent{{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: row.row}, row.version}, Mode: mode, Successor: successor}})
 }
 
 func (s *StatementScope) flushPhysicalEvents() error {

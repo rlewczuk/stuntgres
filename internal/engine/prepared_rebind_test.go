@@ -394,7 +394,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			result.Rows.Close()
 			t.Fatal("retired provenance exposed rows")
 		}
-		if !errors.Is(err, ErrCatalogReplaced) || description.analysis != old.analysis || len(description.temporals) != len(old.temporals) || &description.temporals[0] != &old.temporals[0] || !reflect.DeepEqual(*description.sequences, sequence) || !reflect.DeepEqual(*description.regtypes, regtype) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) || description.analysis != old.analysis || len(description.temporals) != len(old.temporals) || &description.temporals[0] != &old.temporals[0] || !reflect.DeepEqual(*description.sequences, sequence) || !reflect.DeepEqual(*description.regtypes, regtype) {
 			t.Fatal("native lifetime rejection published capture/identity state", err)
 		}
 	})

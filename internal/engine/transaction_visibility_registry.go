@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // Engine.mu owns visibility/completion metadata. The ticket is an atomic mirror
@@ -16,14 +17,14 @@ type transactionVisibility struct {
 	ageAnchor             uint32
 	ageDemanded           bool
 	snapshot, safeBuilder bool
-	ticket                *relationTicket // assignment mirror only; never take manager.mu under Engine.mu
+	ticket                *lock.Ticket // assignment mirror only; never take manager.mu under Engine.mu
 }
 
 // Admission serializes this incarnation. Register with the manager first, then
 // associate its exact ticket before any command can reach canonical assignment.
 // This function holds neither manager.mu nor TX synchronization while taking
 // Engine.mu; the general order is documented on lock.Manager.
-func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error) {
+func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 	if !txOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
@@ -35,7 +36,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 	if ref.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		e.endLockOwner(ticket)
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if e.visibility == nil {
 		e.visibility = make(map[ids.TxRef]transactionVisibility)
@@ -50,7 +51,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 
 func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
 	if v.xid != 0 {
@@ -70,7 +71,7 @@ func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 
 func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
-		return 0, ErrCatalogReplaced
+		return 0, ids.ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
 	if v.snapshot {
@@ -139,7 +140,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	// Drop every advertised builder phase before collecting the real wait cohort.
 	e.resetVisibilityPhaseLocked(s.txRef)
@@ -166,7 +167,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 			continue
 		}
 		if owner := e.locks.TransactionTicket(ref); owner != nil {
-			if err := s.waitCompletion(owner, completionVirtual); err != nil {
+			if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
 				return err
 			}
 		}

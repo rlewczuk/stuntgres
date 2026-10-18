@@ -228,7 +228,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	}
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	e.catalog.state.epoch++
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ErrCatalogReplaced) {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	if stage.initialTables != nil {

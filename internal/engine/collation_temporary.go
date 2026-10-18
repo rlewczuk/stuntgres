@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -174,7 +175,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		if i != 0 && a == relations[i-1] {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.domain.Ref(base.Epoch(), a), accessExclusive, true); err != nil {
+		if err = scope.acquireSequence(e.catalog.domain.Ref(base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 			return false, err
 		}
 	}

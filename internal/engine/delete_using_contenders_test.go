@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -64,8 +65,8 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			await := deleteUsingJoin(t, cancel, done)
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == rowUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
 				t.Fatal("not an actual DELETE rowUpdate queue")
 			}
@@ -129,7 +130,7 @@ func TestDeleteUsingContentionOutcomes(t *testing.T) {
 			if phase == "cancel_source" {
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				admitted := entry != nil && len(entry.Holders) >= 1
 				if !admitted {
 					t.Fatal("target was not admitted before source wait")

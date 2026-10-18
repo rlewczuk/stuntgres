@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,7 @@ type indexWriteCandidate struct {
 type indexWriteBatch struct {
 	values     [][]sqltype.Value
 	states     []indexWriteState
-	actionMode multiMode // Explicit accepted physical action, never inferred from grant bits.
+	actionMode lock.MultiMode // Explicit accepted physical action, never inferred from grant bits.
 }
 
 type indexWriteState struct {
@@ -109,7 +110,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	}
 	if output, ok := (*outputs)[index.address]; ok {
 		if !output.matches(index) {
-			return false, nil, ErrCatalogReplaced
+			return false, nil, ids.ErrCatalogReplaced
 		}
 		if index.sqlIndex.method == hashMethod && output.member {
 			bound.scratch[0] = output.key
@@ -118,7 +119,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		return output.member, output.keys, nil
 	}
 	if purpose == indexProbeRevalidation {
-		return false, nil, ErrCatalogReplaced
+		return false, nil, ids.ErrCatalogReplaced
 	}
 	member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, r.values, &bound.ordering, nil)
 	if err != nil {
@@ -185,14 +186,14 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 		for j := range binding.keys {
 			index := binding.keys[j].index
 			if output, exists := outputs[index.address]; !exists || !output.matches(index) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 		for j := range binding.insertion {
 			insertion := &binding.insertion[j]
 			if insertion.unique == nil {
 				if output, exists := outputs[insertion.index.address]; !exists || !output.matches(insertion.index) {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 			}
 		}
@@ -230,7 +231,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	index := bound.index
 	read := func(output indexRowOutput) (bool, []sqltype.Value, error) {
 		if !output.matches(index) {
-			return false, nil, ErrCatalogReplaced
+			return false, nil, ids.ErrCatalogReplaced
 		}
 		if index.sqlIndex.method == hashMethod && output.member {
 			bound.scratch[0] = output.key
@@ -277,7 +278,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		return read(output)
 	}
 	if purpose == indexProbeRevalidation && row.born == 0 {
-		return false, nil, ErrCatalogReplaced
+		return false, nil, ids.ErrCatalogReplaced
 	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
@@ -285,7 +286,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	currentIndex, ok := current.Relation(index.address)
 	if !ok || !sameIndexKeySemantics(index, currentIndex) {
 		e.mu.Unlock()
-		return false, nil, ErrCatalogReplaced
+		return false, nil, ids.ErrCatalogReplaced
 	}
 	root := e.indexRoots[index.address]
 	if changes := s.owner.catalog; changes != nil && changes.uniqueRoots[index.address] != nil {
@@ -303,7 +304,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 					return false, nil, nil
 				}
 				if entry.version != row.version {
-					return false, nil, ErrCatalogReplaced
+					return false, nil, ids.ErrCatalogReplaced
 				}
 				bound.scratch[0] = entry.key
 				return true, bound.scratch, nil
@@ -312,7 +313,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 				for _, entry := range bucket {
 					if entry.row == row.row {
 						if entry.version != row.version {
-							return false, nil, ErrCatalogReplaced
+							return false, nil, ids.ErrCatalogReplaced
 						}
 						bound.scratch[0] = entry.key
 						return true, bound.scratch, nil
@@ -326,18 +327,18 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 			if root.rowEntries != nil {
 				ordinal, exists := root.rowEntries[row.row]
 				if !exists || ordinal < 0 || ordinal >= len(root.entries) {
-					return false, nil, ErrCatalogReplaced
+					return false, nil, ids.ErrCatalogReplaced
 				}
 				entry := root.entries[ordinal]
 				if entry.row != row.row || entry.version != row.version {
-					return false, nil, ErrCatalogReplaced
+					return false, nil, ids.ErrCatalogReplaced
 				}
 				return true, entry.keys, nil
 			}
 			for _, entry := range root.entries {
 				if entry.row == row.row {
 					if entry.version != row.version {
-						return false, nil, ErrCatalogReplaced
+						return false, nil, ids.ErrCatalogReplaced
 					}
 					return true, entry.keys, nil
 				}

@@ -1,13 +1,17 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // TYPE recreates affected NN identities without changing names or validity.
 // New attachments already describe the completed shape and are not recreated.
 func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relationDescriptor, changes []columnTransformation) (*relationDescriptor, error) {
 	original, ok := stage.base.Relation(parent.address)
 	if !ok {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	var next *relationDescriptor
 	for i, n := range parent.notNullConstraints {

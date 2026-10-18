@@ -170,7 +170,7 @@ func TestSavepointsCancellationAndControls(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := controlsExecute(t, a, "ROLLBACK TO s"); !errors.Is(err, ErrCatalogReplaced) {
+	if err := controlsExecute(t, a, "ROLLBACK TO s"); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old mark resurrected", err)
 	}
 	controlsRequire(t, a, "ROLLBACK")

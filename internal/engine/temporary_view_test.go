@@ -176,7 +176,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact retained source rejected")
 	}
-	if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ErrCatalogReplaced) {
+	if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("generic validator acquired contextual exemption", err)
 	}
 	fake := *view

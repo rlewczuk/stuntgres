@@ -2,6 +2,8 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -22,7 +24,7 @@ func partitionExclusionAddActions(raw *parser.AlterTable) bool {
 func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) (Result, error) {
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), table.address)
 	e.mu.Unlock()
-	if err := scope.acquirePartitionDescendants(ref, accessExclusive); err != nil {
+	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
@@ -33,7 +35,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 	}
 	if auth.catalog.Get(table.address) != table {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)

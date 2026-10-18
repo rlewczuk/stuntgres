@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -309,7 +310,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
 		if r, ok := stage.base.Relation(a); ok && r.relationKind == sequenceRelation {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), accessExclusive, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}

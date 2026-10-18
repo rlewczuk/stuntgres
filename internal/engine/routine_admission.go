@@ -27,12 +27,12 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		ref := dependency.ref
 		if consumer != nil {
 			if !storedReferenceEpochValid(auth.catalog, consumer, ref) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			ref.Epoch = auth.catalog.Epoch()
 		}
 		if ref.Epoch != auth.catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if _, err := auth.object(ref); err != nil {
 			return err
@@ -150,7 +150,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 				continue
 			}
 			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			// This exact retained recipe's established epoch bridge does not
 			// change the object identity or create a reference from an address.
@@ -205,12 +205,12 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		}
 		if c.routineConsumer != nil {
 			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			ref.Epoch = auth.catalog.Epoch()
 		}
 		if ref.Epoch != auth.catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		d, err := auth.object(ref)
 		if err != nil {

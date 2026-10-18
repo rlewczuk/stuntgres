@@ -493,9 +493,6 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	return nil
 }
 
-// ErrCatalogReplaced is the shared provenance error; see ids.ErrCatalogReplaced.
-var ErrCatalogReplaced = ids.ErrCatalogReplaced
-
 type PublicationToken struct{ Epoch ids.CatalogEpoch }
 type ChangeSet struct {
 	Definitions []ids.ObjectAddress
@@ -1036,7 +1033,7 @@ func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
 		if token.Epoch != p.epoch {
-			return ChangeSet{}, ErrCatalogReplaced
+			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
 		if err := e.stageCatalogOverlay(scope, p.stage, cloneCatalogChanges(scope.owner.catalog)); err != nil {
 			return ChangeSet{}, err
@@ -1065,7 +1062,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		currentStorage := e.storage
 		if p.epoch != current.epoch || token.Epoch != current.epoch {
 			e.mu.Unlock()
-			return ChangeSet{}, ErrCatalogReplaced
+			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
 		if err := s.validateIndexMaintenance(current); err != nil {
 			e.mu.Unlock()
@@ -1453,7 +1450,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = CatalogConflict{}
 		}
 		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
 			err = catalogDependencyPreflight(e.catalog.state, next, s.identityDependencies, s.identityOriginals)
@@ -1698,7 +1695,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			return ChangeSet{}, err
 		}
 		if replacement.Epoch() != e.catalog.state.epoch {
-			return ChangeSet{}, ErrCatalogReplaced
+			return ChangeSet{}, ids.ErrCatalogReplaced
 		}
 		next = cloneCatalog(replacement.state)
 		if err := copyRows(e); err != nil {
@@ -1779,7 +1776,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	source.mu.Lock()
 	if replacement.Epoch() != source.catalog.state.epoch {
 		source.mu.Unlock()
-		return ChangeSet{}, ErrCatalogReplaced
+		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
 	err = copyRows(source)
 	if err == nil {
@@ -1863,7 +1860,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
 	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err

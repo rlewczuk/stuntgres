@@ -49,7 +49,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, nil
 	}
 	if err == nil && ref != scope.lockedRef {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -299,7 +299,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if pass == 0 {
 			if definition != nil {
 				if definition.afterDropOld != next {
-					return Result{}, ErrCatalogReplaced
+					return Result{}, ids.ErrCatalogReplaced
 				}
 				if definition.afterDropError != nil {
 					err = definition.afterDropError
@@ -335,7 +335,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			err = stage.Replace(next)
 			if definition != nil && !definition.phaseZeroOnly {
 				if definition.usingCaptureOld != next {
-					return Result{}, ErrCatalogReplaced
+					return Result{}, ids.ErrCatalogReplaced
 				}
 				if definition.usingCaptureError != nil {
 					err = definition.usingCaptureError
@@ -360,7 +360,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					before := next
 					if definition != nil && !definition.phaseZeroOnly {
 						if inlineIndex >= len(definition.inline) || definition.inline[inlineIndex].old != next {
-							return Result{}, ErrCatalogReplaced
+							return Result{}, ids.ErrCatalogReplaced
 						}
 						preparedInline := definition.inline[inlineIndex]
 						inlineIndex++
@@ -385,7 +385,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				if definition != nil && !definition.phaseZeroOnly {
 					prepared := definition.usingNotNull[index]
 					if prepared.old != next {
-						err = ErrCatalogReplaced
+						err = ids.ErrCatalogReplaced
 					} else if prepared.err != nil {
 						err = prepared.err
 					} else {
@@ -468,7 +468,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	e.mu.Lock()
 	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	if stage != nil {
 		for address, descriptor := range stage.descriptors {
@@ -538,7 +538,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	e.mu.Lock()
 	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
 	if err == nil {
@@ -563,7 +563,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			continue
 		}
 		if fkIndex >= len(scope.alterForeignKeys) {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		capture := scope.alterForeignKeys[fkIndex]
 		next, err = e.stageAddedForeignKey(auth, stage, next, action.ForeignKey, capture.target.Address, capture.index)
@@ -816,7 +816,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	e.mu.Lock()
 	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
 		for name := range stage.touched {

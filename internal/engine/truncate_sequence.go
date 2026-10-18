@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -48,14 +49,14 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	}
 	slices.SortFunc(s.truncateSequences, func(a, b truncateSequence) int { return compareTruncateAddress(a.ref.Address, b.ref.Address) })
 	for _, observed := range s.truncateSequences {
-		if err = s.acquireSequence(observed.ref, accessExclusive, true); err != nil {
+		if err = s.acquireSequence(observed.ref, lock.AccessExclusive, true); err != nil {
 			return err
 		}
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
 		if err == nil {
 			if auth.catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.sequences[observed.ref.Address] != observed.committed {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			} else {
 				err = auth.Check(AccessRequirement{Object: observed.ref, OwnerOnly: true})
 			}
@@ -80,7 +81,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
 		if auth.catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.sequences[a] != sequence.committed {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if err := auth.Check(AccessRequirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
 			return nil, err

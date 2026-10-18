@@ -164,7 +164,7 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *rel
 
 func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relationDescriptor, prepared *usingIndexPreparation) (*relationDescriptor, error) {
 	if prepared == nil || prepared.parent != parent {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	index, clone := prepared.index, prepared.replacement
 	current := stage.descriptors[index.address]
@@ -172,7 +172,7 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 		current = stage.base.Get(index.address)
 	}
 	if current != index {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.notice.Code != "" {
 		op.emitNotice(levelNotice, prepared.notice)

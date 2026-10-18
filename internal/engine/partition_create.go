@@ -53,7 +53,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 		parent = auth.catalog.MustRelation(ref.Address)
 		if ref != scope.lockedRef || parent != scope.lockedDescriptor {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, err
@@ -111,7 +111,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 				stage.domainBases = append(stage.domainBases, leaf)
 				storage := e.privateStorageLocked(scope.owner.catalog, leaf.address)
 				if storage == nil {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.address, storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
 				return nil
@@ -178,7 +178,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		for _, ref := range p.defaultLeaves {
 			leaf, ok := catalog.Relation(ref.Address)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			layout, err := inheritanceQueryLayout(p.parent, leaf)
 			if err != nil {

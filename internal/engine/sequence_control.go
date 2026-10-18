@@ -763,7 +763,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			}
 			if temporary[old.namespace] != nil {
 				if !storedViewReferenceValid(catalog, consumer, ref) {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				continue
 			}

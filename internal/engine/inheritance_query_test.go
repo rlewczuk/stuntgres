@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -95,7 +96,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 		t.Fatal(values)
 	}
 	child.columns[1].Usage = testUsage(e, sqltype.Int8)
-	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 }
@@ -121,7 +122,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	if first.leaf.ref == second.leaf.ref || first.version.row != second.version.row || second.leaf.storage != cs || second.hint != 1 {
 		t.Fatal(first, second)
 	}
-	if lockResourceForFirst, lockResourceForSecond := (lockResource{ObjectRef: first.leaf.ref, Row: first.version.row}), (lockResource{ObjectRef: second.leaf.ref, Row: second.version.row}); lockResourceForFirst == lockResourceForSecond {
+	if lockResourceForFirst, lockResourceForSecond := (lock.Resource{ObjectRef: first.leaf.ref, Row: first.version.row}), (lock.Resource{ObjectRef: second.leaf.ref, Row: second.version.row}); lockResourceForFirst == lockResourceForSecond {
 		t.Fatal("equal RowID aliased physical resources")
 	}
 	latest := two
@@ -159,7 +160,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{leaf}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.acquireInheritanceSources(nil); err != nil {

@@ -14,7 +14,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	e.mu.Lock()
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if scope.txRef.Epoch() != e.catalog.state.epoch {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
 	if err != nil {
@@ -140,7 +140,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 // work is prepared. The publication loop also fences that catalog at install.
 func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 	if (len(s.indexParents) > 0 || len(s.indexRebuilds) > 0 || len(s.indexSets) > 0) && current.epoch != s.base.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for address, observed := range s.indexParents {
 		if current.Get(address) != observed {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"testing"
 	"time"
 )
@@ -87,7 +88,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := rowLockViewAsync(t, b, ctx, "SELECT val FROM w ORDER BY val FOR SHARE")
-			rowLockQueued(t, e, a.transactions.ticket, rowShare)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 			if restore {
 				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99);CREATE VIEW w AS SELECT id,v+1 AS val FROM t")); err != nil {
 					t.Fatal(err)
@@ -99,7 +100,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 			}
 			select {
 			case outcome := <-done:
-				if !errors.Is(outcome.err, ErrCatalogReplaced) || outcome.result.Rows != nil {
+				if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || outcome.result.Rows != nil {
 					t.Fatal(outcome)
 				}
 			case <-ctx.Done():
@@ -121,7 +122,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 		transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 		ctx, cancel := context.WithCancel(context.Background())
 		done := rowLockViewAsync(t, b, ctx, "SELECT val FROM w WHERE id=1 FOR SHARE")
-		rowLockQueued(t, e, a.transactions.ticket, rowShare)
+		rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
 		cancel()
 		deleteAwait(t, done, 0, context.Canceled)
 		transactionEnd(t, a, ar, false)

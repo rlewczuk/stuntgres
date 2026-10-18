@@ -37,7 +37,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	}
 	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if table.relationKind != tableRelation || table.partition != nil || table.membership == nil || table.inheritance != nil {
 		return nil

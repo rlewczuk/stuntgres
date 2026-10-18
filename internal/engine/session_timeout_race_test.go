@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestSessionTimeoutPendingGrantRace(t *testing.T) {
@@ -102,7 +103,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
 	manager := s.Engine().locks
 	ticket := holder.transactions.ticket
-	var resource lockResource
+	var resource lock.Resource
 	for ref := range manager.Inspect().Journals[ticket] {
 		resource = ref
 		break
@@ -111,13 +112,13 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		t.Fatal("holder lacks actual relation resource")
 	}
 	op := timeoutPendingOperation(t, holder)
-	for _, policy := range []relationLockPolicy{
+	for _, policy := range []lock.Policy{
 		{TimeoutSlot: &op.lockWait},
 		{TimeoutSlot: &op.lockWait, Timeout: time.Hour, StatementDeadline: time.Now().Add(time.Hour)},
 		{TimeoutSlot: &op.lockWait, NoWait: true, Timeout: time.Hour},
 	} {
 		if allocations := testing.AllocsPerRun(100, func() {
-			request, err := manager.StartAcquire(op.Context(), ticket, resource, accessExclusive, policy)
+			request, err := manager.StartAcquire(op.Context(), ticket, resource, lock.AccessExclusive, policy)
 			if request != nil || err != nil {
 				panic("self acquisition was not immediate")
 			}
@@ -129,10 +130,10 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		}
 	}
 	blocked := timeoutPendingOperation(t, s)
-	policy := relationLockPolicy{TimeoutSlot: &blocked.lockWait, NoWait: true, Timeout: time.Hour}
+	policy := lock.Policy{TimeoutSlot: &blocked.lockWait, NoWait: true, Timeout: time.Hour}
 	if allocations := testing.AllocsPerRun(100, func() {
-		request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, policy)
-		if request != nil || err != errRelationUnavailable {
+		request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, policy)
+		if request != nil || err != lock.ErrUnavailable {
 			panic("NOWAIT queued or granted conflicting request")
 		}
 	}); allocations != 0 {
@@ -141,7 +142,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	if blocked.lockWait.Request() != nil || blocked.lockWait.Failed() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
-	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, relationLockPolicy{TimeoutSlot: &blocked.lockWait})
+	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.lockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}

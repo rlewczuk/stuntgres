@@ -43,7 +43,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 								op := transactionOperation(t, a)
 								_, err = e.Execute(op, statement(t, "SELECT v FROM t"), 0, nil)
 								op.Done()
-								if !errors.Is(err, ErrCatalogReplaced) {
+								if !errors.Is(err, ids.ErrCatalogReplaced) {
 									t.Fatal(err)
 								}
 							}
@@ -51,7 +51,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						err = controlsExecute(t, a, end)
 						commit := strings.HasPrefix(end, "COMMIT") || strings.HasPrefix(end, "END")
 						if commit {
-							if !errors.Is(err, ErrCatalogReplaced) {
+							if !errors.Is(err, ids.ErrCatalogReplaced) {
 								t.Fatal("stale commit", err)
 							}
 						} else if err != nil {
@@ -175,23 +175,23 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					t.Fatal("late cancellation retracted install", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
-				if !errors.Is(target.ValidateObjectRef(target.CatalogRead(), ref), ErrCatalogReplaced) {
+				if !errors.Is(target.ValidateObjectRef(target.CatalogRead(), ref), ids.ErrCatalogReplaced) {
 					t.Fatal("old ref eligible")
 				}
 				prepared, err := target.ValidateCatalogStage(context.Background(), stage)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, ErrCatalogReplaced) {
+				if _, err = target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("old stage publishable", err)
 				}
 				op := transactionOperation(t, a)
 				_, err = target.Execute(op, statement(t, "SELECT v FROM t"), 0, nil)
 				op.Done()
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
-				if err = controlsExecute(t, a, "COMMIT"); !errors.Is(err, ErrCatalogReplaced) {
+				if err = controlsExecute(t, a, "COMMIT"); !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			} else {

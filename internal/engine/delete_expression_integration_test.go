@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 			case "authority":
 				state(t, executeErr, "42501")
 			case "epoch":
-				if !errors.Is(executeErr, ErrCatalogReplaced) {
+				if !errors.Is(executeErr, ids.ErrCatalogReplaced) {
 					t.Error(executeErr)
 				}
 			case "preflight", "relock", "teardown":

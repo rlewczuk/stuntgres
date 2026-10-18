@@ -1,6 +1,10 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // The named cursor owns its retained execution. Mutations borrow only a physical
 // occurrence and then remap its stable RowID into their fresh command view.
@@ -10,7 +14,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 		return mutationRowIdentity{}, missingSQLCursor(b.currentOf)
 	}
 	if c.epoch != s.txRef.Epoch() {
-		return mutationRowIdentity{}, ErrCatalogReplaced
+		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	if c.position == cursorFailed || c.root == nil {
 		return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.currentOf))
@@ -47,7 +51,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 		return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.currentOf))
 	}
 	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.leaves) {
-		return mutationRowIdentity{}, ErrCatalogReplaced
+		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	physical := cursorOccurrencePhysicalRow(c.currentSource, c.currentIndex, occurrence, c.locks)
 	if physical.version.row == 0 {
@@ -59,7 +63,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 		return mutationRowIdentity{}, nil
 	}
 	if storage != physical.leaf.storage {
-		return mutationRowIdentity{}, ErrCatalogReplaced
+		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	return mutationRowIdentity{physical.leaf.ref, physical.version.row}, nil
 }

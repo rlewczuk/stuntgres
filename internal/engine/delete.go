@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -81,8 +82,8 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate, policy)
 	if err != nil {
 		return err
 	}
@@ -105,7 +106,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 		return err
 	}
 	if candidate.ref.Domain() != e.catalog.domain || candidate.ref.Epoch != e.catalog.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }
@@ -127,7 +128,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if !s.op.session.Engine().locks.Holds(s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate) {
+	if !s.op.session.Engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -142,7 +143,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
 	if candidate.ref.Epoch != e.catalog.state.epoch || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
-		return false, ErrCatalogReplaced
+		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {
 		return false, errors.New("stuntgres: deletion requires its candidate view")
@@ -208,7 +209,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, multiEvent{Tuple: multiTuple{lockResource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: multiUpdateAction})
+	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: lock.MultiUpdateAction})
 	return nil
 }
 
@@ -230,7 +231,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if inputs != nil {
 			inputs.close()
 		}
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	var positioned mutationRowIdentity
 	if b.currentOf != "" {
@@ -309,7 +310,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			continue
 		}
 		if current.version != candidate.version {
-			if err := s.physicalRowEvent(candidate.ref, current, multiUpdateLock, 0); err != nil {
+			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 		}
@@ -377,7 +378,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	}
 	store := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
 	if store == nil || store != candidate.storage {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	rows := store.versions
 	if candidate.own {

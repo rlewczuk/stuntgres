@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -131,7 +132,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			case "authority":
 				state(t, executeErr, "42501")
 			case "descriptor", "epoch":
-				if !errors.Is(executeErr, ErrCatalogReplaced) {
+				if !errors.Is(executeErr, ids.ErrCatalogReplaced) {
 					t.Error(executeErr)
 				}
 			case "preflight", "relock", "teardown":
