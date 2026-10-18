@@ -9,9 +9,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type intaggProvider struct{ version string }
+type intaggProvider struct{ control extensionControl }
 
-var stockIntagg = &intaggProvider{version: "1.1"}
+// Control implements extensionImplementation.
+func (p *intaggProvider) Control() extensionControl { return p.control.detached() }
+
+var stockIntagg = &intaggProvider{control: extensionControl{version: "1.1", superuser: true, relocatable: true, comment: new("integer aggregator and enumerator (obsolete)")}}
 
 var intaggMembers = [...]struct {
 	name      string
@@ -37,7 +40,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: expr.Immutable, strict: member.strict, intagg: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: expr.Immutable, strict: member.strict, implementation: p}
 		if i == 0 {
 			state, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -65,15 +68,15 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 	return nil
 }
 
-func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
+func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.version != p.version || len(ext.members) != len(intaggMembers) {
+	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.version != p.control.version || len(ext.members) != len(intaggMembers) {
 		return invalid()
 	}
 	var seen [len(intaggMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != expr.Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != expr.Immutable || proc.implementation != p || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {
@@ -104,10 +107,10 @@ func (p *intaggProvider) validateProcedure(v CatalogRead, proc *procedureDescrip
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intagg installation")
 	}
-	if err := p.validate(v, ext); err != nil {
+	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.address) != proc || proc.intagg != p {
+	if v.Get(proc.address) != proc || proc.intaggProvider() != p {
 		return fmt.Errorf("stuntgres: foreign intagg procedure")
 	}
 	for _, address := range ext.members {

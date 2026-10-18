@@ -94,8 +94,10 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.result = 23 },
 		func(p *procedureDescriptor) { p.signature = "25,25" },
 		func(p *procedureDescriptor) { p.name = "dmetaphone" },
-		func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
-		func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
+		func(p *procedureDescriptor) {
+			p.implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+		},
+		func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
 	} {
 		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure

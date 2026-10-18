@@ -20,14 +20,14 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.catalog.extensions["intagg"]
+	registration := e.catalog.extensions["intagg"].Control()
 	if registration.version != "1.1" || registration.trusted || !registration.superuser || !registration.relocatable || registration.comment == nil || *registration.comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
 	if len(ext.members) != 2 {
 		t.Fatal("documented manifest", ext.members)
 	}
-	if err := stockIntagg.validate(view, ext); err != nil {
+	if err := stockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	addresses := map[ids.ObjectAddress]bool{}
@@ -48,15 +48,17 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
 			func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
 			func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
-			func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
-			func(p *procedureDescriptor) { p.provider = stockUnaccent }, func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
-			func(p *procedureDescriptor) { p.intagg = &intaggProvider{version: "1.1"} },
+			func(p *procedureDescriptor) { p.implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.implementation = stockPgcrypto },
+			func(p *procedureDescriptor) { p.implementation = stockUnaccent }, func(p *procedureDescriptor) { p.implementation = stockIntarray },
+			func(p *procedureDescriptor) {
+				p.implementation = &intaggProvider{control: extensionControl{version: "1.1"}}
+			},
 		} {
 			state := cloneCatalog(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
 			state.setDescriptor(address, &bad)
-			if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
+			if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
 		}
@@ -64,7 +66,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	for _, members := range [][]ids.ObjectAddress{nil, {ext.members[0]}, {ext.members[0], ext.members[0]}, {ext.members[1], ext.members[1]}} {
 		bad := *ext
 		bad.members = members
-		if err := stockIntagg.validate(view, &bad); err == nil {
+		if err := stockIntagg.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
@@ -107,9 +109,9 @@ func TestIntaggProviderManifest(t *testing.T) {
 			}
 			state := cloneCatalog(other.catalog.state)
 			bad := *member
-			bad.intagg = stockIntagg
+			bad.implementation = stockIntagg
 			state.setDescriptor(member.address, &bad)
-			if err := other.catalog.extensions[name].provider.validate(other.catalog.read(state), installed); err == nil {
+			if err := other.catalog.extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

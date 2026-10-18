@@ -97,7 +97,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *procedureDescriptor:
 			add(d.address, d.extension, 'e')
 			add(d.address, d.namespace, 'n')
-			if d.queryCodec != nil {
+			if d.intarrayProvider() != nil {
 				if d.name == "bqarr_in" {
 					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.result}, 'n')
 				} else {

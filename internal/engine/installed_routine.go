@@ -45,15 +45,15 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 	var installed bool
 	switch extension {
 	case functions.UUIDOsspExtension:
-		installed = proc.uuidOssp == stockUUIDOssp
+		installed = proc.uuidOsspProvider() == stockUUIDOssp
 	case functions.PgcryptoExtension:
-		installed = proc.crypto == stockPgcrypto
+		installed = proc.pgcryptoProvider() == stockPgcrypto
 	case functions.FuzzystrmatchExtension:
-		installed = proc.fuzzy == stockFuzzystrmatch
+		installed = proc.fuzzystrmatchProvider() == stockFuzzystrmatch
 	case functions.UnaccentExtension:
-		installed = proc.provider == stockUnaccent
+		installed = proc.unaccentProvider() == stockUnaccent
 	case functions.IntaggExtension:
-		installed = proc.intagg == stockIntagg
+		installed = proc.intaggProvider() == stockIntagg
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", extension)
 	}
@@ -74,20 +74,20 @@ type installedExtensionRoutine struct {
 func (r installedExtensionRoutine) Validate() error {
 	p := r.procedure
 	switch {
-	case p.uuidOssp != nil:
+	case p.uuidOsspProvider() != nil:
 		return stockUUIDOssp.validateProcedure(r.catalog, p)
-	case p.crypto != nil:
+	case p.pgcryptoProvider() != nil:
 		return stockPgcrypto.validateProcedure(r.catalog, p)
-	case p.fuzzy != nil:
+	case p.fuzzystrmatchProvider() != nil:
 		return stockFuzzystrmatch.validateProcedure(r.catalog, p)
-	case p.intagg != nil:
+	case p.intaggProvider() != nil:
 		return stockIntagg.validateProcedure(r.catalog, p)
-	case p.provider == stockUnaccent:
+	case p.unaccentProvider() == stockUnaccent:
 		ext, ok := r.catalog.Extension(p.extension)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing unaccent installation")
 		}
-		return stockUnaccent.validate(r.catalog, ext)
+		return stockUnaccent.ValidateExtension(r.catalog, ext)
 	}
 	return fmt.Errorf("stuntgres: invalid installed routine")
 }
@@ -101,35 +101,35 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	appended := expressionDependency{ref: ref, revision: p.revision}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
-		if p.uuidOssp != stockUUIDOssp {
+		if p.uuidOsspProvider() != stockUUIDOssp {
 			break
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.revision)
 		return installedUUIDOsspFunctionExpression{UUIDGeneration: c, procedure: p, ref: ref}, nil
 	case functions.Pgcrypto:
-		if p.crypto != stockPgcrypto {
+		if p.pgcryptoProvider() != stockPgcrypto {
 			break
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.revision)
 		return installedCryptoFunctionExpression{Pgcrypto: c, procedure: p, ref: ref}, nil
 	case functions.Levenshtein:
-		if p.fuzzy != stockFuzzystrmatch {
+		if p.fuzzystrmatchProvider() != stockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
 		return installedLevenshteinFunctionExpression{Levenshtein: c, procedure: p, ref: ref}, nil
 	case functions.Metaphone:
-		if p.fuzzy != stockFuzzystrmatch {
+		if p.fuzzystrmatchProvider() != stockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
 		return installedMetaphoneFunctionExpression{Metaphone: c, procedure: p, ref: ref}, nil
 	case functions.Soundex:
-		if p.fuzzy != stockFuzzystrmatch {
+		if p.fuzzystrmatchProvider() != stockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
@@ -138,7 +138,7 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	case functions.InstalledText:
 		return r.attachText(c, ref)
 	case functions.IntaggEnumeration:
-		if p.intagg != stockIntagg {
+		if p.intaggProvider() != stockIntagg {
 			break
 		}
 		return r.attachIntaggEnumeration(c)
@@ -152,7 +152,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	p := r.procedure
 	var dict *tsDictionaryDescriptor
 	var tmpl *tsTemplateDescriptor
-	if p.provider != nil {
+	if p.unaccentProvider() != nil {
 		var ok bool
 		dict, ok = r.catalog.TSDictionary(p.dictionary)
 		if !ok {
@@ -162,7 +162,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing installed unaccent template")
 		}
-		call.Matcher = dict.provider.matcher
+		call.Matcher = dict.unaccentProvider().matcher
 	}
 	r.binder.dependency(ref, p.revision)
 	call.RoutineReference = p

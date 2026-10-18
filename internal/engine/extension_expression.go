@@ -22,10 +22,10 @@ func (n installedFunctionExpression) validProvider() bool {
 	if p == nil || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.signature != unaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.result {
 		return false
 	}
-	if p.fuzzy != nil {
-		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == expr.Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+	if p.fuzzystrmatchProvider() != nil {
+		return p.fuzzystrmatchProvider() == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == expr.Immutable && p.strict && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == expr.Stable && p.strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
+	return p.unaccentProvider() == stockUnaccent && p.conversion.Name() == "" && p.result == 25 && p.volatility == expr.Stable && p.strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.unaccentProvider() == n.dictionary.unaccentProvider() && n.dictionary.unaccentProvider() == n.template.unaccentProvider()
 }
 
 func (n installedFunctionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {

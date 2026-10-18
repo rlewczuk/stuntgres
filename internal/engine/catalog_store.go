@@ -39,7 +39,7 @@ type catalogOwner struct {
 	providers    map[ids.OID]CatalogProvider
 	// extensions is the registry of extension implementations. Like
 	// providers, it closes when construction ends.
-	extensions map[string]registeredExtension
+	extensions map[string]extensionImplementation
 }
 
 // owner returns the store's owner record.

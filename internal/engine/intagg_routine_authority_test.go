@@ -106,7 +106,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.extension)
-			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != expr.Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -183,8 +183,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("foreign engine became original authority")
 			}
 			for _, mutate := range []func(*procedureDescriptor){
-				func(d *procedureDescriptor) { d.intagg = nil },
-				func(d *procedureDescriptor) { d.intagg = &intaggProvider{version: "1.1"} },
+				func(d *procedureDescriptor) { d.implementation = nil },
+				func(d *procedureDescriptor) {
+					d.implementation = &intaggProvider{control: extensionControl{version: "1.1"}}
+				},
 				func(d *procedureDescriptor) { d.routineKind = procedureRoutine },
 			} {
 				auth := *evaluation.routineAuthority
@@ -366,7 +368,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if transferred.owner != source.Ref || transferred == member || e.catalog.state.Get(ext.address) != ext || e.catalog.state.Get(ext.members[1]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
-	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {
+	if err := stockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
 		t.Fatal("valid divergent owners rejected", err)
 	}
 	metadata, err := extensionOwnerMetadata(e.CatalogRead(), e.Roles(), ext)
@@ -397,7 +399,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal("independent owner import", err)
 	}
 	installed := imported.catalog.state.MustExtension(imported.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
-	if err := stockIntagg.validate(imported.CatalogRead(), installed); err != nil {
+	if err := stockIntagg.ValidateExtension(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}
 	roundtrip, err := extensionOwnerMetadata(imported.CatalogRead(), imported.Roles(), installed)
@@ -413,11 +415,11 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 			bad.owner = owner
 			state.setDescriptor(a, &bad)
 		}
-		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
+		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := stockIntagg.validate(CatalogRead{state: e.catalog.state}, ext); err == nil {
+	if err := stockIntagg.ValidateExtension(CatalogRead{state: e.catalog.state}, ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
@@ -427,7 +429,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if reassigned.owner != target.Ref || transferred.owner != source.Ref || member.owner != ext.owner || e.catalog.state.Get(ext.members[1]) != sibling || original.Get(member.address) != member {
 		t.Fatal("ownership generations mutated")
 	}
-	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {
+	if err := stockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
 		t.Fatal(err)
 	}
 }

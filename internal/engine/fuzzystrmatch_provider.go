@@ -9,9 +9,12 @@ import (
 )
 
 // Only the catalog-selected overloads are installed, not adjacent fuzzy functions.
-type fuzzystrmatchProvider struct{ version string }
+type fuzzystrmatchProvider struct{ control extensionControl }
 
-var stockFuzzystrmatch = &fuzzystrmatchProvider{version: "1.2"}
+// Control implements extensionImplementation.
+func (p *fuzzystrmatchProvider) Control() extensionControl { return p.control.detached() }
+
+var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: new("determine similarities and distance between strings")}}
 
 var fuzzystrmatchMembers = [...]struct {
 	name      string
@@ -52,7 +55,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: expr.Immutable, strict: true, fuzzy: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: expr.Immutable, strict: true, implementation: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -63,15 +66,15 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
+func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	if v.owner == nil || p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.version != p.version || len(ext.members) != len(fuzzystrmatchMembers) {
+	if v.owner == nil || p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.version != p.control.version || len(ext.members) != len(fuzzystrmatchMembers) {
 		return invalid()
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != expr.Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != expr.Immutable || !proc.strict || proc.implementation != p || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
@@ -101,10 +104,10 @@ func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedure
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")
 	}
-	if err := p.validate(v, ext); err != nil {
+	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.address) != proc || proc.fuzzy != p {
+	if v.Get(proc.address) != proc || proc.fuzzystrmatchProvider() != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
 	for _, address := range ext.members {

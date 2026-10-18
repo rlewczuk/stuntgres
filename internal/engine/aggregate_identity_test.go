@@ -17,7 +17,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if len(ext.members) != 2 || proc.aggregate == nil || enum.aggregate != nil {
 		t.Fatal("callable/aggregate owner inventory")
 	}
-	if err := stockIntagg.validate(view, ext); err != nil {
+	if err := stockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -120,7 +120,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		bad.aggregate = &owned
 		state := cloneCatalog(view.state)
 		state.setDescriptor(proc.address, &bad)
-		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
+		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
 	}
@@ -133,7 +133,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		}
 		state := cloneCatalog(view.state)
 		state.setDescriptor(member, &bad)
-		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
+		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
@@ -142,7 +142,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	namespace := *view.MustNamespace(proc.namespace)
 	namespace.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.id}
 	collision.setDescriptor(namespace.address, &namespace)
-	if err := stockIntagg.validate(e.catalog.read(collision), ext); err == nil {
+	if err := stockIntagg.ValidateExtension(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
 	if err := validateDefinitionOIDs(e.catalog.read(collision)); err == nil {
@@ -221,7 +221,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 		t.Fatal("failed provider published partial installation")
 	}
 	for _, d := range e.catalog.state.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.intagg != nil {
+		if p, ok := d.(*procedureDescriptor); ok && p.intaggProvider() != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
 	}

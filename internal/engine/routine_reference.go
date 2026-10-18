@@ -62,10 +62,7 @@ func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 		current.name == captured.name && current.signature == captured.signature &&
 		current.routineKind == captured.routineKind && current.result == captured.result &&
 		current.strict == captured.strict && current.volatility == captured.volatility &&
-		current.builtin == captured.builtin && current.provider == captured.provider &&
-		current.queryCodec == captured.queryCodec && current.crypto == captured.crypto &&
-		current.fuzzy == captured.fuzzy && current.intagg == captured.intagg &&
-		current.uuidOssp == captured.uuidOssp &&
+		current.builtin == captured.builtin && current.implementation == captured.implementation &&
 		current.conversion == captured.conversion
 }
 

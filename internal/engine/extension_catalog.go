@@ -49,17 +49,14 @@ type procedureDescriptor struct {
 	result                        ids.OID
 	volatility                    expr.Volatility
 	strict                        bool
-	provider                      *unaccentProvider
-	queryCodec                    *intarrayProvider
-	fuzzy                         *fuzzystrmatchProvider
-	crypto                        *pgcryptoProvider
-	intagg                        *intaggProvider
-	aggregate                     *ownedAggregate
-	uuidOssp                      *uuidOsspProvider
-	conversion                    sqltype.EncodingConversionHandler
-	acl                           authorization.ACLValue
-	dictionary                    ids.ObjectAddress
-	foreign                       *foreignProcedure
+	// implementation is the extension implementation that installed this
+	// routine; nil for builtin, conversion and foreign routines.
+	implementation extensionImplementation
+	aggregate      *ownedAggregate
+	conversion     sqltype.EncodingConversionHandler
+	acl            authorization.ACLValue
+	dictionary     ids.ObjectAddress
+	foreign        *foreignProcedure
 }
 
 func (d *procedureDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -72,7 +69,7 @@ type tsTemplateDescriptor struct {
 	address, namespace, extension, init, lexize ids.ObjectAddress
 	revision                                    ids.DefinitionRevision
 	name                                        string
-	provider                                    *unaccentProvider
+	implementation                              extensionImplementation
 }
 
 func (d *tsTemplateDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -86,7 +83,7 @@ type tsDictionaryDescriptor struct {
 	revision                                ids.DefinitionRevision
 	name                                    string
 	owner                                   authorization.PrincipalRef
-	provider                                *unaccentProvider
+	implementation                          extensionImplementation
 }
 
 func (d *tsDictionaryDescriptor) Address() ids.ObjectAddress       { return d.address }
@@ -124,8 +121,8 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	var ext ids.ObjectAddress
 	switch d := d.(type) {
 	case *extensionDescriptor:
-		registration, registered := v.owner.extensions[d.name]
-		if !registered || d.version != registration.version || d.Namespace() != (ids.ObjectAddress{}) {
+		implementation, registered := v.owner.extensions[d.name]
+		if !registered || d.version != implementation.Control().version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 		if _, ok := v.Namespace(d.targetNamespace); !ok {
@@ -142,19 +139,19 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 		}
-		if err := registration.provider.validate(v, d); err != nil {
+		if err := implementation.ValidateExtension(v, d); err != nil {
 			return err
 		}
 	case *procedureDescriptor:
-		if d.uuidOssp != nil && (d.intagg != nil || d.aggregate != nil || d.foreign != nil || d.builtin != nil) {
+		if d.uuidOsspProvider() != nil && (d.aggregate != nil || d.foreign != nil || d.builtin != nil) {
 			return invalid()
 		}
-		if d.aggregate != nil && d.intagg != stockIntagg {
+		if d.aggregate != nil && d.intaggProvider() != stockIntagg {
 			return invalid()
 		}
 		if d.foreign != nil {
 			p := d.foreign
-			if p.name.Name != d.name || d.extension != (ids.ObjectAddress{}) || d.provider != nil || d.queryCodec != nil || d.fuzzy != nil || d.crypto != nil || d.intagg != nil || d.conversion.Name() != "" || d.builtin != nil {
+			if p.name.Name != d.name || d.extension != (ids.ObjectAddress{}) || d.implementation != nil || d.conversion.Name() != "" || d.builtin != nil {
 				return invalid()
 			}
 			if p.wrapper != nil {
@@ -168,13 +165,13 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.builtin != nil {
 			declared := d.builtin
-			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.provider != nil || d.queryCodec != nil || d.crypto != nil || d.fuzzy != nil || d.intagg != nil || d.conversion.Name() != "" || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.foreign != nil {
+			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.implementation != nil || d.conversion.Name() != "" || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.foreign != nil {
 				return invalid()
 			}
 			break
 		}
-		if d.intagg != nil {
-			if err := d.intagg.validateProcedure(v, d); err != nil {
+		if d.intaggProvider() != nil {
+			if err := d.intaggProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
@@ -183,35 +180,32 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		if d.routineKind != functionRoutine {
 			return invalid()
 		}
-		if d.crypto != nil && d.fuzzy != nil {
-			return invalid()
-		}
-		if d.uuidOssp != nil {
-			if d.crypto != nil || d.fuzzy != nil || d.provider != nil || d.queryCodec != nil || d.conversion.Name() != "" || d.dictionary != (ids.ObjectAddress{}) {
+		if d.uuidOsspProvider() != nil {
+			if d.conversion.Name() != "" || d.dictionary != (ids.ObjectAddress{}) {
 				return invalid()
 			}
-			if err := d.uuidOssp.validateProcedure(v, d); err != nil {
+			if err := d.uuidOsspProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
 			break
 		}
-		if d.fuzzy != nil {
-			if err := d.fuzzy.validateProcedure(v, d); err != nil {
+		if d.fuzzystrmatchProvider() != nil {
+			if err := d.fuzzystrmatchProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
 			break
 		}
-		if d.crypto != nil {
-			if err := d.crypto.validateProcedure(v, d); err != nil {
+		if d.pgcryptoProvider() != nil {
+			if err := d.pgcryptoProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
 			break
 		}
-		if d.queryCodec != nil {
-			if err := d.queryCodec.validateProcedure(v, d); err != nil {
+		if d.intarrayProvider() != nil {
+			if err := d.intarrayProvider().validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
@@ -219,12 +213,12 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
-			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != expr.Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
+			if !ok || d.conversion != registered || d.unaccentProvider() != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != expr.Immutable || !d.strict || d.extension != (ids.ObjectAddress{}) || d.dictionary != (ids.ObjectAddress{}) || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
 				return invalid()
 			}
 			break
 		}
-		if d.provider != stockUnaccent {
+		if d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
 		ext = d.extension
@@ -251,7 +245,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return invalid()
 		}
 	case *tsTemplateDescriptor:
-		if d.name != "unaccent" || d.provider != stockUnaccent {
+		if d.name != "unaccent" || d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
 		ext = d.extension
@@ -262,7 +256,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			}
 		}
 	case *tsDictionaryDescriptor:
-		if d.name != "unaccent" || d.provider != stockUnaccent {
+		if d.name != "unaccent" || d.unaccentProvider() != stockUnaccent {
 			return invalid()
 		}
 		ext = d.extension
@@ -351,7 +345,7 @@ func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name st
 	return nil
 }
 
-func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error {
+func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
 	if p != stockUnaccent || len(d.members) != 6 {
 		return invalid()
@@ -365,16 +359,16 @@ func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
 		proc, ok := v.Procedure(d.members[i])
-		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil || proc.intagg != nil || proc.uuidOssp != nil {
+		if !ok || proc.signature != signature || proc.implementation != p {
 			return invalid()
 		}
 	}
 	tmpl, ok := v.TSTemplate(d.members[4])
-	if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] || tmpl.provider != p {
+	if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] || tmpl.unaccentProvider() != p {
 		return invalid()
 	}
 	dict, ok := v.TSDictionary(d.members[5])
-	if !ok || dict.template != d.members[4] || dict.provider != p {
+	if !ok || dict.template != d.members[4] || dict.unaccentProvider() != p {
 		return invalid()
 	}
 	return nil

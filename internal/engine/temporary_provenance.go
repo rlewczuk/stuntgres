@@ -119,7 +119,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		// An old-epoch intagg occurrence bridges replacement only through the
 		// exact descriptor captured by this retained TEMP consumer. Ordinary
 		// current-epoch COW declarations take the path above, not this bridge.
-		if ok && (old.intagg != nil || actual.intagg != nil) && actual != old {
+		if ok && (old.intaggProvider() != nil || actual.intaggProvider() != nil) && actual != old {
 			return false
 		}
 		return ok && old.address == address && old.revision != 0 &&

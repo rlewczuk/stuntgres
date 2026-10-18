@@ -51,14 +51,19 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
 	registry := &Engine{}
-	registration := registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, provider: stockUnaccent}
-	if err := registry.registerExtension("unaccent", registration); err != nil {
+	if err := registry.registerExtension("unaccent", stockUnaccent); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.registerExtension("unaccent", registration); err == nil {
+	if err := registry.registerExtension("unaccent", stockUnaccent); err == nil {
 		t.Fatal("duplicate registration accepted")
 	}
-	if err := e.registerExtension("unaccent", registration); err == nil {
+	if err := registry.registerExtension("other", nil); err == nil {
+		t.Fatal("nil implementation accepted")
+	}
+	if err := registry.registerExtension("other", &unaccentProvider{}); err == nil {
+		t.Fatal("implementation without a version accepted")
+	}
+	if err := e.registerExtension("unaccent", stockUnaccent); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature} {
@@ -73,6 +78,20 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if proc.volatility != vol || proc.strict != strict || proc.result != result {
 			t.Fatal("procedure properties", i)
 		}
+		// The registry and every member hold the one implementation instance;
+		// typed views of another extension's kind stay nil.
+		if proc.implementation != e.catalog.extensions["unaccent"] || proc.unaccentProvider() != stockUnaccent || proc.pgcryptoProvider() != nil || proc.intaggProvider() != nil {
+			t.Fatal("member implementation identity", i)
+		}
+	}
+	if tmpl, _ := view.TSTemplate(ext.members[4]); tmpl == nil || tmpl.implementation != stockUnaccent || tmpl.unaccentProvider() != stockUnaccent {
+		t.Fatal("template implementation identity")
+	}
+	if dict := view.MustTSDictionary(ext.members[5]); dict.implementation != stockUnaccent || dict.unaccentProvider() != stockUnaccent {
+		t.Fatal("dictionary implementation identity")
+	}
+	if (&procedureDescriptor{}).unaccentProvider() != nil || (&tsDictionaryDescriptor{}).unaccentProvider() != nil {
+		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.members {
 		if seen[a] {
