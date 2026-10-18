@@ -114,18 +114,16 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 					t.Fatal("conflicting request granted")
 				}
 				if i < n-1 {
-					e.locks.mu.Lock()
-					terminal := pending[i].terminal
-					e.locks.mu.Unlock()
+					terminal := pending[i].Terminal()
 					if terminal {
 						t.Fatal("acyclic prefix victimized")
 					}
 				}
 			}
 			victim := -1
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			for i, r := range pending {
-				if r.terminal {
+				if r.Terminal() {
 					if victim != -1 {
 						t.Error("more than one victim")
 					}
@@ -134,12 +132,11 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			}
 			if victim >= 0 {
 				for i, resource := range resources {
-					if e.locks.entries[resource].holders[tickets[i]].Mode == 0 {
+					if lockState.Resources[resource].Holders[tickets[i]].Mode == 0 {
 						t.Error("manager released held lock before Finish")
 					}
 				}
 			}
-			e.locks.mu.Unlock()
 			if victim < 0 {
 				t.Fatal("hard cycle was not detected")
 			}
@@ -176,10 +173,9 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	deadlockRequest(t, e, c.transactions.ticket, y, accessExclusive)
 	rb := deadlockRequest(t, e, b.transactions.ticket, x, accessExclusive)
 	rc := deadlockRequest(t, e, c.transactions.ticket, x, accessShare)
-	e.locks.mu.Lock()
-	queue := e.locks.entries[x].pending
-	ordered := len(queue) == 2 && queue[0] == rb && queue[1] == rc
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	queue := lockState.Resources[x].Pending
+	ordered := len(queue) == 2 && queue[0].Request == rb && queue[1].Request == rc
 	if !ordered {
 		t.Fatal("missing conflicting predecessor queue proof")
 	}
@@ -187,10 +183,9 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	if err := deadlockResult(t, rc); err != nil {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
-	e.locks.mu.Lock()
-	ah := e.locks.entries[x].holders[a.transactions.ticket].Mode
-	bt := rb.terminal
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	ah := lockState.Resources[x].Holders[a.transactions.ticket].Mode
+	bt := rb.Terminal()
 	if ah != accessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}

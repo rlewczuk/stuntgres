@@ -54,12 +54,10 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			if err := request.Wait(); !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}
-			manager.mu.Lock()
-			terminal := request.terminal && !request.timer.Stop() && !request.stop()
+			terminal := request.Released()
 			if action == "grant" {
-				terminal = terminal && manager.entries[resource].holders[b.transactions.ticket].Mode == rowUpdate
+				terminal = terminal && manager.Inspect().Resources[resource].Holders[b.transactions.ticket].Mode == rowUpdate
 			}
-			manager.mu.Unlock()
 			if !terminal {
 				t.Fatal("row terminal/transfer state invalid")
 			}
@@ -85,23 +83,21 @@ func TestDeleteCoreRowDeadlinePolicy(t *testing.T) {
 			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, rowUpdate); err != nil {
 				t.Fatal(err)
 			}
-			request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, rowUpdate, relationLockPolicy{Timeout: time.Hour})
+			policy := relationLockPolicy{Timeout: time.Hour}
+			if kind == "statement" {
+				policy.StatementDeadline = time.Now().Add(time.Minute)
+			}
+			request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, rowUpdate, policy)
 			if err != nil || request == nil {
 				t.Fatal(request, err)
 			}
-			// Expire the real queued request under the existing manager authority, not a
-			// production hook or timing sleep; settle owns its sole terminal transition.
-			var notify *relationRequest
-			manager.mu.Lock()
-			if kind == "lock" {
-				request.deadline = time.Now().Add(-time.Second)
-			} else {
-				request.policy.StatementDeadline = time.Now().Add(-time.Second)
+			// Expire the real queued request at its own deadline through the manager's
+			// terminal path, not a timer race or sleep.
+			due := request.Deadline()
+			if kind == "statement" {
+				due = policy.StatementDeadline
 			}
-			manager.settle(request.entry, &notify)
-			manager.retire(resource, request.entry)
-			manager.mu.Unlock()
-			notifyRequests(notify)
+			manager.ExpireWait(request, due)
 			err = request.Wait()
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55P03", Message: "canceling statement due to lock timeout"}
 			if kind == "statement" {
@@ -165,15 +161,14 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: target}]
-			queuedRX := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == rowExclusive
-			for resource := range e.locks.entries {
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: target}]
+			queuedRX := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == rowExclusive
+			for resource := range lockState.Resources {
 				if resource.Row != 0 {
 					queuedRX = false
 				}
 			}
-			e.locks.mu.Unlock()
 			if !queuedRX {
 				t.Fatal("DELETE did not wait on RX relation before view capture")
 			}
@@ -204,16 +199,14 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 		if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || len(s.transactions.deletes) != 0 {
 			t.Fatal(description, err)
 		}
-		e.locks.mu.Lock()
 		held := 0
-		for resource, entry := range e.locks.entries {
-			if resource.Row != 0 || entry.holders[s.transactions.ticket].Mode != rowExclusive {
+		for resource, entry := range e.locks.Inspect().Resources {
+			if resource.Row != 0 || entry.Holders[s.transactions.ticket].Mode != rowExclusive {
 				held = -100
 				break
 			}
 			held++
 		}
-		e.locks.mu.Unlock()
 		if held != 1 {
 			t.Fatal("semantic Prepare holds rows or lost RX", held)
 		}

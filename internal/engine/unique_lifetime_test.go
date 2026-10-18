@@ -48,10 +48,9 @@ func uniqueClaimsEmpty(t *testing.T, e *Engine) {
 
 func uniqueKeyBucketsEmpty(t *testing.T, e *Engine) {
 	t.Helper()
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
-	if len(e.locks.keyBuckets) != 0 {
-		t.Fatal("retained unique key buckets", len(e.locks.keyBuckets))
+	lockState := e.locks.Inspect()
+	if lockState.KeyBuckets != 0 {
+		t.Fatal("retained unique key buckets", lockState.KeyBuckets)
 	}
 }
 
@@ -65,14 +64,13 @@ func TestUniqueClaimSavepointCancellation(t *testing.T) {
 	sessionSQL(t, a, "SAVEPOINT m")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, a, "ROLLBACK TO m")
-	e.locks.mu.Lock()
+	lockState := e.locks.Inspect()
 	claims := 0
-	for resource, entry := range e.locks.entries {
-		if resource.key != nil && len(entry.holders) != 0 {
+	for resource, entry := range lockState.Resources {
+		if resource.Key() != nil && len(entry.Holders) != 0 {
 			claims++
 		}
 	}
-	e.locks.mu.Unlock()
 	if claims != 1 {
 		t.Fatal("savepoint did not restore claim contributions", claims)
 	}

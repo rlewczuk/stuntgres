@@ -136,9 +136,7 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	if err := deadlockResult(t, r); !errors.Is(err, context.Canceled) {
 		t.Fatal("lost original cancellation", err)
 	}
-	e.locks.mu.Lock()
-	terminal := follower.terminal
-	e.locks.mu.Unlock()
+	terminal := follower.Terminal()
 	if terminal {
 		t.Fatal("canceled predecessor fabricated a deadlock")
 	}

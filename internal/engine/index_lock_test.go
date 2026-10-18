@@ -19,16 +19,14 @@ func TestBtreeIndexOrdinaryBuildAdmission(t *testing.T) {
 			done := lockAsync(e, builder, context.Background(), "CREATE INDEX idx ON t(n)", false)
 			lockPending(t, e, 1)
 			// The queued ordinary utility must request exactly Share, not AX/SUE.
-			e.locks.mu.Lock()
-			for _, entry := range e.locks.entries {
-				for _, pending := range entry.pending {
-					if pending.mode != relationShare {
-						e.locks.mu.Unlock()
-						t.Fatal("wrong build mode", pending.mode)
+			lockState := e.locks.Inspect()
+			for _, entry := range lockState.Resources {
+				for _, pending := range entry.Pending {
+					if pending.Mode != relationShare {
+						t.Fatal("wrong build mode", pending.Mode)
 					}
 				}
 			}
-			e.locks.mu.Unlock()
 			transactionEnd(t, writer, tx, commit)
 			lockAwait(t, done, nil)
 			if commit {

@@ -162,12 +162,12 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		xid = pgLocksUnitAssign(t, e, ticket)
 		e.locks.DetachPrepared(ticket)
 		_, waiter := blockingUnitOwner(t, e)
-		request, _ := pgLocksUnitRequest(t, e, waiter, lockResource{completion: ticket}, transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(ticket), transactionCompletion, completionVirtual)
 		e.mu.Lock()
 		e.recordCommitTimestampLocked(ticket.Ref())
 		e.mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
-		if pending.Kind != pgTransactionLock || pending.XID != xid || request == nil || request.terminal {
+		if pending.Kind != pgTransactionLock || pending.XID != xid || request == nil || request.Terminal() {
 			t.Fatal("prepared publication gap fabricated VXID or lost dependency", pending)
 		}
 		records := pgLocksUnitCapture(t, e)

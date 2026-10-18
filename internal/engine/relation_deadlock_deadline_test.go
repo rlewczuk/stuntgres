@@ -45,9 +45,7 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 				code, message = "57014", "canceling statement due to statement timeout"
 			}
 			waitsDiagnostic(t, deadlockResult(t, r), code, message)
-			e.locks.mu.Lock()
-			terminal := follower.terminal
-			e.locks.mu.Unlock()
+			terminal := follower.Terminal()
 			if terminal {
 				t.Fatal("expired predecessor produced false cycle")
 			}
@@ -106,9 +104,8 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	deadlockRequest(t, e, next, y, accessExclusive)
 	e.endLockOwner(at)
 	e.endLockOwner(bt)
-	e.locks.mu.Lock()
-	held := e.locks.entries[x].holders[next].Mode&accessExclusive != 0 && e.locks.entries[y].holders[next].Mode&accessExclusive != 0
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	held := lockState.Resources[x].Holders[next].Mode&accessExclusive != 0 && lockState.Resources[y].Holders[next].Mode&accessExclusive != 0
 	if !held {
 		t.Fatal("old end affected fresh incarnation")
 	}

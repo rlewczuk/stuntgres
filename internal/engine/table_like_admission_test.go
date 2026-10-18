@@ -122,10 +122,9 @@ func tableLikeAdmission(t *testing.T, provider string) {
 			}()
 			go func() { result <- scope.acquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: ref}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
 			if !queued {
 				t.Fatal("not queued on exact captured provider", ref)
 			}
@@ -179,10 +178,9 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					t.Fatal(err)
 				}
 				assertHeld := func() {
-					e.locks.mu.Lock()
-					entry := e.locks.entries[lockResource{ObjectRef: ref}]
-					held := entry != nil && entry.holders[scope.ticket].Mode&accessShare != 0
-					e.locks.mu.Unlock()
+					lockState := e.locks.Inspect()
+					entry := lockState.Resources[lockResource{ObjectRef: ref}]
+					held := entry != nil && entry.Holders[scope.ticket].Mode&accessShare != 0
 					if !held {
 						t.Fatal("provider hold lost before publication finished")
 					}

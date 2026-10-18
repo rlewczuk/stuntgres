@@ -110,7 +110,7 @@ func (r *relationRequest) timeoutWaitError(now time.Time) error {
 			return claimed
 		}
 	}
-	return relationWaitError(r.ctx, r.policy, r.deadline, now)
+	return WaitError(r.ctx, r.policy, r.deadline, now)
 }
 
 func (r *relationRequest) finishTimeout(err error) error {

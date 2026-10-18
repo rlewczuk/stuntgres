@@ -41,12 +41,9 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			if !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}
-			e.locks.mu.Lock()
-			if !r.terminal || r.timer.Stop() || r.stop() {
-				e.locks.mu.Unlock()
+			if !r.Released() {
 				t.Fatal("terminal registrations remained live")
 			}
-			e.locks.mu.Unlock()
 			transactionEnd(t, a, ra, false)
 			transactionEnd(t, b, rb, false)
 			lockEmpty(t, e)

@@ -18,18 +18,17 @@ func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.R
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref, Row: row}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
 		found := false
-		if entry != nil && entry.holders[blocker].Mode != 0 {
-			for _, request := range entry.pending {
-				if !request.terminal && request.ticket.Ref().Session() == worker.token && (mode == 0 || request.mode == mode) {
+		if entry != nil && entry.Holders[blocker].Mode != 0 {
+			for _, request := range entry.Pending {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && (mode == 0 || request.Mode == mode) {
 					found = true
 					break
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if found {
 			return
 		}

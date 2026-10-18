@@ -111,14 +111,13 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	transactionEnd(t, holder, holderRef, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		held := false
-		for _, entry := range e.locks.entries {
-			if entry.holders[ticket].Mode != 0 {
+		for _, entry := range lockState.Resources {
+			if entry.Holders[ticket].Mode != 0 {
 				held = true
 			}
 		}
-		e.locks.mu.Unlock()
 		if held {
 			break
 		}
@@ -167,12 +166,11 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		held := relationLockMode(0)
-		if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
-			held = entry.holders[b.transactions.ticket].Mode
+		if entry := lockState.Resources[lockResource{ObjectRef: ref}]; entry != nil {
+			held = entry.Holders[b.transactions.ticket].Mode
 		}
-		e.locks.mu.Unlock()
 		if err != nil && held != 0 {
 			t.Fatal("failed acquisition retained contribution")
 		}

@@ -56,13 +56,12 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 			}
 			premature := false
 			cursor.beforeClose = func() {
-				e.locks.mu.Lock()
-				for resource, entry := range e.locks.entries {
-					if resource.ObjectRef == b.ref && resource.Row != 0 && (len(entry.holders) != 0 || len(entry.pending) != 0) {
+				lockState := e.locks.Inspect()
+				for resource, entry := range lockState.Resources {
+					if resource.ObjectRef == b.ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
 						premature = true
 					}
 				}
-				e.locks.mu.Unlock()
 				if phase == "cancelAtClose" {
 					cancel()
 				}

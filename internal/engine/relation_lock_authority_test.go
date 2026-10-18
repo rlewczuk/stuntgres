@@ -76,11 +76,10 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	if err := e.locks.Acquire(canceled, tb, lockResource{ObjectRef: ref}, accessShare); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	if len(e.locks.entries) != 0 {
+	lockState := e.locks.Inspect()
+	if len(lockState.Resources) != 0 {
 		t.Fatal("pre-cancel mutated manager")
 	}
-	e.locks.mu.Unlock()
 	if err := e.locks.Acquire(context.Background(), ta, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -90,9 +89,8 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	lockPending(t, e, 1)
 	// Grant state is installed by end, independently of the sleeping caller.
 	e.endLockOwner(ta)
-	e.locks.mu.Lock()
-	held := e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].Mode
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	held := lockState.Resources[lockResource{ObjectRef: ref}].Holders[tb].Mode
 	if held != accessShare {
 		t.Fatal("grant not journaled before wake", held)
 	}
@@ -113,9 +111,8 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	}
 	e.endLockOwner(old)
 	e.locks.Fence(ref.Epoch)
-	e.locks.mu.Lock()
-	held = e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].Mode
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	held = lockState.Resources[lockResource{ObjectRef: ref}].Holders[tb].Mode
 	if held != rowExclusive {
 		t.Fatal("old cleanup removed new hold")
 	}

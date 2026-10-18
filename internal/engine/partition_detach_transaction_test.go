@@ -69,12 +69,11 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 				if f.e.privateCatalogLocked(owner.transactions.catalog).state.descriptors[ref.Address] != f.child {
 					t.Fatal("savepoint did not restore exact attached descriptor")
 				}
-				f.e.locks.mu.Lock()
-				entry := f.e.locks.entries[lockResource{ObjectRef: parentRef}]
-				mode := entry.holders[owner.transactions.ticket].Mode
-				childEntry := f.e.locks.entries[lockResource{ObjectRef: ref}]
-				childHeld := childEntry != nil && childEntry.holders[owner.transactions.ticket].Mode != 0
-				f.e.locks.mu.Unlock()
+				lockState := f.e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: parentRef}]
+				mode := entry.Holders[owner.transactions.ticket].Mode
+				childEntry := lockState.Resources[lockResource{ObjectRef: ref}]
+				childHeld := childEntry != nil && childEntry.Holders[owner.transactions.ticket].Mode != 0
 				if mode != accessShare || childHeld {
 					t.Fatal("post-savepoint AX contributions survived", mode, childHeld)
 				}

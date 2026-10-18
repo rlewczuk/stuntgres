@@ -34,24 +34,22 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				defer cancel()
 				done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v<=2")
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[resource]
-				var request *relationRequest
-				if entry != nil && len(entry.pending) == 1 {
-					request = entry.pending[0]
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[resource]
+				var request *lockWaiter
+				if entry != nil && len(entry.Pending) == 1 {
+					request = &entry.Pending[0]
 				}
-				queued := request != nil && request.ticket == waiter && request.ref == resource && request.mode == rowUpdate && !request.terminal && entry.holders[a.transactions.ticket].Mode == rowUpdate
-				e.locks.mu.Unlock()
+				queued := request != nil && request.Ticket == waiter && request.Resource == resource && request.Mode == rowUpdate && !request.Terminal && entry.Holders[a.transactions.ticket].Mode == rowUpdate
 				if !queued {
 					t.Fatal("DELETE not actually queued on the original row resource")
 				}
 				// Finish compatible COMMENT before releasing the row holder.
 				// The pending request, not a start channel, proves this interleaving.
 				deleteAwait(t, deleteAsync(t, c, ctx, tc.comment), 0, nil)
-				e.locks.mu.Lock()
-				entry = e.locks.entries[resource]
-				stillQueued := entry != nil && len(entry.pending) == 1 && entry.pending[0] == request && !request.terminal
-				e.locks.mu.Unlock()
+				lockState = e.locks.Inspect()
+				entry = lockState.Resources[resource]
+				stillQueued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Request == request.Request && !entry.Pending[0].Terminal
 				if !stillQueued {
 					t.Fatal("COMMENT changed the queued row request")
 				}

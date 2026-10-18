@@ -28,10 +28,9 @@ func advisoryXactUnitGrant(t *testing.T, s *Session, key lockResource, mode rela
 }
 func advisoryXactUnitHold(s *Session, key lockResource) relationHold {
 	m := s.Engine().locks
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if e := m.entries[key]; e != nil {
-		return e.holders[s.transactions.ticket]
+	lockState := m.Inspect()
+	if e := lockState.Resources[key]; e != nil {
+		return e.Holders[s.transactions.ticket]
 	}
 	return relationHold{}
 }
@@ -55,10 +54,9 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 							}
 							if !compatible {
 								m := e.locks
-								m.mu.Lock()
-								_, journaled := advisoryXactUnitTicket(b, requestXact).resources[key]
-								dirty := journaled || len(m.entries[key].pending) != 0 || m.entries[key].holders[advisoryXactUnitTicket(b, requestXact)].Mode != 0
-								m.mu.Unlock()
+								lockState := m.Inspect()
+								_, journaled := lockState.Journals[advisoryXactUnitTicket(b, requestXact)][key]
+								dirty := journaled || len(lockState.Resources[key].Pending) != 0 || lockState.Resources[key].Holders[advisoryXactUnitTicket(b, requestXact)].Mode != 0
 								if dirty {
 									t.Fatal("try failure changed queue/journal/grants")
 								}
@@ -120,9 +118,8 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		if err := r.Wait(); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		e.locks.mu.Lock()
-		_, journaled := a.transactions.ticket.resources[key]
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect(a.transactions.ticket)
+		_, journaled := lockState.Journals[a.transactions.ticket][key]
 		if !journaled {
 			t.Fatal("session terminal erased transaction hold journal")
 		}
@@ -216,9 +213,8 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 					}
 				})
 				e.endLockOwner(a.transactions.ticket)
-				e.locks.mu.Lock()
-				granted := e.locks.entries[key].holders[ticket].Mode == advisoryExclusive
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				granted := lockState.Resources[key].Holders[ticket].Mode == advisoryExclusive
 				if !granted {
 					t.Fatal("no actual pre-fence grant")
 				}

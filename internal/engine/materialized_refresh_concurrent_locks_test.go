@@ -66,10 +66,9 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.blocked {
 				lockPending(t, e, 1)
 				if !tc.target {
-					e.locks.mu.Lock()
-					entry := e.locks.entries[lockResource{ObjectRef: targetRef}]
-					granted := entry != nil && entry.holders[scope.ticket].Mode&relationExclusive != 0
-					e.locks.mu.Unlock()
+					lockState := e.locks.Inspect()
+					entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
+					granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
 					if !granted {
 						t.Fatal("source waiter did not retain target EXCLUSIVE")
 					}
@@ -113,10 +112,9 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: targetRef}]
-				granted := entry != nil && entry.holders[scope.ticket].Mode&relationExclusive != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
+				granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
 				if !granted {
 					t.Fatal("concurrent refresh used wrong target mode")
 				}

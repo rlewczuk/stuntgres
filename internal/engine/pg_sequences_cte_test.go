@@ -98,13 +98,12 @@ func pgSequencesCTEHolder(t *testing.T, e *Engine, s *Session, used bool) {
 	t.Helper()
 	for _, name := range []string{"a", "b"} {
 		ref := catalogRef(t, e, e.CatalogRead(), name)
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		var mode relationLockMode
 		if entry != nil {
-			mode = entry.holders[s.transactions.ticket].Mode
+			mode = entry.Holders[s.transactions.ticket].Mode
 		}
-		e.locks.mu.Unlock()
 		var want relationLockMode
 		if used {
 			want = rowExclusive

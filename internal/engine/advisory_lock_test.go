@@ -27,10 +27,9 @@ func advisoryUnitGrant(t *testing.T, s *Session, provenance ids.TxRef, key lockR
 }
 func advisoryUnitHold(s *Session, key lockResource) relationHold {
 	m := s.Engine().locks
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if entry := m.entries[key]; entry != nil {
-		return entry.holders[s.advisory.ticket]
+	lockState := m.Inspect()
+	if entry := lockState.Resources[key]; entry != nil {
+		return entry.Holders[s.advisory.ticket]
 	}
 	return relationHold{}
 }
@@ -128,19 +127,17 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 		m.Restore(ticket, checkpoint)
-		m.mu.Lock()
-		ordinaryHold := m.entries[ordinary].holders[ticket]
-		persistentJournal := len(a.advisory.ticket.resources)
-		m.mu.Unlock()
+		lockState := m.Inspect(a.advisory.ticket)
+		ordinaryHold := lockState.Resources[ordinary].Holders[ticket]
+		persistentJournal := len(lockState.Journals[a.advisory.ticket])
 		if ordinaryHold.Mode != accessShare || ordinaryHold.Shared != 0 || ordinaryHold.Exclusive != 0 || persistentJournal != 1 || advisoryUnitHold(a, key).Exclusive != 2 {
 			t.Fatal("checkpoint crossed count domain", ordinaryHold, persistentJournal)
 		}
 		if err := m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
-		m.mu.Lock()
-		remaining := m.entries[ordinary].holders[ticket].Mode
-		m.mu.Unlock()
+		lockState = m.Inspect()
+		remaining := lockState.Resources[ordinary].Holders[ticket].Mode
 		if remaining != accessShare {
 			t.Fatal("unlock all removed ordinary mode", remaining)
 		}

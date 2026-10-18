@@ -87,7 +87,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			} else {
 				timeoutPendingDiagnostic(t, op.CommandError(result), "25P04")
 			}
-			if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
+			if op.lockWait.Request() != nil || op.lockWait.Failed() {
 				t.Error("race completion retained timeout projection")
 			}
 			op.Done()
@@ -102,13 +102,11 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
 	manager := s.Engine().locks
 	ticket := holder.transactions.ticket
-	manager.mu.Lock()
 	var resource lockResource
-	for ref := range ticket.resources {
+	for ref := range manager.Inspect().Journals[ticket] {
 		resource = ref
 		break
 	}
-	manager.mu.Unlock()
 	if resource.ObjectRef == (ids.ObjectRef{}) {
 		t.Fatal("holder lacks actual relation resource")
 	}
@@ -126,7 +124,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		}); allocations != 0 {
 			t.Fatal("immediate timeout projection allocated", allocations)
 		}
-		if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
+		if op.lockWait.Request() != nil || op.lockWait.Failed() {
 			t.Fatal("immediate grant published pending timeout")
 		}
 	}
@@ -140,14 +138,14 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatal("NOWAIT timeout projection allocated", allocations)
 	}
-	if blocked.lockWait.request.Load() != nil || blocked.lockWait.failed.Load() {
+	if blocked.lockWait.Request() != nil || blocked.lockWait.Failed() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
 	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, relationLockPolicy{TimeoutSlot: &blocked.lockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}
-	if blocked.lockWait.request.Load() != nil || blocked.lockWait.failed.Load() {
+	if blocked.lockWait.Request() != nil || blocked.lockWait.Failed() {
 		t.Fatal("disabled timeout published pending projection")
 	}
 	result, done := make(chan error, 1), make(chan struct{})

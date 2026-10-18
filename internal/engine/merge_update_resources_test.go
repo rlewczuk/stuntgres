@@ -43,24 +43,22 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			sessionSQL(t, s, q)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[resource]
+			lockState := e.locks.Inspect(s.transactions.ticket)
+			entry := lockState.Resources[resource]
 			var mode relationLockMode
 			if entry != nil {
-				mode = entry.holders[s.transactions.ticket].Mode
+				mode = entry.Holders[s.transactions.ticket].Mode
 			}
-			_, journaled := s.transactions.ticket.resources[resource]
-			e.locks.mu.Unlock()
+			_, journaled := lockState.Journals[s.transactions.ticket][resource]
 			if mode != tc.mode || !journaled {
 				transactionEnd(t, s, tx, false)
 				t.Fatal("wrong held row mode union or missing row journal", mode, journaled, tc.mode)
 			}
 			sessionSQL(t, s, "ROLLBACK TO before_merge")
-			e.locks.mu.Lock()
-			entry = e.locks.entries[resource]
-			held := entry != nil && entry.holders[s.transactions.ticket].Mode != 0
-			_, journaled = s.transactions.ticket.resources[resource]
-			e.locks.mu.Unlock()
+			lockState = e.locks.Inspect(s.transactions.ticket)
+			entry = lockState.Resources[resource]
+			held := entry != nil && entry.Holders[s.transactions.ticket].Mode != 0
+			_, journaled = lockState.Journals[s.transactions.ticket][resource]
 			if held || journaled {
 				transactionEnd(t, s, tx, false)
 				t.Fatal("savepoint retained action row contribution or journal")

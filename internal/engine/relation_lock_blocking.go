@@ -88,14 +88,14 @@ func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 		return err
 	}
 	for t, held := range r.entry.holders {
-		if !m.valid(t) || sameLockSession(t, r.ticket) || !lockConflict(r.mode, held.Mode) {
+		if !m.valid(t) || sameLockSession(t, r.ticket) || !Conflicts(r.mode, held.Mode) {
 			continue
 		}
 		// A participant can have session and transaction tickets. Pick one
 		// canonical ticket without sorting/copying the holder map.
 		duplicate := false
 		for other, hold := range r.entry.holders {
-			if other == t || !m.valid(other) || !sameLockSession(t, other) || !lockConflict(r.mode, hold.Mode) {
+			if other == t || !m.valid(other) || !sameLockSession(t, other) || !Conflicts(r.mode, hold.Mode) {
 				continue
 			}
 			if other.persistent && !t.persistent || other.persistent == t.persistent && other.ref.ID() < t.ref.ID() {
@@ -116,19 +116,19 @@ func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 		if earlier == r {
 			break
 		}
-		if !m.validInquiryRequest(earlier, r.entry, r.ref) || sameLockSession(earlier.ticket, r.ticket) || !lockConflict(r.mode, earlier.mode) {
+		if !m.validInquiryRequest(earlier, r.entry, r.ref) || sameLockSession(earlier.ticket, r.ticket) || !Conflicts(r.mode, earlier.mode) {
 			continue
 		}
 		duplicate := false
 		for t, hold := range r.entry.holders {
-			if m.valid(t) && sameLockSession(t, earlier.ticket) && lockConflict(r.mode, hold.Mode) {
+			if m.valid(t) && sameLockSession(t, earlier.ticket) && Conflicts(r.mode, hold.Mode) {
 				duplicate = true
 				break
 			}
 		}
 		if !duplicate {
 			for _, previous := range r.entry.pending[:i] {
-				if m.validInquiryRequest(previous, r.entry, r.ref) && sameLockSession(previous.ticket, earlier.ticket) && lockConflict(r.mode, previous.mode) {
+				if m.validInquiryRequest(previous, r.entry, r.ref) && sameLockSession(previous.ticket, earlier.ticket) && Conflicts(r.mode, previous.mode) {
 					duplicate = true
 					break
 				}

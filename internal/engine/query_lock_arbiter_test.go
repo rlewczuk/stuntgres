@@ -79,10 +79,9 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	if _, present, err := out.nextOccurrence(op.Context()); err != nil || present {
 		t.Fatal("partial joined candidate escaped SKIP", present, err)
 	}
-	e.locks.mu.Lock()
-	first, second := e.locks.entries[lockResource{ObjectRef: tRef, Row: tRow}], e.locks.entries[lockResource{ObjectRef: uRef, Row: uRow}]
-	bad := first == nil || first.holders[b.transactions.ticket].Mode != rowUpdate || second == nil || second.holders[b.transactions.ticket].Mode != 0 || second.holders[a.transactions.ticket].Mode != rowUpdate || len(second.pending) != 0
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	first, second := lockState.Resources[lockResource{ObjectRef: tRef, Row: tRow}], lockState.Resources[lockResource{ObjectRef: uRef, Row: uRow}]
+	bad := first == nil || first.Holders[b.transactions.ticket].Mode != rowUpdate || second == nil || second.Holders[b.transactions.ticket].Mode != 0 || second.Holders[a.transactions.ticket].Mode != rowUpdate || len(second.Pending) != 0
 	if bad {
 		t.Fatal("SKIP undid an acquired contributor, acquired unavailable source, or left a waiter")
 	}

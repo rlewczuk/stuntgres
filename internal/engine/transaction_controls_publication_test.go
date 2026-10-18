@@ -302,11 +302,10 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			for i := range versions {
 				versions[i].values = append([]sqltype.Value(nil), versions[i].values...)
 			}
-			e.locks.mu.Lock()
-			oldLive := e.locks.owners[old] != nil
-			freshLive := e.locks.owners[next] == ticket
-			e.locks.mu.Unlock()
-			if oldLive || !freshLive || len(ticket.resources) != 0 {
+			lockState := e.locks.Inspect()
+			oldLive := lockState.Owners[old] != nil
+			freshLive := lockState.Owners[next] == ticket
+			if oldLive || !freshLive || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("execution did not release old ticket/install empty fresh authority")
 			}
 			if boundary == "terminal_after_execute" {
@@ -360,9 +359,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			assertRetained()
 			if boundary == "terminal_after_execute" {
-				e.locks.mu.Lock()
-				freshLive = e.locks.owners[next] == ticket
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				freshLive = lockState.Owners[next] == ticket
 				if !freshLive {
 					t.Fatal("Finish prematurely cleaned leased fresh ticket")
 				}
@@ -383,9 +381,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			} else {
 				// Replacement fences lock authority independently of the
 				// transaction owner and retained snapshot lifetimes.
-				e.locks.mu.Lock()
-				freshLive = e.locks.owners[next] != nil
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				freshLive = lockState.Owners[next] != nil
 				if freshLive {
 					t.Fatal("Finish recreated ticket fenced by replacement")
 				}

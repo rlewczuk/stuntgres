@@ -32,9 +32,8 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		if err != nil || second == nil {
 			t.Fatal("queued second shared", second, err)
 		}
-		e.locks.mu.Lock()
-		queued := len(e.locks.entries[key].pending)
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect()
+		queued := len(lockState.Resources[key].Pending)
 		if queued != 3 {
 			t.Fatal("exact queue absent", queued)
 		}
@@ -65,11 +64,9 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 			t.Fatal(request, err)
 		}
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
-		e.locks.mu.Lock()
-		terminal := request.terminal
+		terminal := request.Terminal()
 		requestError := request.Err()
-		count := e.locks.entries[key].holders[b.advisory.ticket].Exclusive
-		e.locks.mu.Unlock()
+		count := e.locks.Inspect().Resources[key].Holders[b.advisory.ticket].Exclusive
 		if !terminal || requestError != nil || count != 1 {
 			t.Fatal("grant publication boundary", terminal, requestError, count)
 		}

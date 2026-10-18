@@ -37,13 +37,12 @@ func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode relationLo
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		var request *relationRequest
-		if entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == mode {
-			request = entry.pending[0]
+		if entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == mode {
+			request = entry.Pending[0].Request
 		}
-		e.locks.mu.Unlock()
 		if request != nil {
 			return request
 		}
@@ -93,10 +92,9 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				ownedLockQueued(t, e, ref, accessShare, done)
 				transactionEnd(t, a, ar, false)
 				lockAwait(t, done, nil)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				retained := entry != nil && entry.holders[b.transactions.ticket].Mode&accessShare != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				retained := entry != nil && entry.Holders[b.transactions.ticket].Mode&accessShare != 0
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
 				}
@@ -204,13 +202,9 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					if failure == "Cancel" {
 						cancel()
 					} else {
-						var notify *relationRequest
-						e.locks.mu.Lock()
-						request.deadline = time.Now().Add(-time.Second)
-						e.locks.settle(request.entry, &notify)
-						e.locks.retire(request.ref, request.entry)
-						e.locks.mu.Unlock()
-						notifyRequests(notify)
+						// The statement runs without command admission, so the session's
+						// lock_timeout never reaches the request; fire its timeout directly.
+						e.locks.ExpireLockTimeout(request)
 					}
 					if failure == "Cancel" {
 						lockAwait(t, done, context.Canceled)
@@ -273,10 +267,9 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			defer cancel()
 			dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
 			dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: table}]
-			cycle := entry != nil && entry.holders[dropRequest.ticket].Mode&accessExclusive != 0
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: table}]
+			cycle := entry != nil && entry.Holders[dropRequest.Ticket()].Mode&accessExclusive != 0
 			if !cycle {
 				t.Fatal("drop did not retain table AX while waiting for sequence")
 			}
@@ -296,7 +289,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 					waiter, blocker *relationTicket
 					ref             ids.ObjectRef
 					mode            string
-				}{{bticket, dropRequest.ticket, table, "AccessShareLock"}, {dropRequest.ticket, bticket, sequence, "AccessExclusiveLock"}} {
+				}{{bticket, dropRequest.Ticket(), table, "AccessShareLock"}, {dropRequest.Ticket(), bticket, sequence, "AccessExclusiveLock"}} {
 					expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.Ref().ID(), edge.waiter.Ref().Session().ID(), edge.waiter.Ref().Epoch(), edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.Ref().ID(), edge.blocker.Ref().Session().ID(), edge.blocker.Ref().Epoch())] = true
 				}
 				for _, line := range strings.Split(diagnostic.Detail, "\n") {

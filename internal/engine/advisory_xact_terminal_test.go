@@ -34,15 +34,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 					case "end":
 						m.End(bt)
 					case "timeout":
-						m.mu.Lock()
-						request.deadline = time.Now().Add(-time.Second)
-						var notify *relationRequest
-						if !request.terminal {
-							m.settle(request.entry, &notify)
-							m.retire(key, request.entry)
-						}
-						m.mu.Unlock()
-						notifyRequests(notify)
+						m.ExpireWait(request, request.Deadline())
 					case "fence":
 						m.Fence(bt.Ref().Epoch() + 1)
 					}
@@ -88,18 +80,14 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 						}
 					}
 				}
-				if request.timer.Stop() {
-					t.Fatal("terminal left lock timer armed")
-				}
-				if request.stop() {
-					t.Fatal("terminal left cancellation registration armed")
+				if !request.Released() {
+					t.Fatal("terminal left lock timer or cancellation registration armed")
 				}
 				m.End(bt)
-				m.mu.Lock()
-				entry := m.entries[key]
-				leaked := entry != nil && (len(entry.holders) != 0 || len(entry.pending) != 0)
-				journal := len(bt.resources)
-				m.mu.Unlock()
+				lockState := m.Inspect(bt)
+				entry := lockState.Resources[key]
+				leaked := entry != nil && (len(entry.Holders) != 0 || len(entry.Pending) != 0)
+				journal := len(lockState.Journals[bt])
 				if leaked || journal != 0 {
 					t.Fatal("terminal leaked ownership", leaked, journal)
 				}

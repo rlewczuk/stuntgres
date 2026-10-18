@@ -30,10 +30,9 @@ func TestCheckReviewDependencyCreationGrant(t *testing.T) {
 				defer cancel()
 				waiting := lockAsync(e, b, ctx, create, false)
 				lockPending(t, e, 1)
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessShare && entry.holders[a.transactions.ticket].Mode&accessExclusive != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[a.transactions.ticket].Mode&accessExclusive != 0
 				if !queued {
 					t.Fatal("CREATE did not queue AS on exact provider")
 				}
@@ -86,16 +85,15 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	}
 	dropping := lockAsync(e, b, context.Background(), "DROP SEQUENCE s CASCADE", false)
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref}]
-	held := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == accessExclusive
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref}]
+	held := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive
 	if held {
 		held = false
-		for _, mode := range entry.holders {
+		for _, mode := range entry.Holders {
 			held = held || mode.Mode&accessShare != 0
 		}
 	}
-	e.locks.mu.Unlock()
 	if !held {
 		t.Fatal("CREATE did not retain provider AS through validation/publication")
 	}

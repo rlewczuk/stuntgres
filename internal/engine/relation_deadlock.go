@@ -183,7 +183,7 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 	}
 	// A later queue observation can interrupt this victim after its sweep check.
 	// Arbitrate at the exact terminal boundary, just as settle does before grant.
-	if err := relationWaitError(victim.ctx, victim.policy, victim.deadline, time.Now()); err != nil {
+	if err := WaitError(victim.ctx, victim.policy, victim.deadline, time.Now()); err != nil {
 		terminalRequest(victim, err, notify)
 		m.settle(victim.entry, notify)
 		m.retire(victim.ref, victim.entry)
@@ -252,7 +252,7 @@ func (s *deadlockSearch) findCycle() bool {
 			from := s.nodes[r.ticket.participant()]
 			for ticket, held := range q.entry.holders {
 				to, live := s.nodes[ticket.participant()]
-				if live && !sameLockSession(ticket, r.ticket) && lockConflict(r.mode, held.Mode) {
+				if live && !sameLockSession(ticket, r.ticket) && Conflicts(r.mode, held.Mode) {
 					s.edges[from] = append(s.edges[from], deadlockEdge{from: from, to: to, request: r, blocker: ticket, before: -1, after: -1})
 				}
 			}
@@ -260,13 +260,13 @@ func (s *deadlockSearch) findCycle() bool {
 				if r.ref.completion != nil {
 					continue
 				}
-				if sameLockSession(blocker.ticket, r.ticket) || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !lockConflict(r.mode, blocker.mode) {
+				if sameLockSession(blocker.ticket, r.ticket) || s.positions[q.ids[earlier]] >= s.positions[q.ids[index]] || !Conflicts(r.mode, blocker.mode) {
 					continue
 				}
 				// A conflicting existing hold makes this dependency hard already.
 				hard := false
 				for holder, held := range q.entry.holders {
-					if sameLockSession(holder, blocker.ticket) && lockConflict(r.mode, held.Mode) {
+					if sameLockSession(holder, blocker.ticket) && Conflicts(r.mode, held.Mode) {
 						hard = true
 						break
 					}

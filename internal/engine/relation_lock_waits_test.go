@@ -37,10 +37,9 @@ func TestRelationLockWaitsNowait(t *testing.T) {
 			if request != nil || conflict && !errors.Is(err, errRelationUnavailable) || !conflict && err != nil {
 				t.Fatalf("%d/%d: request=%v err=%v", held, requested, request, err)
 			}
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref}]
-			bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket].Mode != held || conflict && len(b.transactions.ticket.resources) != 0
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect(b.transactions.ticket)
+			entry := lockState.Resources[lockResource{ObjectRef: ref}]
+			bad := len(entry.Pending) != 0 || entry.Holders[a.transactions.ticket].Mode != held || conflict && len(lockState.Journals[b.transactions.ticket]) != 0
 			if bad {
 				t.Fatal("conditional failure changed holder/queue/journal")
 			}
@@ -95,9 +94,8 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		if err = rx.Wait(); err != nil {
 			t.Fatal(err)
 		}
-		e.locks.mu.Lock()
-		bad := e.locks.entries[lockResource{ObjectRef: ref}].holders[a.transactions.ticket].Mode != accessShare || len(b.transactions.ticket.resources) != 0 || !ax.terminal || !rx.terminal
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect(b.transactions.ticket)
+		bad := lockState.Resources[lockResource{ObjectRef: ref}].Holders[a.transactions.ticket].Mode != accessShare || len(lockState.Journals[b.transactions.ticket]) != 0 || !ax.Terminal() || !rx.Terminal()
 		if bad {
 			t.Fatal("interruption damaged ownership/journal")
 		}
@@ -118,7 +116,7 @@ func TestRelationLockWaitsTimeoutPrecedence(t *testing.T) {
 		{now.Add(-time.Second), now.Add(-2 * time.Second), "57014"},
 		{now, now, "55P03"},
 	} {
-		err := relationWaitError(context.Background(), relationLockPolicy{StatementDeadline: tc.statement}, tc.lock, now)
+		err := WaitError(context.Background(), relationLockPolicy{StatementDeadline: tc.statement}, tc.lock, now)
 		message := "canceling statement due to lock timeout"
 		if tc.code == "57014" {
 			message = "canceling statement due to statement timeout"

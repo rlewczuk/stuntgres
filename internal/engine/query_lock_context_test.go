@@ -52,9 +52,8 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 					t.Fatal(err, scope.queryLocks, tc.marked)
 				}
 			}
-			e.locks.mu.Lock()
-			grants := len(e.locks.entries)
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			grants := len(lockState.Resources)
 			if grants != 0 {
 				t.Fatal("kind/context preflight acquired physical resources", grants)
 			}

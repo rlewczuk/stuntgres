@@ -60,10 +60,9 @@ func TestDeleteCoreContention(t *testing.T) {
 			e.mu.Lock()
 			row := e.storage[target.Address].versions[0].row
 			e.mu.Unlock()
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: target, Row: row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.holders[a.transactions.ticket].Mode == rowUpdate
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: target, Row: row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.transactions.ticket].Mode == rowUpdate
 			if !queued {
 				t.Fatal("not waiting on original logical row")
 			}

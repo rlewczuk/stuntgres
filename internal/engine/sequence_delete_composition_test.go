@@ -53,7 +53,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
 			before := captureSequenceDeletePublication(e, s, table.Address)
 			ticket := s.transactions.ticket
-			if ticket == nil || len(ticket.resources) == 0 {
+			if ticket == nil || len(e.locks.Inspect(ticket).Journals[ticket]) == 0 {
 				t.Fatal("mixed staging did not acquire transaction resources")
 			}
 			op := transactionOperation(t, s)

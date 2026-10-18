@@ -81,17 +81,16 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	if targetOnly {
 		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
 		resource := lockResource{ObjectRef: ref, Row: row}
-		e.locks.mu.Lock()
-		entry := e.locks.entries[resource]
-		held := entry != nil && entry.holders[worker.transactions.ticket].Mode != 0
-		_, journaled := worker.transactions.ticket.resources[resource]
+		lockState := e.locks.Inspect(worker.transactions.ticket)
+		entry := lockState.Resources[resource]
+		held := entry != nil && entry.Holders[worker.transactions.ticket].Mode != 0
+		_, journaled := lockState.Journals[worker.transactions.ticket][resource]
 		pending := false
 		if entry != nil {
-			for _, request := range entry.pending {
-				pending = pending || !request.terminal && request.ticket.Ref().Session() == worker.token
+			for _, request := range entry.Pending {
+				pending = pending || !request.Terminal && request.Ticket.Ref().Session() == worker.token
 			}
 		}
-		e.locks.mu.Unlock()
 		if held || journaled || pending {
 			t.Fatal("savepoint retained canceled row contribution", held, journaled, pending)
 		}

@@ -393,7 +393,7 @@ func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket,
 		saved := held[tuple.lockResource]
 		var granted relationLockMode
 		if entry := m.entries[tuple.lockResource]; entry != nil {
-			granted = entry.holders[t].Mode & saved.mode
+			granted = entry.holders[t].Mode & saved.Mode
 		}
 		bits = 0
 		for mode := multiKeyShare; mode <= multiUpdateAction; mode++ {
@@ -406,7 +406,7 @@ func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket,
 			case multiUpdateLock, multiUpdateAction:
 				required = rowUpdate
 			}
-			if saved.multi[tuple.Version]&(1<<mode) != 0 && granted&required != 0 {
+			if saved.Multi[tuple.Version]&(1<<mode) != 0 && granted&required != 0 {
 				bits |= 1 << mode
 			}
 		}

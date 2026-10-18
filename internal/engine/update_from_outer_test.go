@@ -131,17 +131,16 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			leftRef := catalogRef(t, e, e.CatalogRead(), "s")
 			rightRef := catalogRef(t, e, e.CatalogRead(), "r")
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref, Row: original.row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == noKeyUpdate && entry.holders[holder.transactions.ticket].Mode == noKeyUpdate
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == noKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
 			sourcesHeld := false
 			if queued {
-				ticket := entry.pending[0].ticket
-				left := e.locks.entries[lockResource{ObjectRef: leftRef}]
-				right := e.locks.entries[lockResource{ObjectRef: rightRef}]
-				sourcesHeld = left != nil && right != nil && left.holders[ticket].Mode&accessShare != 0 && right.holders[ticket].Mode&accessShare != 0
+				ticket := entry.Pending[0].Ticket
+				left := lockState.Resources[lockResource{ObjectRef: leftRef}]
+				right := lockState.Resources[lockResource{ObjectRef: rightRef}]
+				sourcesHeld = left != nil && right != nil && left.Holders[ticket].Mode&accessShare != 0 && right.Holders[ticket].Mode&accessShare != 0
 			}
-			e.locks.mu.Unlock()
 			if !queued || !sourcesHeld {
 				t.Fatal("not a genuine same-target queue with both physical outer sides admitted", queued, sourcesHeld)
 			}

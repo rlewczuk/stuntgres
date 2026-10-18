@@ -84,10 +84,9 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 		t.Fatal("fresh transfer", err)
 	}
 	blockingUnitWant(t, e, b.token.ID())
-	m.mu.Lock()
-	_, pendingJournal := b.transactions.ticket.resources[key]
-	_, heldJournal := sessionTicket.resources[key]
-	m.mu.Unlock()
+	lockState := m.Inspect(b.transactions.ticket, sessionTicket)
+	_, pendingJournal := lockState.Journals[b.transactions.ticket][key]
+	_, heldJournal := lockState.Journals[sessionTicket][key]
 	if pendingJournal || !heldJournal {
 		t.Fatal("grant did not retire only provenance journal", pendingJournal, heldJournal)
 	}

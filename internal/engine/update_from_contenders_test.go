@@ -66,10 +66,9 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				done <- o
 			}()
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ref, Row: original.row}]
-			queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].mode == noKeyUpdate && entry.holders[holder.transactions.ticket].Mode == noKeyUpdate
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == noKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
 			if !queued {
 				t.Fatal("not a genuine same-RowID UPDATE queue")
 			}

@@ -104,13 +104,12 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 				}
 			}()
 			lockPending(t, e, 1)
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect(late.transactions.ticket)
 			queuedOnLate := false
-			for ref := range late.transactions.ticket.resources {
-				entry := e.locks.entries[ref]
-				queuedOnLate = entry != nil && len(entry.pending) == 1
+			for ref := range lockState.Journals[late.transactions.ticket] {
+				entry := lockState.Resources[ref]
+				queuedOnLate = entry != nil && len(entry.Pending) == 1
 			}
-			e.locks.mu.Unlock()
 			if !queuedOnLate {
 				t.Fatal("waiter did not queue on the exact late AX resource")
 			}

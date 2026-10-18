@@ -409,10 +409,9 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if !checkpoint.entered.Load() {
 					t.Fatal("CREATE did not reach actual OWNED BY unlock/admission checkpoint")
 				}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[lockResource{ObjectRef: table}]
-				actualWait := entry != nil && len(entry.pending) == 1
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[lockResource{ObjectRef: table}]
+				actualWait := entry != nil && len(entry.Pending) == 1
 				if !actualWait {
 					t.Fatal("CREATE is not genuinely waiting for the OWNED BY table")
 				}

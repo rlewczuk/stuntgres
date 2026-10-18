@@ -25,21 +25,20 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 				if err := e.locks.Acquire(context.Background(), a.transactions.ticket, resource, held); err != nil {
 					t.Fatal(err)
 				}
-				before := len(b.transactions.ticket.resources)
+				before := len(e.locks.Inspect(b.transactions.ticket).Journals[b.transactions.ticket])
 				request, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, resource, requested, relationLockPolicy{NoWait: true, Timeout: time.Hour})
-				conflict := lockConflict(requested, held)
+				conflict := Conflicts(requested, held)
 				if request != nil || conflict && !errors.Is(err, errRelationUnavailable) || !conflict && err != nil {
 					t.Fatal(request, err, conflict)
 				}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[resource]
-				bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket].Mode != held
+				lockState := e.locks.Inspect(b.transactions.ticket)
+				entry := lockState.Resources[resource]
+				bad := len(entry.Pending) != 0 || entry.Holders[a.transactions.ticket].Mode != held
 				if conflict {
-					bad = bad || entry.holders[b.transactions.ticket].Mode != 0 || len(b.transactions.ticket.resources) != before
+					bad = bad || entry.Holders[b.transactions.ticket].Mode != 0 || len(lockState.Journals[b.transactions.ticket]) != before
 				} else {
-					bad = bad || entry.holders[b.transactions.ticket].Mode != requested
+					bad = bad || entry.Holders[b.transactions.ticket].Mode != requested
 				}
-				e.locks.mu.Unlock()
 				if bad {
 					t.Fatal("conditional row acquisition changed unrelated hold/queue or journaled failure")
 				}
@@ -70,7 +69,7 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	if err != nil || waiter == nil {
 		t.Fatal("missing exact incompatible waiter", waiter, err)
 	}
-	before := len(c.transactions.ticket.resources)
+	before := len(e.locks.Inspect(c.transactions.ticket).Journals[c.transactions.ticket])
 	probe, err := e.locks.StartAcquire(context.Background(), c.transactions.ticket, resource, keyShare, relationLockPolicy{NoWait: true})
 	if probe != nil || !errors.Is(err, errRelationUnavailable) {
 		t.Fatal("compatible newcomer barged past earlier UPDATE", probe, err)
@@ -79,10 +78,9 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	if self != nil || err != nil {
 		t.Fatal("self upgrade joined its own blocked queue", self, err)
 	}
-	e.locks.mu.Lock()
-	entry := e.locks.entries[resource]
-	bad := len(entry.pending) != 1 || entry.pending[0] != waiter || entry.holders[a.transactions.ticket].Mode != (keyShare|rowShare) || len(c.transactions.ticket.resources) != before
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect(c.transactions.ticket)
+	entry := lockState.Resources[resource]
+	bad := len(entry.Pending) != 1 || entry.Pending[0].Request != waiter || entry.Holders[a.transactions.ticket].Mode != (keyShare|rowShare) || len(lockState.Journals[c.transactions.ticket]) != before
 	if bad {
 		t.Fatal("conditional probe altered queue/journal/self contributions")
 	}

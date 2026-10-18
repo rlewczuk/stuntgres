@@ -17,12 +17,11 @@ func lockPending(t *testing.T, e *Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		got := 0
-		for _, entry := range e.locks.entries {
-			got += len(entry.pending)
+		for _, entry := range lockState.Resources {
+			got += len(entry.Pending)
 		}
-		e.locks.mu.Unlock()
 		if got == n {
 			return
 		}
@@ -34,10 +33,9 @@ func lockPending(t *testing.T, e *Engine, n int) {
 }
 func lockEmpty(t *testing.T, e *Engine) {
 	t.Helper()
-	e.locks.mu.Lock()
-	defer e.locks.mu.Unlock()
-	if len(e.locks.owners) != 0 || len(e.locks.entries) != 0 {
-		t.Fatalf("residual lock state: owners=%d entries=%d", len(e.locks.owners), len(e.locks.entries))
+	lockState := e.locks.Inspect()
+	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
+		t.Fatalf("residual lock state: owners=%d entries=%d", len(lockState.Owners), len(lockState.Resources))
 	}
 }
 func lockAsync(e *Engine, s *Session, ctx context.Context, q string, prepare bool) <-chan error {
@@ -340,9 +338,8 @@ func TestRelationLockLifecycle(t *testing.T) {
 			t.Fatal("stale ref accepted")
 		}
 		op.Done()
-		e.locks.mu.Lock()
-		valid := e.locks.valid(a.transactions.ticket)
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect()
+		valid := lockState.Valid(a.transactions.ticket)
 		if !valid {
 			t.Fatal("invalid end released owner")
 		}

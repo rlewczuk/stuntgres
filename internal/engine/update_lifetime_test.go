@@ -92,14 +92,13 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	oldCancel()
 	e.endLockOwner(oldTicket)
 	e.locks.Fence(ref.Epoch)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[newResource]
+	lockState := e.locks.Inspect(oldTicket)
+	entry := lockState.Resources[newResource]
 	held := relationLockMode(0)
 	if entry != nil {
-		held = entry.holders[newTicket].Mode
+		held = entry.Holders[newTicket].Mode
 	}
-	oldJournal := len(oldTicket.resources)
-	e.locks.mu.Unlock()
+	oldJournal := len(lockState.Journals[oldTicket])
 	if held != noKeyUpdate || oldJournal != 0 {
 		t.Fatal("stale post-fence cleanup changed new journal", held, oldJournal)
 	}
@@ -185,7 +184,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 				join(ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 				transactionRows(t, peer, "SELECT v FROM t", 9)
-				if len(oldTicket.resources) != 0 {
+				if len(e.locks.Inspect(oldTicket).Journals[oldTicket]) != 0 {
 					t.Fatal("fenced owner retained row resources")
 				}
 			} else {

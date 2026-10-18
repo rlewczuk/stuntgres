@@ -81,7 +81,7 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	if len(f.e.locks.CheckpointUnique(scope.ticket, nil)) != 0 {
 		t.Fatal("skipped key retained")
 	}
-	if f.e.locks.Checkpoint(scope.ticket)[resource].mode&rowUpdate == 0 {
+	if f.e.locks.Checkpoint(scope.ticket)[resource].Mode&rowUpdate == 0 {
 		t.Fatal("row witness lock was lost")
 	}
 }

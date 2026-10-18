@@ -93,7 +93,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer releaseEquivalent()
-	if equivalent.key != first.key {
+	if equivalent.Key() != first.Key() {
 		t.Fatal("primary NUMERIC/BPCHAR equality split the transaction key authority")
 	}
 }

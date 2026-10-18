@@ -149,7 +149,7 @@ func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *re
 	if tx.state != TxIdle || tx.ref != (ids.TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}
-	if len(old.resources) != 0 {
+	if len(e.locks.Inspect(old).Journals[old]) != 0 {
 		t.Fatal("failed transaction retained ticket resources")
 	}
 	lockEmpty(t, e)

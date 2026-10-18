@@ -67,10 +67,9 @@ func TestLockModesViewOrder(t *testing.T) {
 	lockPending(t, e, 1)
 	first := roleTableRef(t, e, "first")
 	later := roleTableRef(t, e, "later")
-	e.locks.mu.Lock()
-	pending := len(e.locks.entries[lockResource{ObjectRef: first}].pending)
-	laterEntry := e.locks.entries[lockResource{ObjectRef: later}]
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	pending := len(lockState.Resources[lockResource{ObjectRef: first}].Pending)
+	laterEntry := lockState.Resources[lockResource{ObjectRef: later}]
 	if pending != 1 || laterEntry != nil {
 		t.Fatal("view definition lock order was sorted/preflighted")
 	}

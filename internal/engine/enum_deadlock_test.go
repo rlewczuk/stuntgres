@@ -41,19 +41,18 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 		}
 	}
 	victim := -1
-	e.locks.mu.Lock()
+	lockState := e.locks.Inspect()
 	for i, r := range pending {
-		if r.terminal && r.Err() != nil {
+		if r.Terminal() && r.Err() != nil {
 			if victim != -1 {
 				t.Error("multiple type victims")
 			}
 			victim = i
 		}
-		if e.locks.entries[resources[i]].holders[tickets[i]].Mode != typeExclusive {
+		if lockState.Resources[resources[i]].Holders[tickets[i]].Mode != typeExclusive {
 			t.Error("deadlock detection released grant before transaction finish")
 		}
 	}
-	e.locks.mu.Unlock()
 	if victim < 0 {
 		t.Fatal("no terminal type victim")
 	}

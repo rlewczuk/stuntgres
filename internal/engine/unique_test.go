@@ -111,14 +111,14 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if equal.key != first.key {
+	if equal.Key() != first.Key() {
 		t.Fatal("normalized numeric equality split claims")
 	}
 	// Inject a legitimate hash-collision candidate into the same bucket. Hash
 	// alone must not grant equality, and provider comparison must find the real key.
 	e.locks.mu.Lock()
-	bucket := e.locks.keyBuckets[first.key.bucket]
-	collision := &uniqueLockKey{bucket: first.key.bucket, value: []sqltype.Value{two}}
+	bucket := e.locks.keyBuckets[first.Key().bucket]
+	collision := &uniqueLockKey{bucket: first.Key().bucket, value: []sqltype.Value{two}}
 	bucket.keys = append([]*uniqueLockKey{collision}, bucket.keys...)
 	bucket.generation++
 	e.locks.mu.Unlock()
@@ -126,7 +126,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.key != first.key || again.key == collision {
+	if again.key != first.Key() || again.key == collision {
 		t.Fatal("hash collision established equality")
 	}
 	e.locks.mu.Lock()
@@ -135,9 +135,8 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	releaseAgain()
 	releaseEqual()
 	releaseFirst()
-	e.locks.mu.Lock()
-	left := len(e.locks.keyBuckets)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	left := lockState.KeyBuckets
 	if left != 0 {
 		t.Fatal("empty interner buckets retained", left)
 	}

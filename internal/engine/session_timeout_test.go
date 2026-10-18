@@ -331,7 +331,7 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			{time.Time{}, time.Time{}, "25P04"},
 		} {
 			var diagnostic *sqlstate.Error
-			err := relationWaitError(ctx, relationLockPolicy{Source: context.Background(), StatementDeadline: tc.statement}, tc.lock, now)
+			err := WaitError(ctx, relationLockPolicy{Source: context.Background(), StatementDeadline: tc.statement}, tc.lock, now)
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 				t.Error("released queued deadline/fatal order", tc.code, err)
 			}

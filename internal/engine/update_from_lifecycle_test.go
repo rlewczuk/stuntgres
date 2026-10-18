@@ -60,14 +60,13 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			rowWait := false
-			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.pending) == 1 {
+			for resource, entry := range lockState.Resources {
+				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {
 					rowWait = true
 				}
 			}
-			e.locks.mu.Unlock()
 			if !rowWait {
 				t.Fatal("not a real target RowID queue barrier")
 			}
@@ -173,12 +172,11 @@ func TestUpdateFromQueuedSourceAdmissionAndCancellation(t *testing.T) {
 			tref := catalogRef(t, e, e.CatalogRead(), "t")
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
 			rref := catalogRef(t, e, e.CatalogRead(), "r")
-			e.locks.mu.Lock()
-			te := e.locks.entries[lockResource{ObjectRef: tref}]
-			se := e.locks.entries[lockResource{ObjectRef: sref}]
-			re := e.locks.entries[lockResource{ObjectRef: rref}]
-			admitted := te != nil && len(te.holders) == 1 && se != nil && len(se.holders) == 1 && re != nil && len(re.pending) == 1
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			te := lockState.Resources[lockResource{ObjectRef: tref}]
+			se := lockState.Resources[lockResource{ObjectRef: sref}]
+			re := lockState.Resources[lockResource{ObjectRef: rref}]
+			admitted := te != nil && len(te.Holders) == 1 && se != nil && len(se.Holders) == 1 && re != nil && len(re.Pending) == 1
 			if !admitted {
 				t.Fatal("source queue did not retain target/first source grants")
 			}

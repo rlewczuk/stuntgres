@@ -13,6 +13,19 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
+// pgLocksUnitWaiter is the queued copy of r, or the zero waiter once r left
+// its queue.
+func pgLocksUnitWaiter(e *Engine, r *relationRequest) lockWaiter {
+	if state := e.locks.Inspect().Resources[r.Resource()]; state != nil {
+		for _, w := range state.Pending {
+			if w.Request == r {
+				return w
+			}
+		}
+	}
+	return lockWaiter{}
+}
+
 func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *relationTicket, resource lockResource, mode relationLockMode, purpose completionLockPurpose) (*relationRequest, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -67,7 +80,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("UPDATE failed to queue")
 		}
 		before := pgLocksUnitWait(t, e, waiter)
-		if before.Kind != pgTransactionLock || before.XID != first || before.WaitStart != r.enqueuedAt {
+		if before.Kind != pgTransactionLock || before.XID != first || before.WaitStart != pgLocksUnitWaiter(e, r).EnqueuedAt {
 			t.Fatal("first actual holder", before)
 		}
 		if again := pgLocksUnitWait(t, e, waiter); again != before {
@@ -75,8 +88,8 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		}
 		e.endLockOwner(a)
 		after := pgLocksUnitWait(t, e, waiter)
-		if after.XID != second || after.WaitStart != before.WaitStart || r.terminal {
-			t.Fatal("multi-holder retarget/grant", after, r.terminal)
+		if after.XID != second || after.WaitStart != before.WaitStart || r.Terminal() {
+			t.Fatal("multi-holder retarget/grant", after, r.Terminal())
 		}
 		e.endLockOwner(b)
 		if err := deadlockResult(t, r); err != nil {
@@ -112,7 +125,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("NO KEY UPDATE bypass was changed")
 		}
 		// Snapshot cannot settle; both actual queued requests remain journaled.
-		if br.terminal || cr.terminal {
+		if br.Terminal() || cr.Terminal() {
 			t.Fatal("observer changed acquisition state")
 		}
 		cancelB()
@@ -157,7 +170,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal(err)
 		}
 		tail := pgLocksUnitWait(t, e, c)
-		if tail.XID != b.AssignedPublicXID() || cr.terminal {
+		if tail.XID != b.AssignedPublicXID() || cr.Terminal() {
 			t.Fatal("unique dependency retarget", tail)
 		}
 		e.endLockOwner(b)
@@ -170,7 +183,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, holder := blockingUnitOwner(t, e)
 		_, waiter := blockingUnitOwner(t, e)
 		xid := pgLocksUnitAssign(t, e, holder)
-		request, _ := pgLocksUnitRequest(t, e, waiter, lockResource{completion: holder}, transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(holder), transactionCompletion, completionVirtual)
 		if request == nil {
 			t.Fatal("index completion did not enqueue")
 		}
@@ -180,10 +193,10 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		}
 		e.locks.DetachPrepared(holder)
 		after := pgLocksUnitWait(t, e, waiter)
-		if after.Kind != pgTransactionLock || after.XID != xid || after.WaitStart != before.WaitStart || after.WaitStart != request.enqueuedAt {
+		if after.Kind != pgTransactionLock || after.XID != xid || after.WaitStart != before.WaitStart || after.WaitStart != pgLocksUnitWaiter(e, request).EnqueuedAt {
 			t.Fatal("prepared target did not retarget same original wait", before, after)
 		}
-		if request.ref.completion != holder || request.policy.CompletionPurpose != completionVirtual || request.terminal {
+		if request.Resource().Completion() != holder || pgLocksUnitWaiter(e, request).Policy.CompletionPurpose != completionVirtual || request.Terminal() {
 			t.Fatal("observation replaced or settled completion request")
 		}
 		records := pgLocksUnitCapture(t, e)
@@ -218,7 +231,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			_, holder := blockingUnitOwner(t, e)
 			_, waiter := blockingUnitOwner(t, e)
 			xid := pgLocksUnitAssign(t, e, holder)
-			r, _ := pgLocksUnitRequest(t, e, waiter, lockResource{completion: holder}, transactionCompletion, purpose)
+			r, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(holder), transactionCompletion, purpose)
 			pending := pgLocksUnitWait(t, e, waiter)
 			if purpose == completionVirtual && (pending.Kind != pgVirtualLock || pending.Target.Local != holder.Ref().ID()) || purpose == completionTransaction && (pending.Kind != pgTransactionLock || pending.XID != xid) {
 				t.Fatal("caller-selected completion purpose", pending)

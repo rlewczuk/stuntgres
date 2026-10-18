@@ -24,7 +24,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		if _, ok := e.locks.multiRows[successor]; ok || e.locks.NextMultiXact() != 1 {
+		if _, ok := e.locks.Inspect().MultiRows[successor]; ok || e.locks.NextMultiXact() != 1 {
 			t.Fatal("ended single locker or fresh updater leaked into successor")
 		}
 	})
@@ -49,7 +49,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		if e.locks.multiRows[successor].id != 1 || len(e.locks.multiRows[successor].members) != 2 || e.locks.NextMultiXact() != 3 {
+		if e.locks.Inspect().MultiRows[successor].ID != 1 || len(e.locks.Inspect().MultiRows[successor].Members) != 2 || e.locks.NextMultiXact() != 3 {
 			t.Fatal("ended member was pruned while copying original raw K")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/keysh")
@@ -75,7 +75,7 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 3
-		if e.locks.NextMultiXact() != 3 || e.locks.multiRows[successor].id != 1 {
+		if e.locks.NextMultiXact() != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
 			t.Fatal("successor fabricated an ID or lost original raw K")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/keysh")
@@ -107,14 +107,14 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		if e.locks.multiRows[successor].id != 1 {
+		if e.locks.Inspect().MultiRows[successor].ID != 1 {
 			t.Fatal("mixed raw K not inherited")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/fornokeyupd")
 		identityMultiWant(t, e, 2, "3/keysh", "4/fornokeyupd", "4/nokeyupd")
 		identityMultiGrant(t, e, c, successor, rowShare)
 		identityMultiEmit(t, e, c, successor, multiShare)
-		if e.locks.NextMultiXact() != 3 || e.locks.multiRows[successor].id != 1 {
+		if e.locks.NextMultiXact() != 3 || e.locks.Inspect().MultiRows[successor].ID != 1 {
 			t.Fatal("strong own member appended a weaker status")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/fornokeyupd")
@@ -127,8 +127,8 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		identityMultiGrant(t, e, a, original, rowUpdate)
 		identityMultiEmit(t, e, a, original, multiUpdateLock)
 		identityMultiEmit(t, e, a, original, multiNoKeyAction)
-		row := e.locks.multiRows[original]
-		if row.id != 0 || len(row.members) != 1 || row.members[0].Mode != multiUpdateAction || e.locks.NextMultiXact() != 1 {
+		row := e.locks.Inspect().MultiRows[original]
+		if row.ID != 0 || len(row.Members) != 1 || row.Members[0].Mode != multiUpdateAction || e.locks.NextMultiXact() != 1 {
 			t.Fatal("single same-XID strength merge confused lock versus action")
 		}
 		if err := e.locks.PhysicalEvents(a, []multiEvent{{Tuple: original, Mode: multiNoKeyAction, Successor: 2}}); err != nil {
@@ -136,8 +136,8 @@ func identityMultiSuccessorUnits(t *testing.T) {
 		}
 		successor := original
 		successor.Version = 2
-		inherited := e.locks.multiRows[successor]
-		if inherited.id != 0 || len(inherited.members) != 1 || inherited.members[0].Mode != multiUpdateLock {
+		inherited := e.locks.Inspect().MultiRows[successor]
+		if inherited.ID != 0 || len(inherited.Members) != 1 || inherited.Members[0].Mode != multiUpdateLock {
 			t.Fatal("single successor inherited action instead of original lock")
 		}
 	})
@@ -192,7 +192,7 @@ func identityMultiCacheUnits(t *testing.T) {
 		identityMultiEmit(t, e, b, second, multiKeyShare)
 		identityMultiGrant(t, e, a, second, keyShare)
 		identityMultiEmit(t, e, a, second, multiKeyShare)
-		if e.locks.NextMultiXact() != 2 || e.locks.multiRows[second].id != 1 {
+		if e.locks.NextMultiXact() != 2 || e.locks.Inspect().MultiRows[second].ID != 1 {
 			t.Fatal("inquiry did not populate the actual caller cache")
 		}
 		e.endLockOwner(reader)

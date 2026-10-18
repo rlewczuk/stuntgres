@@ -163,12 +163,11 @@ func retiredResourceCounts(e *Engine) [7]int {
 	e.mu.Lock()
 	counts := [7]int{len(e.visibility), len(e.indexBuildWaits), len(e.exclusionPending)}
 	e.mu.Unlock()
-	e.locks.mu.Lock()
-	counts[3] = len(e.locks.owners)
-	counts[4] = len(e.locks.sessions)
-	counts[5] = len(e.locks.entries)
-	counts[6] = len(e.locks.keyBuckets)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	counts[3] = len(lockState.Owners)
+	counts[4] = len(lockState.Sessions)
+	counts[5] = len(lockState.Resources)
+	counts[6] = lockState.KeyBuckets
 	return counts
 }
 func retiredReject(t *testing.T, e *Engine, op *Operation, q string, a *restoredHistoryAuthority) {

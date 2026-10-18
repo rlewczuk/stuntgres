@@ -38,17 +38,16 @@ func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waite
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		queued := false
 		if entry != nil {
-			for _, request := range entry.pending {
-				if request.ticket == waiter && request.mode == mode && !request.terminal {
+			for _, request := range entry.Pending {
+				if request.Ticket == waiter && request.Mode == mode && !request.Terminal {
 					queued = true
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if queued {
 			return
 		}
@@ -176,10 +175,9 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if !slices.Equal(admitted, []ids.ObjectAddress{old.address}) || !slices.Equal(fresh, []ids.ObjectAddress{old.address, candidate.address}) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
-			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: e.domain.Ref(ref.Epoch, candidate.address)}]
-			newHold := entry != nil && entry.holders[reader.ticket].Mode != 0
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect()
+			entry := lockState.Resources[lockResource{ObjectRef: e.domain.Ref(ref.Epoch, candidate.address)}]
+			newHold := entry != nil && entry.Holders[reader.ticket].Mode != 0
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")
 			}

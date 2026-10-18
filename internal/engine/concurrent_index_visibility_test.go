@@ -172,10 +172,9 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}
 	sessionSQL(t, writer, "ROLLBACK")
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{completion: late.transactions.ticket}]
-	pending := entry != nil && len(entry.pending) == 1
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[CompletionOf(late.transactions.ticket)]
+	pending := entry != nil && len(entry.Pending) == 1
 	if !pending {
 		t.Fatal("ending XID owner released another transaction's persistent snapshot")
 	}

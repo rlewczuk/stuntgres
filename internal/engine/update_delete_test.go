@@ -84,10 +84,9 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				lockPending(t, e, 1)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
-				e.locks.mu.Lock()
-				entry := e.locks.entries[resource]
-				actual := entry != nil && len(entry.pending) == 1 && entry.holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				entry := lockState.Resources[resource]
+				actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(rowUpdate|noKeyUpdate) != 0
 				if !actual {
 					t.Fatal("not a shared logical-row arbitration wait")
 				}
@@ -221,9 +220,8 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 			if owner.TransactionState() != TxAborted || len(owner.transactions.writes) != 0 || len(owner.transactions.deletes) != 0 {
 				t.Fatal("mixed private work survived abort")
 			}
-			e.locks.mu.Lock()
-			held := len(ticket.resources)
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect(ticket)
+			held := len(lockState.Journals[ticket])
 			if held != 0 {
 				t.Fatal("mixed row grants survived", held)
 			}
@@ -313,9 +311,8 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			if !reflect.DeepEqual(old, [2]rowVersion{roots[0][0], roots[1][0]}) {
 				t.Fatal("old prefixes mutated")
 			}
-			e.locks.mu.Lock()
-			held := len(ticket.resources)
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect(ticket)
+			held := len(lockState.Journals[ticket])
 			if held != 0 {
 				t.Fatal("old journal survived")
 			}

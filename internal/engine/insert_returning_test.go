@@ -383,14 +383,13 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 					}
 				} else {
 					lockPending(t, e, 1)
-					e.locks.mu.Lock()
+					lockState := e.locks.Inspect()
 					exact := false
-					for resource, entry := range e.locks.entries {
-						if len(entry.pending) == 1 && resource.key != nil && entry.pending[0].ref == resource && entry.pending[0].ticket != nil {
+					for resource, entry := range lockState.Resources {
+						if len(entry.Pending) == 1 && resource.Key() != nil && entry.Pending[0].Resource == resource && entry.Pending[0].Ticket != nil {
 							exact = resource.ObjectRef.Address == indexAddress
 						}
 					}
-					e.locks.mu.Unlock()
 					if !exact {
 						t.Fatal("not actual target unique-key wait")
 					}

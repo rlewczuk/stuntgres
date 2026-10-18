@@ -26,19 +26,18 @@ func rowLockQueued(t *testing.T, e *Engine, holder *relationTicket, mode relatio
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		found := false
-		for resource, entry := range e.locks.entries {
-			if resource.Row == 0 || entry.holders[holder].Mode == 0 {
+		for resource, entry := range lockState.Resources {
+			if resource.Row == 0 || entry.Holders[holder].Mode == 0 {
 				continue
 			}
-			for _, request := range entry.pending {
-				if request.mode == mode && !request.terminal && request.ticket != holder {
+			for _, request := range entry.Pending {
+				if request.Mode == mode && !request.Terminal && request.Ticket != holder {
 					found = true
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if found {
 			return
 		}
@@ -107,14 +106,13 @@ func TestRowLockManagerMatrix(t *testing.T) {
 		for _, clause := range rowLockTestClauses {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 "+clause, 10)
 		}
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		var held relationLockMode
-		for resource, entry := range e.locks.entries {
+		for resource, entry := range lockState.Resources {
 			if resource.Row != 0 {
-				held |= entry.holders[a.transactions.ticket].Mode
+				held |= entry.Holders[a.transactions.ticket].Mode
 			}
 		}
-		e.locks.mu.Unlock()
 		if held != keyShare|rowShare|noKeyUpdate|rowUpdate {
 			t.Fatal("mode set lost", held)
 		}

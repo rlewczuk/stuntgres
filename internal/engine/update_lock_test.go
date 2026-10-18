@@ -28,14 +28,13 @@ func TestUpdateCoreRowWaitRecheck(t *testing.T) {
 			done := lockAsync(e, b, ctx, "UPDATE t SET b=a WHERE id=1", false)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			rowWait := false
-			for resource, entry := range e.locks.entries {
-				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.pending) == 1 {
+			for resource, entry := range lockState.Resources {
+				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {
 					rowWait = true
 				}
 			}
-			e.locks.mu.Unlock()
 			if !rowWait {
 				t.Fatal("not an actual logical-row wait")
 			}

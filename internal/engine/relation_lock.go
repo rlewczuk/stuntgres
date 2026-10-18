@@ -29,8 +29,9 @@ type relationSourceError struct{ error }
 
 func (e relationSourceError) Unwrap() error { return e.error }
 
-// Absolute SQL deadlines, not callback scheduling, determine a wait's error.
-func relationWaitError(ctx context.Context, policy relationLockPolicy, lockDeadline, now time.Time) error {
+// WaitError is the outcome a wait has at now: absolute SQL deadlines, not
+// callback scheduling, decide it. Nil means the wait may continue.
+func WaitError(ctx context.Context, policy relationLockPolicy, lockDeadline, now time.Time) error {
 	if cause := relationTimeoutSourceCause(policy, lockDeadline, now); cause != nil {
 		return relationSourceError{cause}
 	}
@@ -213,7 +214,7 @@ func (m *relationLockManager) Register(ref ids.TxRef) (*relationTicket, error) {
 	m.owners[ref] = t
 	return t, nil
 }
-func lockConflict(a, b relationLockMode) bool {
+func Conflicts(a, b relationLockMode) bool {
 	if a&typeExclusive != 0 || b&typeExclusive != 0 {
 		return a&typeExclusive != 0 && b&typeExclusive != 0
 	}
@@ -253,8 +254,8 @@ func (m *relationLockManager) valid(t *relationTicket) bool {
 
 // A checkpoint contains only held contributions, never pending requests.
 type relationCheckpointHold struct {
-	mode  relationLockMode
-	multi map[ids.VersionID]uint8
+	Mode  relationLockMode
+	Multi map[ids.VersionID]uint8
 }
 type relationLockCheckpoint map[lockResource]relationCheckpointHold
 
@@ -270,15 +271,15 @@ func (m *relationLockManager) Checkpoint(t *relationTicket) relationLockCheckpoi
 			continue
 		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
-			held[ref] = relationCheckpointHold{mode: entry.holders[t].Mode}
+			held[ref] = relationCheckpointHold{Mode: entry.holders[t].Mode}
 		}
 	}
 	for tuple, bits := range t.multiContributions {
 		h := held[tuple.lockResource]
-		if h.multi == nil {
-			h.multi = make(map[ids.VersionID]uint8)
+		if h.Multi == nil {
+			h.Multi = make(map[ids.VersionID]uint8)
 		}
-		h.multi[tuple.Version] = bits
+		h.Multi[tuple.Version] = bits
 		held[tuple.lockResource] = h
 	}
 	return held
@@ -299,7 +300,7 @@ func (m *relationLockManager) Restore(t *relationTicket, held relationLockCheckp
 			if entry == nil {
 				continue
 			}
-			mode := entry.holders[t].Mode & held[ref].mode
+			mode := entry.holders[t].Mode & held[ref].Mode
 			if mode == entry.holders[t].Mode {
 				continue
 			}
@@ -330,7 +331,7 @@ func (m *relationLockManager) CheckpointUnique(t *relationTicket, held relationL
 		for ref := range t.resources {
 			if ref.key != nil && ref.Kind == ordinaryResource && ref.completion == nil {
 				if entry := m.entries[ref]; entry != nil && entry.holders[t].Mode != 0 {
-					held[ref] = relationCheckpointHold{mode: entry.holders[t].Mode}
+					held[ref] = relationCheckpointHold{Mode: entry.holders[t].Mode}
 				}
 			}
 		}
@@ -350,7 +351,7 @@ func (m *relationLockManager) RestoreUnique(t *relationTicket, held relationLock
 				continue
 			}
 			hold := entry.holders[t]
-			mode := hold.Mode & held[ref].mode
+			mode := hold.Mode & held[ref].Mode
 			if mode == hold.Mode {
 				continue
 			}
@@ -434,13 +435,13 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 				if (r.ref.Kind == advisoryBigintResource || r.ref.Kind == advisoryPairResource) && held.Mode != 0 {
 					participantHeld = true
 				}
-			} else if lockConflict(r.mode, held.Mode) {
+			} else if Conflicts(r.mode, held.Mode) {
 				blocked = true
 			}
 		}
 		if !blocked && !participantHeld {
 			for _, earlier := range remaining {
-				if r.ref.completion == nil && (r.ref.Row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
+				if r.ref.completion == nil && (r.ref.Row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && Conflicts(r.mode, earlier.mode) {
 					blocked = true
 					break
 				}
@@ -491,7 +492,7 @@ func (r *relationRequest) Err() error { return r.err }
 // The caller can relinquish replacement admission before waiting, without
 // allowing replacement to interrupt an uncontended implicit statement.
 func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicket, ref lockResource, mode relationLockMode, policy relationLockPolicy) (*relationRequest, error) {
-	if err := relationWaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
+	if err := WaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
 		return nil, err
 	}
 	m.mu.Lock()
@@ -548,7 +549,7 @@ func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicke
 		m.entries[ref] = e
 	}
 	if e.holders[t].Mode&mode != 0 {
-		err := relationWaitError(ctx, policy, time.Time{}, time.Now())
+		err := WaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
 			err = m.grant(t, ref, e, mode)
 		}
@@ -560,7 +561,7 @@ func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicke
 		if advisory && sameLockSession(other, t) && held.Mode != 0 {
 			participantHeld = true
 		}
-		if !sameLockSession(other, t) && lockConflict(mode, held.Mode) {
+		if !sameLockSession(other, t) && Conflicts(mode, held.Mode) {
 			eligible = false
 		}
 	}
@@ -569,14 +570,14 @@ func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicke
 	// UPDATE blocked by KEY SHARE; actual granted tuple modes still conflict.
 	if eligible && e.holders[t].Mode == 0 && !participantHeld {
 		for _, earlier := range e.pending {
-			if ref.completion == nil && (ref.Row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
+			if ref.completion == nil && (ref.Row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && Conflicts(mode, earlier.mode) {
 				eligible = false
 				break
 			}
 		}
 	}
 	if eligible {
-		err := relationWaitError(ctx, policy, time.Time{}, time.Now())
+		err := WaitError(ctx, policy, time.Time{}, time.Now())
 		if err == nil {
 			err = m.grant(t, ref, e, mode)
 		}
@@ -584,7 +585,7 @@ func (m *relationLockManager) StartAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, err
 	}
-	if err := relationWaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
+	if err := WaitError(ctx, policy, time.Time{}, time.Now()); err != nil {
 		m.retire(ref, e)
 		m.mu.Unlock()
 		return nil, err

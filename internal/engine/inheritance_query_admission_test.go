@@ -83,10 +83,9 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		scope.Finish(err)
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: oldRef}]
-	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare && entry.holders[holder.ticket].Mode&accessExclusive != 0
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: oldRef}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
 	if !queued {
 		t.Fatal("SELECT did not wait on admitted original descendant identity")
 	}

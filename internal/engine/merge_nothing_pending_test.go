@@ -38,19 +38,18 @@ func TestMergeNothingRowAdmission(t *testing.T) {
 	sessionSQL(t, holder, "UPDATE t SET v=40")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DO NOTHING RETURNING merge_action(),t.v")
 	mergeNothingPendingOutput(t, done, 0, nil)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: ref, Row: row}]
-	retained := entry != nil && entry.holders[holder.transactions.ticket].Mode != 0
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: row}]
+	retained := entry != nil && entry.Holders[holder.transactions.ticket].Mode != 0
 	workerAdmission := false
 	if entry != nil {
-		for ticket := range entry.holders {
+		for ticket := range entry.Holders {
 			workerAdmission = workerAdmission || ticket.Ref().Session() == worker.token
 		}
-		for _, request := range entry.pending {
-			workerAdmission = workerAdmission || !request.terminal && request.ticket.Ref().Session() == worker.token
+		for _, request := range entry.Pending {
+			workerAdmission = workerAdmission || !request.Terminal && request.Ticket.Ref().Session() == worker.token
 		}
 	}
-	e.locks.mu.Unlock()
 	if !retained || workerAdmission {
 		t.Fatal("no-op acquired mutation grant or retired holder", retained, workerAdmission)
 	}

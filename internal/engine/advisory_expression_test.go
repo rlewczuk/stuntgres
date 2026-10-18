@@ -61,9 +61,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != Volatile {
 					t.Fatal("deparse rebinding", rebound, err)
 				}
-				e.locks.mu.Lock()
-				effects := len(e.locks.entries)
-				e.locks.mu.Unlock()
+				lockState := e.locks.Inspect()
+				effects := len(lockState.Resources)
 				if effects != 0 {
 					t.Fatal("binding/deparse acquired a hold", effects)
 				}

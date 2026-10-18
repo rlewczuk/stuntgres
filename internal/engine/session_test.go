@@ -274,9 +274,8 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if !reflect.DeepEqual(order, []ResourceKind{PreparedSQL, Temporary}) {
 		t.Fatal(order)
 	}
-	e.locks.mu.Lock()
-	advisoryLive := e.locks.valid(s.advisory.ticket)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	advisoryLive := lockState.Valid(s.advisory.ticket)
 	if advisoryLive {
 		t.Fatal("built-in advisory delegate survived session cleanup")
 	}

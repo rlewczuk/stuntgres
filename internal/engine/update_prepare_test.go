@@ -15,18 +15,16 @@ func TestUpdateCorePrepareNoRowLocks(t *testing.T) {
 	sessionSQL(t, a, "UPDATE t SET v=2")
 	done := lockAsync(e, b, context.Background(), "UPDATE t SET v=v", true)
 	lockAwait(t, done, nil)
-	e.locks.mu.Lock()
-	for resource, entry := range e.locks.entries {
+	lockState := e.locks.Inspect()
+	for resource, entry := range lockState.Resources {
 		if resource.Row != 0 {
-			for owner := range entry.holders {
+			for owner := range entry.Holders {
 				if owner.Ref().Session() == b.Token() {
-					e.locks.mu.Unlock()
 					t.Fatal("Prepare acquired selected row")
 				}
 			}
 		}
 	}
-	e.locks.mu.Unlock()
 	transactionEnd(t, a, tx, false)
 	lockEmpty(t, e)
 }

@@ -94,13 +94,12 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			e.locks.mu.Lock()
-			for _, entry := range e.locks.entries {
-				if len(entry.pending) != 0 {
+			lockState := e.locks.Inspect()
+			for _, entry := range lockState.Resources {
+				if len(entry.Pending) != 0 {
 					t.Error("refresh leaked pending lock")
 				}
 			}
-			e.locks.mu.Unlock()
 		})
 	}
 }

@@ -110,16 +110,15 @@ func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *relationRequ
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.locks.mu.Lock()
+		lockState := e.locks.Inspect()
 		var found *relationRequest
-		for _, entry := range e.locks.entries {
-			for _, request := range entry.pending {
-				if request.ctx == op.Context() && !request.terminal {
-					found = request
+		for _, entry := range lockState.Resources {
+			for _, request := range entry.Pending {
+				if request.Policy.TimeoutSlot == &op.lockWait && !request.Terminal {
+					found = request.Request
 				}
 			}
 		}
-		e.locks.mu.Unlock()
 		if found != nil {
 			return found
 		}
@@ -130,25 +129,12 @@ func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *relationRequ
 	}
 }
 
-func timeoutPendingPublish(t *testing.T, request *relationRequest, now time.Time) {
+func timeoutPendingPublish(t *testing.T, e *Engine, request *relationRequest, now time.Time) {
 	t.Helper()
-	manager := request.ticket.manager
-	var notify *relationRequest
-	manager.mu.Lock()
 	// The real cancellation callback may already own terminal publication
 	// after a failing lifecycle assertion. Only the manager's first terminal
 	// transition owns notification; never overwrite or renotify its result.
-	if request.terminal {
-		manager.mu.Unlock()
-		return
-	}
-	err := relationWaitError(request.ctx, request.policy, request.deadline, now)
-	terminalRequest(request, err, &notify)
-	manager.settle(request.entry, &notify)
-	manager.retire(request.ref, request.entry)
-	manager.mu.Unlock()
-	notifyRequests(notify)
-	if err == nil {
+	if err := e.locks.ExpireWait(request, now); err == nil && !request.Terminal() {
 		t.Fatal("explicit due instant did not produce queued ERROR")
 	}
 }
@@ -280,7 +266,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("due statement ERROR accepted physical FATAL before callback delivery")
 					}
 					s.mu.Unlock()
-					result = relationWaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
+					result = WaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
 					result = scope.Finish(result)
 				} else {
 					returned, finished := make(chan error, 1), make(chan error, 1)
@@ -306,13 +292,13 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						}
 					})
 					request := timeoutPendingRequest(t, s.Engine(), op)
-					if op.lockWait.request.Load() != request {
+					if op.lockWait.Request() != request {
 						t.Error("queue did not publish exact operation request")
 					}
 					if phase == "lock-error-produced" {
-						timeoutPendingPublish(t, request, observed)
+						timeoutPendingPublish(t, s.Engine(), request, observed)
 						result = timeoutPendingReceive(t, returned)
-						if op.lockWait.request.Load() != nil || !op.lockWait.failed.Load() {
+						if op.lockWait.Request() != nil || !op.lockWait.Failed() {
 							t.Error("terminal SQL ERROR lost sticky projection before Finish")
 						}
 					}
@@ -334,13 +320,13 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 							}
 							peer.Done()
 						} else {
-							timeoutPendingPublish(t, request, observed)
+							timeoutPendingPublish(t, s.Engine(), request, observed)
 						}
 						result = timeoutPendingReceive(t, returned)
 					}
 					release()
 					result = timeoutPendingReceive(t, finished)
-					if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
+					if op.lockWait.Request() != nil || op.lockWait.Failed() {
 						t.Error("Finish retained stale pending timeout projection")
 					}
 				}
@@ -397,7 +383,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 				} else if err != nil {
 					t.Fatal(err)
 				}
-				if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
+				if op.lockWait.Request() != nil || op.lockWait.Failed() {
 					t.Error("grant/non-SQL terminal retained pending timeout projection")
 				}
 			} else {

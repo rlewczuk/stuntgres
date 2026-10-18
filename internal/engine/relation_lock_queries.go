@@ -69,7 +69,7 @@ func (m *relationLockManager) IndexWriters(ticket *relationTicket, parent ids.Ob
 	var cohort []*relationTicket
 	if entry := m.entries[lockResource{ObjectRef: parent}]; entry != nil {
 		for owner, mode := range entry.holders {
-			if !sameLockSession(owner, ticket) && m.valid(owner) && lockConflict(relationShare, mode.Mode) {
+			if !sameLockSession(owner, ticket) && m.valid(owner) && Conflicts(relationShare, mode.Mode) {
 				cohort = append(cohort, owner)
 			}
 		}

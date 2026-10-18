@@ -35,7 +35,8 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		if err := preparedUnitControl(t, e, a, parser.KindPrepareTransaction, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
 		}
-		if e.prepared["advisory_xact_unit"].ticket != old || !old.detached || old.participant() == a.advisory.ticket.participant() {
+		lockState := e.locks.Inspect(old)
+		if e.prepared["advisory_xact_unit"].ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.advisory.ticket) {
 			t.Fatal("prepared owner did not detach")
 		}
 		transactionBegin(t, a)
@@ -49,13 +50,13 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		if err := a.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if e.locks.owners[old.Ref()] != old {
+		if e.locks.TransactionTicket(old.Ref()) != old {
 			t.Fatal("origin close released detached hold")
 		}
 		if err := preparedUnitControl(t, e, peer, parser.KindRollbackPrepared, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
 		}
-		if e.locks.owners[old.Ref()] != nil || len(old.resources) != 0 {
+		if e.locks.TransactionTicket(old.Ref()) != nil || len(e.locks.Inspect(old).Journals[old]) != 0 {
 			t.Fatal("completion leaked exact prepared owner")
 		}
 	}
@@ -109,7 +110,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 				}
 			}
 		}
-		if len(rows) != 2 || pending != 1 || request.terminal {
+		if len(rows) != 2 || pending != 1 || request.Terminal() {
 			t.Fatal("capture mutated/merged pending request", rows)
 		}
 	}

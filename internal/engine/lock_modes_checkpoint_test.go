@@ -43,21 +43,19 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	modes := e.locks.entries[table].holders[ta].Mode
-	rowMode := e.locks.entries[row].holders[ta].Mode
-	newMode := e.locks.entries[next].holders[ta].Mode
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	modes := lockState.Resources[table].Holders[ta].Mode
+	rowMode := lockState.Resources[row].Holders[ta].Mode
+	newMode := lockState.Resources[next].Holders[ta].Mode
 	if modes != shareUpdateExclusive|relationShare || rowMode != keyShare || newMode != 0 {
 		t.Fatal(modes, rowMode, newMode)
 	}
 	e.locks.Restore(ta, mark)
 	e.endLockOwner(ta)
 	e.locks.Restore(ta, mark)
-	e.locks.mu.Lock()
-	_, alive := e.locks.owners[ta.Ref()]
-	held := len(ta.resources)
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect(ta)
+	_, alive := lockState.Owners[ta.Ref()]
+	held := len(lockState.Journals[ta])
 	if alive || held != 0 {
 		t.Fatal("checkpoint resurrected ended ticket")
 	}

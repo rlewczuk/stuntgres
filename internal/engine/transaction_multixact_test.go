@@ -166,7 +166,7 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 			t.Fatal("zero skip/owner-local same-bag cache")
 		}
 		identityMultiWant(t, e, 4294967295, "3/keysh", "4/sh")
-		if e.locks.multiRows[first].id != 4294967295 || e.locks.multiRows[second].id != 4294967295 {
+		if e.locks.Inspect().MultiRows[first].ID != 4294967295 || e.locks.Inspect().MultiRows[second].ID != 4294967295 {
 			t.Fatal("same backend did not reuse exact member set")
 		}
 		e.locks.mu.Lock()
@@ -202,7 +202,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	identityMultiGrant(t, e, a, first, keyShare)
 	identityMultiEmit(t, e, a, first, multiKeyShare)
 	identityMultiGrant(t, e, b, first, noKeyUpdate)
-	if e.locks.NextMultiXact() != 1 || len(e.locks.multiHistory) != 0 {
+	if e.locks.NextMultiXact() != 1 || e.locks.Inspect().MultiHistory != 0 {
 		t.Fatal("candidate grant fabricated a physical event")
 	}
 	identityMultiEmit(t, e, b, first, multiNoKeyLock)
@@ -236,7 +236,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	before := e.locks.NextMultiXact()
 	bad := third
 	bad.Version = 0
-	if err := e.locks.PhysicalEvents(b, []multiEvent{{Tuple: third, Mode: multiShare}, {Tuple: bad, Mode: multiShare}}); err == nil || e.locks.NextMultiXact() != before || e.locks.multiRows[third].id != 0 {
+	if err := e.locks.PhysicalEvents(b, []multiEvent{{Tuple: third, Mode: multiShare}, {Tuple: bad, Mode: multiShare}}); err == nil || e.locks.NextMultiXact() != before || e.locks.Inspect().MultiRows[third].ID != 0 {
 		t.Fatal("batch preflight published a prefix", err)
 	}
 	for _, change := range []func(*multiTuple){func(k *multiTuple) { k.Row = 0 }, func(k *multiTuple) { k.Kind = advisoryBigintResource }, func(k *multiTuple) { k.Epoch++ }, func(k *multiTuple) { k.ObjectRef = New().domain.Ref(k.ObjectRef.Epoch, k.ObjectRef.Address) }} {
@@ -276,7 +276,7 @@ func TestTransactionIdentitySavepoint(t *testing.T) {
 		t.Fatal("owner-local cache allocated again")
 	}
 	e.locks.Restore(b, checkpoint)
-	if b.AssignedPublicXID() != 4 || b.multiContributions[first] != (1<<multiNoKeyLock) || b.multiContributions[second] != 0 {
+	if b.AssignedPublicXID() != 4 || e.locks.Inspect(b).Contributions[b][first] != (1<<multiNoKeyLock) || e.locks.Inspect(b).Contributions[b][second] != 0 {
 		t.Fatal("savepoint lost identity or restored provenance from grant bits")
 	}
 	identityMultiWant(t, e, 1, "3/keysh", "4/fornokeyupd")
@@ -291,7 +291,7 @@ func TestTransactionIdentitySavepoint(t *testing.T) {
 	identityMultiGrant(t, e, a, third, rowUpdate)
 	identityMultiEmit(t, e, a, third, multiUpdateLock)
 	e.locks.Restore(a, original)
-	if a.multiContributions[third] != (1<<multiKeyShare) || len(e.locks.multiRows[third].members) != 1 || e.locks.multiRows[third].members[0].Mode != multiKeyShare {
+	if e.locks.Inspect(a).Contributions[a][third] != (1<<multiKeyShare) || len(e.locks.Inspect().MultiRows[third].Members) != 1 || e.locks.Inspect().MultiRows[third].Members[0].Mode != multiKeyShare {
 		t.Fatal("singleton upgrade rollback lost captured physical provenance")
 	}
 }

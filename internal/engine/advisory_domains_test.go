@@ -23,12 +23,11 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 			if request != nil || !errors.Is(err, errRelationUnavailable) {
 				t.Fatal("busy try created/succeeded request", request, err)
 			}
-			e.locks.mu.Lock()
-			pending := len(e.locks.entries[key].pending)
-			persistentJournal := len(b.advisory.ticket.resources)
-			transientJournal := len(b.transactions.ticket.resources)
-			unallocated := b.advisory.ticket.resources == nil
-			e.locks.mu.Unlock()
+			lockState := e.locks.Inspect(b.advisory.ticket, b.transactions.ticket)
+			pending := len(lockState.Resources[key].Pending)
+			persistentJournal := len(lockState.Journals[b.advisory.ticket])
+			transientJournal := len(lockState.Journals[b.transactions.ticket])
+			unallocated := lockState.Journals[b.advisory.ticket] == nil
 			if pending != 0 || persistentJournal != 0 || transientJournal != 0 || !unallocated {
 				t.Fatal("false try allocated/journaled ownership", pending, persistentJournal, transientJournal, unallocated)
 			}

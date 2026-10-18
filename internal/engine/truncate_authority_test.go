@@ -173,21 +173,20 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	scope := truncateUnitStage(t, e, owner, "p")
 	_, stagedPeer := scope.catalog.storage[peerAddress]
 	excluded := scope.truncateSelected[peerAddress] == 0 && !stagedPeer && len(scope.truncateRelations) == 3
-	e.locks.mu.Lock()
-	_, journaledPeer := scope.ticket.resources[lockResource{ObjectRef: peerRef}]
-	excluded = excluded && !journaledPeer && e.locks.entries[lockResource{ObjectRef: peerRef}] == nil
+	lockState := e.locks.Inspect(scope.ticket)
+	_, journaledPeer := lockState.Journals[scope.ticket][lockResource{ObjectRef: peerRef}]
+	excluded = excluded && !journaledPeer && lockState.Resources[lockResource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ids.ObjectAddress{parent.Address, ownAddress, persistent.Address} {
 		ref := e.domain.Ref(catalog.Epoch(), address)
-		entry := e.locks.entries[lockResource{ObjectRef: ref}]
+		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false
 			continue
 		}
-		grant, held := entry.holders[scope.ticket]
+		grant, held := entry.Holders[scope.ticket]
 		admitted = admitted && held && grant.Mode == accessExclusive && scope.truncateSelected[address] != 0
 	}
-	e.locks.mu.Unlock()
 	if !excluded || !admitted {
 		t.Fatalf("temporary descendant admission: foreign excluded=%v, own/persistent AX admitted=%v", excluded, admitted)
 	}
@@ -213,29 +212,27 @@ func TestTruncateLocks(t *testing.T) {
 	sessionSQL(t, holder, "LOCK q IN ACCESS SHARE MODE")
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	prefix := e.locks.entries[lockResource{ObjectRef: p}]
-	blocked := e.locks.entries[lockResource{ObjectRef: q}]
-	valid := prefix != nil && len(prefix.holders) == 1 && blocked != nil && len(blocked.pending) == 1
+	lockState := e.locks.Inspect()
+	prefix := lockState.Resources[lockResource{ObjectRef: p}]
+	blocked := lockState.Resources[lockResource{ObjectRef: q}]
+	valid := prefix != nil && len(prefix.Holders) == 1 && blocked != nil && len(blocked.Pending) == 1
 	if valid {
-		request := blocked.pending[0]
-		ticket := request.ticket
-		_, prefixJournal := ticket.resources[lockResource{ObjectRef: p}]
-		_, pendingJournal := ticket.resources[lockResource{ObjectRef: q}]
-		grant, held := prefix.holders[ticket]
-		valid = held && grant.Mode == accessExclusive && request.mode == accessExclusive && request.ref == (lockResource{ObjectRef: q}) && request.provenance.Session() == waiter.token && e.locks.owners[request.provenance] == ticket && prefixJournal && pendingJournal
+		request := blocked.Pending[0]
+		ticket := request.Ticket
+		_, prefixJournal := lockState.Journals[ticket][lockResource{ObjectRef: p}]
+		_, pendingJournal := lockState.Journals[ticket][lockResource{ObjectRef: q}]
+		grant, held := prefix.Holders[ticket]
+		valid = held && grant.Mode == accessExclusive && request.Mode == accessExclusive && request.Resource == (lockResource{ObjectRef: q}) && request.Provenance.Session() == waiter.token && lockState.Owners[request.Provenance] == ticket && prefixJournal && pendingJournal
 	}
-	e.locks.mu.Unlock()
 	if !valid {
 		t.Fatal("missing real AX prefix/second-target pending request")
 	}
 	cancel()
 	lockAwait(t, done, context.Canceled)
-	e.locks.mu.Lock()
-	prefix = e.locks.entries[lockResource{ObjectRef: p}]
-	blocked = e.locks.entries[lockResource{ObjectRef: q}]
-	clean := prefix == nil && blocked != nil && len(blocked.pending) == 0
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	prefix = lockState.Resources[lockResource{ObjectRef: p}]
+	blocked = lockState.Resources[lockResource{ObjectRef: q}]
+	clean := prefix == nil && blocked != nil && len(blocked.Pending) == 0
 	if !clean || len(e.storage[p.Address].versions) != 2 || len(e.storage[q.Address].versions) != 1 {
 		t.Fatal("cancellation retained prefix or changed roots")
 	}

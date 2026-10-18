@@ -26,15 +26,15 @@ func (m *relationLockManager) RegisterSession(token ids.SessionToken) (*relation
 }
 
 type lockParticipant struct {
-	session  ids.SessionToken
-	prepared ids.TxRef
+	Session  ids.SessionToken
+	Prepared ids.TxRef
 }
 
 func (t *relationTicket) participant() lockParticipant {
 	if t.detached {
-		return lockParticipant{prepared: t.ref}
+		return lockParticipant{Prepared: t.ref}
 	}
-	return lockParticipant{session: t.session}
+	return lockParticipant{Session: t.session}
 }
 
 func sameLockSession(a, b *relationTicket) bool { return a.participant() == b.participant() }

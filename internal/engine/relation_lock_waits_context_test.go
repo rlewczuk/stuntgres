@@ -68,11 +68,8 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	time.Sleep(40 * time.Millisecond)
-	e.locks.mu.Lock()
-	terminal := r.terminal
-	timer := r.timer
-	e.locks.mu.Unlock()
-	if terminal || timer != nil {
+	// The manager arms a lock timer exactly when the request has a deadline.
+	if r.Terminal() || !r.Deadline().IsZero() {
 		t.Fatal("zero timeout was armed")
 	}
 	transactionEnd(t, a, ra, false)

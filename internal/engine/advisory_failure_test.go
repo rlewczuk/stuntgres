@@ -28,10 +28,9 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if err == nil || transferred != (ResourceHandle{}) || advisoryUnitHold(s, key).Exclusive != 1 {
 			t.Fatal("duplicate attachment changed canonical ownership", transferred, err)
 		}
-		e.locks.mu.Lock()
-		registrations := len(e.locks.sessions)
-		canonical := e.locks.sessions[s.token] == s.advisory.ticket
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect()
+		registrations := len(lockState.Sessions)
+		canonical := lockState.Sessions[s.token] == s.advisory.ticket
 		if registrations != 1 || !canonical {
 			t.Fatal("failed initialization leaked/replaced owner", registrations, canonical)
 		}
@@ -54,9 +53,8 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		advisoryUnitGrant(t, b, rb, key, advisoryShared)
 		transactionEnd(t, b, rb, false)
 		source, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
-		e.locks.mu.Lock()
-		oldManagerEpoch := e.locks.epoch
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect()
+		oldManagerEpoch := lockState.Epoch
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
@@ -65,12 +63,11 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{}); err == nil {
 			t.Fatal("invalid replacement accepted")
 		}
-		e.locks.mu.Lock()
-		entry := e.locks.entries[key]
-		pending := entry != nil && len(entry.pending) == 1 && !entry.pending[0].terminal && entry.pending[0].provenance == provenance
-		sourceLive := e.locks.valid(source)
-		epoch := e.locks.epoch
-		e.locks.mu.Unlock()
+		lockState = e.locks.Inspect()
+		entry := lockState.Resources[key]
+		pending := entry != nil && len(entry.Pending) == 1 && !entry.Pending[0].Terminal && entry.Pending[0].Provenance == provenance
+		sourceLive := lockState.Valid(source)
+		epoch := lockState.Epoch
 		if !pending || !sourceLive || epoch != oldManagerEpoch || e.CatalogRead().Epoch() != provenance.Epoch() || advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(b, key).Shared != 1 {
 			t.Fatal("failed stage fenced/discarded live state", pending, sourceLive, epoch)
 		}

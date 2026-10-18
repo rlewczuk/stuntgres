@@ -276,7 +276,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			resource := blockingUnitResource(e)
 			first, later := rowUpdate, noKeyUpdate
 			if completion {
-				resource = lockResource{completion: at}
+				resource = CompletionOf(at)
 				first, later = transactionCompletion, transactionCompletion
 			} else {
 				resource.Row = 1

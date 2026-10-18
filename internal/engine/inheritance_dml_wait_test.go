@@ -72,10 +72,9 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		}
 	}()
 	lockPending(t, e, 1)
-	e.locks.mu.Lock()
-	entry := e.locks.entries[lockResource{ObjectRef: old}]
-	correct := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == s.ticket && entry.pending[0].mode == rowExclusive
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[lockResource{ObjectRef: old}]
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.ticket && entry.Pending[0].Mode == rowExclusive
 	if !correct {
 		t.Fatal("descendant did not queue an actual physical RX request")
 	}

@@ -132,7 +132,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 			t.Fatal("omission retained a new grant", after)
 		}
 		for key, mode := range baseline {
-			if after[key].mode != mode.mode || len(after[key].multi) != 0 || len(mode.multi) != 0 {
+			if after[key].Mode != mode.Mode || len(after[key].Multi) != 0 || len(mode.Multi) != 0 {
 				t.Fatal("omission lost preexisting grant")
 			}
 		}

@@ -92,15 +92,14 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	lockPending(t, e, 1)
 	assertSourceWait := func() {
 		t.Helper()
-		e.locks.mu.Lock()
-		entry := e.locks.entries[lockResource{ObjectRef: gateRef}]
-		waiting := entry != nil && len(entry.pending) == 1 &&
-			entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare &&
-			entry.holders[holder.transactions.ticket].Mode&accessExclusive != 0
+		lockState := e.locks.Inspect()
+		entry := lockState.Resources[lockResource{ObjectRef: gateRef}]
+		waiting := entry != nil && len(entry.Pending) == 1 &&
+			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare &&
+			entry.Holders[holder.transactions.ticket].Mode&accessExclusive != 0
 		innerRef := e.domain.Ref(gateRef.Epoch, inner.address)
-		innerEntry := e.locks.entries[lockResource{ObjectRef: innerRef}]
-		granted := innerEntry != nil && innerEntry.holders[scope.ticket].Mode&accessShare != 0
-		e.locks.mu.Unlock()
+		innerEntry := lockState.Resources[lockResource{ObjectRef: innerRef}]
+		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&accessShare != 0
 		if !waiting || !granted {
 			t.Fatal("not the actual gate AS wait with inner AS granted")
 		}

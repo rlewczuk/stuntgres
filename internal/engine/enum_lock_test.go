@@ -58,7 +58,7 @@ func TestEnumTypeLockLifecycle(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	if !lockConflict(typeExclusive, typeExclusive) || lockConflict(typeExclusive, accessShare) || deadlockMode(typeExclusive) != "ExclusiveLock" {
+	if !Conflicts(typeExclusive, typeExclusive) || Conflicts(typeExclusive, accessShare) || deadlockMode(typeExclusive) != "ExclusiveLock" {
 		t.Fatal("type lock family semantics")
 	}
 }

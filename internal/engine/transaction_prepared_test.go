@@ -60,7 +60,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	cancel()
 	err = e.completePrepared(canceled, "move", true)
 	canceled.Done()
-	if !errors.Is(err, context.Canceled) || entry.claimed || e.prepared["move"] != entry || e.locks.owners[ref] != ticket {
+	if !errors.Is(err, context.Canceled) || entry.claimed || e.prepared["move"] != entry || e.locks.TransactionTicket(ref) != ticket {
 		t.Fatal(err, "cancellation consumed entry or ticket")
 	}
 	origin.RequestEnd(CleanClose)
@@ -70,7 +70,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if e.prepared["move"] != entry || entry.ticket != ticket {
 		t.Fatal("origin exit consumed registry")
 	}
-	if e.locks.owners[ref] != ticket {
+	if e.locks.TransactionTicket(ref) != ticket {
 		t.Fatal("physical origin exit released prepared lock journal")
 	}
 	if err := preparedUnitControl(t, e, peer, parser.KindCommitPrepared, "move"); err != nil {
@@ -79,7 +79,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if len(e.prepared) != 0 {
 		t.Fatal("completed entry retained")
 	}
-	if e.locks.owners[ref] != nil {
+	if e.locks.TransactionTicket(ref) != nil {
 		t.Fatal("completion retained original lock journal")
 	}
 }

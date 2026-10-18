@@ -130,24 +130,23 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			target := roleTableRef(t, e, "t")
 			source := roleTableRef(t, e, "s")
 			blocked := roleTableRef(t, e, "r")
-			e.locks.mu.Lock()
+			lockState := e.locks.Inspect()
 			var targetRX, sourceAS, sourceWait bool
-			for resource, entry := range e.locks.entries {
+			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == target && resource.Row == 0 {
-					for _, mode := range entry.holders {
+					for _, mode := range entry.Holders {
 						targetRX = targetRX || mode.Mode&rowExclusive != 0
 					}
 				}
 				if resource.ObjectRef == source && resource.Row == 0 {
-					for _, mode := range entry.holders {
+					for _, mode := range entry.Holders {
 						sourceAS = sourceAS || mode.Mode&accessShare != 0
 					}
 				}
 				if resource.ObjectRef == blocked && resource.Row == 0 {
-					sourceWait = len(entry.pending) == 1 && entry.pending[0].mode == accessShare
+					sourceWait = len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
 				}
 			}
-			e.locks.mu.Unlock()
 			if !targetRX || !sourceAS || !sourceWait {
 				t.Fatal("wrong source admission order/grants", targetRX, sourceAS, sourceWait)
 			}

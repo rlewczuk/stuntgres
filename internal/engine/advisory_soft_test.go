@@ -28,10 +28,9 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if err != nil || reader == nil {
 		t.Fatal(reader, err)
 	}
-	e.locks.mu.Lock()
-	queue := e.locks.entries[x].pending
-	ordered := len(queue) == 2 && queue[0] == writer && queue[1] == reader
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	queue := lockState.Resources[x].Pending
+	ordered := len(queue) == 2 && queue[0].Request == writer && queue[1].Request == reader
 	if !ordered {
 		t.Fatal("exact soft predecessor queue absent")
 	}
@@ -42,10 +41,9 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if err = deadlockResult(t, reader); err != nil {
 		t.Fatal("resolvable physical soft cycle aborted", err)
 	}
-	e.locks.mu.Lock()
-	writerPending := !writer.terminal
-	ordinaryPending := !ordinaryWait.terminal
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	writerPending := !writer.Terminal()
+	ordinaryPending := !ordinaryWait.Terminal()
 	if !writerPending || !ordinaryPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("rearrangement revoked holder or granted incompatible waiter")
 	}
@@ -56,9 +54,8 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	// Releasing ordinary transactions does not erase the advisory contributions
 	// that still block the writer, even after successful soft-cycle repair.
 	transactionEnd(t, a, ra, false)
-	e.locks.mu.Lock()
-	writerPending = !writer.terminal
-	e.locks.mu.Unlock()
+	lockState = e.locks.Inspect()
+	writerPending = !writer.Terminal()
 	if !writerPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("transaction release crossed persistent lifetime")
 	}

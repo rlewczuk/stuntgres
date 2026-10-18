@@ -216,7 +216,7 @@ func (m *relationLockManager) PGLocks(epoch ids.CatalogEpoch) ([]pgLockRecord, e
 func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relationTicket {
 	var target *relationTicket
 	for ticket, hold := range request.entry.holders {
-		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !lockConflict(request.mode, hold.Mode) {
+		if !m.valid(ticket) || sameLockSession(ticket, request.ticket) || !Conflicts(request.mode, hold.Mode) {
 			continue
 		}
 		if target == nil || ticket.ref.Diagnostic() < target.ref.Diagnostic() {
@@ -233,7 +233,7 @@ func (m *relationLockManager) pgWaitDependency(request *relationRequest) *relati
 		if earlier == request {
 			break
 		}
-		if m.validInquiryRequest(earlier, request.entry, request.ref) && !sameLockSession(earlier.ticket, request.ticket) && lockConflict(request.mode, earlier.mode) {
+		if m.validInquiryRequest(earlier, request.entry, request.ref) && !sameLockSession(earlier.ticket, request.ticket) && Conflicts(request.mode, earlier.mode) {
 			return earlier.ticket
 		}
 	}

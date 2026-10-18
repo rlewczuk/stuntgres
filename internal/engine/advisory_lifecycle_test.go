@@ -124,11 +124,11 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			transactionEnd(t, b, rb, false)
 			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 			m := e.locks
-			m.mu.Lock()
-			request := m.entries[key].pending[0]
-			_, journaled := ticket.resources[key]
-			m.mu.Unlock()
-			if request.provenance != provenance || request.ticket != b.advisory.ticket || !journaled {
+			lockState := m.Inspect(ticket)
+			waiter := lockState.Resources[key].Pending[0]
+			request := waiter.Request
+			_, journaled := lockState.Journals[ticket][key]
+			if waiter.Provenance != provenance || waiter.Ticket != b.advisory.ticket || !journaled {
 				t.Fatal("persistent request lost current transient provenance")
 			}
 			if grantBeforeFence {
@@ -140,10 +140,8 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 					}
 				})
 				advisoryUnitUnlock(t, a, key, advisoryShared, true)
-				m.mu.Lock()
-				granted := request.terminal && request.Err() == nil
-				count := m.entries[key].holders[b.advisory.ticket]
-				m.mu.Unlock()
+				granted := request.Terminal() && request.Err() == nil
+				count := m.Inspect().Resources[key].Holders[b.advisory.ticket]
 				if !granted || count.Shared != 1 || count.Exclusive != 1 {
 					t.Fatal("actual transfer before readmission", granted, count)
 				}
@@ -161,11 +159,10 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				}
 			}
 			advisoryUnitScopeResult(t, done, ErrCatalogReplaced)
-			m.mu.Lock()
-			liveSource := m.valid(ticket)
-			journal := len(ticket.resources)
-			persistentLive := m.valid(b.advisory.ticket)
-			m.mu.Unlock()
+			lockState = m.Inspect(ticket)
+			liveSource := lockState.Valid(ticket)
+			journal := len(lockState.Journals[ticket])
+			persistentLive := lockState.Valid(b.advisory.ticket)
 			count := advisoryUnitHold(b, key)
 			wantExclusive := uint64(0)
 			if grantBeforeFence {
@@ -225,11 +222,10 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		default:
 			t.Fatal("prepared resource cleanup callback missing")
 		}
-		e.locks.mu.Lock()
-		persistentLive := e.locks.valid(b.advisory.ticket)
-		sourceLive := e.locks.valid(ticket)
-		journal := len(b.advisory.ticket.resources)
-		e.locks.mu.Unlock()
+		lockState := e.locks.Inspect(b.advisory.ticket)
+		persistentLive := lockState.Valid(b.advisory.ticket)
+		sourceLive := lockState.Valid(ticket)
+		journal := len(lockState.Journals[b.advisory.ticket])
 		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(a, key).Shared != 1 {
 			t.Fatal("physical cleanup scope", persistentLive, sourceLive, journal)
 		}

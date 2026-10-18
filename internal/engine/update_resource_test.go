@@ -48,11 +48,10 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.locks.mu.Lock()
-	entry := e.locks.entries[resource]
-	held := entry.holders[a.transactions.ticket].Mode
-	pending := len(entry.pending)
-	e.locks.mu.Unlock()
+	lockState := e.locks.Inspect()
+	entry := lockState.Resources[resource]
+	held := entry.Holders[a.transactions.ticket].Mode
+	pending := len(entry.Pending)
 	if held != noKeyUpdate || pending != 0 {
 		t.Fatal("cancel damaged holder", held, pending)
 	}
