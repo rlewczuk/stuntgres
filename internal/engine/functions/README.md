@@ -82,6 +82,18 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
   Extension installation and procedure identity stay in the engine; pgcrypto,
   fuzzystrmatch, unaccent, intarray and intagg can reuse this capability.
 
+Added for the array and range families (F4/F5), which also use
+`CollatedInfo` and `NoteCatalogText` (array_to_string over catalog-identifier
+elements):
+
+- `BuiltinOperatorRoutineInfo`: the selected builtin operator's routine
+  identity, as `BuiltinRoutineInfo` is for functions. `FinishArrayTransform`
+  needs it when the engine's `||` binder reaches it in operator mode; operator
+  ports will reuse it.
+- `CaptureComparisonInput`: records the statement's diagnostic type-name input
+  when comparing the type needs it (array_sort's element comparison; the
+  engine's comparison binders do the same).
+
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
 array, as `width_bucket`'s threshold array may.
@@ -121,6 +133,8 @@ Registered families:
 | UUID generation | `uuid_generation_bind.go` | `uuidv4`, `uuidv7` | `ExactSpelling`, `SharedGates`; `uuidv7` also `OwnsLabels` |
 | `format` | `format_bind.go` | `format` | `SharedGates` |
 | uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4` | none |
+| Arrays | `array_{inspect,random,transform,search}_bind.go` | `array*Names` | none |
+| Range inspection | `range_inspect_bind.go` | `rangeInspectNames` | none |
 
 `BindUUIDGeneration` is exported because pgcrypto's `gen_random_uuid`, which
 still binds in the engine, uses it when `pg_catalog` wins the path.
@@ -187,6 +201,16 @@ grouping, windows and state lifetime. Query/set expansion and physical regex
 executor ownership remain engine responsibilities. There is no alternate binder,
 dynamic plugin registration, compatibility forwarding carrier or duplicated
 type algorithm.
+
+Bind code of registered families that engine glue still reaches is
+exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
+`@>`/`<@`/`&&` membership operators) and `FinishRangeInspect` (`lower` and
+`upper` of a range, dispatched by the string glue). `lower` and `upper` are
+not registered: their operands are analyzed with string intents, and they
+move with the string family. `unnest` and `generate_subscripts` stay with the
+engine's set-returning functions, and the array/range operators with operator
+binding. `array_node_sql.go` holds the array nodes' remap and deparse helpers
+for the engine switches until F2.
 
 ## Family notes
 
@@ -307,6 +331,16 @@ make check RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOss
 make check REFERENCE=1 RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)'
 ```
 
+Array and range families (registry; the engine's `TestArray*`,
+`TestRangeInspect*` and `TestRangeMore*` bind through the analyzer and cover
+its switches; reference tests in both modes):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestArray|TestRangeInspect|TestRangeMore)'
+make check RUN='^TestReference(Array|RangeInspect|RangeMore|Multirange)'
+make check REFERENCE=1 RUN='^TestReference(Array|RangeInspect|RangeMore|Multirange)'
+```
+
 Focused private state/demand examples:
 
 ```sh
@@ -330,6 +364,12 @@ make check RUN='^TestMetaphone(Signatures|Codes|Boundaries|StrictDemand|Cancella
 make check RUN='^TestDoubleMetaphone(Codes|Boundaries|Cancellation|Allocations)$'
 make check RUN='^TestSoundex(Kernel|Expression|ExpressionIdentity|ExpressionRemap|ExpressionProperties)$'
 ```
+
+Array inspect, random, transform and search bind over comparison-analyzed
+operands. Unknown arguments never erase a domain shared by the known leaves;
+every known edge is probed before any unknown literal or parameter is
+imported. Each node captures its released polymorphic formal family, not the
+concrete coerced types.
 
 Range inspection/hull carriers retain same-generation `sqltype` plans and at
 most two operands. Literal NULL folding follows existing strict demand rules;

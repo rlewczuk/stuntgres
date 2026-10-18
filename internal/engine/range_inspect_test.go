@@ -82,7 +82,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
-	node, err := b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
+	node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	raw.Name.Parts[0].Text = "range_merge"
-	node, err = b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
+	node, err = functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
 	if err != nil || node.ResultUsage().Type != d {
 		t.Fatal(node, err)
 	}
 	raw.Name.Parts[0].Text = "isempty"
-	if _, err := b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
+	if _, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
 		t.Fatal("wrong arity")
 	}
 }
@@ -122,7 +122,7 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 				if directString {
 					return b.bindStringFunction(raw, true)
 				}
-				return b.bindRangeInspect(raw)
+				return b.bindFunctionProvider(raw)
 			}
 			node, err := bind(base)
 			if err != nil {
@@ -177,13 +177,13 @@ func TestRangeInspectChildFilterNamespaceOrdering(t *testing.T) {
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent", Pos: parser.Position{Character: 8}}, {Text: "isempty", Pos: parser.Position{Character: 15}}}}, Pos: parser.Position{Character: 8}}
 	raw.Args = []parser.Expr{parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "missing", Pos: parser.Position{Character: 23}}}}, Pos: parser.Position{Character: 23}}}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Text: "1", Pos: parser.Position{Character: 44}}}
-	node, err := b.bindRangeInspect(raw)
+	node, err := b.bindFunctionProvider(raw)
 	if node != nil {
 		t.Fatal("invalid syntax produced carrier")
 	}
 	inspectBindingDiagnostic(t, err, "42703", `column "missing" does not exist`, "23")
 	raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Text: "1", Pos: parser.Position{Character: 23}}}}
-	node, err = b.bindRangeInspect(raw)
+	node, err = b.bindFunctionProvider(raw)
 	if node != nil {
 		t.Fatal("invalid FILTER produced carrier")
 	}
@@ -192,14 +192,14 @@ func TestRangeInspectChildFilterNamespaceOrdering(t *testing.T) {
 		t.Fatal("FILTER analysis leaked clause", b.aggregateClause)
 	}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true, Pos: parser.Position{Character: 44}}}
-	_, err = b.bindRangeInspect(raw)
+	_, err = b.bindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "3F000", `schema "absent" does not exist`, "8")
 	raw.Name.Parts = []parser.Identifier{{Text: "lower", Pos: parser.Position{Character: 8}}}
-	_, err = b.bindRangeInspect(raw)
+	_, err = b.bindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "42883", "function lower(integer) does not exist", "8")
 	raw.Filter = nil
 	raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "AbC"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "AbC"}}}
 	raw.ArgNames = []parser.Identifier{{Text: "x", Pos: parser.Position{Character: 14}}, {Text: "x", Pos: parser.Position{Character: 24}}}
-	_, err = b.bindRangeInspect(raw)
+	_, err = b.bindFunctionProvider(raw)
 	inspectBindingDiagnostic(t, err, "42601", `argument name "x" used more than once`, "24")
 }

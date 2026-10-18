@@ -291,21 +291,21 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		return "pg_catalog." + name + "(" + strings.Join(parts, ", ") + ")", nil
 	case functions.ArrayRandom:
-		return arrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+		return functions.ArrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArrayTransform:
-		return arrayTransformSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return functions.ArrayTransformSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}
 			return name
 		})
 	case functions.ArrayInspect:
-		return arrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+		return functions.ArrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArraySearch:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		return arraySearchSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return functions.ArraySearchSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}

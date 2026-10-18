@@ -23,7 +23,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	raw := arrayInspectUnitRaw(name, args...)
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindArrayRandom(raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +420,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 				if name == "unnest" {
 					node, err = b.bindUnnest(raw)
 				} else {
-					node, err = b.bindArrayRandom(raw)
+					node, err = b.bindFunctionProvider(raw)
 				}
 				if err != nil {
 					t.Fatal(name, err)
@@ -455,7 +455,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	if !sameGroupExpression(call, qualified) {
 		t.Fatal("namespace spelling changed resolved identity")
 	}
-	next, changed, err := mapArrayRandomChildren(call, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
+	next, changed, err := functions.MapArrayRandomChildren(call, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
 	if err != nil || changed || &next.Args[0] != &call.Args[0] {
 		t.Fatal("unchanged child mapping copied")
 	}
@@ -465,7 +465,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 			t.Fatal("lost volatile provider", err)
 		}
 	}
-	rendered, err := arrayRandomSQL(call, func(BoundExpr) (string, error) { return "child", nil })
+	rendered, err := functions.ArrayRandomSQL(call, func(BoundExpr) (string, error) { return "child", nil })
 	if err != nil || rendered != "pg_catalog.array_sample(child, child)" {
 		t.Fatal(rendered, err)
 	}
@@ -482,7 +482,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_sample", arrayInspectUnitArray("[-2:0][5:6]={{1,NULL},{2,20},{3,30}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindArrayRandom(raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

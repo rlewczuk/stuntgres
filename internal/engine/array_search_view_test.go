@@ -54,11 +54,11 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	name := func(text string) parser.ObjectName {
 		return parser.ObjectName{Parts: []parser.Identifier{{Text: text}}}
 	}
-	inner, err := b.newArraySearch("array_position", name("array_position"), parser.Position{}, integer.Usage(), []BoundExpr{arrayArgument, wideOne})
+	inner, err := functions.ArraySearchNode(b, "array_position", name("array_position"), parser.Position{}, integer.Usage(), []BoundExpr{arrayArgument, wideOne})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, err := b.newArraySearch("array_replace", name("array_replace"), parser.Position{}, wideArray.Usage(), []BoundExpr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
+	outer, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, wideArray.Usage(), []BoundExpr{arrayArgument, wideOne, coerce(inner, wide, sqltype.Implicit)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,11 +78,11 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	info.CollationExplicit = position
 	collated := collationExpression{expressionInfo: info, child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
-	replace, err := b.newArraySearch("array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []BoundExpr{collated, search, replacement})
+	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []BoundExpr{collated, search, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
-	positions, err := b.newArraySearch("array_positions", name("array_positions"), parser.Position{}, array.Usage(), []BoundExpr{replace, replacement})
+	positions, err := functions.ArraySearchNode(b, "array_positions", name("array_positions"), parser.Position{}, array.Usage(), []BoundExpr{replace, replacement})
 	if err != nil {
 		t.Fatal(err)
 	}

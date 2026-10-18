@@ -44,7 +44,15 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute"} {
+	// The array and range families sat before the shared gates and matched names
+	// case-insensitively; the bind code owns exact-spelling resolution.
+	for _, name := range []string{"array_dims", "Cardinality", "array_sample", "ARRAY_SHUFFLE", "array_append", "ARRAY_SORT", "trim_array", "array_to_string", "array_position", "array_positions", "Array_Remove", "array_replace", "IsEmpty", "lower_inc", "UPPER_INF", "range_merge", "multirange"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_to_json", "array_cat_agg", "array", "lower", "UPPER", "range_agg", "int4range"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

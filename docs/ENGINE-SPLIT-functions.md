@@ -158,7 +158,9 @@ Tier C has a refined plan.
   docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
-  [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [x] UUID [x] format
+  [ ] JSON/JSONB/SQL-JSON [x] arrays [x] ranges (`a46ee7c5c` seam,
+  `48d987da7`/`62f610cb1` arrays, `050805a1e`/`a5be023f9` ranges, then the
+  docs commit) [x] UUID [x] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
   [ ] unaccent [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
   uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
@@ -173,7 +175,8 @@ pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
 is a genuine analyzer capability); `DefaultConsumer`, `ArrayType`,
 `CommonUsage` and `ComparisonInfo` (math); `CollatedInfo`,
 `RetainUntypedParameter`, `NoteCatalogText` and `InstalledRoutine` (UUID
-generation, format, uuid-ossp). Reasons for every method are in the
+generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
+`CaptureComparisonInput` (arrays and ranges). Reasons for every method are in the
 `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
@@ -367,6 +370,69 @@ below; `GuardDiagnostics` is a third witness of it). Bench median 1.83 ms/op
 with 7,769 allocs/op (allocations unchanged; startup code untouched; still
 above the 1 ms target as on master). Racecheck skipped at the user's request.
 
+F4/F5 arrays and ranges record, measured at its start on `604ee2be6` and
+rebased onto `684513b33` (after UUID generation, format and uuid-ossp):
+
+- Ported: array inspect (6 names), random (2), transform (8) and search (4),
+  and range inspection/hull (7 names). All sat before the shared gates and
+  matched case-insensitively, so they register with neither `ExactSpelling`
+  nor `SharedGates`. No earlier chain predicate claims these names (checked
+  against every predicate before the old branches).
+- The glue used `comparisonOperandPolicy(projectionContext)`,
+  `coerceConditional`, `selectCommonUsage` with no label and
+  `definitionArray`; these became `AnalyzeArgument(ComparisonArgument)`,
+  `CoerceArgument(ConditionalArgument)`, `CommonUsage` and `ArrayType`. The
+  inline FILTER/count/label envelope and decoration checks were the shared
+  `ValidateCallSyntax` and `CallDecorationError`; array search and the `*`
+  decoration of transforms keep their own messages. Two new `Binder` methods
+  (above) cover operator routine identity and array_sort's comparison input
+  capture. Collation derivation and array_to_string's catalog-text demand
+  reuse `CollatedInfo` and `NoteCatalogText`, which the UUID/format port added
+  meanwhile (this branch had added the same two under other names and
+  dropped them at the rebase).
+- Shared with operators: `finishArrayTransform` (the `||` array branch) and
+  `newArraySearch` (`@>`/`<@`/`&&` membership) moved as the exported
+  `FinishArrayTransform` and `ArraySearchNode`; the engine's array operator
+  glue is now `array_operator.go`.
+- Deviation: `lower`/`upper` are not registered. They analyze operands with
+  string intents and finish in the engine's `finishStringFunction`, which
+  hands range operands to `functions.FinishRangeInspect`. Their engine branch
+  (`bindLowerUpper` in `string_expression.go`) sits where the range branch
+  sat; the string port registers them.
+- Kept out: `unnest` and `generate_subscripts` (set-returning; engine node and
+  query-level admission state), array/range operators and array/range
+  aggregates.
+- Moved for deletion of the glue files, still called by engine switches:
+  the array nodes' `map*Children`/`*SQL` helpers (`array_node_sql.go`, used
+  by remap, conditional planning, preflight and deparse) and
+  `FunctionArrayRandomOwner` (now in `expression.go`). F2 removes the
+  helpers.
+
+Tests in F4/F5 arrays and ranges: `TestLookupClaimsRegisteredNames` gained
+array and range claims and non-claims (`lower`, `upper`, `unnest`,
+`generate_subscripts`, aggregates); both additions failed first. Engine tests
+stay, as for math: `TestArrayInspect*`, `TestArrayTransform*`,
+`TestArrayRelational*`, `TestRangeInspect*` and `TestRangeMoreBinding` now
+bind through `bindFunctionProvider` instead of the deleted binder methods;
+`TestArraySearchViewCoercions`, `TestRangeInspectBindingUsesSelectedAuthority`
+and `TestRangeMoreBinding` call `functions.ArraySearchNode` and
+`functions.FinishRangeInspect`; remap/deparse helper calls use the exported
+names. No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages) except
+`TestReferenceServerCopyCancelInput/server/invalid_record` (57014 instead of
+22P02), a COPY-cancellation timing flake unrelated to this change: it passed
+4 of 5 isolated reruns on the branch and failed 1 of 20 runs on master.
+`make deps` lists only module paths; `functions` imports no engine state
+packages. Quick mode and `REFERENCE=1` passed for `^TestReferenceArray` and
+`^TestReference(RangeInspect|RangeMore|RangeOperator|Multirange|SearchPath|DeparseConstraintsReview|Collation|Expression)`.
+`^TestReferenceString` (the `lower`/`upper` text path) passed in quick mode;
+with `REFERENCE=1` only the `/postgres` subtests of four string witnesses
+fail, identically on master (18.6 oracle drift, below). Bench median
+1.86 ms/op against 1.92 ms on master, both with 7,769 allocs/op (allocations
+unchanged; startup code untouched; still above the 1 ms target as on
+master). Racecheck skipped at the user's request.
+
 Notes for later steps:
 
 - `InstalledRoutine` covers the shared lookup of every installed family
@@ -374,17 +440,22 @@ Notes for later steps:
   value and an engine handle per family. pgcrypto's `gen_random_uuid` also
   needs the per-namespace walk that prefers `pg_catalog`; give the handle
   lookup that ordering rather than a second method.
-
+- The string port should register `lower`/`upper` and call
+  `FinishRangeInspect` directly; `bindLowerUpper` then goes away.
+- Set-returning builtins (`unnest`, `generate_subscripts`, `generate_series`,
+  `string_to_table`, regexp sets) share query-level admission
+  (`executeParameters`, policy frames, `stringSetAllowed`,
+  `queryHasTargetSet`); port them together behind one admission capability.
 - Families whose engine branch sits after the shared label and
   `ResolutionOnly` gates in `bindFunctionProvider` must reproduce those gates
   in `Bind` when they register, because `Lookup` runs first.
 - `CommonUsage` wraps the engine's `selectCommonUsage`. Its usage-only core
   could move to `sqltype` when CASE/VALUES/IN typing gets an owner; the
   method would then become a plain function.
-- `Lookup` scans the table linearly (6 definitions, 58 names after UUID
-  generation, format and uuid-ossp) on every function call before the chain.
-  Re-measure bind cost when more families register; a sorted static table
-  would keep it `init()`-free.
+- `Lookup` scans the table linearly (11 definitions, 85 names after arrays
+  and ranges) on every function call before the chain. Re-measure bind cost
+  when more families register; a sorted static table would keep it
+  `init()`-free.
 - `functions.qualifiedName` duplicates the engine's `objectNameText` (a
   dotted join used for the 42809 message). Consolidate them when the engine's
   name helpers get an owner.
@@ -396,3 +467,8 @@ Notes for later steps:
   `TestReferenceUUIDGenerationFeatureSmoke` /
   `TestReferenceUUIDGenerationGuardDiagnostics` (18.6 rejects out-of-range
   `uuidv7` shifts that 18.0 accepted). Needs a separate compatibility task.
+  The string witnesses `TestReferenceStringCaseReviewSigma`,
+  `TestReferenceStringCoreNormalization`,
+  `TestReferenceStringCoreValuesSourceConsumerRoutes` (Unicode case and
+  normalization) and `TestReferenceStringSplitLocking` (locked-row results)
+  also fail in `/postgres` only, on master too.

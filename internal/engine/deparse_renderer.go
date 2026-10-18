@@ -953,7 +953,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.ArrayTransform:
 		inputRenderer := r
 		inputRenderer.showImplicit = true
-		return arrayTransformSQL(n, func(child BoundExpr) (string, error) {
+		return functions.ArrayTransformSQL(n, func(child BoundExpr) (string, error) {
 			return inputRenderer.sql(ctx, child, pgRenderParent{functionArgument: true})
 		}, operator)
 	case functions.ArrayInspect:
