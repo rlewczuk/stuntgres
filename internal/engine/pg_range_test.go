@@ -70,7 +70,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	d, ref := pgRangeUnitSource(t, e)
 	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
 		t.Helper()
-		if d.name != "pg_range" || d.namespace.ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
+		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"rngtypid", "rngsubtype", "rngmultitypid", "rngcollation", "rngsubopc", "rngcanonical", "rngsubdiff"} {
@@ -91,7 +91,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})
 		ownedRow, rowOK := catalog.LookupType(10101)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10100 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != d.Owner || array.Owner != d.Owner {
+		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10100 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
 		if err := (relationProvider{}).Validate(catalog, d); err != nil {

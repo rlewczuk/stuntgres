@@ -82,7 +82,7 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	auth := catalogAuthorization(e, retained)
 	candidate := cloneCatalog(retained.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.revision++
+	database.ObjectRevision++
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth.catalog = e.catalog.read(candidate)
 	ref := e.catalog.Domain.Ref(retained.Epoch(), currentDatabaseAddress)
@@ -105,7 +105,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	e, _, _, _, reader := ownershipUnitRoles()
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
-	database.name = `ownership "odd" database`
+	database.ObjectName = `ownership "odd" database`
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader

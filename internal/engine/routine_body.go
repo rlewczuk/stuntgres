@@ -114,7 +114,7 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 	if err != nil || outer == nil {
 		return err
 	}
-	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
+	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
 		if bodyCastMatches(edge, argument) {
 			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
@@ -143,7 +143,7 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 // Lifetime capture is conservative even where strict NULL later removes actual
 // invocation. Only instance-selected polymorphic cast identities participate.
 func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
-	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
+	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
 		if (edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
 			continue

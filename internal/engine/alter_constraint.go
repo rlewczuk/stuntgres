@@ -49,7 +49,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 					continue
 				}
 				if c.NoInherit {
-					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.name))
+					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.Name()))
 				}
 				if inherited == nil {
 					inherited = make(map[string]checkConstraint)
@@ -155,7 +155,7 @@ func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) e
 			modifier = "NO INHERIT"
 			d.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
 		}
-		d.Detail = fmt.Sprintf(`The constraint "%s" on column "%s" of table "%s", marked %s, is incompatible with a primary key.`, n.Name, column, parent.name, modifier)
+		d.Detail = fmt.Sprintf(`The constraint "%s" on column "%s" of table "%s", marked %s, is incompatible with a primary key.`, n.Name, column, parent.Name(), modifier)
 		return d
 	}
 	return nil
@@ -165,7 +165,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 	if raw.Primary {
 		for _, c := range parent.UniqueConstraints {
 			if c.Primary {
-				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
+				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 			}
 		}
 	}

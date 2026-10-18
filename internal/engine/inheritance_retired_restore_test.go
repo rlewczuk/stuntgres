@@ -146,7 +146,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *Operation, *restoredHistoryAu
 	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
-		refs[r.address] = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), r.address)
+		refs[r.Address()] = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), r.Address())
 	}
 	e.captureHistoricalFacts(refs, a.facts)
 	return e, op, a
@@ -241,7 +241,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
-	tempRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.address)
+	tempRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.Address())
 	tempFacts := make(map[ids.OID]restoredHistoricalFact)
 	captureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
@@ -275,10 +275,10 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	}
 	current := retiredUnitTable(t, e, "c")
 	p := current.Inheritance.NotNull[current.NotNullConstraints[0].Attribute]
-	if p.Local || p.count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").address {
+	if p.Local || p.count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").Address() {
 		t.Fatal("archival rank was treated as current b/live identity", p)
 	}
-	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.revision != old.revision+1 || len(old.Inheritance.NotNull[current.NotNullConstraints[0].Attribute].Retired) != 0 {
+	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.Revision() != old.Revision()+1 || len(old.Inheritance.NotNull[current.NotNullConstraints[0].Attribute].Retired) != 0 {
 		t.Fatal("repair changed anything beyond lineage/locality/revision")
 	}
 	retiredReject(t, e, op, q, a)
@@ -402,7 +402,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE ONLY d ADD CONSTRAINT d_pk PRIMARY KEY(a)")
 	d := retiredUnitTable(t, e, "d")
 	oid := d.NotNullConstraints[0].OID
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	captureHistoricalRelation(e.CatalogRead(), ref, a.facts)
 	before := a.facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.local, before.count, retiredRow("n", "0:7", "77"))

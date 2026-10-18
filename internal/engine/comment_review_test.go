@@ -177,8 +177,8 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			commentWant(t, e, e.CatalogRead(), ref, tc.a)
 			ref.Address.SubID = 2
 			commentWant(t, e, e.CatalogRead(), ref, tc.b)
-			current := e.CatalogRead().MustRelation(original.address)
-			if current.Owner != original.Owner || !reflect.DeepEqual(current.Attributes, original.Attributes) || current.address != original.address {
+			current := e.CatalogRead().MustRelation(original.Address())
+			if current.Owner != original.Owner || !reflect.DeepEqual(current.Attributes, original.Attributes) || current.Address() != original.Address() {
 				t.Fatal("serialized comments changed object authority/column identities")
 			}
 			sessionSQL(t, first, "INSERT INTO t VALUES(7,8)")

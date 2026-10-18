@@ -29,7 +29,7 @@ func copyTargets(relation *relationDescriptor, columns []parser.Identifier) ([]i
 			}
 		}
 		if target < 0 {
-			return nil, sqlError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", name.Text, relation.name))
+			return nil, sqlError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", name.Text, relation.Name()))
 		}
 		for _, prior := range targets {
 			if prior == target {
@@ -226,7 +226,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	schema := ""
 	if err == nil {
-		schema = auth.catalog.Get(b.relation.namespace).Name()
+		schema = auth.catalog.Get(b.relation.Namespace()).Name()
 		s.routineAuth = auth
 		e.markTemporaryAccessLocked(s, b.ref)
 	}
@@ -317,7 +317,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 
 func copyRelationKind(relation *relationDescriptor, from bool) error {
 	if !from && relation.RelationKind == materializedViewRelation && !relation.Populated {
-		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.name)).(*sqlstate.Error)
+		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
 		return d
 	}
@@ -337,7 +337,7 @@ func copyRelationKind(relation *relationDescriptor, from bool) error {
 		if from {
 			direction = "to"
 		}
-		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.name)).(*sqlstate.Error)
+		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
 		if !from && (relation.RelationKind == viewRelation || relation.RelationKind == partitionedRelation) {
 			d.Hint = "Try the COPY (SELECT ...) TO variant."
 		}

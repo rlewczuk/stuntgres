@@ -2238,7 +2238,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		owner := b.generatedOwner
-		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.name || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.name && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
 		if qualified {
 			if name == "tableoid" {
 				ref := b.querySources[0].ref
@@ -2252,7 +2252,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		if err != nil {
 			// A bare relation name is a whole-row reference only after ordinary
 			// column lookup has failed; a same-named attribute takes precedence.
-			if name == owner.name && len(raw.Name.Parts) == 1 {
+			if name == owner.Name() && len(raw.Name.Parts) == 1 {
 				diagnostic := expr.ErrorAt("42P17", "cannot use whole-row variable in column generation expression", raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "This would cause the generated column to depend on its own value."
 				return nil, diagnostic
@@ -2327,7 +2327,7 @@ func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
 func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ids.ObjectRef {
 	ref := b.ref
 	ref.Address.SubID = relation.Attributes[i]
-	b.dependency(ref, relation.revision)
+	b.dependency(ref, relation.Revision())
 	used := false
 	for _, slot := range b.uses {
 		if slot == i {

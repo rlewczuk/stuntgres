@@ -84,7 +84,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if declaration.Identity != identity || declaration.Kind != functionRoutine || declaration.Result != tc.result || !declaration.Strict || declaration.Volatility != tc.volatility || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Defaults != 0 || declaration.Variadic != 0 || declaration.Providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.revision == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -93,7 +93,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.revision {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original selected lifetime", dependency)
 					}
 				} else {

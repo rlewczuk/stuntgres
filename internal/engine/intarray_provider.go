@@ -55,10 +55,10 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	acl, synthetic := stage.creationTypeACL(owner, ext.TargetNamespace)
-	if err := stage.Create(&typeDescriptor{SQLType: typ, namespace: ext.TargetNamespace, Extension: ext.address, revision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
+	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{SQLType: array, namespace: ext.TargetNamespace, revision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
+	if err := stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
 		return err
 	}
 	for i := range 2 {
@@ -70,7 +70,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
-		proc := &procedureDescriptor{address: ext.Members[i+1], namespace: ext.TargetNamespace, Extension: ext.address, revision: revision, name: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &procedureDescriptor{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
@@ -89,14 +89,14 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
-	if p != stockIntarray || ext.name != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
+	if p != stockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {
 		return invalid()
 	}
 	base, ok := v.Type(ext.Members[0])
-	if !ok || base.SQLType == nil || base.Address() != ext.Members[0] || !base.SQLType.IsQueryInt() || base.Name() != "query_int" || base.Extension != ext.address || base.Namespace() != ext.TargetNamespace || base.revision == 0 || base.Array == 0 {
+	if !ok || base.SQLType == nil || base.Address() != ext.Members[0] || !base.SQLType.IsQueryInt() || base.Name() != "query_int" || base.Extension != ext.Address() || base.Namespace() != ext.TargetNamespace || base.ObjectRevision == 0 || base.Array == 0 {
 		return invalid()
 	}
 	array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
@@ -108,14 +108,14 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	}
 	for i, address := range ext.Members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.address != address || proc.intarrayProvider() != p || proc.Extension != ext.address || proc.namespace != ext.TargetNamespace || proc.revision == 0 {
+		if !ok || proc.Address() != address || proc.intarrayProvider() != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
 		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(base.SQLType.ID())
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(base.SQLType.ID()), 2275
 		}
-		if proc.name != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
+		if proc.Name() != name || proc.Signature != signature || proc.Result != result || !proc.Strict || proc.Volatility != expr.Immutable || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}

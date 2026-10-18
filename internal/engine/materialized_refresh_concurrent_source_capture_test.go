@@ -47,13 +47,13 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	e := New()
 	inner := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, inner, "inner_u", "i", "")
-	inner = e.catalog.state.MustRelation(inner.address)
+	inner = e.catalog.state.MustRelation(inner.Address())
 	gateStage, gate := queryCreateStage(t, e, "source_gate", 1)
 	queryCreatePublish(t, e, gateStage)
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
-	outer = e.catalog.state.MustRelation(outer.address)
-	innerStorage, gateStorage := e.storage[inner.address], e.storage[gate.address]
+	outer = e.catalog.state.MustRelation(outer.Address())
+	innerStorage, gateStorage := e.storage[inner.Address()], e.storage[gate.Address()]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.versions[2]
@@ -65,7 +65,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	innerEnds, gateEnds := innerStorage.ends, gateStorage.ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := e.catalog.Domain.Ref(e.catalog.state.epoch, gate.address)
+	gateRef := e.catalog.Domain.Ref(e.catalog.state.epoch, gate.Address())
 	defer e.endLockOwner(holder.transactions.ticket)
 	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)
-	stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: outer.name}}}, Concurrent: parser.Position{Character: 27}}
+	stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: outer.Name()}}}, Concurrent: parser.Position{Character: 27}}
 	done := make(chan error, 1)
 	joined := false
 	defer func() {
@@ -98,7 +98,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		waiting := entry != nil && len(entry.Pending) == 1 &&
 			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare &&
 			entry.Holders[holder.transactions.ticket].Mode&lock.AccessExclusive != 0
-		innerRef := e.catalog.Domain.Ref(gateRef.Epoch, inner.address)
+		innerRef := e.catalog.Domain.Ref(gateRef.Epoch, inner.Address())
 		innerEntry := lockState.Resources[lock.Resource{ObjectRef: innerRef}]
 		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 		if !waiting || !granted {
@@ -114,9 +114,9 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.frontier != frontier || len(snapshot.committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
-		for address, storage := range map[ids.ObjectAddress]*relationStorage{inner.address: innerStorage, gate.address: gateStorage} {
+		for address, storage := range map[ids.ObjectAddress]*relationStorage{inner.Address(): innerStorage, gate.Address(): gateStorage} {
 			versions, ends := innerVersions, innerEnds
-			if address == gate.address {
+			if address == gate.Address() {
 				versions, ends = gateVersions, gateEnds
 			}
 			if snapshot.generationAt(address) != storage || !sameVersionRoot(snapshot.committed[address], versions) ||
@@ -124,8 +124,8 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}
 		}
-		if innerEnds == nil || len(innerEnds.rows) != 1 || liveVersion(deleted, frontier, snapshot.ends[inner.address], nil) ||
-			!liveVersion(innerVersions[0], frontier, snapshot.ends[inner.address], nil) {
+		if innerEnds == nil || len(innerEnds.rows) != 1 || liveVersion(deleted, frontier, snapshot.ends[inner.Address()], nil) ||
+			!liveVersion(innerVersions[0], frontier, snapshot.ends[inner.Address()], nil) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
 		aliases := 0
@@ -134,7 +134,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			if err != nil || view.data.Load() != snapshot {
 				t.Fatal("source/alias recaptured separately", leaf.ref, err)
 			}
-			if leaf.ref.Address == inner.address {
+			if leaf.ref.Address == inner.Address() {
 				aliases++
 			}
 		}
@@ -144,7 +144,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertManifest()
 	inner = concurrentUnitReplace(t, e, inner, refreshUnitRows(t, inner, 1), true, true)
-	if e.storage[inner.address] == innerStorage || e.commitSeq <= frontier {
+	if e.storage[inner.Address()] == innerStorage || e.commitSeq <= frontier {
 		t.Fatal("peer did not publish a new committed source incarnation")
 	}
 	assertSourceWait()
@@ -170,7 +170,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.domainBases = []Descriptor{provider}
-	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.address], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true
@@ -184,10 +184,10 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("dedicated source fence not generated", changes.materializedSources)
 	}
 	fence := changes.materializedSources[0]
-	if fence.ref.Address != inner.address || fence.relation != snapshot.catalog.Get(inner.address) || fence.storage != innerStorage {
+	if fence.ref.Address != inner.Address() || fence.relation != snapshot.catalog.Get(inner.Address()) || fence.storage != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
-	if _, strict := changes.originals[inner.address]; strict {
+	if _, strict := changes.originals[inner.Address()]; strict {
 		t.Fatal("source-only observation became strict predecessor")
 	}
 	for _, d := range []Descriptor{outer, index, gate, provider} {
@@ -205,7 +205,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
 		t.Fatal(err)
 	}
-	if changes.originals[inner.address] != inner {
+	if changes.originals[inner.Address()] != inner {
 		t.Fatal("provider/source overlap lost strict original")
 	}
 	for _, d := range []Descriptor{outer, index, provider, inner} {

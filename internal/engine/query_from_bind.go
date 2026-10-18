@@ -81,7 +81,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 		relation = leaf.relation
 		origin = leaf.ref
 		origin.Address.SubID = leaf.relation.Attributes[c.physical]
-		b.dependency(origin, leaf.relation.revision)
+		b.dependency(origin, leaf.relation.Revision())
 		found := false
 		for _, slot := range leaf.uses {
 			if slot == c.physical {
@@ -403,11 +403,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		if relation.RelationKind == indexRelation {
 			if b.deleteUsingSources {
-				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), n.Name.Parts[0].Pos).(*sqlstate.Error)
+				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
 				return nil, queryNamespace{}, err
 			}
-			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
+			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.Name()))
 		}
 		if relation.RelationKind == viewRelation {
 			if err := b.captureRetainedViewInput(viewOf(relation)); err != nil {
@@ -420,10 +420,10 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
-		namespace, _ := b.queryAuth.definitionDescriptor(relation.namespace)
-		q := queryQualifier{name: relation.name, original: relation.name, schema: namespace.Name(), ref: ref, columns: columns}
+		namespace, _ := b.queryAuth.definitionDescriptor(relation.Namespace())
+		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
 		b.queryHidden = append(b.queryHidden, q)
-		return &sourceNode{querySchema: relation.Columns, ref: ref, occurrence: leaf, rangeName: relation.name}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
+		return &sourceNode{querySchema: relation.Columns, ref: ref, occurrence: leaf, rangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {

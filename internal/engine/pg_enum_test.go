@@ -110,7 +110,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGEnumShapeAndCapture(t *testing.T) {
 	e := New()
 	d, ref := pgEnumUnitSource(t, e)
-	if d.name != "pg_enum" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_enum" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal("source descriptor", d)
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {
@@ -126,7 +126,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
-	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 10044 || row.Owner != d.Owner || array.Owner != d.Owner {
+	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 10044 || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -207,7 +207,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *mood
-	next.SQLType, next.revision = typ, mood.revision+1
+	next.SQLType, next.ObjectRevision = typ, mood.ObjectRevision+1
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {

@@ -14,7 +14,7 @@ func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
 	empty, err := capturePGCursors(context.Background(), ref, d, s.cursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
 		t.Fatal(empty, err)
@@ -50,7 +50,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
 	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
-	currentRef := current.catalog.Domain.Ref(current.catalog.state.epoch, currentDescriptor.address)
+	currentRef := current.catalog.Domain.Ref(current.catalog.state.epoch, currentDescriptor.Address())
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := capturePGCursors(context.Background(), currentRef, currentDescriptor, s.cursors)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.VirtualView || d.RelationKind != catalogRelation || d.namespace.ObjectID != ids.PGCatalogNamespaceOID {
+	if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("invalid view identity", d)
 	}
 	wantNames := []string{"name", "statement", "is_holdable", "is_binary", "is_scrollable", "creation_time"}
@@ -156,7 +156,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("missing cursor row type")
 	}
 	row, ok := rowDescriptor.(*typeDescriptor)
-	if !ok || row.OwningRelation != d.address || row.Array != sqltype.ID(12078) {
+	if !ok || row.OwningRelation != d.Address() || row.Array != sqltype.ID(12078) {
 		t.Fatal("cursor row ownership/array association", rowDescriptor)
 	}
 	arrayType, ok := catalog.LookupArray(row.SQLType)
@@ -168,7 +168,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("missing cursor associated array")
 	}
 	array, ok := arrayDescriptor.(*typeDescriptor)
-	if !ok || array.SQLType != arrayType || array.OwningRelation != d.address {
+	if !ok || array.SQLType != arrayType || array.OwningRelation != d.Address() {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}
 	for _, descriptor := range []Descriptor{row, array} {

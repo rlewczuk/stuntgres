@@ -58,7 +58,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		next := *typ
 		next.ACL = acl
 		next.ACLSyntheticDefault = false
-		next.revision++
+		next.ObjectRevision++
 		if err := stage.Replace(&next); err != nil {
 			return err
 		}
@@ -110,7 +110,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE public.leaf PARTITION OF public.root FOR VALUES FROM(0) TO(10)")
 	})
 	child := rangePartitionRelation(t, e, "public.leaf")
-	if child.Columns[1].Usage != parent.Columns[1].Usage || child.Columns[2].Usage != parent.Columns[2].Usage || child.Columns[1].OriginTable != uint32(child.address.ObjectID) || child.Columns[1].OriginTable == parent.Columns[1].OriginTable {
+	if child.Columns[1].Usage != parent.Columns[1].Usage || child.Columns[2].Usage != parent.Columns[2].Usage || child.Columns[1].OriginTable != uint32(child.Address().ObjectID) || child.Columns[1].OriginTable == parent.Columns[1].OriginTable {
 		t.Fatal("inherited identity/origin admission did not copy type and refresh child origin")
 	}
 	if len(child.CheckConstraints) != 1 || child.CheckConstraints[0].OID == parent.CheckConstraints[0].OID {

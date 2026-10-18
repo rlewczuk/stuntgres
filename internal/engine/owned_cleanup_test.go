@@ -91,7 +91,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 		old := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}))
 		next := *old
 		next.Owner = source
-		next.revision++
+		next.ObjectRevision++
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
@@ -134,20 +134,20 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	move := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_move"}))
 	next := *move
 	next.Owner = source
-	next.revision++
+	next.ObjectRevision++
 	if err := setup.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
 	other := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_other"}))
 	grant := *other
 	grant.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
-	grant.revision++
+	grant.ObjectRevision++
 	if err := setup.Replace(&grant); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, setup)
 	before := e.catalog.state
-	store := e.storage[move.address]
+	store := e.storage[move.Address()]
 	roles := e.roles
 	late := &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}, {Name: "absent"}}, Target: parser.RoleSpec{Name: "ownership_target"}}
 	if _, err := testExecute(e, context.Background(), late, nil); err == nil || e.catalog.state != before || e.roles != roles {
@@ -157,7 +157,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	if _, err := testExecute(e, context.Background(), late, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.MustRelation(move.address).Owner != target || e.catalog.state.Get(other.address) != before.Get(other.address) || e.roles != roles || e.storage[move.address] != store {
+	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles != roles || e.storage[move.Address()] != store {
 		t.Fatal("reassign changed unrelated grant, roles or data")
 	}
 }
@@ -172,7 +172,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Array)}} {
 		old := base.MustType(a)
 		next := *old
-		next.revision++
+		next.ObjectRevision++
 		next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
 		next.ACLSyntheticDefault = false
 		if err := setup.Replace(&next); err != nil {

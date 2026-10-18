@@ -85,7 +85,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.address {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() || ref.Address != job.child.Address() {
 		return ids.ErrCatalogReplaced
 	}
 	if !held {

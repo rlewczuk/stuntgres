@@ -60,7 +60,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.Get(address) != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != functionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
+			if auth.catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != functionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.Body) != 0 {
@@ -73,8 +73,8 @@ func TestTIDRoutineAuthority(t *testing.T) {
 					continue
 				}
 				procedures++
-				if dependency.Ref != wantRef || dependency.Revision != outer.revision {
-					t.Fatal("original selected reference and revision", dependency, wantRef, outer.revision)
+				if dependency.Ref != wantRef || dependency.Revision != outer.Revision() {
+					t.Fatal("original selected reference and revision", dependency, wantRef, outer.Revision())
 				}
 			}
 			if procedures != 1 {

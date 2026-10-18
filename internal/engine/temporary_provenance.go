@@ -24,13 +24,13 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 	if consumer == nil {
 		return false
 	}
-	namespace, ok := view.Namespace(consumer.namespace)
+	namespace, ok := view.Namespace(consumer.Namespace())
 	if !ok || namespace.Temporary == (ids.SessionToken{}) {
 		return false
 	}
 	switch target := target.(type) {
 	case *relationDescriptor:
-		ns, ok := view.Namespace(target.namespace)
+		ns, ok := view.Namespace(target.Namespace())
 		if !ok || ns.Temporary != namespace.Temporary {
 			return false
 		}
@@ -61,7 +61,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 			// retained TEMP recipe; ACL authority is recaptured separately.
 			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 		}
-		ns, ok := view.Namespace(target.namespace)
+		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 	}
 	return false
@@ -86,10 +86,10 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	owner, temporary := consumer.View.TemporaryConsumer()
-	if owner != consumer.address || catalog.Get(consumer.address) != consumer {
+	if owner != consumer.Address() || catalog.Get(consumer.Address()) != consumer {
 		return false
 	}
-	namespace, ok := catalog.Namespace(consumer.namespace)
+	namespace, ok := catalog.Namespace(consumer.Namespace())
 	if !ok || namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary != temporary || namespace.Temporary.Domain() != catalog.Domain() {
 		return false
 	}
@@ -106,7 +106,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	switch actual := target.(type) {
 	case *relationDescriptor:
 		old, ok := captured.(*relationDescriptor)
-		return ok && actual.namespace == old.namespace && actual.RelationKind == old.RelationKind
+		return ok && actual.Namespace() == old.Namespace() && actual.RelationKind == old.RelationKind
 	case *typeDescriptor:
 		old, ok := captured.(*typeDescriptor)
 		return ok && actual.SQLType == old.SQLType
@@ -126,7 +126,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		if ok && (old.intaggProvider() != nil || actual.intaggProvider() != nil) && actual != old {
 			return false
 		}
-		return ok && old.address == address && old.revision != 0 &&
+		return ok && old.Address() == address && old.Revision() != 0 &&
 			old.Owner.ID() != 0 && old.Owner == catalog.owner.Principals.Principal(old.Owner.ID()) &&
 			sameRoutineDeclaration(actual, old)
 	}
@@ -159,7 +159,7 @@ func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.
 	if !ok || sequence.RelationKind != sequenceRelation {
 		return false
 	}
-	ns, ok := view.Namespace(sequence.namespace)
+	ns, ok := view.Namespace(sequence.Namespace())
 	return ok && ns.Temporary == token
 }
 

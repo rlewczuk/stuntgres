@@ -75,13 +75,13 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
 type typeDescriptor struct {
-	SQLType   *sqltype.Descriptor
-	Comment   string
-	namespace ids.ObjectAddress
-	revision  ids.DefinitionRevision
-	Owner     authorization.PrincipalRef
-	Extension ids.ObjectAddress
-	ACL       authorization.ACLValue
+	SQLType         *sqltype.Descriptor
+	Comment         string
+	ObjectNamespace ids.ObjectAddress
+	ObjectRevision  ids.DefinitionRevision
+	Owner           authorization.PrincipalRef
+	Extension       ids.ObjectAddress
+	ACL             authorization.ACLValue
 	// ACLSyntheticDefault distinguishes effective baseline USAGE from raw NULL
 	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.
 	ACLSyntheticDefault bool
@@ -95,14 +95,14 @@ func (d *typeDescriptor) Address() ids.ObjectAddress {
 	return ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.ID())}
 }
 func (d *typeDescriptor) Revision() ids.DefinitionRevision {
-	if d.revision == 0 {
+	if d.ObjectRevision == 0 {
 		return 1
 	}
-	return d.revision
+	return d.ObjectRevision
 }
 func (d *typeDescriptor) Namespace() ids.ObjectAddress {
-	if d.namespace != (ids.ObjectAddress{}) {
-		return d.namespace
+	if d.ObjectNamespace != (ids.ObjectAddress{}) {
+		return d.ObjectNamespace
 	}
 	return ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 }
@@ -130,7 +130,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	}
 	if t.Extension != (ids.ObjectAddress{}) {
 		parent, ok := view.Extension(t.Extension)
-		if !ok || parent.name != "intarray" || parent.TargetNamespace != t.Namespace() || !t.SQLType.IsQueryInt() {
+		if !ok || parent.Name() != "intarray" || parent.TargetNamespace != t.Namespace() || !t.SQLType.IsQueryInt() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
 		if err := stockIntarray.ValidateExtension(view, parent); err != nil {
@@ -141,10 +141,10 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {
 		relation, ok := view.Relation(t.OwningRelation)
-		if !ok || relation.namespace != t.Namespace() || relation.Owner != t.Owner {
+		if !ok || relation.Namespace() != t.Namespace() || relation.Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
 		}
-		if !t.SQLType.IsArray() && (relation.RowType != t.SQLType.ID() || relation.name != t.Name()) {
+		if !t.SQLType.IsArray() && (relation.RowType != t.SQLType.ID() || relation.Name() != t.Name()) {
 			return CatalogConflict{}
 		}
 		if t.SQLType.IsArray() && relation.RowType != t.SQLType.Element().ID() {
@@ -152,7 +152,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		}
 	}
 	if t.SQLType.IsUserDefined() || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined() {
-		if t.revision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return CatalogConflict{}
 		}
 	}
@@ -175,7 +175,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return err
 		}
 		actual, exists := view.LookupType(base.Type.ID())
-		if !exists || actual != base.Type || t.SQLType.Concrete() && (!base.Valid() || t.revision == 0) || t.Dimensions < 0 {
+		if !exists || actual != base.Type || t.SQLType.Concrete() && (!base.Valid() || t.ObjectRevision == 0) || t.Dimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
 		}
 		if err := validateDomainCheckDefinitions(view, t); err != nil {

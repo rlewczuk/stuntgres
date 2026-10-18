@@ -588,7 +588,7 @@ func validatePhysicalRowConstraints(relation *relationDescriptor, schema string,
 			if err != nil {
 				return err
 			}
-			return notNullDetailError(schema, relation.name, column.Name, detail)
+			return notNullDetailError(schema, relation.Name(), column.Name, detail)
 		}
 	}
 	if len(relation.CheckConstraints) != 0 {
@@ -601,7 +601,7 @@ func validatePhysicalRowConstraints(relation *relationDescriptor, schema string,
 			if err != nil {
 				return err
 			}
-			return checkDetailError(schema, relation.name, constraint.Name, detail)
+			return checkDetailError(schema, relation.Name(), constraint.Name, detail)
 		}
 	}
 	return nil

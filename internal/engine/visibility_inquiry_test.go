@@ -35,8 +35,8 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	// name candidates, without admitting unsupported native collation DDL.
 	a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20001}
 	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	first := &collationDescriptor{OID: 1, name: "same", Encoding: -1}
-	second := &collationDescriptor{OID: 2, name: "same", Encoding: 6}
+	first := &collationDescriptor{OID: 1, ObjectName: "same", Encoding: -1}
+	second := &collationDescriptor{OID: 2, ObjectName: "same", Encoding: 6}
 	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, names: map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
@@ -74,7 +74,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		t.Fatal("invalid fixed collation accepted")
 	}
 	conversion := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4402})
-	conversion.name = "made_up"
+	conversion.ObjectName = "made_up"
 	if err := (conversionProvider{}).Validate(view, &conversion); err == nil {
 		t.Fatal("invalid conversion accepted")
 	}

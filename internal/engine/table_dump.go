@@ -55,7 +55,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog Catalog
 
 func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
 	destination := partitionHashReplayTarget(catalog, t.descriptor)
-	qualified := quoteIdentifier(catalog.Get(destination.namespace).Name()) + "." + quoteIdentifier(destination.name)
+	qualified := quoteIdentifier(catalog.Get(destination.Namespace()).Name()) + "." + quoteIdentifier(destination.Name())
 	var line strings.Builder
 	for _, version := range t.versions {
 		if err := ctx.Err(); err != nil {

@@ -32,7 +32,7 @@ func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			}
 			row[i] = value
 		}
-		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.Name())
 		for i, n := range [2]int{d.Source, d.Destination} {
 			value, err := sqltype.Integer(source.Columns[i+4].Usage.Type, int64(n))
 			if err != nil {

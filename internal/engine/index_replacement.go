@@ -44,7 +44,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 				continue
 			}
-			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.name))
+			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.Name()))
 		}
 	}
 	rowID, versionID := e.nextRow, e.nextVersion
@@ -109,7 +109,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		}
 		schema := ""
 		if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
-			namespace := next.Get(parent.namespace)
+			namespace := next.Get(parent.Namespace())
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}

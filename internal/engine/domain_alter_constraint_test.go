@@ -21,7 +21,7 @@ func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ids.
 	}
 	for i := range f.uses {
 		use := &f.uses[i]
-		use.storage = e.storage[use.relation.address]
+		use.storage = e.storage[use.relation.Address()]
 		if use.storage == nil {
 			t.Fatal("missing physical use")
 		}
@@ -150,7 +150,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, arrayValue, composite}}}}
-	e.storage[table.address] = store
+	e.storage[table.Address()] = store
 	e.commitSeq = 3
 	// A permanently FALSE recipe proves pure retagging does not check old data.
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
@@ -166,7 +166,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 	}
 	if err == nil {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 	}
 	if err == nil {
 		err = stage.Replace(&next)
@@ -183,7 +183,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if !newD.DomainChecks[0].NotValid || !newChild.SQLType.HasDomainChecks() || newD.SQLType.ID() != d.SQLType.ID() || newChild.SQLType.ID() != child.SQLType.ID() || newChild.SQLType.DomainBase().Type != newD.SQLType {
 		t.Fatal("same-ID checked ancestry lost")
 	}
-	mapped := e.storage[table.address]
+	mapped := e.storage[table.Address()]
 	if mapped == store || mapped.versions[0].values[0].Type() != newChild.SQLType || store.versions[0].values[0].Type() != child.SQLType || d.SQLType.HasDomainChecks() {
 		t.Fatal("old row/type roots mutated")
 	}

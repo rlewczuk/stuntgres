@@ -24,7 +24,7 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t ORDER BY a")
 	run(t, e, "ALTER TABLE t DROP COLUMN b RESTRICT")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.address != old.address || next.revision != old.revision+1 || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || next.Index["c"] != 1 || len(old.Columns) != 3 || len(original.versions[0].values) != 3 {
+	if next == old || next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || next.Index["c"] != 1 || len(old.Columns) != 3 || len(original.versions[0].values) != 3 {
 		t.Fatal(old, next)
 	}
 	for i, row := range e.storage[ref.Address].versions {
@@ -66,7 +66,7 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, 
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.Columns = append([]ColumnDescriptor(nil), old.Columns[0])
 	next.Attributes = []int32{1}
 	next.Index = map[string]int{"a": 0}
@@ -297,7 +297,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 		t.Fatal(err)
 	}
 	maximum := *old.(*relationDescriptor)
-	maximum.revision = ids.DefinitionRevision(^uint64(0))
+	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Replace(&maximum); err != nil {
 		t.Fatal(err)

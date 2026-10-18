@@ -68,7 +68,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 					t.Fatal(allocationErr)
 				}
 				next := *originalView
-				next.address.ObjectID, next.name, next.revision = oid, "late_view", revision
+				next.ObjectAddress.ObjectID, next.ObjectName, next.ObjectRevision = oid, "late_view", revision
 				next.RowType = 0
 				definition := *viewOf(originalView)
 				definition.rule = rule
@@ -95,7 +95,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: table.Epoch}); err != nil {
 					t.Fatal(err)
 				}
-				added = next.address
+				added = next.Address()
 			}}
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+action), nil)
 			var conflict CatalogConflict

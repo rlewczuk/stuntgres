@@ -49,7 +49,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if got := borrow.mapValues(physical); &got[0] != &physical[0] {
 		t.Fatal("identity copied")
 	}
-	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*inheritanceQuerySegment{child.address: &back}}
+	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*inheritanceQuerySegment{child.Address(): &back}}
 	state.physicalRow = state.rowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
 	scope := StatementScope{statementMutation: statementMutation{partitionInsert: &state}}
@@ -78,7 +78,7 @@ func TestPartitionAttachSchema(t *testing.T) {
 	if next == child || next.NotNullConstraints[0].Name != "child_nn" || next.NotNullConstraints[0].OID != 32101 || next.NotNullConstraints[0].PartitionLocal || !child.NotNullConstraints[0].PartitionLocal {
 		t.Fatal("NN identity or source changed")
 	}
-	next.Membership = &partitionMembership{Parent: parent.address}
+	next.Membership = &partitionMembership{Parent: parent.Address()}
 	view = inheritanceUnitView(e, parent, next)
 	local, count := nonuniqueConstraintProvenance(view, next, "child_nn", 2, false)
 	if local || count != 1 {
@@ -112,7 +112,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	}
 	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}}
 	view := inheritanceUnitView(e, parent, child)
-	ref := e.catalog.Domain.Ref(view.Epoch(), child.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), child.Address())
 	ref.Address.SubID = 1
 	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	boolean := testUsage(e, sqltype.Bool)
@@ -138,7 +138,7 @@ func TestPartitionAttachProof(t *testing.T) {
 		return logicalExpression{Info: expr.Info{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
-	bound := &partitionMembership{Parent: parent.address, Lower: []partitionDatum{{Value: value(1)}}, Upper: []partitionDatum{{Value: value(3)}}}
+	bound := &partitionMembership{Parent: parent.Address(), Lower: []partitionDatum{{Value: value(1)}}, Upper: []partitionDatum{{Value: value(3)}}}
 	scope := &StatementScope{op: op}
 	check := func(exclude, want bool) {
 		t.Helper()

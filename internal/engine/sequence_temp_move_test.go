@@ -43,12 +43,12 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				case "TempToPublic":
 					source, target = "own_temp", "public"
 				case "OwnIdentity":
-					target = e.catalog.state.MustNamespace(a.temporaryNamespace).name
+					target = e.catalog.state.MustNamespace(a.temporaryNamespace).Name()
 				case "PeerIdentity", "PeerCreate":
-					target = e.catalog.state.MustNamespace(b.temporaryNamespace).name
+					target = e.catalog.state.MustNamespace(b.temporaryNamespace).Name()
 				case "TempSameIdentity":
 					source = "own_temp"
-					target = e.catalog.state.MustNamespace(a.temporaryNamespace).name
+					target = e.catalog.state.MustNamespace(a.temporaryNamespace).Name()
 				}
 				ast, held := sequencePreparedDescription(t, e, a, "SELECT nextval('"+source+"')")
 				ref := held.sequences.constants[0].ref
@@ -166,7 +166,7 @@ func TestSequenceTemporaryMovePrecedenceAndPersistentMove(t *testing.T) {
 				t.Fatal("ordinary persistent move", err)
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.address != before.address || after.namespace == before.namespace || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
+			if after.Address() != before.Address() || after.Namespace() == before.Namespace() || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
 				t.Fatal("persistent move changed identity/options/cache or failed to invalidate")
 			}
 			_, err = sequencePreparedExecute(e, s, ast, &held)

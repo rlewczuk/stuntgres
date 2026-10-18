@@ -40,15 +40,15 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("member count", ext.Members)
 	}
 	proc := view.MustProcedure(ext.Members[0])
-	if proc.namespace != ext.TargetNamespace || proc.Extension != ext.address || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
 	addresses := map[ids.ObjectAddress]bool{}
 	for _, address := range ext.Members {
 		member := view.MustProcedure(address)
-		key := member.name + ":" + string(member.Signature)
-		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.namespace != ext.TargetNamespace || member.Extension != ext.address || member.Volatility != expr.Immutable || !member.Strict || member.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		key := member.Name() + ":" + string(member.Signature)
+		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || member.fuzzystrmatchProvider() != stockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
 		}
 		delete(expected, key)
@@ -71,7 +71,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	}
 	members := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			if !addresses[edge.dependent] {
 				t.Fatal("foreign member edge")
 			}
@@ -82,24 +82,24 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("membership edges", members)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.name = "text_soundex" }, func(p *procedureDescriptor) { p.Signature = "23" },
+		func(p *procedureDescriptor) { p.ObjectName = "text_soundex" }, func(p *procedureDescriptor) { p.Signature = "23" },
 		func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Volatility = expr.Stable },
 		func(p *procedureDescriptor) { p.Strict = false }, func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
 		func(p *procedureDescriptor) { p.Implementation = stockIntarray }, func(p *procedureDescriptor) {
 			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
+		func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
+		func(p *procedureDescriptor) { p.Dictionary = ext.Address() }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 	} {
 		state := cloneCatalog(e.catalog.state)
 		bad := *proc
 		mutate(&bad)
-		state.setDescriptor(proc.address, &bad)
+		state.setDescriptor(proc.Address(), &bad)
 		if err := stockFuzzystrmatch.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
-	for _, members := range [][]ids.ObjectAddress{nil, {proc.address, proc.address}, {{ClassID: ids.TypeClassID, ObjectID: proc.address.ObjectID}}} {
+	for _, members := range [][]ids.ObjectAddress{nil, {proc.Address(), proc.Address()}, {{ClassID: ids.TypeClassID, ObjectID: proc.Address().ObjectID}}} {
 		bad := *ext
 		bad.Members = members
 		if err := stockFuzzystrmatch.ValidateExtension(view, &bad); err == nil {
@@ -167,14 +167,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		op, closeOwner := extensionTemporaryOperation(t, e, "postgres")
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
-		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.name))
+		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.Name()))
 		ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 		if err := stockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
 		member := ext.Members[0]
 		closeOwner()
-		if e.catalog.state.Get(ext.address) != nil || e.catalog.state.Get(member) != nil {
+		if e.catalog.state.Get(ext.Address()) != nil || e.catalog.state.Get(member) != nil {
 			t.Fatal("TEMP provider survived owner retirement")
 		}
 		for _, address := range ext.Members {
@@ -344,7 +344,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.Address() || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

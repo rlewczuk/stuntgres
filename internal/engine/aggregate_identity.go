@@ -37,14 +37,14 @@ func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
 
 func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg aggregate metadata") }
-	if proc.name != "int_array_aggregate" {
+	if proc.Name() != "int_array_aggregate" {
 		if proc.Aggregate != nil {
 			return invalid()
 		}
 		return nil
 	}
 	owned := proc.Aggregate
-	if owned == nil || owned.Definition != intaggDefinition(proc.address.ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
+	if owned == nil || owned.Definition != intaggDefinition(proc.Address().ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
 		return invalid()
 	}
 	for i, helper := range owned.Helpers {
@@ -52,7 +52,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 		if i == 1 {
 			name, signature = "int_agg_final_array", "2281"
 		}
-		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != proc.namespace.ObjectID || helper.Name != name || helper.Signature != signature {
+		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != proc.Namespace().ObjectID || helper.Name != name || helper.Signature != signature {
 			return invalid()
 		}
 		if _, builtin := routineByOID[helper.ID]; builtin {
@@ -70,7 +70,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 				}
 			}
 		}
-		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.namespace, Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
+		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.Namespace(), Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}

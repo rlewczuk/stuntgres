@@ -26,14 +26,14 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		d    Descriptor
 		want authorization.Privileges
 	}{
-		{&namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, name: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, name: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, name: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, name: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, name: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, name: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: indexRelation}, 0},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, name: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
-		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, name: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
+		{&namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, ObjectName: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: tableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, ObjectName: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, ObjectName: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100005}, ObjectName: "sequence", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100006}, ObjectName: "index", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: indexRelation}, 0},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, ObjectName: "catalog", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalogRelation}, authorization.SelectPrivilege},
+		{&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, ObjectName: "provider", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: viewRelation, VirtualView: true}, authorization.SelectPrivilege},
 	}
 	state := cloneCatalog(e.catalog.state)
 	for _, tc := range descriptors {
@@ -69,7 +69,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumn := *table
 	withColumn.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
-	withColumnState.setDescriptor(table.address, &withColumn)
+	withColumnState.setDescriptor(table.Address(), &withColumn)
 	v.catalog = e.catalog.read(withColumnState)
 	v.recaptureCatalog(v.catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
@@ -86,26 +86,26 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	fresh := v
 	fresh.roleRecord = e.roles
 	fresh.roles = e.roleRead(fresh.catalog, e.roles)
-	if got, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.address), false); err != nil || got != 0 {
+	if got, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
-	if got, err := v.Effective(e.catalog.Domain.Ref(state.epoch, table.address), false); err != nil || got != descriptors[1].want {
+	if got, err := v.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err != nil || got != descriptors[1].want {
 		t.Fatal("retained authority changed", got, err)
 	}
-	for _, ref := range []ids.ObjectRef{New().catalog.Domain.Ref(state.epoch, table.address), e.catalog.Domain.Ref(state.epoch+1, table.address), e.catalog.Domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
+	for _, ref := range []ids.ObjectRef{New().catalog.Domain.Ref(state.epoch, table.Address()), e.catalog.Domain.Ref(state.epoch+1, table.Address()), e.catalog.Domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
 		if _, err := v.Effective(ref, false); err == nil {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
 	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
-	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
 	fresh.roleRecord = e.roles
 	fresh.state.CurrentUser = reader.Ref
-	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.epoch, table.Address()), false); err == nil {
 		t.Fatal("capability accepted retired actor")
 	}
 }

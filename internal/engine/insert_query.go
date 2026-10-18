@@ -17,7 +17,7 @@ func bindInsertTargets(relation *relationDescriptor, targets []parser.InsertTarg
 	for i, target := range targets {
 		slot, ok := relation.Index[target.Name]
 		if !ok {
-			return insertError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, target.Name, relation.name), target.Pos)
+			return insertError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, target.Name, relation.Name()), target.Pos)
 		}
 		for _, previous := range targets[:i] {
 			if previous.Name == target.Name && (len(previous.Steps) == 0 || len(target.Steps) == 0) {
@@ -43,7 +43,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		for i, descriptor := range out.relation.Columns {
 			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 		}
-		target := queryQualifier{name: out.relation.name, original: out.relation.name, ref: out.ref, columns: columns, schema: auth.catalog.Get(out.relation.namespace).Name(), lateralForbidden: true}
+		target := queryQualifier{name: out.relation.Name(), original: out.relation.Name(), ref: out.ref, columns: columns, schema: auth.catalog.Get(out.relation.Namespace()).Name(), lateralForbidden: true}
 		binder.queryHidden = append(binder.queryHidden, target)
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources

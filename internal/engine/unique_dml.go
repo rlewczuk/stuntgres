@@ -65,7 +65,7 @@ retry:
 	var checkedNonunique []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address || !index.SQLIndex.Live {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Live {
 			continue
 		}
 		if index.SQLIndex.Ready && index.SQLIndex.requiresInsertionOutput() {
@@ -107,10 +107,10 @@ retry:
 		}
 	}
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -171,10 +171,10 @@ retry:
 			b.insertion = append(b.insertion, bound)
 		}
 		slices.SortFunc(b.insertion, func(a, b indexInsertionBinding) int {
-			if a.index.address.ObjectID < b.index.address.ObjectID {
+			if a.index.Address().ObjectID < b.index.Address().ObjectID {
 				return -1
 			}
-			if a.index.address.ObjectID > b.index.address.ObjectID {
+			if a.index.Address().ObjectID > b.index.Address().ObjectID {
 				return 1
 			}
 			return 0
@@ -275,7 +275,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = index.address
+		indexRef.Address = index.Address()
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return err
 		}
@@ -373,7 +373,7 @@ retry:
 			insertion := &binding.insertion[i]
 			if insertion.unique == nil {
 				if purpose == indexProbeRevalidation {
-					if output, exists := candidate.indexes[insertion.index.address]; !exists || !output.matches(insertion.index) {
+					if output, exists := candidate.indexes[insertion.index.Address()]; !exists || !output.matches(insertion.index) {
 						return uniqueConflict{}, ids.ErrCatalogReplaced
 					}
 				} else if err := candidate.materializeInsertion(insertion, &evaluation); err != nil {
@@ -392,7 +392,7 @@ retry:
 			}
 			continue
 		}
-		if action != nil && !slices.Contains(action.selected, index.address) {
+		if action != nil && !slices.Contains(action.selected, index.Address()) {
 			continue
 		}
 		member, key, err := candidate.uniqueOutput(bound, &evaluation, action != nil, purpose)
@@ -406,7 +406,7 @@ retry:
 			continue
 		}
 		indexRef := ref
-		indexRef.Address = index.address
+		indexRef.Address = index.Address()
 		if err := s.acquireUnique(indexRef, bound, key); err != nil {
 			return uniqueConflict{}, err
 		}
@@ -422,8 +422,8 @@ retry:
 			goto retry
 		}
 		currentParent, parentOK := current.Relation(ref.Address)
-		currentIndex, indexOK := current.Relation(index.address)
-		if !parentOK || !indexOK || currentParent.revision != parent.revision || !sameRelationRowShape(parent, currentParent) || currentIndex.revision != index.revision || !sameIndexKeySemantics(index, currentIndex) {
+		currentIndex, indexOK := current.Relation(index.Address())
+		if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !sameRelationRowShape(parent, currentParent) || currentIndex.Revision() != index.Revision() || !sameIndexKeySemantics(index, currentIndex) {
 			e.mu.Unlock()
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
@@ -431,10 +431,10 @@ retry:
 		auth, err := s.writeAuthorizationLocked(e)
 		auth.catalog = current
 		auth.recaptureCatalog(auth.catalog)
-		namespace, _ := current.Namespace(parent.namespace)
-		root := e.indexRoots[index.address]
+		namespace, _ := current.Namespace(parent.Namespace())
+		root := e.indexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {
-			if private := changes.uniqueRoots[index.address]; private != nil {
+			if private := changes.uniqueRoots[index.Address()]; private != nil {
 				root = private
 			}
 		}
@@ -459,7 +459,7 @@ retry:
 		if root == nil {
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
-		outcome := uniqueConflict{parent: parent, index: index, key: key, auth: auth, view: current, schema: namespace.name}
+		outcome := uniqueConflict{parent: parent, index: index, key: key, auth: auth, view: current, schema: namespace.Name()}
 		lo, hi := 0, len(root.entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2

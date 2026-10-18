@@ -23,7 +23,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescr
 	var provider, survivor, index *relationDescriptor
 	for _, d := range e.catalog.state.Descriptors() {
 		if r, ok := d.(*relationDescriptor); ok {
-			switch r.name {
+			switch r.Name() {
 			case "shape_provider":
 				provider = r
 			case "shape_survivor":
@@ -33,7 +33,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *relationDescr
 			}
 		}
 	}
-	if provider == nil || survivor == nil || index == nil || len(survivor.Generations) != 1 || e.indexRoots[index.address] == nil {
+	if provider == nil || survivor == nil || index == nil || len(survivor.Generations) != 1 || e.indexRoots[index.Address()] == nil {
 		t.Fatal("missing genuine generated/index fixture")
 	}
 	return e, owner, provider, survivor, index
@@ -43,11 +43,11 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), provider.address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), provider.Address())
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	indexes, err := e.prepareTemporarySessionIndexes(stage)
@@ -60,14 +60,14 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 func temporaryProjectionInstall(e *Engine, owner *Session, provider *relationDescriptor, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.namespace}, indexes)
+	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.Namespace()}, indexes)
 }
 
 func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 	for _, mode := range []string{"CurrentRows", "AffectedIndexRoot", "UnrelatedRoot"} {
 		t.Run(mode, func(t *testing.T) {
 			e, owner, provider, survivor, index := temporaryProjectionFixture(t)
-			oldRows := e.storage[survivor.address].versions
+			oldRows := e.storage[survivor.Address()].versions
 			stage, indexes := temporaryProjectionStage(t, e, provider)
 			captured := e.catalog.state
 			var unrelated ids.ObjectAddress
@@ -76,11 +76,11 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			case "CurrentRows":
 				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
 			case "AffectedIndexRoot":
-				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, survivor, index.SQLIndex, e.storage[survivor.address], nil)
+				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, survivor, index.SQLIndex, e.storage[survivor.Address()], nil)
 				if err != nil {
 					t.Fatal(err)
 				}
-				e.indexRoots[index.address] = root
+				e.indexRoots[index.Address()] = root
 			case "UnrelatedRoot":
 				sessionSQL(t, owner, "CREATE TABLE public.shape_unrelated(v INT)")
 				sessionSQL(t, owner, "CREATE INDEX shape_unrelated_v ON public.shape_unrelated(v)")
@@ -104,7 +104,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 				t.Fatal("terminal predecessor decision", mode, installed, err)
 			}
 			if !installed {
-				if e.catalog.state != captured || e.catalog.state.Get(survivor.address) != survivor || e.catalog.state.Get(provider.address) != provider {
+				if e.catalog.state != captured || e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(provider.Address()) != provider {
 					t.Fatal("stale shape mutated catalog")
 				}
 				e.DiscardCatalogStage(stage)
@@ -114,8 +114,8 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 					t.Fatal("reprepared shape failed", err)
 				}
 			}
-			next := e.catalog.state.MustRelation(survivor.address)
-			rows := e.storage[survivor.address].versions
+			next := e.catalog.state.MustRelation(survivor.Address())
+			rows := e.storage[survivor.Address()].versions
 			if len(next.Columns) != 2 || next.Columns[1].Name != "z" || len(next.Generations) != 0 || len(oldRows) != 1 || len(oldRows[0].values) != 3 {
 				t.Fatal("shape/snapshot incoherent")
 			}
@@ -132,7 +132,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			if mode == "UnrelatedRoot" && e.indexRoots[unrelated] != unrelatedRoot {
 				t.Fatal("unrelated row/index publication overwritten")
 			}
-			if e.indexRoots[index.address] == indexes.previous[index.address] {
+			if e.indexRoots[index.Address()] == indexes.previous[index.Address()] {
 				t.Fatal("affected dense-slot index root reused")
 			}
 			e.DiscardCatalogStage(stage)
@@ -143,33 +143,33 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	e, owner, provider, survivor, index := temporaryProjectionFixture(t)
 	original := e.catalog.state
-	originalStore := e.storage[survivor.address]
+	originalStore := e.storage[survivor.Address()]
 	retained := originalStore.versions
 	maximum := *survivor
-	maximum.revision = ids.DefinitionRevision(^uint64(0))
+	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	maximumIndex := *index
-	maximumIndex.revision = ids.DefinitionRevision(^uint64(0))
+	maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	maximumStore := *originalStore
 	maximumStore.generation = ^uint64(0)
 	e.catalog.state = cloneCatalog(original)
-	e.catalog.state.setDescriptor(survivor.address, &maximum)
-	e.catalog.state.setDescriptor(index.address, &maximumIndex)
-	e.storage[survivor.address] = &maximumStore
+	e.catalog.state.setDescriptor(survivor.Address(), &maximum)
+	e.catalog.state.setDescriptor(index.Address(), &maximumIndex)
+	e.storage[survivor.Address()] = &maximumStore
 	t.Cleanup(func() {
-		if e.catalog.state.Get(provider.address) != nil {
+		if e.catalog.state.Get(provider.Address()) != nil {
 			e.catalog.state = original
-			e.storage[survivor.address] = originalStore
+			e.storage[survivor.Address()] = originalStore
 		}
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
-	projected := stage.rowShapes[survivor.address].replacement
-	next := stage.descriptors[survivor.address].(*relationDescriptor)
-	nextIndex := stage.descriptors[index.address].(*relationDescriptor)
-	if next == &maximum || next.revision != maximum.revision || nextIndex == &maximumIndex || nextIndex.revision != maximumIndex.revision || projected == &maximumStore || projected.generation != maximumStore.generation || projected.ends != maximumStore.ends || sameVersionRoot(projected.versions, retained) {
+	projected := stage.rowShapes[survivor.Address()].replacement
+	next := stage.descriptors[survivor.Address()].(*relationDescriptor)
+	nextIndex := stage.descriptors[index.Address()].(*relationDescriptor)
+	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.generation != maximumStore.generation || projected.ends != maximumStore.ends || sameVersionRoot(projected.versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}
-	oldRoot := indexes.previous[index.address]
-	if indexes.roots[index.address] == oldRoot {
+	oldRoot := indexes.previous[index.Address()]
+	if indexes.roots[index.Address()] == oldRoot {
 		t.Fatal("maximum index root reused")
 	}
 	// A real changed root invalidates the prepared attempt even at equal maxima.
@@ -177,20 +177,20 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.indexRoots[index.address] = changedRoot
+	e.indexRoots[index.Address()] = changedRoot
 	installed, err := temporaryProjectionInstall(e, owner, provider, stage, indexes)
 	if err != nil || installed {
 		t.Fatal("maximum stale index attempt installed", installed, err)
 	}
-	e.indexRoots[index.address] = oldRoot
+	e.indexRoots[index.Address()] = oldRoot
 	installed, err = temporaryProjectionInstall(e, owner, provider, stage, indexes)
 	if err != nil || !installed {
 		t.Fatal("maximum full-stage install", installed, err)
 	}
-	if e.catalog.nextRevision != maximum.revision || len(retained[0].values) != 3 || len(e.storage[survivor.address].versions[0].values) != 2 {
+	if e.catalog.nextRevision != maximum.Revision() || len(retained[0].values) != 3 || len(e.storage[survivor.Address()].versions[0].values) != 2 {
 		t.Fatal("maximum frontier/retained shape")
 	}
-	root := e.indexRoots[index.address]
+	root := e.indexRoots[index.Address()]
 	if len(root.entries) != 1 || len(root.entries[0].keys) != 1 {
 		t.Fatal("maximum rebuilt index entries")
 	}
@@ -198,7 +198,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if er != nil || key != 9 {
 		t.Fatal("maximum dense-slot index key", key, er)
 	}
-	value, er := e.storage[survivor.address].versions[0].values[1].Integer()
+	value, er := e.storage[survivor.Address()].versions[0].values[1].Integer()
 	if er != nil || value != 9 {
 		t.Fatal("maximum projected z", value, er)
 	}
@@ -218,7 +218,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	before := cloneCatalogChanges(owner.transactions.catalog)
 	var address ids.ObjectAddress
 	for a, d := range before.descriptors {
-		if relation, ok := d.(*relationDescriptor); ok && relation.name == "private_shape" {
+		if relation, ok := d.(*relationDescriptor); ok && relation.Name() == "private_shape" {
 			address = a
 			break
 		}
@@ -250,31 +250,31 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 		t.Run(counter, func(t *testing.T) {
 			e, _, provider, survivor, index := temporaryProjectionFixture(t)
 			original := e.catalog.state
-			store := e.storage[survivor.address]
+			store := e.storage[survivor.Address()]
 			maximum := *survivor
 			maximumIndex := *index
 			maximumStore := *store
 			e.catalog.state = cloneCatalog(original)
 			switch counter {
 			case "Table":
-				maximum.revision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.setDescriptor(survivor.address, &maximum)
+				maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
+				e.catalog.state.setDescriptor(survivor.Address(), &maximum)
 			case "Storage":
 				maximumStore.generation = ^uint64(0)
-				e.storage[survivor.address] = &maximumStore
+				e.storage[survivor.Address()] = &maximumStore
 			case "Index":
-				maximumIndex.revision = ids.DefinitionRevision(^uint64(0))
-				e.catalog.state.setDescriptor(index.address, &maximumIndex)
+				maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
+				e.catalog.state.setDescriptor(index.Address(), &maximumIndex)
 			}
 			captured := e.catalog.state
 			t.Cleanup(func() {
-				if e.catalog.state.Get(provider.address) != nil {
+				if e.catalog.state.Get(provider.Address()) != nil {
 					e.catalog.state = original
-					e.storage[survivor.address] = store
+					e.storage[survivor.Address()] = store
 				}
 			})
 			stage := e.BeginCatalogStage(e.CatalogRead())
-			err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
+			err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
 			if err == nil {
 				e.mu.Lock()
 				err = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
@@ -298,24 +298,24 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			definition.Ready, definition.Valid = ready, false
 			changed.SQLIndex = &definition
 			e.catalog.state = cloneCatalog(e.catalog.state)
-			e.catalog.state.setDescriptor(index.address, &changed)
-			previous := e.indexRoots[index.address]
+			e.catalog.state.setDescriptor(index.Address(), &changed)
+			previous := e.indexRoots[index.Address()]
 			if !ready {
-				delete(e.indexRoots, index.address)
+				delete(e.indexRoots, index.Address())
 			}
 			stage, indexes := temporaryProjectionStage(t, e, provider)
 			installed, err := temporaryProjectionInstall(e, owner, provider, stage, indexes)
 			if err != nil || !installed {
 				t.Fatal("concurrent flag projection", installed, err)
 			}
-			next := e.catalog.state.MustRelation(index.address)
+			next := e.catalog.state.MustRelation(index.Address())
 			if next.SQLIndex.Ready != ready || next.SQLIndex.Valid || next.SQLIndex.Live != definition.Live {
 				t.Fatal("shape cleanup healed concurrent flags")
 			}
-			if ready && (e.indexRoots[index.address] == nil || e.indexRoots[index.address] == previous) || !ready && e.indexRoots[index.address] != nil {
+			if ready && (e.indexRoots[index.Address()] == nil || e.indexRoots[index.Address()] == previous) || !ready && e.indexRoots[index.Address()] != nil {
 				t.Fatal("concurrent root policy changed")
 			}
-			if len(e.storage[survivor.address].versions[0].values) != 2 {
+			if len(e.storage[survivor.Address()].versions[0].values) != 2 {
 				t.Fatal("concurrent survivor not projected")
 			}
 			e.DiscardCatalogStage(stage)
@@ -337,14 +337,14 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 	}
 	var survivor *relationDescriptor
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.name == "shape_survivor" {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.Name() == "shape_survivor" {
 			survivor = table
 		}
 	}
 	sessionSQL(t, owner, "INSERT INTO shape_survivor(a,z) VALUES(8,10)")
 	frozen := sessionSQL(t, owner, "SELECT * FROM shape_survivor ORDER BY a").Rows.(*finalRows)
 	defer frozen.Close()
-	original := e.storage[survivor.address].versions
+	original := e.storage[survivor.Address()].versions
 	check := func(phase string) {
 		t.Helper()
 		copy := independentFinalRows(frozen)

@@ -106,7 +106,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.name != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.revision == 0 || len(captured.Body) != 0 || ext.name != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.namespace != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -114,7 +114,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			for _, dep := range original {
 				if dep.Ref.Address == ref.Address {
 					found = true
-					if dep.Ref != ref || dep.Revision != captured.revision {
+					if dep.Ref != ref || dep.Revision != captured.Revision() {
 						t.Fatal("original ref/revision mismatch")
 					}
 				} else if dep.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -262,7 +262,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					// Transfer the actual selected ref before descriptor retagging; no old OID
 					// can resolve in this relocated catalog.
-					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ids.ExtensionClassID, 900000, 0}}
+					mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ids.ExtensionClassID, 900000, 0}}
 					for i, a := range ext.Members {
 						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
 					}
@@ -364,8 +364,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	transferred := e.catalog.state.MustProcedure(member.address)
-	if transferred.Owner != source.Ref || transferred == member || e.catalog.state.Get(ext.address) != ext || e.catalog.state.Get(ext.Members[1]) != sibling {
+	transferred := e.catalog.state.MustProcedure(member.Address())
+	if transferred.Owner != source.Ref || transferred == member || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.Get(ext.Members[1]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
 	if err := stockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
@@ -425,8 +425,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal("member reassignment", result, err)
 	}
-	reassigned := e.catalog.state.MustProcedure(member.address)
-	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.catalog.state.Get(ext.Members[1]) != sibling || original.Get(member.address) != member {
+	reassigned := e.catalog.state.MustProcedure(member.Address())
+	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.catalog.state.Get(ext.Members[1]) != sibling || original.Get(member.Address()) != member {
 		t.Fatal("ownership generations mutated")
 	}
 	if err := stockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {

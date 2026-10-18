@@ -22,7 +22,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	queryCreatePublish(t, e, parentStage)
 	inherit := func(d *relationDescriptor) {
-		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
+		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
@@ -30,8 +30,8 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
-	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.address)
-	oldStorage := e.storage[c.address]
+	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
+	oldStorage := e.storage[c.Address()]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -62,8 +62,8 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.address)
-	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage[p.address]}
+	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -101,10 +101,10 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, replacementStage)
-	if replacement.address == c.address || e.storage[replacement.address] == oldStorage || e.storage[c.address] != nil {
+	if replacement.Address() == c.Address() || e.storage[replacement.Address()] == oldStorage || e.storage[c.Address()] != nil {
 		t.Fatal("replacement did not change physical identity and storage")
 	}
-	if children := inheritanceChildren(e.CatalogRead(), p.address); len(children) != 1 || children[0] != replacement {
+	if children := inheritanceChildren(e.CatalogRead(), p.Address()); len(children) != 1 || children[0] != replacement {
 		t.Fatal("replacement graph not published")
 	}
 	if err = holder.Finish(nil); err != nil {

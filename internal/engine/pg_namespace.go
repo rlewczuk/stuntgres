@@ -15,7 +15,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
@@ -50,7 +50,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if err := (namespaceProvider{}).Validate(catalog, ns); err != nil {
 			return nil, err
 		}
-		if address != ns.address {
+		if address != ns.Address() {
 			return nil, fmt.Errorf("stuntgres: invalid namespace address authority")
 		}
 		if _, err := roles.Descriptor(ns.Owner); err != nil {
@@ -59,7 +59,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if ns.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable namespace owner")
 		}
-		oid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(ns.address.ObjectID))
+		oid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(ns.Address().ObjectID))
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.Columns[1].Usage.Type, ns.name), owner, acl})
+		rows = append(rows, []sqltype.Value{oid, sqltype.String(source.Columns[1].Usage.Type, ns.Name()), owner, acl})
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

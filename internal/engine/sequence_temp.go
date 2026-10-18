@@ -34,7 +34,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 }
 
 func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
-	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.address
+	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.Address()
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
@@ -73,7 +73,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
 		db := auth.catalog.MustDatabase(currentDatabaseAddress)
-		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
+		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
@@ -92,16 +92,16 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.authorizationDomain.Principal(10)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), revision: rev, Owner: owner, Temporary: auth.session.token}
-	toast := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), revision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
+	toast := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
 	if c.originals == nil {
 		c.originals = make(map[ids.ObjectAddress]Descriptor)
 		c.descriptors = make(map[ids.ObjectAddress]Descriptor)
 		c.names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
-	e.catalogChangeLocked(c, ns.address, ns)
-	e.catalogChangeLocked(c, toast.address, toast)
-	return e.catalog.Domain.Ref(e.catalog.state.epoch, ns.address), nil
+	e.catalogChangeLocked(c, ns.Address(), ns)
+	e.catalogChangeLocked(c, toast.Address(), toast)
+	return e.catalog.Domain.Ref(e.catalog.state.epoch, ns.Address()), nil
 }
 
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.

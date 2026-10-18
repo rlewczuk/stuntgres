@@ -11,7 +11,7 @@ import (
 
 func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
 	if relation.OfType != (ids.ObjectAddress{}) {
-		id, err := dumpPredecessor(view, relation.OfType, relation.address)
+		id, err := dumpPredecessor(view, relation.OfType, relation.Address())
 		if err != nil {
 			return nil, err
 		}
@@ -20,7 +20,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 		}
 	}
 	for _, column := range relation.Columns {
-		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.address)
+		id, err := dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())}, relation.Address())
 		if err != nil {
 			return nil, err
 		}
@@ -40,9 +40,9 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authori
 	if err != nil {
 		return dumpDomain{}, err
 	}
-	namespace := view.Get(relation.namespace).Name()
+	namespace := view.Get(relation.Namespace()).Name()
 	var sql strings.Builder
-	sql.WriteString("CREATE TYPE " + quoteIdentifier(namespace) + "." + quoteIdentifier(relation.name) + " AS (")
+	sql.WriteString("CREATE TYPE " + quoteIdentifier(namespace) + "." + quoteIdentifier(relation.Name()) + " AS (")
 	for i, c := range relation.Columns {
 		if err := ctx.Err(); err != nil {
 			return dumpDomain{}, err

@@ -43,7 +43,7 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	}
 	root := e.indexRoots[f.Index]
 	original := slices.Clone(root.entries)
-	rows := foreignKeyRows{committed: e.storage[parent.address].versions, ends: e.storage[parent.address].ends, frontier: e.commitSeq, root: root, index: f.Index}
+	rows := foreignKeyRows{committed: e.storage[parent.Address()].versions, ends: e.storage[parent.Address()].ends, frontier: e.commitSeq, root: root, index: f.Index}
 	missing := e.storage[catalogRef(t, e, view, "probe_input").Address].versions[0].values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	if _, err := bindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
-	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.ForeignKeys[0].Index != index.address {
+	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.ForeignKeys[0].Index != index.Address() {
 		t.Fatal("binding changed the source attachment")
 	}
 	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
@@ -166,7 +166,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	}
 	sessionSQL(t, s, "ALTER TABLE c ALTER pid TYPE BIGINT")
 	next := e.CatalogRead().MustRelation(childRef.Address)
-	if next == child || next.ForeignKeys[0].OID == f.OID || next.ForeignKeys[0].Index != f.Index || next.ForeignKeys[0].Target != parent.address || e.CatalogRead().Get(index.address) != index {
+	if next == child || next.ForeignKeys[0].OID == f.OID || next.ForeignKeys[0].Index != f.Index || next.ForeignKeys[0].Target != parent.Address() || e.CatalogRead().Get(index.Address()) != index {
 		t.Fatal("successful child TYPE lost stable supporting/target identities", next.ForeignKeys[0], f)
 	}
 	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) {

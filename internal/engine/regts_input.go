@@ -87,10 +87,10 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 		address := r.auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text})
 		if d, ok := r.auth.catalog.TSDictionary(address); ok {
 			if r.resolved != nil {
-				ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), d.address)
-				*r.resolved = append(*r.resolved, expressionDependency{Ref: ref, Revision: d.revision})
+				ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), d.Address())
+				*r.resolved = append(*r.resolved, expressionDependency{Ref: ref, Revision: d.Revision()})
 			}
-			return uint32(d.address.ObjectID), nil
+			return uint32(d.Address().ObjectID), nil
 		}
 	}
 	return 0, sqlError("42704", "text search dictionary \""+spelling+"\" does not exist")

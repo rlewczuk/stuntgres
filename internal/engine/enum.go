@@ -82,8 +82,8 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{SQLType: typ, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
+	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }

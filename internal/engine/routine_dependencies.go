@@ -32,7 +32,7 @@ func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) er
 		return err
 	}
 	return walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
-		current, ok := r.descriptor(view, body.address).(*procedureDescriptor)
+		current, ok := r.descriptor(view, body.Address()).(*procedureDescriptor)
 		if !ok || !sameRoutineDeclaration(current, body) {
 			return fmt.Errorf("stuntgres: stale stored SQL body declaration")
 		}
@@ -47,7 +47,7 @@ func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured
 	if err != nil {
 		return err
 	}
-	ref := view.owner.Domain.Ref(view.Epoch(), current.address)
+	ref := view.owner.Domain.Ref(view.Epoch(), current.Address())
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address {
 			if !storedReferenceEpochValid(view, r.retainedConsumer(), old) {
@@ -59,7 +59,7 @@ func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured
 	}
 	for _, old := range r.capturedChecks {
 		if old.Ref.Address == ref.Address {
-			if !storedReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || current.revision != old.Revision {
+			if !storedReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || current.Revision() != old.Revision {
 				return fmt.Errorf("stuntgres: stale stored routine dependency")
 			}
 			r.record(old.Ref)

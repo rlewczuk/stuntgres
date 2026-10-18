@@ -12,17 +12,17 @@ import (
 var currentDatabaseAddress = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 16383}
 
 type databaseDescriptor struct {
-	address  ids.ObjectAddress
-	revision ids.DefinitionRevision
-	name     string
-	Owner    authorization.PrincipalRef
-	ACL      authorization.ACLValue
+	ObjectAddress  ids.ObjectAddress
+	ObjectRevision ids.DefinitionRevision
+	ObjectName     string
+	Owner          authorization.PrincipalRef
+	ACL            authorization.ACLValue
 }
 
-func (d *databaseDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *databaseDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *databaseDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *databaseDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*databaseDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *databaseDescriptor) Name() string                     { return d.name }
+func (d *databaseDescriptor) Name() string                     { return d.ObjectName }
 func (*databaseDescriptor) Kind() ids.ObjectKind               { return ids.DatabaseObject }
 
 type databaseProvider struct{}
@@ -30,7 +30,7 @@ type databaseProvider struct{}
 func (databaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	db, ok := d.(*databaseDescriptor)
-	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.NameAddress(descriptorNameKey(d)) != db.address || db.Namespace() != (ids.ObjectAddress{}) {
+	if !ok || db.Address() != currentDatabaseAddress || db.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != db.Address() || db.Namespace() != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid current database descriptor")
 	}
 	return nil
@@ -45,9 +45,9 @@ func (e *Engine) initializeDatabase(name string) {
 		e.databaseName, _ = value.Text()
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, Owner: owner}
-	e.catalog.state.setDescriptor(db.address, db)
-	e.catalog.state.bindName(descriptorNameKey(db), db.address)
+	db := &databaseDescriptor{ObjectAddress: currentDatabaseAddress, ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner}
+	e.catalog.state.setDescriptor(db.Address(), db)
+	e.catalog.state.bindName(descriptorNameKey(db), db.Address())
 }
 
 // Attachment identity and ACLs belong to the destination, not portable state.
@@ -131,9 +131,9 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	if available == 0 && authorization.ACLRights(baseline, db.Owner, principals, authorization.DatabasePrivileges, false) == 0 {
-		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
+		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.Name()))
 	}
-	grantWarning(op, db.name, "", requested, available, all, s.Revoke)
+	grantWarning(op, db.Name(), "", requested, available, all, s.Revoke)
 	if available == 0 {
 		return Result{}, nil
 	}
@@ -143,7 +143,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	}
 	next := *db
 	next.ACL = acl
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return Result{}, err
 	}
@@ -151,8 +151,8 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	e.catalogChangeLocked(changes, db.address, &next)
+	e.catalogChangeLocked(changes, db.Address(), &next)
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.catalog.state.Get(db.address))
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.Address()}, e.catalog.state.Get(db.Address()))
 	return Result{}, nil
 }

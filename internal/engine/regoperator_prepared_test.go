@@ -18,7 +18,7 @@ import (
 func regoperatorPreparedInstall(t *testing.T, e *Engine, namespace ids.ObjectAddress, oid, left, right ids.OID) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: "#=#", Left: left, Right: right, Owner: e.authorizationDomain.Principal(10)}
+	d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: "#=#", Left: left, Right: right, Owner: e.authorizationDomain.Principal(10)}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	old := e.CatalogRead().MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 91000})
 	changed := *old
 	changed.Right = 20
-	changed.revision++
+	changed.ObjectRevision++
 	if err := stage.Replace(&changed); err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				changed := *typ
-				changed.revision++
+				changed.ObjectRevision++
 				if err := stage.Replace(&changed); err != nil {
 					t.Fatal(err)
 				}
@@ -285,7 +285,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed.revision++
+				changed.ObjectRevision++
 				if err := stage.Replace(&changed); err != nil {
 					t.Fatal(err)
 				}

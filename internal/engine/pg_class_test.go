@@ -28,7 +28,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, HasIndexes: true, HasSubclasses: true, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]checkConstraint, 2)}
+	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, HasIndexes: true, HasSubclasses: true, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]checkConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
@@ -107,7 +107,7 @@ func TestPgClassKinds(t *testing.T) {
 	}
 	parentAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200010}
 	state := cloneCatalog(catalog.state)
-	state.setDescriptor(parentAddress, &relationDescriptor{address: parentAddress, Partition: &partitionDefinition{}})
+	state.setDescriptor(parentAddress, &relationDescriptor{ObjectAddress: parentAddress, Partition: &partitionDefinition{}})
 	index := &relationDescriptor{RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: parentAddress}}
 	if got := pgClassKind(e.catalog.read(state), index); got != "I" {
 		t.Fatal(got)

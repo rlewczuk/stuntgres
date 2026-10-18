@@ -146,18 +146,18 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	private := reader.session.transactions.catalog
 	var relation *relationDescriptor
 	for _, d := range private.descriptors {
-		if table, ok := d.(*relationDescriptor); ok && table.name == "late" {
+		if table, ok := d.(*relationDescriptor); ok && table.Name() == "late" {
 			relation = table
 		}
 	}
-	if relation == nil || relation.OfType != source.Address() || private.storage[relation.address].replacement == nil {
+	if relation == nil || relation.OfType != source.Address() || private.storage[relation.Address()].replacement == nil {
 		t.Fatal("successful statement did not install actual private TEMP attachment/store")
 	}
 	typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 	winner := e.CatalogRead().Get(observed)
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()
-	if view.Get(relation.address) != relation || view.Get(observed) != winner || e.storage[relation.address] == nil || relation.OfType != source.Address() {
+	if view.Get(relation.Address()) != relation || view.Get(observed) != winner || e.storage[relation.Address()] == nil || relation.OfType != source.Address() {
 		t.Fatal("outer COMMIT reauthorized successful statement or lost attachment/store/ACL winner")
 	}
 	roleError(t, e, reader, "CREATE TEMP TABLE fresh OF pair", "42501", "permission denied for type pair", "")

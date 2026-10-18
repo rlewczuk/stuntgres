@@ -119,11 +119,11 @@ func policyIndex(d *relationDescriptor, name string) int {
 }
 
 func policyMissing(name string, d *relationDescriptor) error {
-	return sqlError("42704", fmt.Sprintf(`policy "%s" for table "%s" does not exist`, name, d.name))
+	return sqlError("42704", fmt.Sprintf(`policy "%s" for table "%s" does not exist`, name, d.Name()))
 }
 
 func policyDuplicate(name string, d *relationDescriptor) error {
-	return sqlError("42710", fmt.Sprintf(`policy "%s" for table "%s" already exists`, name, d.name))
+	return sqlError("42710", fmt.Sprintf(`policy "%s" for table "%s" already exists`, name, d.Name()))
 }
 
 func validatePolicies(view CatalogRead, d *relationDescriptor) error {

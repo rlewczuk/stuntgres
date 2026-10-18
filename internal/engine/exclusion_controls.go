@@ -45,7 +45,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		}
 		var bound *uniqueBoundKey
 		for i := range binding.keys {
-			if binding.keys[i].index.address == event.index.Address {
+			if binding.keys[i].index.Address() == event.index.Address {
 				bound = &binding.keys[i]
 				break
 			}
@@ -112,7 +112,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				matched := false
 				for _, descriptor := range auth.catalog.Descriptors() {
 					parent, ok := descriptor.(*relationDescriptor)
-					if !ok || parent.namespace != namespace || parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation {
+					if !ok || parent.Namespace() != namespace || parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation {
 						continue
 					}
 					for _, c := range parent.ExclusionConstraints {

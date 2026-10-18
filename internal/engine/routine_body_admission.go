@@ -25,19 +25,19 @@ func (context routineBodyContext) annotate(err error) error {
 		if context.statement {
 			phase = "statement 1"
 		}
-		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.outer.name, phase)
+		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.outer.Name(), phase)
 		return &copy
 	}
 	return err
 }
 func bodyErrorContext(outer *procedureDescriptor, constant bool) routineBodyContext {
-	if !constant || outer.address.ObjectID == 3935 || outer.address.ObjectID == 3936 {
+	if !constant || outer.Address().ObjectID == 3935 || outer.Address().ObjectID == 3936 {
 		return routineBodyContext{}
 	}
 	return routineBodyContext{outer: outer, statement: outer.Volatility == expr.Immutable}
 }
 func inquiryRoutine(outer *procedureDescriptor) bool {
-	switch outer.address.ObjectID {
+	switch outer.Address().ObjectID {
 	case 1215, 1216, 1348, 1993:
 		return true
 	}
@@ -51,7 +51,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	var revision ids.DefinitionRevision
 	if c.routineReferences != nil {
 		for _, ref := range c.routineReferences {
-			if ref.Address == edge.Routine.address {
+			if ref.Address == edge.Routine.Address() {
 				original = ref
 				break
 			}
@@ -61,13 +61,13 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 			dependencies = c.routineChecks
 		}
 		for _, dependency := range dependencies {
-			if dependency.Ref.Address == edge.Routine.address {
+			if dependency.Ref.Address == edge.Routine.Address() {
 				original, revision = dependency.Ref, dependency.Revision
 				break
 			}
 		}
 	}
-	if original.Address != edge.Routine.address {
+	if original.Address != edge.Routine.Address() {
 		return nil, fmt.Errorf("stuntgres: missing original SQL body lifetime manifest")
 	}
 	ref := original
@@ -88,7 +88,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	if !ok || !sameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
-	if revision != 0 && current.revision != revision {
+	if revision != 0 && current.Revision() != revision {
 		return nil, CatalogConflict{}
 	}
 	return current, nil
@@ -108,7 +108,7 @@ func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *procedur
 func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBodyEdge) bool {
 	switch edge.Demand {
 	case bodyBooleanText, bodyNetworkText:
-		argument := polymorphicBodyArgument(node, outer.address.ObjectID)
+		argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
 		return bodyCastMatches(edge, argument) && !randomLiteralNull(argument)
 	case bodyLeftDuration, bodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)

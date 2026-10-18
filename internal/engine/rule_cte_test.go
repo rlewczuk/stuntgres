@@ -272,13 +272,13 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	firstDefinition, firstConflict := executable(first)
 	// Mutate the actual normalized execution binding, not a stand-alone clone.
 	firstConflict.markAffected(ids.RowID(42), 0)
-	firstConflict.selected = []ids.ObjectAddress{sink.address}
+	firstConflict.selected = []ids.ObjectAddress{sink.Address()}
 	firstConflict.catalog = auth.catalog.state
 	firstConflict.checkpoint = make(lock.Checkpoint)
 	firstConflict.statementKeys = make(lock.Checkpoint)
 	firstConflict.frame = make([]sqltype.Value, 4)
 	firstConflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
-	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[ids.RowID]int{sink.address: {ids.RowID(42): 0}}
+	firstConflict.ownRowSlots = map[ids.ObjectAddress]map[ids.RowID]int{sink.Address(): {ids.RowID(42): 0}}
 	second := compose()
 	secondDefinition, secondConflict := executable(second)
 	if firstConflict == secondConflict || firstConflict == recipe || secondConflict == recipe || firstDefinition == definition || secondDefinition == definition {

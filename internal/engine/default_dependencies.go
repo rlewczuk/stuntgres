@@ -52,9 +52,9 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
-			namespace := view.MustNamespace(relation.namespace)
+			namespace := view.MustNamespace(relation.Namespace())
 			if namespace.Temporary != (ids.SessionToken{}) {
-				owner := view.MustNamespace(d.namespace)
+				owner := view.MustNamespace(d.Namespace())
 				if owner.Temporary != namespace.Temporary {
 					return fmt.Errorf("stuntgres: foreign temporary default provider")
 				}
@@ -133,11 +133,11 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 				return nil, err
 			}
 			copy := *d
-			revision, err := provider.revision(copy.revision)
+			revision, err := provider.revision(copy.Revision())
 			if err != nil {
 				return nil, err
 			}
-			copy.revision = revision
+			copy.ObjectRevision = revision
 			copy.Defaults = maps.Clone(d.Defaults)
 			for _, attribute := range removed {
 				delete(copy.Defaults, attribute)
@@ -148,7 +148,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 		}
 	}
 	slices.SortFunc(edges, func(a, b defaultDependencyEdge) int {
-		if order := cmp.Compare(a.relation.address.ObjectID, b.relation.address.ObjectID); order != 0 {
+		if order := cmp.Compare(a.relation.Address().ObjectID, b.relation.Address().ObjectID); order != 0 {
 			return order
 		}
 		return cmp.Compare(a.attribute, b.attribute)

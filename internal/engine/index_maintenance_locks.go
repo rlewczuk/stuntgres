@@ -48,7 +48,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				return err
 			}
 			if d.SQLIndex.Constraint != nil {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.name, d.SQLIndex.Constraint.Name, auth.catalog.Get(d.SQLIndex.Parent).Name()), Hint: "You can drop constraint " + d.SQLIndex.Constraint.Name + " on table " + auth.catalog.Get(d.SQLIndex.Parent).Name() + " instead."}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.Name(), d.SQLIndex.Constraint.Name, auth.catalog.Get(d.SQLIndex.Parent).Name()), Hint: "You can drop constraint " + d.SQLIndex.Constraint.Name + " on table " + auth.catalog.Get(d.SQLIndex.Parent).Name() + " instead."}
 			}
 		case *parser.AlterIndex:
 			if s.Action != "rename" && d.RelationKind != indexRelation {
@@ -58,7 +58,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				return err
 			}
 			if s.Action == "rename" {
-				if err := auth.CheckCreate(ref.Domain().Ref(ref.Epoch, d.namespace)); err != nil {
+				if err := auth.CheckCreate(ref.Domain().Ref(ref.Epoch, d.Namespace())); err != nil {
 					return err
 				}
 			}
@@ -70,14 +70,14 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				}
 				parent = auth.catalog.MustRelation(d.SQLIndex.Parent)
 			} else if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
-				return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.name))
+				return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.Name()))
 			}
-			rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, parent.address), false)
+			rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, parent.Address()), false)
 			if err != nil {
 				return err
 			}
 			if rights&authorization.MaintainPrivilege == 0 {
-				return sqlError("42501", fmt.Sprintf("permission denied for %s %s", s.Kind.Text, d.name))
+				return sqlError("42501", fmt.Sprintf("permission denied for %s %s", s.Kind.Text, d.Name()))
 			}
 			if parent.Partition != nil {
 				return sqlError("0A000", "partitioned indexes are unsupported")
@@ -110,7 +110,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 }
 
 func indexWrongKind(d *relationDescriptor, drop bool) error {
-	diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is not an index`, d.name)).(*sqlstate.Error)
+	diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is not an index`, d.Name())).(*sqlstate.Error)
 	if drop {
 		switch d.RelationKind {
 		case tableRelation, partitionedRelation:
@@ -198,7 +198,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 				g.descriptors[parent] = auth.catalog.MustRelation(parent)
 			}
 		case *parser.Reindex:
-			parent := d.address
+			parent := d.Address()
 			if v.Kind.Text == "index" {
 				parent = d.SQLIndex.Parent
 				g.indexes = append(g.indexes, ref)

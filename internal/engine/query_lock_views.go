@@ -131,10 +131,10 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	seen := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(d *relationDescriptor) bool {
-		if d.RelationKind != viewRelation || seen[d.address] {
+		if d.RelationKind != viewRelation || seen[d.Address()] {
 			return false
 		}
-		seen[d.address] = true
+		seen[d.Address()] = true
 		if queryRootRowMode(viewOf(d).query.Root) != 0 {
 			return true
 		}
@@ -307,12 +307,12 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
 		if (referenceMarked || inherited.mode != 0) && d.RelationKind == materializedViewRelation {
-			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.name))
+			return sqlError("42809", fmt.Sprintf("cannot lock rows in materialized view %q", d.Name()))
 		}
 		// PostgreSQL validates reference rowmark kinds even for an unselected
 		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
 		if referenceMarked && d.RelationKind == sequenceRelation {
-			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.name))
+			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.Name()))
 		}
 		if inherited.mode == 0 {
 			return nil

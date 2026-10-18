@@ -23,7 +23,7 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 		}
 		cause := *proof.Cause
 		cause.Self = &cause
-		cause.Ref.Address = next.address
+		cause.Ref.Address = next.Address()
 		proof.Cause = &cause
 		if support := proof.Support; support != nil {
 			primary := physicalPrimaryForAttribute(old, attribute)
@@ -60,7 +60,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
-		namespace, ok := next.Namespace(table.namespace)
+		namespace, ok := next.Namespace(table.Namespace())
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical not-null namespace")
 		}
@@ -81,7 +81,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 			}
 			cause := *proof.Cause
 			cause.Self = &cause
-			cause.Ref = e.catalog.Domain.Ref(next.epoch, table.address)
+			cause.Ref = e.catalog.Domain.Ref(next.epoch, table.Address())
 			proof.Cause = &cause
 			proof.Usage = table.Columns[slot].Usage
 			if support := proof.Support; support != nil {

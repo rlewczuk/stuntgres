@@ -25,8 +25,8 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := &typeDescriptor{SQLType: domain, namespace: d.namespace, revision: 1, Owner: d.Owner}
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, namespace: d.namespace, name: "consumer", revision: 1, Owner: d.Owner, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, Attributes: []int32{1, 7}, AttributeHighWater: 7, Index: map[string]int{"id": 0, "v": 1}}
+	typ := &typeDescriptor{SQLType: domain, ObjectNamespace: d.ObjectNamespace, ObjectRevision: 1, Owner: d.Owner}
+	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: d.ObjectNamespace, ObjectName: "consumer", ObjectRevision: 1, Owner: d.Owner, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: usage}}, Attributes: []int32{1, 7}, AttributeHighWater: 7, Index: map[string]int{"id": 0, "v": 1}}
 	for _, descriptor := range []Descriptor{d, typ, table} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
@@ -38,11 +38,11 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	column := table.address
+	column := table.Address()
 	column.SubID = 7
 	foundColumn, foundDomain := false, false
 	for _, edge := range edges {
-		if edge.address == table.address {
+		if edge.address == table.Address() {
 			t.Fatal("collation cascade dropped containing table", edge)
 		}
 		if edge.address == column {

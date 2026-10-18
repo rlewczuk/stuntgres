@@ -22,7 +22,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10020})
 		ownedRow, rowOK := catalog.LookupType(10021)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10020 || array.SQLType.Element() != row.SQLType || row.OwningRelation != relation.address || array.OwningRelation != relation.address || row.Owner != relation.Owner || array.Owner != relation.Owner {
+		if !rowOK || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10020 || array.SQLType.Element() != row.SQLType || row.OwningRelation != relation.Address() || array.OwningRelation != relation.Address() || row.Owner != relation.Owner || array.Owner != relation.Owner {
 			t.Fatal("native row/array ownership and reciprocal linkage", row, array)
 		}
 	}

@@ -53,10 +53,10 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
-	namespace.address.ObjectID = 20012
-	namespace.name = "default_other_schema"
-	state.setDescriptor(namespace.address, &namespace)
-	state.bindName(descriptorNameKey(&namespace), namespace.address)
+	namespace.ObjectAddress.ObjectID = 20012
+	namespace.ObjectName = "default_other_schema"
+	state.setDescriptor(namespace.Address(), &namespace)
+	state.bindName(descriptorNameKey(&namespace), namespace.Address())
 	f.e.catalog.state = state
 	oldRevision := f.e.roles.revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
@@ -161,7 +161,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal(r.err)
 			}
 			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.base.Epoch()})
-			if err != (CatalogConflict{}) || f.e.catalog.state.Get(table.address) != nil {
+			if err != (CatalogConflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.defaultReads {
@@ -172,7 +172,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			independent := f.e.BeginCatalogStage(f.e.CatalogRead())
 			other := defaultUnitTable(t, f, independent, "unrelated", f.owner)
 			f.grant(t, "sequences", "usage", nil)
-			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.state.Get(other.address) != other {
+			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.state.Get(other.Address()) != other {
 				t.Fatal("unrelated class spuriously fenced", err)
 			}
 		})
@@ -186,7 +186,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	roles := cloneRoleFixture(f.e.roles)
 	retireFixtureRole(roles, f.reader)
 	f.e.roles = roles
-	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.state.Get(table.address) != nil {
+	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.state.Get(table.Address()) != nil {
 		t.Fatal("retired ACL principal published", err)
 	}
 }

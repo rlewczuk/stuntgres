@@ -64,7 +64,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 				t.Fatal("stale CREATE published over winning source generation")
 			}
 			for _, descriptor := range winning.Descriptors() {
-				if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == "late" {
+				if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == "late" {
 					t.Fatal("stale attachment published")
 				}
 			}

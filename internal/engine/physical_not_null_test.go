@@ -29,15 +29,15 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 		}
 		return oid
 	}
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, namespace: namespace, name: "p", Owner: owner, revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]attributeMetadata{1: {Number: 1, Dropped: true}}}
+	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, ObjectNamespace: namespace, ObjectName: "p", Owner: owner, ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]attributeMetadata{1: {Number: 1, Dropped: true}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	primary := uniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
-	history := retiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.address), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
-	old := &relationDescriptor{address: address, namespace: namespace, name: "c", Owner: owner, revision: 1, RelationKind: tableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []uniqueConstraint{primary}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.address}, Columns: map[int32]inheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]inheritedConstraint{1: {Retired: []retiredInheritanceOrigin{history}}, 2: {Local: true}}}}
-	index := &relationDescriptor{address: indexAddress, namespace: namespace, name: "c_key", Owner: owner, revision: 1, RelationKind: indexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &indexDefinition{Parent: address, Keys: []indexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: uniqueBacking(&primary)}}
+	history := retiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
+	old := &relationDescriptor{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: tableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []uniqueConstraint{primary}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]inheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]inheritedConstraint{1: {Retired: []retiredInheritanceOrigin{history}}, 2: {Local: true}}}}
+	index := &relationDescriptor{ObjectAddress: indexAddress, ObjectNamespace: namespace, ObjectName: "c_key", Owner: owner, ObjectRevision: 1, RelationKind: indexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &indexDefinition{Parent: address, Keys: []indexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: uniqueBacking(&primary)}}
 	parent.HasSubclasses = true
-	old.Inheritance.Columns[2] = inheritedColumn{Local: true, Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 2}}}
+	old.Inheritance.Columns[2] = inheritedColumn{Local: true, Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 2}}}
 	created := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(created) })
 	for _, descriptor := range []Descriptor{parent, old, index} {
@@ -110,7 +110,7 @@ func TestPhysicalNotNullCauseAndCurrentSupport(t *testing.T) {
 		})
 	}
 	foreign := *clean
-	foreign.address.ObjectID++
+	foreign.ObjectAddress.ObjectID++
 	if physicalNotNullOriginValid(view, &foreign, 1, proof) {
 		t.Fatal("receipt retargeted another relation")
 	}
@@ -176,7 +176,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 		t.Fatal(indexErr, constraintErr)
 	}
 	next := *clean
-	next.revision++
+	next.ObjectRevision++
 	next.Columns = slices.Clone(clean.Columns)
 	next.Columns[1].Usage = testUsage(e, sqltype.Int8)
 	next.UniqueConstraints = slices.Clone(clean.UniqueConstraints)
@@ -184,13 +184,13 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	next.UniqueConstraints[0].Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
 	oldIndex := base.MustRelation(clean.UniqueConstraints[0].Index)
 	index := *oldIndex
-	index.address = next.UniqueConstraints[0].Index
-	index.revision++
+	index.ObjectAddress = next.UniqueConstraints[0].Index
+	index.ObjectRevision++
 	index.Columns = slices.Clone(next.Columns)
 	definition := *oldIndex.SQLIndex
 	definition.Constraint = uniqueBacking(&next.UniqueConstraints[0])
 	index.SQLIndex = &definition
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), oldIndex.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), oldIndex.Address())); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Create(&index); err != nil {
@@ -204,7 +204,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	proof := rebuilt.PhysicalNotNull[1]
-	if proof.Cause != clean.PhysicalNotNull[1].Cause || proof.Support.Constraint != constraintOID || proof.Support.Index != index.address || proof.Support.Keys[1].Usage != next.Columns[1].Usage || proof.Support.Keys[0].Usage != next.Columns[0].Usage {
+	if proof.Cause != clean.PhysicalNotNull[1].Cause || proof.Support.Constraint != constraintOID || proof.Support.Index != index.Address() || proof.Support.Keys[1].Usage != next.Columns[1].Usage || proof.Support.Keys[0].Usage != next.Columns[0].Usage {
 		t.Fatal("real group replacement lost immutable origin or full composite current Usage")
 	}
 	if err := validatePhysicalNotNull(e.stageRead(stage), rebuilt, physicalOrdinaryNotNull(rebuilt)); err != nil {

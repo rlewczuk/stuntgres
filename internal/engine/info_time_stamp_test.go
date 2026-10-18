@@ -22,7 +22,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	d := infoTimeStampCatalogType(t, view)
 	base, ok := view.LookupType(sqltype.Timestamptz)
-	if !ok || d.SQLType.DomainBase().Type != base || d.SQLType.DomainBase().Typmod != 2 || d.SQLType.ID() == base.ID() || d.revision != 1 || !d.SQLType.IsBuiltin() || d.SQLType.IsUserDefined() {
+	if !ok || d.SQLType.DomainBase().Type != base || d.SQLType.DomainBase().Typmod != 2 || d.SQLType.ID() == base.ID() || d.ObjectRevision != 1 || !d.SQLType.IsBuiltin() || d.SQLType.IsUserDefined() {
 		t.Fatal("builtin catalog authority", d)
 	}
 	array, ok := view.LookupType(d.Array)
@@ -74,10 +74,10 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	next.setDescriptor(baseAddress, &reboundBase)
 	// Rendering must use the current captured namespace, not inventory spelling.
 	namespace := *next.MustNamespace(d.Namespace())
-	next.unbindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name})
-	namespace.name = "renamed_info"
-	next.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}, namespace.address)
-	next.setDescriptor(namespace.address, &namespace)
+	next.unbindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()})
+	namespace.ObjectName = "renamed_info"
+	next.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}, namespace.Address())
+	next.setDescriptor(namespace.Address(), &namespace)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
@@ -85,7 +85,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	view := source.catalog.read(next)
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)
-	if rebound.SQLType == d.SQLType || rebound.SQLType.DomainBase().Type != base || base == d.SQLType.DomainBase().Type || rebound.SQLType.DomainBase().Typmod != 2 || !rebound.SQLType.IsBuiltin() || rebound.SQLType.IsUserDefined() || rebound.revision != 1 || rebound.SQLType.AssociatedArray() != d.Array || rebound.SQLType.NamespaceName() != "information_schema" {
+	if rebound.SQLType == d.SQLType || rebound.SQLType.DomainBase().Type != base || base == d.SQLType.DomainBase().Type || rebound.SQLType.DomainBase().Typmod != 2 || !rebound.SQLType.IsBuiltin() || rebound.SQLType.IsUserDefined() || rebound.ObjectRevision != 1 || rebound.SQLType.AssociatedArray() != d.Array || rebound.SQLType.NamespaceName() != "information_schema" {
 		t.Fatal("reowned builtin provenance", rebound)
 	}
 	declaration, err := catalogTypeDeclaration(view, rebound.SQLType.Usage())

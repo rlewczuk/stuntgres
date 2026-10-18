@@ -19,8 +19,8 @@ func TestPartitionAttachEligibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32202}
-	view.state.setDescriptor(ns, &namespaceDescriptor{address: ns, Temporary: e.catalog.Domain.Session(99)})
-	child.namespace = ns
+	view.state.setDescriptor(ns, &namespaceDescriptor{ObjectAddress: ns, Temporary: e.catalog.Domain.Session(99)})
+	child.ObjectNamespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
 	var got *sqlstate.Error
 	if err := partitionAttachEligibility(view, parent, child); !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
@@ -45,8 +45,8 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}, Children: []ids.ObjectAddress{child.address}, DefaultChild: child.address}
-	child.Membership = &partitionMembership{Parent: parent.address, DefaultBound: true}
+	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}, Children: []ids.ObjectAddress{child.Address()}, DefaultChild: child.Address()}
+	child.Membership = &partitionMembership{Parent: parent.Address(), DefaultBound: true}
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
 		t.Helper()
@@ -59,15 +59,15 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	one := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32212}
 	two := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32213}
 	token := e.catalog.Domain.Session(99)
-	view.state.setDescriptor(one, &namespaceDescriptor{address: one, Temporary: token})
-	view.state.setDescriptor(two, &namespaceDescriptor{address: two, Temporary: e.catalog.Domain.Session(100)})
-	child.namespace = one
+	view.state.setDescriptor(one, &namespaceDescriptor{ObjectAddress: one, Temporary: token})
+	view.state.setDescriptor(two, &namespaceDescriptor{ObjectAddress: two, Temporary: e.catalog.Domain.Session(100)})
+	child.ObjectNamespace = one
 	check(false) // Permanent parent, temporary child.
-	parent.namespace, child.namespace = one, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	parent.ObjectNamespace, child.ObjectNamespace = one, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	check(false) // Temporary parent, permanent child.
-	child.namespace = two
+	child.ObjectNamespace = two
 	check(false) // Equal persistence cannot bridge physical-session authority.
-	child.namespace = one
+	child.ObjectNamespace = one
 	check(true) // Catalog invariant only: this does not admit TEMP partition DDL.
 }
 

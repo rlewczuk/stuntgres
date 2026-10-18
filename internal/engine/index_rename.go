@@ -15,8 +15,8 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		return ids.ErrCatalogReplaced
 	}
 	collision := func(name string) error {
-		if name == index.name {
-			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+		if name == index.Name() {
+			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 		}
 		return nil
 	}
@@ -35,7 +35,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.Address() {
 			slot = i
 		}
 	}
@@ -43,28 +43,28 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.Address() {
 			slot = i
 		}
 	}
 	if slot < 0 {
 		return ids.ErrCatalogReplaced
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
-	next.revision++
+	next.ObjectRevision++
 	if index.SQLIndex.isExclusion() {
 		next.ExclusionConstraints = append([]exclusionConstraint(nil), parent.ExclusionConstraints...)
-		next.ExclusionConstraints[slot].Name = index.name
+		next.ExclusionConstraints[slot].Name = index.Name()
 	} else {
 		next.UniqueConstraints = append([]uniqueConstraint(nil), parent.UniqueConstraints...)
-		next.UniqueConstraints[slot].Name = index.name
+		next.UniqueConstraints[slot].Name = index.Name()
 	}
 	definition := *index.SQLIndex
 	constraint := *definition.Constraint
-	constraint.Name = index.name
+	constraint.Name = index.Name()
 	definition.Constraint = &constraint
 	index.SQLIndex = &definition
 	return stage.Replace(&next)

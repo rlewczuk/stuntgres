@@ -21,7 +21,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		base := e.CatalogRead()
 		namespace := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 		stage := e.BeginCatalogStage(base)
-		for _, d := range []*typeDescriptor{{SQLType: enum, namespace: namespace, revision: 1, Array: array.ID()}, {SQLType: array, namespace: namespace, revision: 1}} {
+		for _, d := range []*typeDescriptor{{SQLType: enum, ObjectNamespace: namespace, ObjectRevision: 1, Array: array.ID()}, {SQLType: array, ObjectNamespace: namespace, ObjectRevision: 1}} {
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
 			}

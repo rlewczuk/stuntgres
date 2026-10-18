@@ -97,10 +97,10 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		}
 	}
 	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -116,7 +116,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 			if found == 0 {
 				continue
 			}
-			fence.objects[relation.address] = relation
+			fence.objects[relation.Address()] = relation
 			if !recorded {
 				fence.reads = append(fence.reads, relation)
 				recorded = true
@@ -129,7 +129,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 				d := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(found)})
 				name := typeDiagnosticNameAt(view, d, path)
 				if blocker == nil {
-					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.name+"."+column.Name))
+					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.Name()+"."+column.Name))
 				}
 			}
 		}
@@ -159,7 +159,7 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 		return false
 	}
 	for _, use := range f.uses {
-		store := storage[use.relation.address]
+		store := storage[use.relation.Address()]
 		if store != use.storage || store == nil || len(store.versions) != len(use.versions) || store.ends != use.ends || store.generation != use.generation {
 			return false
 		}
@@ -168,8 +168,8 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 }
 
 func domainHistoricalViolation(view CatalogRead, relation *relationDescriptor, column int) error {
-	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.name)).(*sqlstate.Error)
-	diagnostic.Schema = view.Get(relation.namespace).Name()
-	diagnostic.Table, diagnostic.Column = relation.name, relation.Columns[column].Name
+	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
+	diagnostic.Schema = view.Get(relation.Namespace()).Name()
+	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name
 	return diagnostic
 }

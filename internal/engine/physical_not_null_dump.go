@@ -21,7 +21,7 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 	if !hasPhysicalKey {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	keys := make([]string, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
 		keys[i] = table.Columns[table.indexForAttribute(attribute)].Name
@@ -104,7 +104,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
-		if _, emitted := graph[dumpEventKey{oid: table.address.ObjectID}]; !emitted {
+		if _, emitted := graph[dumpEventKey{oid: table.Address().ObjectID}]; !emitted {
 			continue
 		}
 		for i := range table.UniqueConstraints {
@@ -119,7 +119,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 			if deferred == nil {
 				deferred = make(map[ids.ObjectAddress]*relationDescriptor)
 			}
-			deferred[table.address] = index
+			deferred[table.Address()] = index
 		}
 	}
 	if len(deferred) == 0 {
@@ -130,7 +130,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 		if !ok {
 			continue
 		}
-		event := dumpEventKey{oid: relation.address.ObjectID}
+		event := dumpEventKey{oid: relation.Address().ObjectID}
 		if _, emitted := graph[event]; !emitted {
 			continue
 		}
@@ -140,7 +140,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				return err
 			}
 			if moved {
-				oid, err := dumpPredecessor(view, producer.address, ids.ObjectAddress{})
+				oid, err := dumpPredecessor(view, producer.Address(), ids.ObjectAddress{})
 				if err != nil {
 					return err
 				}
@@ -157,7 +157,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				table := view.MustRelation(parent)
 				var primary *uniqueConstraint
 				for i := range table.UniqueConstraints {
-					if table.UniqueConstraints[i].Primary && table.UniqueConstraints[i].Index == index.address {
+					if table.UniqueConstraints[i].Primary && table.UniqueConstraints[i].Index == index.Address() {
 						primary = &table.UniqueConstraints[i]
 						break
 					}
@@ -173,16 +173,16 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 					}
 				}
 				if temporaryNN {
-					addDumpDependency(graph, event, dumpEventKey{oid: index.address.ObjectID})
+					addDumpDependency(graph, event, dumpEventKey{oid: index.Address().ObjectID})
 				}
 			}
 		}
 		for _, foreign := range relation.ForeignKeys {
 			primary := deferred[foreign.Target]
-			if foreign.NotValid || foreign.Target == relation.address || primary == nil {
+			if foreign.NotValid || foreign.Target == relation.Address() || primary == nil {
 				continue
 			}
-			if foreign.Index != primary.address {
+			if foreign.Index != primary.Address() {
 				index, ok := view.Relation(foreign.Index)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing physical foreign-key provider")
@@ -195,7 +195,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 					continue
 				}
 			}
-			oid, err := dumpPredecessor(view, foreign.Index, relation.address)
+			oid, err := dumpPredecessor(view, foreign.Index, relation.Address())
 			if err != nil {
 				return err
 			}

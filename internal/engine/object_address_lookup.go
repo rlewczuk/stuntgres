@@ -426,19 +426,19 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			if !child {
 				actual := objectRelationKind(view, relation)
 				if actual != kind {
-					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.name, map[string]string{"index": "n"}[kind], kind))
+					return missing("42809", fmt.Sprintf("%q is not a%s %s", relation.Name(), map[string]string{"index": "n"}[kind], kind))
 				}
-				return relation.address, nil
+				return relation.Address(), nil
 			}
 			column := names[len(names)-1]
 			for _, sub := range relation.Attributes {
 				if objectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			for sub := int32(-1); sub >= -6; sub-- {
 				if objectAttributeName(view, relation, sub) == column {
-					return ids.ObjectAddress{1259, relation.address.ObjectID, sub}, nil
+					return ids.ObjectAddress{1259, relation.Address().ObjectID, sub}, nil
 				}
 			}
 			return missing("42703", fmt.Sprintf("column %q of relation %q does not exist", column, strings.Join(relationNames, ".")))
@@ -459,7 +459,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if class == 2618 {
 			owner = "relation"
 		}
-		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.name))
+		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.Name()))
 	}
 	if class == 3456 || class == 2607 || class == 3764 || class == 3600 {
 		d, err := objectLookupDescriptor(scope, class, names)

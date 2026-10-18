@@ -198,7 +198,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, revision: rev, name: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
+	ext := &extensionDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -242,7 +242,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			vol = expr.Volatile
 			strict = false
 		}
-		proc := &procedureDescriptor{address: ext.Members[i], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p}
+		proc := &procedureDescriptor{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p}
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}
@@ -276,13 +276,13 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if procedure == nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: unaccentTemplateContext}
 		}
-		helpers[i] = procedure.address
+		helpers[i] = procedure.Address()
 	}
 	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
-	tmpl := &tsTemplateDescriptor{address: ext.Members[4], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
+	tmpl := &tsTemplateDescriptor{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
 	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.TargetNamespace)
 	}
@@ -293,7 +293,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	dict := &tsDictionaryDescriptor{address: ext.Members[5], namespace: ext.TargetNamespace, Extension: ext.address, revision: rev, name: "unaccent", Template: tmpl.address, Owner: owner, Implementation: p}
+	dict := &tsDictionaryDescriptor{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
 	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.TargetNamespace)
 	}
@@ -304,7 +304,7 @@ func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 	switch d := d.(type) {
 	case *procedureDescriptor:
 		err.Code = "42723"
-		err.Message = fmt.Sprintf(`function "%s" already exists with same argument types`, d.name)
+		err.Message = fmt.Sprintf(`function "%s" already exists with same argument types`, d.Name())
 		args, result, symbol, properties, line := "text", "text", "unaccent_dict", "STABLE STRICT PARALLEL SAFE", 11
 		switch d.Signature {
 		case unaccentDictionarySignature:
@@ -314,7 +314,7 @@ func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 		case unaccentLexizeSignature:
 			args, result, symbol, properties, line = "internal,internal,internal,internal", "internal", "unaccent_lexize", "PARALLEL SAFE", 21
 		}
-		err.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/unaccent', '%s'\n\tLANGUAGE C %s\"\nextension script file \"unaccent--1.1.sql\", near line %d", d.name, args, result, symbol, properties, line)
+		err.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/unaccent', '%s'\n\tLANGUAGE C %s\"\nextension script file \"unaccent--1.1.sql\", near line %d", d.Name(), args, result, symbol, properties, line)
 	case *tsTemplateDescriptor:
 		err.Code = "23505"
 		err.Schema = "pg_catalog"

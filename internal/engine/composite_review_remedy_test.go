@@ -56,7 +56,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
 		state := *before.state
 		state.descriptors = maps.Clone(state.descriptors)
-		state.setDescriptor(table.address, &consumer)
+		state.setDescriptor(table.Address(), &consumer)
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
@@ -138,16 +138,16 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, original := range []*relationDescriptor{left, right, child} {
-		pruned := stage.descriptors[original.address].(*relationDescriptor)
+		pruned := stage.descriptors[original.Address()].(*relationDescriptor)
 		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
-			t.Fatal("diamond owner pruning lost", original.name)
+			t.Fatal("diamond owner pruning lost", original.Name())
 		}
 		if _, exists := pruned.Inheritance.Checks["field_check"]; exists {
-			t.Fatal("diamond retained retired origin", original.name)
+			t.Fatal("diamond retained retired origin", original.Name())
 		}
 	}
 	view := e.stageRead(stage)
-	current := view.MustRelation(child.address)
+	current := view.MustRelation(child.Address())
 	if len(current.CheckConstraints) != 1 || current.CheckConstraints[0].Name != "keep_check" || len(child.CheckConstraints) != 2 {
 		t.Fatal("pruning authority lost")
 	}

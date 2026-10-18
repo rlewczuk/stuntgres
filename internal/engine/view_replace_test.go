@@ -42,12 +42,12 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	copyDescriptor.ColumnACL = map[int32]authorization.ACLValue{old.Attributes[0]: acl, old.Attributes[1]: {Explicit: true}}
 	copyDescriptor.Comment = "retained view"
 	copyDescriptor.ColumnComments = map[int32]string{old.Attributes[0]: "retained column"}
-	copyDescriptor.revision++
+	copyDescriptor.ObjectRevision++
 	alterSchemaPublishDescriptor(t, e, &copyDescriptor)
 	old = e.catalog.state.MustRelation(ref.Address)
 	roleExecute(t, e, op, "CREATE OR REPLACE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.View == old.View || next.address != old.address || next.Owner != old.Owner || viewOf(next).rule != viewOf(old).rule || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.ACL, old.ACL) || !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) {
+	if next == old || next.View == old.View || next.Address() != old.Address() || next.Owner != old.Owner || viewOf(next).rule != viewOf(old).rule || !reflect.DeepEqual(next.Attributes[:2], old.Attributes) || !reflect.DeepEqual(next.ACL, old.ACL) || !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || next.Comment != old.Comment || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) {
 		t.Fatal("replacement lost immutable identity/ACL/comment", old, next)
 	}
 	if len(old.Columns) != 2 || len(next.Columns) != 3 || next.Attributes[2] == old.Attributes[0] || next.Attributes[2] == old.Attributes[1] {

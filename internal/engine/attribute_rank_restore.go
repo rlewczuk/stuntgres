@@ -54,7 +54,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	slot, exists := old.Index[column]
 	if !exists {
 		e.mu.Unlock()
-		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.name))
+		return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, old.Name()))
 	}
 	if rank != 0 && !old.Columns[slot].Usage.Type.IsArray() {
 		e.mu.Unlock()
@@ -64,12 +64,12 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		e.mu.Unlock()
 		return nil
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.Columns = slices.Clone(old.Columns)
 	next.Columns[slot].DeclaredDimensions = rank
 	staged := e.BeginCatalogStage(auth.catalog)

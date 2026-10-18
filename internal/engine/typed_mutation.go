@@ -24,7 +24,7 @@ type typedRelationMutation struct {
 
 func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, actions []typedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
 	for i, action := range actions {
 		raw[i] = action.action
@@ -98,11 +98,11 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 	if mutation.next == old {
 		return mutation, nil
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return mutation, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *mutation.next
-	next.revision = old.revision + 1
+	next.ObjectRevision = old.Revision() + 1
 	next.Defaults = maps.Clone(next.Defaults)
 	next.CheckConstraints = slices.Clone(next.CheckConstraints)
 	next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
@@ -133,7 +133,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return nil
 	}
 	e.mu.Lock()
-	store := e.storage[old.address]
+	store := e.storage[old.Address()]
 	frontier := e.commitSeq
 	e.mu.Unlock()
 	if store == nil {
@@ -158,7 +158,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		err = scope.acquireSerializableSnapshot()
 		if err == nil {
 			e.mu.Lock()
-			err = e.serializableReadLocked(scope, e.catalog.Domain.Ref(stage.base.Epoch(), old.address))
+			err = e.serializableReadLocked(scope, e.catalog.Domain.Ref(stage.base.Epoch(), old.Address()))
 			e.mu.Unlock()
 		}
 		scope.owner.mu.Unlock()
@@ -166,7 +166,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return err
 		}
 	}
-	schema := auth.catalog.Get(old.namespace).Name()
+	schema := auth.catalog.Get(old.Namespace()).Name()
 	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
@@ -221,7 +221,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		next, err = e.rebuildAlterExclusionsLocked(stage, next, mutation.transforms)
 	}
 	if err == nil {
-		err = e.evolveStageIndexesLocked(stage, old.address, mutation.transforms)
+		err = e.evolveStageIndexesLocked(stage, old.Address(), mutation.transforms)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -240,14 +240,14 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			if stage.indexCandidates == nil {
 				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[build.index.address] = indexRootCandidate{index: build.index, root: build.root, storage: indexStorageIdentity(replacement), generation: replacement.generation, ends: replacement.ends, length: len(replacement.versions)}
+			stage.indexCandidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: indexStorageIdentity(replacement), generation: replacement.generation, ends: replacement.ends, length: len(replacement.versions)}
 		}
 	}
 	if replacement != store {
 		if stage.rowShapes == nil {
 			stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 		}
-		stage.rowShapes[old.address] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
+		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
 	}
 	if !rewrite && len(stage.indexLayouts) != 0 {
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}

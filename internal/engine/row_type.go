@@ -63,7 +63,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 		return false, err
 	}
 	next := *array
-	next.revision = revision
+	next.ObjectRevision = revision
 	// The catalog name also owns the array's database metadata label. A plain
 	// name-only copy leaves that label in the previous descriptor generation.
 	arrayName := associatedArrayName(stage, namespace, array.Name())
@@ -112,16 +112,16 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	if err != nil {
 		return err
 	}
-	ns := stage.descriptors[relation.namespace]
+	ns := stage.descriptors[relation.Namespace()]
 	if ns == nil {
-		ns = stage.base.Get(relation.namespace)
+		ns = stage.base.Get(relation.Namespace())
 	}
-	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
-	typ, err := sqltype.Composite(sqltype.ID(id), relation.name, declaration, sqltype.ID(arrayID), compositeMembers(relation))
+	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.Name())
+	typ, err := sqltype.Composite(sqltype.ID(id), relation.Name(), declaration, sqltype.ID(arrayID), compositeMembers(relation))
 	if err != nil {
 		return err
 	}
-	array, err := sqltype.Array(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
+	array, err := sqltype.Array(sqltype.ID(arrayID), associatedArrayName(stage, relation.Namespace(), relation.Name()), typ)
 	if err != nil {
 		return err
 	}
@@ -130,12 +130,12 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	acl := baseline
 	synthetic := true
 	if relation.RelationKind == compositeRelation {
-		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.namespace)
+		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.Namespace())
 	}
-	if err := stage.Create(&typeDescriptor{SQLType: typ, namespace: relation.namespace, revision: relation.revision, Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.address}); err != nil {
+	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.Address()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, namespace: relation.namespace, revision: relation.revision, Owner: relation.Owner, ACL: baseline, ACLSyntheticDefault: true, OwningRelation: relation.address})
+	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: baseline, ACLSyntheticDefault: true, OwningRelation: relation.Address()})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
@@ -161,7 +161,7 @@ func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) e
 // records each actual effect before the next lookup, preserving row/array name
 // occupancy and provider order without constructing a catalog or stage.
 func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescriptor, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
-	same := row.Namespace() == relation.namespace && row.Name() == relation.name
+	same := row.Namespace() == relation.Namespace() && row.Name() == relation.Name()
 	if row.SQLType.IsComposite() {
 		same = same && row.SQLType.CompositeLen() == len(relation.Columns)
 		if same {
@@ -181,19 +181,19 @@ func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescripto
 	if row.Owner != relation.Owner {
 		next.ACL = authorization.SchemaACLOwner(row.ACL, row.Owner, relation.Owner)
 	}
-	next.namespace, next.Owner, next.revision = relation.namespace, relation.Owner, relation.revision
+	next.ObjectNamespace, next.Owner, next.ObjectRevision = relation.Namespace(), relation.Owner, relation.Revision()
 	if same {
 		// Ownership is metadata, not a new codec or composite signature.
 		next.SQLType = row.SQLType
 	} else if row.SQLType.IsComposite() {
-		ns := descriptor(relation.namespace)
+		ns := descriptor(relation.Namespace())
 		var err error
-		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.name, dependencyIdentifier(ns.Name())+"."+dependencyIdentifier(relation.name), row.Array, compositeMembers(relation))
+		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.Name(), dependencyIdentifier(ns.Name())+"."+dependencyIdentifier(relation.Name()), row.Array, compositeMembers(relation))
 		if err != nil {
 			return err
 		}
 	} else {
-		next.SQLType = sqltype.LookupOnly(row.SQLType.ID(), relation.name, row.Array)
+		next.SQLType = sqltype.LookupOnly(row.SQLType.ID(), relation.Name(), row.Array)
 	}
 	if err := replace(&next); err != nil {
 		return err
@@ -204,10 +204,10 @@ func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescripto
 		if array.Owner != relation.Owner {
 			copy.ACL = authorization.SchemaACLOwner(array.ACL, array.Owner, relation.Owner)
 		}
-		copy.namespace, copy.Owner, copy.revision = relation.namespace, relation.Owner, relation.revision
+		copy.ObjectNamespace, copy.Owner, copy.ObjectRevision = relation.Namespace(), relation.Owner, relation.Revision()
 		arrayName := array.Name()
-		if row.Name() != relation.name {
-			arrayName = associatedName(relation.namespace, relation.name)
+		if row.Name() != relation.Name() {
+			arrayName = associatedName(relation.Namespace(), relation.Name())
 		}
 		if !same {
 			if next.SQLType.IsComposite() {

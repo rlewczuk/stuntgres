@@ -19,7 +19,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 		t.Fatal(err)
 	}
 	first.conflict.markAffected(ids.RowID(42), 0)
-	first.conflict.selected = append(first.conflict.selected, sink.address)
+	first.conflict.selected = append(first.conflict.selected, sink.Address())
 	first.conflict.frame = make([]sqltype.Value, 4)
 	first.conflict.catalog = auth.catalog.state
 	first.conflict.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
@@ -54,7 +54,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
 	current.Index = map[string]int{"v": 0, "id": 1}
 	catalog := cloneCatalog(auth.catalog.state)
-	catalog.setDescriptor(sink.address, &current)
+	catalog.setDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
 	check := func(next binding) {
 		t.Helper()

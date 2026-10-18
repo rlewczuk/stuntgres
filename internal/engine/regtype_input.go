@@ -146,7 +146,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		}
 		namespace, _ := r.auth.definitionNamespace(ns)
 		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
-			return 0, sqlError("42501", "permission denied for schema "+namespace.name)
+			return 0, sqlError("42501", "permission denied for schema "+namespace.Name())
 		}
 		if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 			return 0, err

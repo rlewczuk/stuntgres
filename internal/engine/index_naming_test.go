@@ -42,8 +42,8 @@ func TestBtreeIndexUtf8AndRepeatedLabels(t *testing.T) {
 	run(t, e, `CREATE TABLE t("`+unicodeKey+`" INT,`+second+` INT)`)
 	run(t, e, `CREATE INDEX ON t("`+unicodeKey+`",`+second+`)`)
 	index, _ := btreeRoot(t, e, `"t_`+strings.Repeat("é", 28)+`_idx"`)
-	if len(index.name) != 62 {
-		t.Fatal("UTF8 clipping redistributed spare byte", index.name)
+	if len(index.Name()) != 62 {
+		t.Fatal("UTF8 clipping redistributed spare byte", index.Name())
 	}
 	run(t, e, "CREATE TABLE dup(a INT,a1 INT)")
 	run(t, e, "CREATE INDEX ON dup(a,a,a1)")

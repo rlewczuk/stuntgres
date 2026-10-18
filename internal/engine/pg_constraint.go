@@ -61,7 +61,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				row := values[at*28 : (at+1)*28 : (at+1)*28]
 				rows[at] = row
 				at++
-				builder.initialize(row, domain.namespace.ObjectID, 0, check.OID, check.Name, "c")
+				builder.initialize(row, domain.ObjectNamespace.ObjectID, 0, check.OID, check.Name, "c")
 				builder.oid(row, 9, domain.Address().ObjectID)
 				builder.boolean(row, 7, !check.NotValid)
 				var err error
@@ -83,13 +83,13 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if id == 0 || table.address.ClassID != ids.RelationClassID || table.address.ObjectID == 0 {
+			if id == 0 || table.Address().ClassID != ids.RelationClassID || table.Address().ObjectID == 0 {
 				return nil, fmt.Errorf("stuntgres: invalid constraint owner identity")
 			}
 			row := values[at*28 : (at+1)*28 : (at+1)*28]
 			rows[at] = row
 			at++
-			builder.initialize(row, table.namespace.ObjectID, table.address.ObjectID, id, name, kind)
+			builder.initialize(row, table.Namespace().ObjectID, table.Address().ObjectID, id, name, kind)
 			return row, builder.err
 		}
 		for _, c := range table.NotNullConstraints {
@@ -307,7 +307,7 @@ func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value
 			return
 		}
 		column, ok := node.(columnExpression)
-		if !ok || column.origin.Address.ClassID != ids.RelationClassID || column.origin.Address.ObjectID != table.address.ObjectID {
+		if !ok || column.origin.Address.ClassID != ids.RelationClassID || column.origin.Address.ObjectID != table.Address().ObjectID {
 			return
 		}
 		attribute := column.origin.Address.SubID

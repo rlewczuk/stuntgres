@@ -62,9 +62,9 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	nonmember := *n.procedure
-	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
+	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.catalog.state)
-	foreignState.setDescriptor(nonmember.address, &nonmember)
+	foreignState.setDescriptor(nonmember.Address(), &nonmember)
 	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
@@ -93,7 +93,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) { p.Result = 23 },
 		func(p *procedureDescriptor) { p.Signature = "25,25" },
-		func(p *procedureDescriptor) { p.name = "dmetaphone" },
+		func(p *procedureDescriptor) { p.ObjectName = "dmetaphone" },
 		func(p *procedureDescriptor) {
 			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
 		},
@@ -177,7 +177,7 @@ func TestMetaphoneRemap(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	call := metaphoneUnitExpression(t, e)
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
@@ -192,7 +192,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
-	consumer := &relationDescriptor{address: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
+	consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 	next.setDescriptor(address, consumer)
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {

@@ -62,9 +62,9 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	view := e.CatalogRead()
 	view.state = cloneCatalog(view.state)
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
-	view.state.setDescriptor(d.address, d)
-	view.state.bindName(descriptorNameKey(d), d.address)
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
+	view.state.setDescriptor(d.Address(), d)
+	view.state.bindName(descriptorNameKey(d), d.Address())
 	return e, view, d
 }
 func TestObjectAddressIdentity(t *testing.T) {
@@ -74,7 +74,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 		sub  int32
 		name string
 	}{{1, "a"}, {3, "c"}, {2, "........pg.dropped.2........"}, {65538, "........pg.dropped.2........"}, {2147483647, "ctid"}, {-6, "tableoid"}} {
-		identity, err := identifyAddress(view, roles, []ids.ObjectAddress{d.namespace}, ids.ObjectAddress{1259, d.address.ObjectID, tc.sub})
+		identity, err := identifyAddress(view, roles, []ids.ObjectAddress{d.Namespace()}, ids.ObjectAddress{1259, d.Address().ObjectID, tc.sub})
 		if err != nil || !identity.found || identity.names[2] != tc.name || identity.name != "address_unit" {
 			t.Fatal(tc, identity, err)
 		}
@@ -105,7 +105,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := &typeDescriptor{SQLType: domain, namespace: d.namespace, DomainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
+	typ := &typeDescriptor{SQLType: domain, ObjectNamespace: d.Namespace(), DomainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
 	view.state.setDescriptor(typ.Address(), typ)
 	identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0})
 	if err != nil || !identity.found || identity.kind != "domain constraint" || !reflect.DeepEqual(identity.args, []string{"domain_ck"}) {
@@ -192,17 +192,17 @@ func TestObjectAddressSnapshot(t *testing.T) {
 	fresh := old
 	fresh.state = cloneCatalog(old.state)
 	renamed := *d
-	renamed.name = "address_renamed"
-	fresh.state.setDescriptor(d.address, &renamed)
-	before, err := identifyAddress(old, roles, nil, d.address)
+	renamed.ObjectName = "address_renamed"
+	fresh.state.setDescriptor(d.Address(), &renamed)
+	before, err := identifyAddress(old, roles, nil, d.Address())
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := identifyAddress(fresh, roles, nil, d.address)
+	after, err := identifyAddress(fresh, roles, nil, d.Address())
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := identifyAddress(old, roles, nil, d.address)
+	again, err := identifyAddress(old, roles, nil, d.Address())
 	if err != nil || before.identity != "public.address_unit" || after.identity != "public.address_renamed" || !reflect.DeepEqual(before, again) {
 		t.Fatal("immutable snapshot identity", before, after, again, err)
 	}

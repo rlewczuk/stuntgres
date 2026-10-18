@@ -91,7 +91,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	views := viewDependencyClosure(catalog, []ids.ObjectAddress{target}, stage)
 	expanded := []ids.ObjectAddress{target}
 	for _, edge := range views {
-		expanded = append(expanded, edge.view.address)
+		expanded = append(expanded, edge.view.Address())
 	}
 	checks, err := stageCheckDependents(stage, expanded, parser.DropRestrict)
 	if err != nil {

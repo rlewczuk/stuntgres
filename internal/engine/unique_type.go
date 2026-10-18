@@ -68,8 +68,8 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *index
-		clone.address = c.Index
-		clone.revision, err = e.catalog.revisionLocked()
+		clone.ObjectAddress = c.Index
+		clone.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -183,17 +183,17 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	if physicalRewrite || len(transformations) != 0 || len(generations) != 0 {
 		for _, descriptor := range candidate.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
+			if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
 				continue
 			}
-			if !slices.Contains(added, index.address) && (physicalRewrite || uniqueIndexValuesAffected(index.SQLIndex, transformations, generations)) {
+			if !slices.Contains(added, index.Address()) && (physicalRewrite || uniqueIndexValuesAffected(index.SQLIndex, transformations, generations)) {
 				indexes = append(indexes, index)
 			}
 		}
 	}
 	for _, address := range added {
 		index, ok := candidate.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() {
 			return nil, ids.ErrCatalogReplaced
 		}
 		indexes = append(indexes, index)
@@ -202,10 +202,10 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		return nil, nil
 	}
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -245,7 +245,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		if capture != nil {
 			build.outputs = capture.outputs
 		}
-		builds[index.name] = build
+		builds[index.Name()] = build
 	}
 	return builds, nil
 }
@@ -268,9 +268,9 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 		}
 	}
 	for _, build := range validated {
-		descriptor, changed := changes.descriptors[build.index.address]
+		descriptor, changed := changes.descriptors[build.index.Address()]
 		if !changed {
-			descriptor = evaluation.catalog.Get(build.index.address)
+			descriptor = evaluation.catalog.Get(build.index.Address())
 		}
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || !sameIndexKeySemantics(build.index, index) {
@@ -284,10 +284,10 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 	}
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.Valid {
 			continue
 		}
-		if build := validated[index.name]; build != nil && build.index.address == address && sameIndexKeySemantics(build.index, index) {
+		if build := validated[index.Name()]; build != nil && build.index.Address() == address && sameIndexKeySemantics(build.index, index) {
 			continue
 		}
 		if candidate, produced := changes.indexCandidates[address]; produced && candidate.matchesIndex(index, baseline) {

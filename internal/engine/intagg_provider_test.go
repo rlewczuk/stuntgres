@@ -34,7 +34,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
 		member := intaggMembers[i]
-		if addresses[address] || proc.name != member.name || proc.Signature != member.signature || proc.Result != member.result || proc.Strict != member.strict || proc.Owner != ext.Owner {
+		if addresses[address] || proc.Name() != member.name || proc.Signature != member.signature || proc.Result != member.result || proc.Strict != member.strict || proc.Owner != ext.Owner {
 			t.Fatal("member identity", proc)
 		}
 		addresses[address] = true
@@ -42,12 +42,12 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*procedureDescriptor){
-			func(p *procedureDescriptor) { p.name = "int_agg_state" }, func(p *procedureDescriptor) { p.Signature = "25" },
+			func(p *procedureDescriptor) { p.ObjectName = "int_agg_state" }, func(p *procedureDescriptor) { p.Signature = "25" },
 			func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Strict = !p.Strict },
-			func(p *procedureDescriptor) { p.Volatility = expr.Stable }, func(p *procedureDescriptor) { p.revision = 0 },
+			func(p *procedureDescriptor) { p.Volatility = expr.Stable }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 			func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
 			func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-			func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
+			func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
 			func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			func(p *procedureDescriptor) { p.Implementation = stockUnaccent }, func(p *procedureDescriptor) { p.Implementation = stockIntarray },
 			func(p *procedureDescriptor) {
@@ -76,7 +76,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			if !addresses[edge.dependent] {
 				t.Fatal("foreign member dependency")
 			}
@@ -110,7 +110,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			state := cloneCatalog(other.catalog.state)
 			bad := *member
 			bad.Implementation = stockIntagg
-			state.setDescriptor(member.address, &bad)
+			state.setDescriptor(member.Address(), &bad)
 			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}

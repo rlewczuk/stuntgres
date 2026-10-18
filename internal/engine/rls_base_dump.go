@@ -20,7 +20,7 @@ func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authoriz
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		ns := view.MustNamespace(d.namespace)
+		ns := view.MustNamespace(d.Namespace())
 		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
@@ -28,7 +28,7 @@ func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authoriz
 		if err != nil {
 			return nil, err
 		}
-		table := quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name)
+		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
 		var sql strings.Builder
 		if d.RLSEnabled {
 			sql.WriteString("ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY;\n")

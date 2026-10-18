@@ -19,9 +19,9 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE bigint CASCADE")
 	roleExecute(t, e, op, "ALTER TYPE pair DROP ATTRIBUTE flag CASCADE")
 	view := e.CatalogRead()
-	root := view.MustRelation(table.address)
-	backing := view.MustRelation(source.address)
-	childAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: "child"})
+	root := view.MustRelation(table.Address())
+	backing := view.MustRelation(source.Address())
+	childAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: "child"})
 	child := view.MustRelation(childAddress)
 	for _, relation := range []*relationDescriptor{backing, root, child} {
 		if len(relation.Columns) != 2 || relation.Columns[0].Name != "id" || relation.Columns[1].Name != "label" || relation.Columns[0].Usage.Type.ID() != sqltype.Int8 || relation.Columns[1].Usage.Type.ID() != sqltype.Text {
@@ -50,7 +50,7 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	holder := inheritanceUnitRelation(e, "holder", 22003, "v")
 	holder.Columns[0].Usage = array.SQLType.Usage()
 	state := cloneCatalog(view.state)
-	state.setDescriptor(holder.address, holder)
+	state.setDescriptor(holder.Address(), holder)
 	var diagnostic *sqlstate.Error
 	if err := rowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
 		t.Fatal("real associated-array provider escaped guard", err)
@@ -66,13 +66,13 @@ func TestTypedSameUsageStoredOwnRowPublicationGuard(t *testing.T) {
 		if populated {
 			roleExecute(t, e, op, "INSERT INTO holder VALUES('(11,kept)')")
 		}
-		before, storage := e.CatalogRead().state, e.storage[table.address]
+		before, storage := e.CatalogRead().state, e.storage[table.Address()]
 		_, err := e.Execute(op, statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter table "typed" because column "holder.v" uses its row type` {
 			t.Fatal("same-usage semantic action escaped target guard", populated, err)
 		}
-		if e.CatalogRead().state != before || e.storage[table.address] != storage {
+		if e.CatalogRead().state != before || e.storage[table.Address()] != storage {
 			t.Fatal("rejected same-usage TYPE published", populated)
 		}
 	}

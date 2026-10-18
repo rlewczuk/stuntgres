@@ -35,8 +35,8 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 		if err != nil {
 			return nil, err
 		}
-		change := delta{d: d, fixed: fixed.name, owner: owner.Name}
-		if d.name != fixed.name || d.Namespace() != fixed.Namespace() {
+		change := delta{d: d, fixed: fixed.Name(), owner: owner.Name}
+		if d.Name() != fixed.Name() || d.Namespace() != fixed.Namespace() {
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, d := range view.Descriptors() {
@@ -45,7 +45,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 					}
 				}
 				for i := range builtinCollations {
-					occupied[builtinCollations[i].name] = true
+					occupied[builtinCollations[i].Name()] = true
 				}
 			}
 			base := "__stuntgres_collation_" + strconv.FormatUint(uint64(d.OID), 10)
@@ -75,7 +75,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+quoteIdentifier(ns.Name())+";\n")
 			from = quoteIdentifier(ns.Name()) + "." + quoteIdentifier(change.temporary)
 		}
-		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
+		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.Name())+";\n")
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {

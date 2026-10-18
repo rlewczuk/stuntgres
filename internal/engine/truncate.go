@@ -27,7 +27,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
 	}
 	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
-		return sqlError("42809", fmt.Sprintf("%q is not a table", d.name))
+		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
@@ -43,7 +43,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
 func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
-	namespace, ok := catalog.Namespace(relation.namespace)
+	namespace, ok := catalog.Namespace(relation.Namespace())
 	if !ok {
 		return false, ids.ErrCatalogReplaced
 	}
@@ -127,7 +127,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
@@ -140,7 +140,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			}
 			if err == nil && cascade {
 				// Records are detached to the adapter later; this invokes no user callback.
-				s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.name)})
+				s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
 				err = checkTruncate(auth, ref, d, privilege, only)
@@ -149,7 +149,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.Temporary == s.op.session.token {
+				if namespace, ok := auth.catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.session.token {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
@@ -173,7 +173,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					children = append(children, child)
 				}
-				slices.SortFunc(children, func(a, b *relationDescriptor) int { return compareTruncateAddress(a.address, b.address) })
+				slices.SortFunc(children, func(a, b *relationDescriptor) int { return compareTruncateAddress(a.Address(), b.Address()) })
 			}
 		}
 		e.mu.Unlock()
@@ -181,7 +181,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return err
 		}
 		for _, child := range children {
-			if err = open(ref.Domain().Ref(ref.Epoch, child.address), nil, false, false, true, false); err != nil {
+			if err = open(ref.Domain().Ref(ref.Epoch, child.Address()), nil, false, false, true, false); err != nil {
 				return err
 			}
 		}
@@ -203,7 +203,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			if !ok {
 				err = ids.ErrCatalogReplaced
 			} else {
-				observation.ref, observation.namespace = ref, descriptor.namespace
+				observation.ref, observation.namespace = ref, descriptor.Namespace()
 			}
 		}
 		e.mu.Unlock()
@@ -227,10 +227,10 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return nil
 		}
 		if stmt.Mode != parser.DropCascade {
-			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
+			return truncateForeignKeyError(inbound[0].parent.Name(), inbound[0].relation.Name())
 		}
 		for _, candidate := range inbound {
-			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.address)
+			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.Address())
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}
@@ -269,7 +269,7 @@ func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int
 		}
 	}
 	slices.SortFunc(result, func(a, b truncateReferencer) int {
-		return compareTruncateAddress(a.relation.address, b.relation.address)
+		return compareTruncateAddress(a.relation.Address(), b.relation.Address())
 	})
 	return result
 }

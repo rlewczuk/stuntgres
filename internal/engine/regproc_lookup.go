@@ -31,7 +31,7 @@ func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineId
 
 func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
-		return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.Signature}, true
+		return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
 	if p, ok := routineByOID[id]; ok {
 		return p, true
@@ -60,10 +60,10 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 			continue
 		}
 		if p := procedureInNamespaces(view, namespaceSelection{qualified: namespace}, name, signature); p != nil {
-			return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.Signature}, 1
+			return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {
-			if owner, ok := d.(*procedureDescriptor); ok && owner.Aggregate != nil && owner.namespace == namespace {
+			if owner, ok := d.(*procedureDescriptor); ok && owner.Aggregate != nil && owner.Namespace() == namespace {
 				for _, helper := range owner.Aggregate.Helpers {
 					if helper.Name == name && helper.Signature == signature {
 						return helper, 1
@@ -104,8 +104,8 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 			continue
 		}
 		for _, d := range view.Descriptors() {
-			if p, ok := d.(*procedureDescriptor); ok && p.namespace == namespace {
-				if p.name == name && accept(routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.Signature}) {
+			if p, ok := d.(*procedureDescriptor); ok && p.Namespace() == namespace {
+				if p.Name() == name && accept(routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
 					return selected, count
 				}
 				if p.Aggregate != nil {

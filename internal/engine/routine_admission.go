@@ -18,10 +18,10 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		return err
 	}
 	for _, dependency := range dependencies {
-		if dependency.Ref.Address != captured.address {
+		if dependency.Ref.Address != captured.Address() {
 			continue
 		}
-		if dependency.Revision != captured.revision {
+		if dependency.Revision != captured.Revision() {
 			return fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
 		}
 		ref := dependency.Ref
@@ -37,7 +37,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		if _, err := auth.object(ref); err != nil {
 			return err
 		}
-		if current.revision != dependency.Revision {
+		if current.Revision() != dependency.Revision {
 			return CatalogConflict{}
 		}
 		return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
@@ -146,7 +146,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 			return err
 		}
 		for _, ref := range c.routineReferences {
-			if ref.Address != captured.address {
+			if ref.Address != captured.Address() {
 				continue
 			}
 			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {

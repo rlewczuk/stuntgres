@@ -49,7 +49,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
 			d, ok := e.catalog.state.Parameter(address)
 			mask := authorization.SetPrivilege | authorization.AlterSystemPrivilege
-			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.revision == 0 || d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.Revision() == 0 || d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("parameter did not acquire real catalog authority")
 			}
 			if before.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.ACL.Explicit || len(d.ACL.Entries) != 2 {
@@ -95,16 +95,16 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	e := New()
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	d := &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, revision: 2, name: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
+	d := &parameterDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, ObjectRevision: 2, ObjectName: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
 	candidate := cloneCatalog(e.catalog.state)
 	installParameterGrant(candidate, d)
-	if candidate.Get(d.address) != d || candidate.NameAddress(descriptorNameKey(d)) != d.address {
+	if candidate.Get(d.Address()) != d || candidate.NameAddress(descriptorNameKey(d)) != d.Address() {
 		t.Fatal("explicit empty parameter ACL collapsed to absent")
 	}
 	n := *d
 	n.ACL = authorization.DefaultBaseline(owner, authorization.DefaultParameters, false)
 	installParameterGrant(candidate, &n)
-	if _, exists := candidate.Find(d.address); exists || candidate.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || !d.ACL.Explicit || len(d.ACL.Entries) != 0 {
+	if _, exists := candidate.Find(d.Address()); exists || candidate.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || !d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 		t.Fatal("baseline deletion mutated empty ACL or retained row")
 	}
 }
@@ -115,7 +115,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
 			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}
 			original, ok := e.catalog.state.Tablespace(address)
-			if !ok || original == nil || original.ACL.Explicit || original.name != builtin.name || original.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+			if !ok || original == nil || original.ACL.Explicit || original.Name() != builtin.name || original.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("missing real builtin tablespace baseline")
 			}
 			request := parameterSpaceRequest("tablespace", builtin.name)

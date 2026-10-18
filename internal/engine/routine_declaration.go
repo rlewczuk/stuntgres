@@ -31,7 +31,7 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 func (d *procedureDescriptor) returnsSet() bool {
 	return d.Builtin != nil && d.Builtin.ReturnsSet ||
 		d.intaggProvider() == stockIntagg && d.RoutineKind == functionRoutine &&
-			d.name == "int_array_enum" && d.Signature == "1007" && d.Result == 23
+			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }
 
 // A provider association describes an already-implemented declaration, not an
@@ -85,4 +85,4 @@ func (d *procedureDescriptor) seeded() bool {
 
 // Published descriptors are pointer-owned catalog payloads. They remain stable
 // across binder dependency-slice growth and carry no cached permission decision.
-func (d *procedureDescriptor) RoutineOID() uint32 { return uint32(d.address.ObjectID) }
+func (d *procedureDescriptor) RoutineOID() uint32 { return uint32(d.Address().ObjectID) }

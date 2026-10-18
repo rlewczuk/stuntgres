@@ -56,7 +56,7 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 				return err
 			}
 			if slot, ok := d.Index[action.Column.Text]; ok && partitionKeyUsesAttribute(d, d.Attributes[slot]) {
-				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.name))
+				return sqlError("42P16", fmt.Sprintf(`cannot drop column "%s" because it is part of the partition key of relation "%s"`, action.Column.Text, d.Name()))
 			}
 		}
 		message = "altering partition hierarchies is unsupported"
@@ -133,7 +133,7 @@ func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
 		}
 		if key.Derived != nil {
 			for _, ref := range key.Derived.Dependencies {
-				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == d.address.ObjectID && ref.Address.SubID == attribute {
+				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == d.Address().ObjectID && ref.Address.SubID == attribute {
 					return true
 				}
 			}
@@ -200,7 +200,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.address))
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.Address()))
 	}
 	e.mu.Unlock()
 	slices.Reverse(ancestors)

@@ -35,17 +35,17 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationD
 	if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
 		parent = staged
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
 	definition := *parent.Partition
-	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(child ids.ObjectAddress) bool { return child == relation.address })
-	if definition.DefaultChild == relation.address {
+	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(child ids.ObjectAddress) bool { return child == relation.Address() })
+	if definition.DefaultChild == relation.Address() {
 		definition.DefaultChild = ids.ObjectAddress{}
 	}
 	next.Partition = &definition
-	next.revision++
+	next.ObjectRevision++
 	if err := provider.replace(&next); err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.address))
+		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.Address()))
 	}
 	e.mu.Unlock()
 	slices.Reverse(ancestors)
@@ -103,7 +103,7 @@ func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) 
 			(ids.OID(key.Usage.Collation.ID) == target.ObjectID || ids.OID(key.Collation) == target.ObjectID) {
 			return true
 		}
-		if key.Attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.address.ObjectID && target.SubID == key.Attribute {
+		if key.Attribute != 0 && target.ClassID == ids.RelationClassID && target.ObjectID == relation.Address().ObjectID && target.SubID == key.Attribute {
 			return true
 		}
 		if key.Derived != nil {

@@ -32,7 +32,7 @@ func (p inheritedConstraint) count() int { return len(p.Origins) + len(p.Retired
 func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
 		parent, ok := view.Relation(history.Parent.Address)
-		if !ok || parent.RelationKind != tableRelation || !storedReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.address) {
+		if !ok || parent.RelationKind != tableRelation || !storedReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
 			return fmt.Errorf("stuntgres: invalid retired inheritance origin")
 		}
 		if history.Replayed != (history.Archive != 0) {
@@ -139,7 +139,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		if !ok || table.Inheritance == nil {
 			continue
 		}
-		namespace, ok := next.Namespace(table.namespace)
+		namespace, ok := next.Namespace(table.Namespace())
 		if !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
@@ -258,7 +258,7 @@ func retireRebuiltCheckHistory(old, next *relationDescriptor) error {
 			continue
 		}
 		before := old.CheckConstraints[previous]
-		if old.address != next.address || before.NoInherit != c.NoInherit || before.NotValid != c.NotValid {
+		if old.Address() != next.Address() || before.NoInherit != c.NoInherit || before.NotValid != c.NotValid {
 			return fmt.Errorf("stuntgres: changed retired check reconstruction source")
 		}
 		replacement, err := retireRebuiltDefinitionHistory(p, before.OID, c.OID)
@@ -299,7 +299,7 @@ func retireRebuiltNotNullHistory(old, next *relationDescriptor) error {
 		}
 		expected := before
 		expected.OID = fact.OID
-		if expected != fact || old.address != next.address || old.Inheritance.NotNull[fact.Attribute].Local != provenance.Local {
+		if expected != fact || old.Address() != next.Address() || old.Inheritance.NotNull[fact.Attribute].Local != provenance.Local {
 			return fmt.Errorf("stuntgres: changed retired not-null reconstruction source")
 		}
 		replacement, err := retireRebuiltDefinitionHistory(provenance, before.OID, fact.OID)
@@ -378,7 +378,7 @@ func releaseRetiredTypeConstraints(old *relationDescriptor, actions []parser.Alt
 		}
 		touches := false
 		for _, dependency := range fact.Dependencies {
-			if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == old.address.ObjectID && affected(dependency.Ref.Address.SubID) {
+			if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == old.Address().ObjectID && affected(dependency.Ref.Address.SubID) {
 				touches = true
 				break
 			}

@@ -41,11 +41,11 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	slot, exists := old.Index[s.Column.Text]
 	if !exists {
-		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.name)))
+		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.Name())))
 	}
 	attr := old.Attributes[slot]
 	if _, generated := old.Generations[attr]; generated {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.name)).(*sqlstate.Error)
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
 		if s.Action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP EXPRESSION instead."
@@ -53,7 +53,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		return fail(diagnostic)
 	}
 	if _, ok := old.Identities[attr]; ok {
-		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.name)).(*sqlstate.Error)
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		if s.Action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
 		}
@@ -81,7 +81,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	original := e.authorizationStorageLocked(auth, ref.Address)
@@ -95,7 +95,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		length, generation, ends = len(original.versions), original.generation, original.ends
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	capacity := len(old.Defaults)
 	if definition.Expression == nil {
 		if _, present := old.Defaults[attr]; present {
@@ -146,7 +146,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 	var definition columnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).Temporary
+	binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
 	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])
 	if err == nil {

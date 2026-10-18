@@ -15,7 +15,7 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	d := *f.parent.SQLIndex
 	d.Unique = false
-	c := exclusionConstraint{OID: 30000, Name: f.parent.name, Index: f.parent.address, IsLocal: true}
+	c := exclusionConstraint{OID: 30000, Name: f.parent.Name(), Index: f.parent.Address(), IsLocal: true}
 	d.Constraint = exclusionBacking(&c)
 	d.Keys = slices.Clone(d.Keys)
 	d.Exclusion = make([]sqltype.ExclusionOperator, len(d.Keys))

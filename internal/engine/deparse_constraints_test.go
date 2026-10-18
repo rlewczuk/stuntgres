@@ -244,12 +244,12 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	}
 	old := d.Defaults[3].OID
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT 3")
-	next := e.CatalogRead().MustRelation(d.address)
+	next := e.CatalogRead().MustRelation(d.Address())
 	if next.Defaults[3].OID == old || next.CheckConstraints[0].OID != d.CheckConstraints[0].OID {
 		t.Fatal("definition identity replacement/preservation")
 	}
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT NULL")
-	if len(e.CatalogRead().MustRelation(d.address).Defaults) != 0 {
+	if len(e.CatalogRead().MustRelation(d.Address()).Defaults) != 0 {
 		t.Fatal("NULL definition persisted")
 	}
 }
@@ -383,7 +383,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy := *d
 	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
 	copy.CheckConstraints[0].OID = d.Defaults[1].OID
-	bad.setDescriptor(d.address, &copy)
+	bad.setDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}

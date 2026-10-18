@@ -121,7 +121,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	}
 	roleExecute(t, e, peer, "ALTER INDEX ui_ab RENAME TO ui_renamed")
 	renamed, same := btreeRoot(t, e, "ui_renamed")
-	if renamed.address != index.address || same != root || index.name != "ui_ab" {
+	if renamed.Address() != index.Address() || same != root || index.Name() != "ui_ab" {
 		t.Fatal("standalone rename changed identity/root")
 	}
 	roleExecute(t, e, peer, "DROP INDEX ui_renamed")

@@ -17,7 +17,7 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 		if !ok || table.Inheritance == nil {
 			continue
 		}
-		namespace := e.catalog.state.MustNamespace(table.namespace)
+		namespace := e.catalog.state.MustNamespace(table.Namespace())
 		if namespace.Temporary == (ids.SessionToken{}) {
 			continue
 		}
@@ -26,7 +26,7 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
 			}
-			if e.catalog.state.MustNamespace(source.namespace).Temporary == (ids.SessionToken{}) {
+			if e.catalog.state.MustNamespace(source.Namespace()).Temporary == (ids.SessionToken{}) {
 				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
 			}
 		}
@@ -86,7 +86,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 		if !ok || table.Inheritance == nil {
 			continue
 		}
-		if namespace, ok := next.Namespace(table.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+		if namespace, ok := next.Namespace(table.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error

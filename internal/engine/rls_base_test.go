@@ -143,7 +143,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal("no-op published a catalog revision")
 	}
 	exhausted := *d
-	exhausted.revision = ids.DefinitionRevision(^uint64(0))
+	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	exhaustedNext := rowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
 	exhaustedScope := &StatementScope{op: op, owner: &transactionOwner{}}
 	e.mu.Lock()
@@ -176,7 +176,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if rowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
 		t.Fatal("no-op copied descriptor")
 	}
-	next.revision++
+	next.ObjectRevision++
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -196,7 +196,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	}
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
-		if ok && copy.name == "t" {
+		if ok && copy.Name() == "t" {
 			if copy.RLSEnabled || !copy.RLSForced || len(copy.Policies) != 1 || policyExpressionOf(copy.Policies[0].Using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")
 			}
@@ -214,7 +214,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next := *d
 		next.RLSEnabled, next.RLSForced = state.enabled, state.forced
 		catalog := cloneCatalog(base.state)
-		catalog.setDescriptor(d.address, &next)
+		catalog.setDescriptor(d.Address(), &next)
 		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
 		if err != nil {
 			t.Fatal(err)
@@ -242,7 +242,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	defer done()
 	base := e.CatalogRead()
 	next := rowSecurityFlags(d, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}})
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(next); err != nil {

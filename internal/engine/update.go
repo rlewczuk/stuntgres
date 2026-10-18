@@ -111,7 +111,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		b.currentOf = s.CurrentOf.Text
 	}
 	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName = b.relation.name
+	binder.targetName = b.relation.Name()
 	binder.targetAlias = s.Alias.Text
 	binder.updateParameters = true
 	defer func() {
@@ -554,9 +554,9 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 		return err
 	}
 	if check != "" {
-		return checkDetailError(schema, b.relation.name, check, detail)
+		return checkDetailError(schema, b.relation.Name(), check, detail)
 	}
-	return notNullDetailError(schema, b.relation.name, column, detail)
+	return notNullDetailError(schema, b.relation.Name(), column, detail)
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
@@ -592,7 +592,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
-	if s != nil && s.partitionInsert != nil && b != nil && b.relation.address == s.partitionInsert.target.address {
+	if s != nil && s.partitionInsert != nil && b != nil && b.relation.Address() == s.partitionInsert.target.Address() {
 		row = s.partitionInsert.namedRow
 	}
 	return e.rowDiagnosticDetail(s, b, row, false)

@@ -60,11 +60,11 @@ func collationVersionWarning(op *Operation, d *collationDescriptor, view Catalog
 		return nil
 	}
 	if actual == nil {
-		return sqlError("XX000", fmt.Sprintf(`collation "%s" has no actual version, but a version was recorded`, d.name))
+		return sqlError("XX000", fmt.Sprintf(`collation "%s" has no actual version, but a version was recorded`, d.Name()))
 	}
 	if *d.Version != *actual {
 		ns := view.Get(d.Namespace()).Name()
-		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.name), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + dependencyIdentifier(ns) + "." + dependencyIdentifier(d.name) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
+		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + dependencyIdentifier(ns) + "." + dependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
 	}
 	return nil
 }
@@ -87,7 +87,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	d := collationDescriptor{name: name, namespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
+	d := collationDescriptor{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
 	from := s.From
 	options := make(map[string]*parser.CollationOption, len(s.Options))
 	for i := range s.Options {
@@ -236,7 +236,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	d.revision, err = e.catalog.revisionLocked()
+	d.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -285,9 +285,9 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
-		next.name = s.Target.Text
+		next.ObjectName = s.Target.Text
 	case "schema":
-		dest, err := e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}})
+		dest, err := e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}})
 		if err != nil {
 			return err
 		}
@@ -302,7 +302,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if sourceNamespace.Temporary != (ids.SessionToken{}) || targetNamespace.Temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
-		next.namespace = dest.Address
+		next.ObjectNamespace = dest.Address
 	case "owner":
 		if err = ownershipEligibility(auth, ownerTarget, d.Namespace()); err != nil {
 			return err
@@ -311,9 +311,9 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	key := descriptorNameKey(&next)
 	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.Get(next.Namespace()).Name()))
+		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

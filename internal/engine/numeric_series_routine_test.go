@@ -38,7 +38,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.revision == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.Kind != functionRoutine || declaration.Result != 1700 || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || !declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers&seriesRoutineProvider == 0 {
@@ -56,7 +56,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.revision || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {

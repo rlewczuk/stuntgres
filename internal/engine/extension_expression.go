@@ -23,9 +23,9 @@ func (n installedFunctionExpression) validProvider() bool {
 		return false
 	}
 	if p.fuzzystrmatchProvider() != nil {
-		return p.fuzzystrmatchProvider() == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+		return p.fuzzystrmatchProvider() == stockFuzzystrmatch && p.Name() == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return p.unaccentProvider() == stockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.Dictionary == n.dictionary.address && n.dictionary.Template == n.template.address && p.unaccentProvider() == n.dictionary.unaccentProvider() && n.dictionary.unaccentProvider() == n.template.unaccentProvider()
+	return p.unaccentProvider() == stockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.Dictionary == n.dictionary.Address() && n.dictionary.Template == n.template.Address() && p.unaccentProvider() == n.dictionary.unaccentProvider() && n.dictionary.unaccentProvider() == n.template.unaccentProvider()
 }
 
 func (n installedFunctionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {

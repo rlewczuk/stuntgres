@@ -59,10 +59,10 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 		}
 	}
 	slices.SortFunc(children, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -70,7 +70,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 	return children
 }
 func inheritanceParticipant(v CatalogRead, d *relationDescriptor) bool {
-	return d.Inheritance != nil || inheritanceHasChildren(v, d.address)
+	return d.Inheritance != nil || inheritanceHasChildren(v, d.Address())
 }
 
 func inheritanceTypeName(u sqltype.Usage) string {
@@ -129,31 +129,31 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		}
 		source := auth.catalog.MustRelation(ref.Address)
 		if source.RelationKind == compositeRelation {
-			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.name)).(*sqlstate.Error)
+			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.Name())).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
 			return nil, nil, nil, d
 		}
 		if source.Partition != nil {
-			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partitioned table "%s"`, source.name))
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partitioned table "%s"`, source.Name()))
 		}
 		if source.Membership != nil {
-			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.name))
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.Name()))
 		}
 		if source.RelationKind == foreignRelation {
 			return nil, nil, nil, sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
 		}
 		if source.RelationKind != tableRelation {
-			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.name))
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.Name()))
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, nil, err
 		}
-		parentNS := auth.catalog.MustNamespace(source.namespace)
+		parentNS := auth.catalog.MustNamespace(source.Namespace())
 		if parentNS.Temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
-			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.name))
+			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.Name()))
 		}
 		if seen[ref.Address] {
-			return nil, nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" would be inherited from more than once`, source.name))
+			return nil, nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" would be inherited from more than once`, source.Name()))
 		}
 		seen[ref.Address] = true
 		b.createInheritance = append(b.createInheritance, createInheritanceInput{ref, source})

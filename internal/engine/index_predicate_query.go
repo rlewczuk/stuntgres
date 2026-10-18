@@ -21,7 +21,7 @@ func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query exp
 		if !partialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {
 			continue
 		}
-		if chosen == nil || index.address.ObjectID < chosen.address.ObjectID {
+		if chosen == nil || index.Address().ObjectID < chosen.Address().ObjectID {
 			chosen = index
 		}
 	}
@@ -56,10 +56,10 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if !ok || !sameRelationRowShape(current, leaf.relation) {
 		return nil
 	}
-	if e.catalog.state.Get(candidate.address) != candidate || candidate.SQLIndex.Parent != parent {
+	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
 		return nil
 	}
-	root := e.indexRoots[candidate.address]
+	root := e.indexRoots[candidate.Address()]
 	if root == nil || root.membership == nil {
 		return nil
 	}

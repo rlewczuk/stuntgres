@@ -115,7 +115,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					} else {
 						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
-					database.revision++
+					database.ObjectRevision++
 					if err := stage.Replace(&database); err != nil {
 						t.Fatal(err)
 					}

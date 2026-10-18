@@ -13,11 +13,11 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	result := make(map[ids.ObjectAddress]Descriptor)
 	var visit func(*relationDescriptor)
 	visit = func(table *relationDescriptor) {
-		if result[table.address] != nil {
+		if result[table.Address()] != nil {
 			return
 		}
-		result[table.address] = table
-		for _, child := range inheritanceChildren(catalog, table.address) {
+		result[table.Address()] = table
+		for _, child := range inheritanceChildren(catalog, table.Address()) {
 			visit(child)
 		}
 	}
@@ -36,7 +36,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.RelationKind.stored() || result[table.address] != nil {
+		if !ok || !table.RelationKind.stored() || result[table.Address()] != nil {
 			continue
 		}
 		for _, column := range table.Columns {
@@ -46,11 +46,11 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 			}
 			for _, rowType := range rowTypes {
 				if containsRowType(typ, rowType) {
-					result[table.address] = table
+					result[table.Address()] = table
 					break
 				}
 			}
-			if result[table.address] != nil {
+			if result[table.Address()] != nil {
 				break
 			}
 		}
@@ -79,11 +79,11 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 	selected := make(map[ids.ObjectAddress]*relationDescriptor)
 	var selectTable func(*relationDescriptor)
 	selectTable = func(table *relationDescriptor) {
-		if selected[table.address] != nil {
+		if selected[table.Address()] != nil {
 			return
 		}
-		selected[table.address] = table
-		for _, child := range inheritanceChildren(catalog, table.address) {
+		selected[table.Address()] = table
+		for _, child := range inheritanceChildren(catalog, table.Address()) {
 			selectTable(child)
 		}
 	}
@@ -96,10 +96,10 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 	seen := make(map[ids.ObjectAddress]bool, len(selected))
 	var visit func(*relationDescriptor)
 	visit = func(table *relationDescriptor) {
-		if seen[table.address] {
+		if seen[table.Address()] {
 			return
 		}
-		seen[table.address] = true
+		seen[table.Address()] = true
 		if table.Inheritance != nil {
 			for _, parent := range table.Inheritance.Parents {
 				if d := selected[parent]; d != nil {
@@ -231,7 +231,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 					continue
 				}
 				if err := inheritanceColumnConflict(view, old.Columns[slot], member, graph.Columns[attribute].Local); err != nil {
-					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.name, member.Name))
+					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.Name(), member.Name))
 				}
 				provenance := graph.Columns[attribute]
 				provenance.Origins = append(slices.Clone(provenance.Origins), origin)
@@ -331,7 +331,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 func typedSortedAddresses(tables []*relationDescriptor) []ids.ObjectAddress {
 	addresses := make([]ids.ObjectAddress, len(tables))
 	for i, table := range tables {
-		addresses[i] = table.address
+		addresses[i] = table.Address()
 	}
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
 		if a.ObjectID < b.ObjectID {

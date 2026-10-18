@@ -29,7 +29,7 @@ func physicalPermutedPrimary(table *relationDescriptor) *uniqueConstraint {
 			continue
 		}
 		for _, foreign := range table.ForeignKeys {
-			if !foreign.NotValid && foreign.Target == table.address && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) && !slices.Equal(foreign.Referenced, primary.Attributes) {
+			if !foreign.NotValid && foreign.Target == table.Address() && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) && !slices.Equal(foreign.Referenced, primary.Attributes) {
 				return primary
 			}
 		}
@@ -48,7 +48,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (
 		return nil, false, nil
 	}
 	primary := physicalPermutedPrimary(parent)
-	if primary == nil || primary.Index == index.address {
+	if primary == nil || primary.Index == index.Address() {
 		return nil, false, nil
 	}
 	eligible, err := foreignKeyIndexEligible(parent, index, primary.Attributes)
@@ -71,7 +71,7 @@ func emitPhysicalCompetingUniques(view CatalogRead, table *relationDescriptor, o
 	if partitionReplaySeparateConstraint(view, primaryIndex) != separate {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	for i := range table.UniqueConstraints {
 		constraint := &table.UniqueConstraints[i]
 		index := view.MustRelation(constraint.Index)
@@ -120,8 +120,8 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.Get(old.namespace)
-	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.name != raw.Name.Parts[1].Text {
+	namespace := auth.catalog.Get(old.Namespace())
+	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
 		return reject()
 	}
 	for i, column := range definition.Columns {

@@ -25,7 +25,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	oldA, oldB := old.Defaults[old.Attributes[0]], old.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.revision != old.revision+1 || next.address != old.address || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
 	if e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
@@ -50,7 +50,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	}
 	e.mu.Lock()
 	exhausted := *d
-	exhausted.revision = ids.DefinitionRevision(^uint64(0))
+	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	e.catalog.state.setDescriptor(ref.Address, &exhausted)
 	e.mu.Unlock()
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER renamed SET DEFAULT 9"), nil)

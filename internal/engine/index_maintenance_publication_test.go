@@ -38,14 +38,14 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.indexRoots[a.address] != old {
+	if e.indexRoots[a.Address()] != old {
 		t.Fatal("validation installed a root")
 	}
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
-	if e.catalog.state.Get(a.address) != a || e.catalog.state.Get(a.SQLIndex.Parent) != parent || e.storage[a.SQLIndex.Parent] != store || e.indexRoots[a.address] == old || e.indexRoots[b.address] != sibling || !reflect.DeepEqual(e.indexRoots[a.address].entries, old.entries) {
+	if e.catalog.state.Get(a.Address()) != a || e.catalog.state.Get(a.SQLIndex.Parent) != parent || e.storage[a.SQLIndex.Parent] != store || e.indexRoots[a.Address()] == old || e.indexRoots[b.Address()] != sibling || !reflect.DeepEqual(e.indexRoots[a.Address()].entries, old.entries) {
 		t.Fatal("selected intent did not publish exactly one real root")
 	}
 }
@@ -75,7 +75,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				base := e.CatalogRead()
 				ref := roleTableRef(t, e, "t")
 				d := *base.MustRelation(ref.Address)
-				d.revision++
+				d.ObjectRevision++
 				replacement := e.BeginCatalogStage(base)
 				defer e.DiscardCatalogStage(replacement)
 				if err := replacement.Replace(&d); err != nil {
@@ -159,14 +159,14 @@ func TestIndexMaintenancePreservesNewestUnchangedSibling(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO t VALUES(2)")
-	newestB := e.indexRoots[b.address]
+	newestB := e.indexRoots[b.Address()]
 	if newestB == oldB {
 		t.Fatal("fixture did not publish a newer sibling")
 	}
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.indexRoots[a.address] == oldA || e.indexRoots[b.address] != newestB {
+	if e.indexRoots[a.Address()] == oldA || e.indexRoots[b.Address()] != newestB {
 		t.Fatal("selected publication overwrote a newest unchanged sibling")
 	}
 	btreeWantKeys(t, e, "a", "1", "2")

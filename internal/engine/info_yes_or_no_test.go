@@ -15,7 +15,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
 	d, ok := view.Type(address)
-	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.SQLType.IsBuiltin() || !d.SQLType.Concrete() || !d.SQLType.HasDomainChecks() {
+	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.ObjectRevision == 0 || !d.SQLType.IsBuiltin() || !d.SQLType.Concrete() || !d.SQLType.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
 	base, ok := view.LookupType(sqltype.VarChar)
@@ -173,7 +173,7 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	// Install a private storage fixture, not a public SQL/API witness. Result
 	// analysis must retain the domain even when the only physical datum is NULL.
 	e.mu.Lock()
-	e.storage[table.address] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{sqltype.Null(d)}}}}
+	e.storage[table.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{sqltype.Null(d)}}}}
 	e.commitSeq = 1
 	e.mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")

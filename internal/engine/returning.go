@@ -282,7 +282,7 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 			return true, nil
 		}
 	} else if len(name.Parts) == 2 && b.targetAlias == "" && label == b.targetName {
-		namespace := b.engine.catalog.state.Get(b.relation.namespace)
+		namespace := b.engine.catalog.state.Get(b.relation.Namespace())
 		if namespace != nil && name.Parts[0].Text == namespace.Name() {
 			return b.returningAliases.mode != returningDelete, nil
 		}

@@ -25,7 +25,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &typeDescriptor{SQLType: typ, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &typeDescriptor{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal("source metadata mutated", schema)
 	}
 	for i, column := range d.Columns {
-		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(d.address.ObjectID) || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[column.Name] != i {
+		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(d.Address().ObjectID) || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[column.Name] != i {
 			t.Fatal(column, d.Attributes, d.Index)
 		}
 	}
@@ -81,14 +81,14 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)
-	if len(e.storage[d.address].versions) != 0 {
+	if len(e.storage[d.Address()].versions) != 0 {
 		t.Fatal("descriptor-only phase demanded rows")
 	}
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{domain.Address()}
 	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
-	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.address.ObjectID, SubID: 2}) {
+	if err != nil || len(edges) != 1 || edges[0].target != domain.Address() || edges[0].column != "d" || edges[0].address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.Address().ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
 }
@@ -151,7 +151,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *domain
-	next.revision++
+	next.ObjectRevision++
 	peer := e.BeginCatalogStage(e.CatalogRead())
 	if err = peer.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -289,7 +289,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
 		}
 		e.mu.Unlock()
-		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.address) != d {
+		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {
 			done()
 			t.Fatal("existing-target skip reached structural validator/runtime", noData, stage, skipped, err, calls)
 		}

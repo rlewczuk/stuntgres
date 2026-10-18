@@ -23,16 +23,16 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					c := inheritanceUnitRelation(e, "c", 22002, "extra", "a")
 					c.Attributes = []int32{2, 7}
 					c.AttributeHighWater = 7
-					parents := []ids.ObjectAddress{p.address}
-					origins := []inheritanceOrigin{{Parent: p.address, Attribute: 1}}
+					parents := []ids.ObjectAddress{p.Address()}
+					origins := []inheritanceOrigin{{Parent: p.Address(), Attribute: 1}}
 					if other {
-						parents = append(parents, q.address)
-						origins = append(origins, inheritanceOrigin{Parent: q.address, Attribute: 1})
+						parents = append(parents, q.Address())
+						origins = append(origins, inheritanceOrigin{Parent: q.Address(), Attribute: 1})
 					}
 					c.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{2: {Local: true}, 7: {Local: local, Origins: origins}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 					original := cloneInheritance(c.Inheritance)
 					next := *p
-					next.revision++
+					next.ObjectRevision++
 					action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
 					switch kind {
 					case "column":
@@ -67,8 +67,8 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					}
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
-					stage.descriptors[p.address] = &next
-					state := &inheritanceAlterState{stage: stage, root: p, targets: []*relationDescriptor{p, c}, selected: map[ids.ObjectAddress]bool{p.address: true, c.address: true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
+					stage.descriptors[p.Address()] = &next
+					state := &inheritanceAlterState{stage: stage, root: p, targets: []*relationDescriptor{p, c}, selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, only: only, actions: []parser.AlterTableAction{action}, events: make(map[ids.ObjectAddress][]inheritanceAlterEvent)}
 					(&StatementScope{inheritanceAlter: state}).recordInheritanceAlterAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
 					if err != nil {
@@ -92,7 +92,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					if actualLocal != wantLocal || len(actualOrigins) != wantOrigins {
 						t.Fatal("wrong retained provenance", kind, only, other, local, graph)
 					}
-					if other && (actualOrigins[0].Parent != q.address || kind != "check" && actualOrigins[0].Attribute != 1) {
+					if other && (actualOrigins[0].Parent != q.Address() || kind != "check" && actualOrigins[0].Attribute != 1) {
 						t.Fatal("surviving parent identity/attribute changed", actualOrigins)
 					}
 					wantDrop := !wantLocal && !other
@@ -112,17 +112,17 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 func TestInheritanceAlterAtomicity(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	before := e.CatalogRead()
-	parentStore, childStore := e.storage[p.address], e.storage[c.address]
+	parentStore, childStore := e.storage[p.Address()], e.storage[c.Address()]
 	parentRows := append([]rowVersion(nil), parentStore.versions...)
 	childRows := append([]rowVersion(nil), childStore.versions...)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range []*relationDescriptor{p, c} {
 		next := *old
-		next.revision++
+		next.ObjectRevision++
 		next.Comment = "candidate"
-		store := e.storage[old.address]
-		ref := e.catalog.Domain.Ref(before.Epoch(), old.address)
+		store := e.storage[old.Address()]
+		ref := e.catalog.Domain.Ref(before.Epoch(), old.Address())
 		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.versions), store.generation, store.ends); err != nil {
 			t.Fatal(err)
 		}
@@ -133,7 +133,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("stale later child observation validated")
 	}
-	if e.CatalogRead().state != before.state || e.storage[p.address] != parentStore || e.storage[c.address] != childStore {
+	if e.CatalogRead().state != before.state || e.storage[p.Address()] != parentStore || e.storage[c.Address()] != childStore {
 		t.Fatal("late child veto partially published catalog/store identities")
 	}
 	if !reflect.DeepEqual(parentRows, parentStore.versions) || !reflect.DeepEqual(childRows, childStore.versions) {
@@ -151,7 +151,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	p.Defaults = map[int32]columnDefault{1: {Expression: expression(1)}}
 	c.Defaults = map[int32]columnDefault{1: {Expression: expression(9)}}
-	provenance := inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}
+	provenance := inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 	view := inheritanceUnitView(e, p, c)
 	retained, err := retainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || retained.Local || !retained.ExplicitDefault || !reflect.DeepEqual(retained.Origins, provenance.Origins) {
@@ -171,7 +171,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c = inheritanceUnitRelation(e, "gc", 22003, "a", "g")
 	p.Generations = map[int32]columnGeneration{2: {OID: 24000, Kind: generationVirtual, Expression: expression(1)}}
 	c.Generations = map[int32]columnGeneration{2: {OID: 24001, Kind: generationVirtual, Expression: expression(2)}}
-	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}, 2: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 2}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}, 2: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
 	if err := validateInheritance(view, c); err != nil {
 		t.Fatal("legal ONLY recipe divergence invalidated column origins", err)
@@ -190,7 +190,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 		case "usage":
 			next.Columns[1].Usage = testUsage(e, sqltype.Int8)
 		case "origin":
-			next.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}
+			next.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 		}
 		if err := validateInheritance(view, &next); err == nil {
 			t.Fatal("recipe equality relaxation bypassed independent invariant", kind)

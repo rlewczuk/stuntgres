@@ -24,7 +24,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 	var queue []alterTypeIndex
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.Address() {
 			continue
 		}
 		pending := alterTypeIndex{index: index}
@@ -35,7 +35,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 			} else {
 				for _, dep := range key.Derived.Dependencies {
 					a := dep.Address
-					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID != 0 && !survivor.hasAttribute(a.SubID) {
+					if a.ClassID == original.Address().ClassID && a.ObjectID == original.Address().ObjectID && a.SubID != 0 && !survivor.hasAttribute(a.SubID) {
 						dropped = true
 					}
 				}
@@ -44,7 +44,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 		if predicate := index.SQLIndex.Predicate; predicate != nil {
 			for _, dep := range predicate.Dependencies {
 				a := dep.Address
-				if a.ClassID != original.address.ClassID || a.ObjectID != original.address.ObjectID || a.SubID == 0 {
+				if a.ClassID != original.Address().ClassID || a.ObjectID != original.Address().ObjectID || a.SubID == 0 {
 					continue
 				}
 				dropped = dropped || !survivor.hasAttribute(a.SubID)
@@ -77,7 +77,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 				for _, dep := range key.Derived.Dependencies {
 					a := dep.Address
-					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID == original.Attributes[slot] {
+					if a.ClassID == original.Address().ClassID && a.ObjectID == original.Address().ObjectID && a.SubID == original.Attributes[slot] {
 						affected = true
 					}
 				}
@@ -131,7 +131,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			}
 			definition.Keys[slot].Derived = derived
 		}
-		oldParent := stage.base.MustRelation(parent.address)
+		oldParent := stage.base.MustRelation(parent.Address())
 		for i, key := range definition.Keys {
 			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
 			if err != nil {
@@ -150,9 +150,9 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			return err
 		}
 		if next != nil {
-			if next.revision == pending.index.revision {
-				next.revision++
-				if next.revision == 0 {
+			if next.Revision() == pending.index.Revision() {
+				next.ObjectRevision++
+				if next.Revision() == 0 {
 					return fmt.Errorf("stuntgres: index revision exhausted")
 				}
 			}

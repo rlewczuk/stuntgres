@@ -23,8 +23,8 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	// Only the independent base consumes TYPES: its generated array must not
 	// acquire a second origin/dependency on the selected named recipient.
 	composite := *table
-	composite.address.ObjectID = 20020
-	composite.name = "standalone"
+	composite.ObjectAddress.ObjectID = 20020
+	composite.ObjectName = "standalone"
 	composite.RowType = 0
 	composite.RelationKind = compositeRelation
 	f.e.mu.Lock()

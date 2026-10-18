@@ -120,14 +120,14 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
 	}
 	if r.operands != nil {
-		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.ID); owner != nil && owner.address.ObjectID != selected.ID {
-			ref := r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), owner.address)
+		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
+			ref := r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), owner.Address())
 			for _, operand := range *r.operands {
 				if operand.Ref == ref {
 					return uint32(selected.ID), nil
 				}
 			}
-			*r.operands = append(*r.operands, expressionDependency{Ref: ref, Revision: owner.revision})
+			*r.operands = append(*r.operands, expressionDependency{Ref: ref, Revision: owner.Revision()})
 		}
 	}
 	return uint32(selected.ID), nil

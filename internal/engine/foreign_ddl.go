@@ -95,7 +95,7 @@ func foreignMappingAuthority(auth AuthorizationView, server *foreignDescriptor, 
 	if role == auth.state.CurrentUser {
 		return auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege})
 	}
-	return sqlError("42501", "must be owner of foreign server "+server.name)
+	return sqlError("42501", "must be owner of foreign server "+server.Name())
 }
 func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind ForeignObjectKind, options []ForeignOption) (foreignValidation, error) {
 	if wrapper.Validator == (ids.ObjectAddress{}) {
@@ -103,7 +103,7 @@ func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind F
 	}
 	p, ok := stage.base.Procedure(wrapper.Validator)
 	if !ok || p.Foreign == nil || p.Foreign.Validator == nil {
-		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.name))
+		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, p)
 	return foreignValidation{procedure: p.Foreign, kind: kind, options: append([]ForeignOption{}, options...)}, nil
@@ -225,7 +225,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if err = foreignMappingAuthority(auth, server, role); err != nil {
 			return nil, nil, err
 		}
-		name = foreignMappingName(server.address, role)
+		name = foreignMappingName(server.Address(), role)
 		stage.domainBases = append(stage.domainBases, server)
 		wrapper, _ = auth.catalog.Foreign(server.Wrapper)
 	}
@@ -263,7 +263,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			if er = stage.removeObjectLocked(foreignRef(auth, d), false); er != nil {
 				return nil, nil, er
 			}
-			roots = append(roots, d.address)
+			roots = append(roots, d.Address())
 		}
 		return nil, roots, nil
 	}
@@ -299,9 +299,9 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if er != nil {
 			return nil, nil, er
 		}
-		next = foreignDescriptor{address: ids.ObjectAddress{ClassID: class, ObjectID: oid}, name: name, Owner: auth.state.CurrentUser}
+		next = foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: oid}, ObjectName: name, Owner: auth.state.CurrentUser}
 	}
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -314,7 +314,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			next.Handler = ids.ObjectAddress{}
 			if p != nil {
-				next.Handler = p.address
+				next.Handler = p.Address()
 				stage.domainBases = append(stage.domainBases, p)
 			}
 		}
@@ -325,7 +325,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			next.Validator = ids.ObjectAddress{}
 			if p != nil {
-				next.Validator = p.address
+				next.Validator = p.Address()
 				stage.domainBases = append(stage.domainBases, p)
 			}
 		}
@@ -339,7 +339,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			if err = auth.Check(AccessRequirement{Object: foreignRef(auth, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
 				return nil, nil, err
 			}
-			next.Wrapper = wrapper.address
+			next.Wrapper = wrapper.Address()
 			next.ServerType = s.ServerType
 		} else {
 			wrapper, _ = auth.catalog.Foreign(old.Wrapper)
@@ -348,7 +348,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			next.Version = s.Version
 		}
 	case ids.ForeignMappingClassID:
-		next.Server = server.address
+		next.Server = server.Address()
 		next.MappedRole = role
 		next.Owner = role
 		next.MappedName = "public"
@@ -370,7 +370,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 	}
 	if s.NewName.Text != "" {
-		next.name = s.NewName.Text
+		next.ObjectName = s.NewName.Text
 	}
 	if s.Owner != nil {
 		target := successor
@@ -383,8 +383,8 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		next.ACL = authorization.SchemaACLOwner(next.ACL, next.Owner, target)
 		next.Owner = target
 	}
-	if a := stage.lookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.address) {
-		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), next.name))
+	if a := stage.lookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
+		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), next.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, wrapper)
 	var jobs []foreignValidation
@@ -448,7 +448,7 @@ func foreignMappingDiagnostic(auth AuthorizationView, role authorization.Princip
 	if exists {
 		verb = "already exists"
 	}
-	return fmt.Sprintf(`user mapping for "%s" %s for server "%s"`, name, verb, server.name)
+	return fmt.Sprintf(`user mapping for "%s" %s for server "%s"`, name, verb, server.Name())
 }
 
 func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescriptor, target authorization.PrincipalRef) error {
@@ -456,9 +456,9 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescript
 	if err != nil {
 		return err
 	}
-	if object.address.ClassID == ids.ForeignWrapperClassID {
+	if object.Address().ClassID == ids.ForeignWrapperClassID {
 		failure := func(hint string) error {
-			d := sqlError("42501", fmt.Sprintf(`permission denied to change owner of foreign-data wrapper "%s"`, object.name)).(*sqlstate.Error)
+			d := sqlError("42501", fmt.Sprintf(`permission denied to change owner of foreign-data wrapper "%s"`, object.Name())).(*sqlstate.Error)
 			d.Hint = hint
 			return d
 		}

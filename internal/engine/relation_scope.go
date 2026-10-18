@@ -388,7 +388,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				if err == nil {
 					d := auth.catalog.MustRelation(ref.Address)
 					if d.RelationKind != viewRelation {
-						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
+						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.Name()))
 					}
 				}
 			}
@@ -448,7 +448,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				source, err = standaloneComposite(auth.catalog, typ, path)
 			}
 			if err == nil {
-				typedSourceRef = e.catalog.Domain.Ref(auth.catalog.Epoch(), source.address)
+				typedSourceRef = e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address())
 			}
 		}
 	}
@@ -623,7 +623,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 		if descriptor.RelationKind != viewRelation {
-			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.name))
+			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.Name()))
 		}
 		return nil
 	}
@@ -653,7 +653,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if tableRename {
-			return auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, descriptor.namespace))
+			return auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, descriptor.Namespace()))
 		}
 		return nil
 	}

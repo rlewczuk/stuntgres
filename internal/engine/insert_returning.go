@@ -176,7 +176,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 }
 func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
-	address := state.destination.address
+	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
 		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}

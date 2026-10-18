@@ -53,7 +53,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 					return err
 				}
 				copy := *d
-				copy.SQLType, copy.namespace, copy.Extension, copy.Array = typ, namespace, extension, associated
+				copy.SQLType, copy.ObjectNamespace, copy.Extension, copy.Array = typ, namespace, extension, associated
 				next.setDescriptor(address, &copy)
 				changed = true
 			}
@@ -83,7 +83,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 					return err
 				}
 				copy := *d
-				copy.SQLType, copy.namespace = typ, namespace
+				copy.SQLType, copy.ObjectNamespace = typ, namespace
 				copy.Array = associated
 				next.setDescriptor(address, &copy)
 				changed = true
@@ -97,7 +97,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if !ok {
 				return fmt.Errorf("stuntgres: missing composite backing relation")
 			}
-			identity, namespace, owner := address, d.namespace, d.OwningRelation
+			identity, namespace, owner := address, d.ObjectNamespace, d.OwningRelation
 			if to, ok := mapping[identity]; ok {
 				identity = to
 			}
@@ -111,12 +111,12 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
-			ns := next.Get(d.namespace)
+			ns := next.Get(d.ObjectNamespace)
 			if ns == nil {
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
-			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
-			rebuild := importing || identity != address || namespace != d.namespace || owner != d.OwningRelation || associated != d.Array || declaration != d.SQLType.SQLName() || d.SQLType.CompositeLen() != len(relation.Columns)
+			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.Name())
+			rebuild := importing || identity != address || namespace != d.ObjectNamespace || owner != d.OwningRelation || associated != d.Array || declaration != d.SQLType.SQLName() || d.SQLType.CompositeLen() != len(relation.Columns)
 			var members []sqltype.CompositeMember
 			for i, c := range relation.Columns {
 				child := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}
@@ -157,12 +157,12 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				if members == nil {
 					members = compositeMembers(relation)
 				}
-				typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.name, declaration, associated, members)
+				typ, err := sqltype.Composite(sqltype.ID(identity.ObjectID), relation.Name(), declaration, associated, members)
 				if err != nil {
 					return err
 				}
 				copy := *d
-				copy.SQLType, copy.namespace, copy.OwningRelation, copy.Array = typ, namespace, owner, associated
+				copy.SQLType, copy.ObjectNamespace, copy.OwningRelation, copy.Array = typ, namespace, owner, associated
 				next.setDescriptor(address, &copy)
 				changed = true
 			}
@@ -188,7 +188,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if target != address || namespace != d.Namespace() || relation != d.OwningRelation || associated != d.Array {
 				copy := *d
 				copy.SQLType = sqltype.LookupOnly(sqltype.ID(target.ObjectID), d.Name(), associated)
-				copy.namespace, copy.OwningRelation, copy.Array = namespace, relation, associated
+				copy.ObjectNamespace, copy.OwningRelation, copy.Array = namespace, relation, associated
 				next.setDescriptor(address, &copy)
 				changed = true
 			}
@@ -268,7 +268,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			}
 			copy := *d
 			copy.SQLType = typ
-			copy.namespace = namespace
+			copy.ObjectNamespace = namespace
 			copy.Array = associated
 			if destination, ok := mapping[copy.OwningRelation]; ok {
 				copy.OwningRelation = destination

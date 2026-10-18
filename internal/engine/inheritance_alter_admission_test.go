@@ -98,7 +98,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor
 	if err := scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), table.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), table.Address())
 	if err := e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func inheritanceAlterJoin(t *testing.T, result <-chan error, joined func()) erro
 func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *relationDescriptor) *inheritanceAlterState {
 	t.Helper()
 	lockPending(t, c.e, 1)
-	ref := c.e.catalog.Domain.Ref(c.e.CatalogRead().Epoch(), table.address)
+	ref := c.e.catalog.Domain.Ref(c.e.CatalogRead().Epoch(), table.Address())
 	lockState := c.e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == c.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
@@ -155,36 +155,36 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 		}
 		for index, step := range prepared.steps {
 			if step.err != nil {
-				t.Fatalf("%s cached action %d failed: %v", prepared.old.name, index, step.err)
+				t.Fatalf("%s cached action %d failed: %v", prepared.old.Name(), index, step.err)
 			}
 		}
 		for index, step := range prepared.inline {
 			if step.err != nil {
-				t.Fatalf("%s cached inline action %d failed: %v", prepared.old.name, index, step.err)
+				t.Fatalf("%s cached inline action %d failed: %v", prepared.old.Name(), index, step.err)
 			}
 		}
 		for index, step := range prepared.usingNotNull {
 			if step.err != nil {
-				t.Fatalf("%s cached USING INDEX not-null action %d failed: %v", prepared.old.name, index, step.err)
+				t.Fatalf("%s cached USING INDEX not-null action %d failed: %v", prepared.old.Name(), index, step.err)
 			}
 		}
 		if prepared.afterDropError != nil {
-			t.Fatalf("%s cached post-DROP effects failed: %v", prepared.old.name, prepared.afterDropError)
+			t.Fatalf("%s cached post-DROP effects failed: %v", prepared.old.Name(), prepared.afterDropError)
 		}
 		if prepared.usingCaptureError != nil {
-			t.Fatalf("%s cached index capture failed: %v", prepared.old.name, prepared.usingCaptureError)
+			t.Fatalf("%s cached index capture failed: %v", prepared.old.Name(), prepared.usingCaptureError)
 		}
 		if prepared.checksError != nil {
-			t.Fatalf("%s cached CHECK preparation failed: %v", prepared.old.name, prepared.checksError)
+			t.Fatalf("%s cached CHECK preparation failed: %v", prepared.old.Name(), prepared.checksError)
 		}
 	}
 	return state
 }
 func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *relationDescriptor, want []sqltype.Value) {
 	t.Helper()
-	store := e.storage[table.address]
+	store := e.storage[table.Address()]
 	if store == nil || len(store.versions) != 1 || !reflect.DeepEqual(store.versions[0].values, want) {
-		t.Fatal("wrong physical replacement row", table.name, store)
+		t.Fatal("wrong physical replacement row", table.Name(), store)
 	}
 }
 func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
@@ -201,7 +201,7 @@ func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
 func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) *relationDescriptor {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
-	g.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{c.address}, Columns: map[int32]inheritedColumn{g.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: c.address, Attribute: c.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
+	g.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{c.Address()}, Columns: map[int32]inheritedColumn{g.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -218,14 +218,14 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p ADD COLUMN extra INT DEFAULT 7")
 	result, joined := inheritanceAlterWorker(t, command, holder)
 	state := inheritanceAlterPending(t, command, c)
-	if state.prepared[p.address] == nil || state.prepared[c.address] != nil {
+	if state.prepared[p.Address()] == nil || state.prepared[c.Address()] != nil {
 		t.Fatal("prefix was not prepared up to the actual child wait")
 	}
 	beforeGrowth := e.CatalogRead()
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
-	currentChild := grown.MustRelation(c.address)
-	if currentChild == c || !currentChild.HasSubclasses || currentChild.SubclassPredecessor != c || currentChild.revision != currentChild.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
+	currentChild := grown.MustRelation(c.Address())
+	if currentChild == c || !currentChild.HasSubclasses || currentChild.SubclassPredecessor != c || currentChild.Revision() != currentChild.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {
@@ -235,20 +235,20 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal("additive first-grandchild growth was treated as replacement", err)
 	}
-	if state.stage == nil || state.stage.base.state != grown.state || state.stage.base.Get(g.address) != g || len(state.targets) != 3 {
+	if state.stage == nil || state.stage.base.state != grown.state || state.stage.base.Get(g.Address()) != g || len(state.targets) != 3 {
 		t.Fatal("sole stage did not capture reconciled actual growth")
 	}
 	if e.CatalogRead().state != grown.state {
 		t.Fatal("controller published before statement Finish")
 	}
 	for _, old := range []*relationDescriptor{p, currentChild, g} {
-		ref := e.catalog.Domain.Ref(grown.Epoch(), old.address)
+		ref := e.catalog.Domain.Ref(grown.Epoch(), old.Address())
 		if !command.scope.holdsColumnDropGrant(ref) {
-			t.Fatal("expanded graph lacks real AX admission", old.name)
+			t.Fatal("expanded graph lacks real AX admission", old.Name())
 		}
-		replacement := command.scope.catalog.descriptors[old.address].(*relationDescriptor)
+		replacement := command.scope.catalog.descriptors[old.Address()].(*relationDescriptor)
 		if len(replacement.Columns) != 2 || replacement.Columns[1].Name != "extra" {
-			t.Fatal("new grandchild missed actual provider application", old.name)
+			t.Fatal("new grandchild missed actual provider application", old.Name())
 		}
 	}
 	for _, pair := range []struct {
@@ -264,7 +264,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 		old   *relationDescriptor
 		value int64
 	}{{p, 10}, {c, 20}, {g, 30}} {
-		current := e.CatalogRead().MustRelation(pair.old.address)
+		current := e.CatalogRead().MustRelation(pair.old.Address())
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, pair.value), inheritanceQueryInt(e, 7)})
 	}
 	lockEmpty(t, e)
@@ -277,14 +277,14 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	result, joined := inheritanceAlterWorker(t, command, holder)
 	state := inheritanceAlterPending(t, command, c)
 	g := inheritanceAlterGrandchild(t, e, c)
-	marker := e.CatalogRead().MustRelation(c.address)
+	marker := e.CatalogRead().MustRelation(c.Address())
 	if !inheritanceMarkerPublication(c, marker) {
 		t.Fatal("fixture failed to publish genuine first-child marker")
 	}
 	// A subsequent actual metadata publication keeps the marker's fields but is
 	// not the exact sticky-marker publication. It must never inherit its waiver.
 	later := *marker
-	later.revision++
+	later.ObjectRevision++
 	later.Comment = "subsequent physical descriptor mutation"
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&later); err != nil {
@@ -302,7 +302,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)
-	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.address) != g || len(e.CatalogRead().MustRelation(p.address).Columns) != 1 {
+	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.Address()) != g || len(e.CatalogRead().MustRelation(p.Address()).Columns) != 1 {
 		t.Fatal("replacement veto leaked earlier prepared root or retargeted the graph")
 	}
 	lockEmpty(t, e)
@@ -322,7 +322,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("valid root fact reached held/foreign-owner child", err)
 		}
-		if command.scope.holdsColumnDropGrant(e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.address)) || command.scope.catalog.descriptors[c.address] != nil || command.scope.catalog.storage[c.address].replacement != nil {
+		if command.scope.holdsColumnDropGrant(e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())) || command.scope.catalog.descriptors[c.Address()] != nil || command.scope.catalog.storage[c.Address()].replacement != nil {
 			t.Fatal("valid NN no-op acquired or changed child")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -347,8 +347,8 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("plain ADD crossed existing-column merge stop", err)
 		}
-		ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), leaf.address)
-		if command.scope.holdsColumnDropGrant(ref) || command.scope.catalog.descriptors[leaf.address] != nil {
+		ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), leaf.Address())
+		if command.scope.holdsColumnDropGrant(ref) || command.scope.catalog.descriptors[leaf.Address()] != nil {
 			t.Fatal("plain ADD locked/owned below actual merge stop")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -388,7 +388,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, leaf)
 			c := retiredUnitTable(t, e, "c")
-			if state.prepared[c.address] == nil {
+			if state.prepared[c.Address()] == nil {
 				t.Fatal("inline fact did not reach existing-column merge node")
 			}
 			holder.Finish(nil)
@@ -431,7 +431,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("later DEFAULT bound a provider actually removed in phase zero", provider.name, err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().state != before.state || e.CatalogRead().Get(removed.address) != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
+			if e.CatalogRead().state != before.state || e.CatalogRead().Get(removed.Address()) != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
 				t.Fatal("removed-provider binding failure partially applied actual DROP effects")
 			}
 			lockEmpty(t, e)
@@ -459,7 +459,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p DROP COLUMN b,ADD COLUMN z INT DEFAULT "+defaults[0]+",ADD COLUMN u INT DEFAULT "+defaults[1]+" CONSTRAINT ck CHECK(((ARRAY[ROW(a,z,u)::p])[1]).u>0)")
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, c)
-			prepared := state.prepared[p.address]
+			prepared := state.prepared[p.Address()]
 			if prepared == nil || prepared.steps[0].drop == nil {
 				t.Fatal("rowtype witness did not use actual DROP preparation")
 			}
@@ -596,7 +596,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p ADD COLUMN b INT DEFAULT 7 CONSTRAINT nn NOT NULL CONSTRAINT ck CHECK(b>0),DROP COLUMN b CASCADE")
 			result, joined := inheritanceAlterWorker(t, command, holder)
 			state := inheritanceAlterPending(t, command, c)
-			prepared := state.prepared[p.address]
+			prepared := state.prepared[p.Address()]
 			if prepared == nil || prepared.steps[1].drop == nil || prepared.steps[0].added.column == nil || len(prepared.inline) != 1 {
 				t.Fatal("actual mixed providers were not prepared before descendant wait")
 			}
@@ -613,8 +613,8 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if !slices.Equal(constraintAttributeKeys(cooked, cooked.CheckConstraints[0].Expression), []int32{newAttribute}) || cooked.CheckConstraints[0].Name != "ck" || cooked.NotNullConstraints[0].Name != "nn" || cooked.CheckConstraints[0].OID != 0 || cooked.NotNullConstraints[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
-			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.namespace, Name: "old_b"}
-			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().Get(view.address) != view {
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
+			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().Get(view.Address()) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {
@@ -640,7 +640,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := inheritanceAlterJoin(t, result, joined); err != nil {
 				t.Fatal(err)
 			}
-			candidate := command.scope.catalog.descriptors[p.address].(*relationDescriptor)
+			candidate := command.scope.catalog.descriptors[p.Address()].(*relationDescriptor)
 			if candidate.NotNullConstraints[0].OID == 0 || candidate.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || candidate.CheckConstraints[0].OID == 0 || candidate.CheckConstraints[0].OID == p.CheckConstraints[0].OID || candidate.NotNullConstraints[0].Name != cooked.NotNullConstraints[0].Name || candidate.NotNullConstraints[0].Attribute != cooked.NotNullConstraints[0].Attribute || candidate.CheckConstraints[0].Name != cooked.CheckConstraints[0].Name || !sameGroupExpression(candidate.CheckConstraints[0].Expression, cooked.CheckConstraints[0].Expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}
@@ -656,14 +656,14 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := command.scope.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			if _, present := e.CatalogRead().Find(view.address); present {
+			if _, present := e.CatalogRead().Find(view.Address()); present {
 				t.Fatal("genuine CASCADE dependency survived cached DROP")
 			}
 			for _, pair := range []struct {
 				old   *relationDescriptor
 				value int64
 			}{{p, 1}, {c, 2}} {
-				current := e.CatalogRead().MustRelation(pair.old.address)
+				current := e.CatalogRead().MustRelation(pair.old.Address())
 				if current.Attributes[current.Index["b"]] == pair.old.Attributes[pair.old.Index["b"]] {
 					t.Fatal("mixed DROP/ADD reused old stable attribute")
 				}

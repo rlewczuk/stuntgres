@@ -118,7 +118,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	if !ok || !domain.SQLType.IsDomain() {
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(domain.namespace)
+	namespace, ok := auth.catalog.Namespace(domain.ObjectNamespace)
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}

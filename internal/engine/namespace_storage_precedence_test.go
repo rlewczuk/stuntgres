@@ -17,7 +17,7 @@ func (r *namespaceUnreadCopyInput) Read([]byte) (int, error) { r.calls++; return
 
 func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 	e, owner, peer, foreign, _, persistent := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().MustNamespace(foreign.namespace).name
+	name := e.CatalogRead().MustNamespace(foreign.Namespace()).Name()
 	sessionSQL(t, peer, "CREATE ROLE storage_copy_reader")
 	deny := func(actor *Session, query, code, message string) {
 		t.Helper()
@@ -31,9 +31,9 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 			t.Fatal(err)
 		}
 		before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
-		store := e.storage[foreign.address]
+		store := e.storage[foreign.Address()]
 		root, ends := store.versions, store.ends
-		persistentStore := e.storage[persistent.address]
+		persistentStore := e.storage[persistent.Address()]
 		persistentRoot, persistentEnds := persistentStore.versions, persistentStore.ends
 		reader := &namespaceUnreadCopyInput{}
 		var output bytes.Buffer
@@ -41,7 +41,7 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 		err = scope.Finish(err)
 		op.Done()
 		defaultUnitDiagnostic(t, err, code, message)
-		if count != 0 || reader.calls != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.address] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || e.storage[persistent.address] != persistentStore || !sameVersionRoot(persistentStore.versions, persistentRoot) || persistentStore.ends != persistentEnds || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+		if count != 0 || reader.calls != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.Address()] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || e.storage[persistent.Address()] != persistentStore || !sameVersionRoot(persistentStore.versions, persistentRoot) || persistentStore.ends != persistentEnds || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 			t.Fatal("denied COPY changed storage, frontier, input or TEMP footprint", query, count, err)
 		}
 		sessionSQL(t, actor, "ROLLBACK")
@@ -103,7 +103,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	allowed := namespaceCapturedAuthorization(t, peer)
 	catalog := e.CatalogRead()
 	namespace := owner.temporaryNamespace
-	name := catalog.MustNamespace(namespace).name
+	name := catalog.MustNamespace(namespace).Name()
 	base := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "storage_acl_source"})
 	store := e.storage[base]
 	root, ends := store.versions, store.ends

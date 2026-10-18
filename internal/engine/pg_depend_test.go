@@ -51,7 +51,7 @@ func TestPGDependShape(t *testing.T) {
 	if !ok {
 		t.Fatal("missing pg_depend descriptor")
 	}
-	if source.name != "pg_depend" || source.namespace.ObjectID != 11 || source.RelationKind != catalogRelation || source.AttributeHighWater != 7 || len(source.Columns) != 7 {
+	if source.Name() != "pg_depend" || source.Namespace().ObjectID != 11 || source.RelationKind != catalogRelation || source.AttributeHighWater != 7 || len(source.Columns) != 7 {
 		t.Fatal(source)
 	}
 	names := []string{"classid", "objid", "objsubid", "refclassid", "refobjid", "refobjsubid", "deptype"}
@@ -86,16 +86,16 @@ func TestPGDependConstructionBags(t *testing.T) {
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
 	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
 	uq := uniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
-	table := &relationDescriptor{address: tableAddress, namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: tableRelation, Attributes: []int32{2, 3, 4, 5}, AttributeHighWater: 5, Columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, NotNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, CheckConstraints: []checkConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, UniqueConstraints: []uniqueConstraint{uq}, Defaults: map[int32]columnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]columnGeneration{4: {Kind: generationStored, OID: 43002, Expression: repeated}}}
+	table := &relationDescriptor{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: tableRelation, Attributes: []int32{2, 3, 4, 5}, AttributeHighWater: 5, Columns: []ColumnDescriptor{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, NotNullConstraints: []notNullConstraint{{OID: 42001, Attribute: 3}}, CheckConstraints: []checkConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, UniqueConstraints: []uniqueConstraint{uq}, Defaults: map[int32]columnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]columnGeneration{4: {Kind: generationStored, OID: 43002, Expression: repeated}}}
 	catalog.state.setDescriptor(tableAddress, table)
-	simple := &relationDescriptor{address: pgDependUnitAddress(1259, 44001, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
-	expression := &relationDescriptor{address: pgDependUnitAddress(1259, 44002, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Derived: &derivedIndexKey{Definition: repeated}}}}}
-	backing := &relationDescriptor{address: pgDependUnitAddress(1259, 44003, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: uniqueBacking(&uq)}}
-	standalone := &relationDescriptor{address: pgDependUnitAddress(1259, 44004, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 2}}, Include: []int32{3}}}
-	sequence := &relationDescriptor{address: pgDependUnitAddress(1259, 45001, 0), namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column}}
-	identity := &relationDescriptor{address: pgDependUnitAddress(1259, 45002, 0), namespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column, Identity: true}}
+	simple := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44001, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Attribute: 2}, {Attribute: 2}}, Include: []int32{3}}}
+	expression := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44002, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Keys: []indexKey{{Derived: &derivedIndexKey{Definition: repeated}}}}}
+	backing := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44003, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 5}}, Include: []int32{3}, Constraint: uniqueBacking(&uq)}}
+	standalone := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 44004, 0), RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: tableAddress, Unique: true, Keys: []indexKey{{Attribute: 2}}, Include: []int32{3}}}
+	sequence := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 45001, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column}}
+	identity := &relationDescriptor{ObjectAddress: pgDependUnitAddress(1259, 45002, 0), ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: column, Identity: true}}
 	for _, d := range []*relationDescriptor{simple, expression, backing, standalone, sequence, identity} {
-		catalog.state.setDescriptor(d.address, d)
+		catalog.state.setDescriptor(d.Address(), d)
 	}
 	got, err := collectPGDepend(context.Background(), catalog)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{d1, d2, array, enum} {
-		d := &typeDescriptor{SQLType: typ, namespace: ns, revision: 1}
+		d := &typeDescriptor{SQLType: typ, ObjectNamespace: ns, ObjectRevision: 1}
 		catalog.state.setDescriptor(d.Address(), d)
 	}
 	if !pgDependPinned(catalog, pgDependUnitAddress(1247, 23, 0)) || !pgDependPinned(catalog, pgDependUnitAddress(2615, 11, 0)) || pgDependPinned(catalog, pgDependUnitAddress(2615, 2200, 0)) || pgDependPinned(catalog, pgDependUnitAddress(1247, 47003, 0)) {

@@ -47,11 +47,11 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 	selected := map[ids.ObjectAddress]*relationDescriptor{}
 	var collect func(*relationDescriptor)
 	collect = func(d *relationDescriptor) {
-		if selected[d.address] != nil {
+		if selected[d.Address()] != nil {
 			return
 		}
-		selected[d.address] = d
-		for _, child := range inheritanceChildren(catalog, d.address) {
+		selected[d.Address()] = d
+		for _, child := range inheritanceChildren(catalog, d.Address()) {
 			collect(child)
 		}
 	}
@@ -60,10 +60,10 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 	seen := map[ids.ObjectAddress]bool{}
 	var visit func(*relationDescriptor)
 	visit = func(d *relationDescriptor) {
-		if seen[d.address] {
+		if seen[d.Address()] {
 			return
 		}
-		seen[d.address] = true
+		seen[d.Address()] = true
 		if d.Inheritance != nil {
 			for _, parent := range d.Inheritance.Parents {
 				if p := selected[parent]; p != nil {
@@ -194,14 +194,14 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	children := inheritanceChildren(auth.catalog, root.address)
+	children := inheritanceChildren(auth.catalog, root.Address())
 	if raw.Only {
 		for _, a := range raw.Actions {
 			if a.Action == parser.AddUnique && a.Unique.Primary && len(children) != 0 {
 				for _, column := range a.Unique.Columns {
 					if slot, ok := root.Index[column.Text]; ok && root.Columns[slot].Nullable {
 						e.mu.Unlock()
-						return Result{}, sqlError("XX000", fmt.Sprintf(`column "%s" of table "%s" is not marked NOT NULL`, column.Text, children[0].name))
+						return Result{}, sqlError("XX000", fmt.Sprintf(`column "%s" of table "%s" is not marked NOT NULL`, column.Text, children[0].Name()))
 					}
 				}
 			}
@@ -254,13 +254,13 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		}
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
-		if current.Get(old.address) != old {
+		if current.Get(old.Address()) != old {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		currentAuth, err := e.statementAuthorizationLocked(op, raw)
 		refForOwner := original.lockedRef
-		refForOwner.Address = old.address
+		refForOwner.Address = old.Address()
 		incoming := actions
 		if index != 0 {
 			incoming = inheritanceParentActions(state, old)
@@ -272,13 +272,13 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		if err != nil {
 			return Result{}, err
 		}
-		state.selected[old.address] = true
+		state.selected[old.Address()] = true
 		ref := original.lockedRef
-		ref.Address = old.address
+		ref.Address = old.Address()
 		state.descendant = index != 0
 		state.graph = cloneInheritance(old.Inheritance)
 		planned := actions
-		if cached := state.prepared[old.address]; cached != nil {
+		if cached := state.prepared[old.Address()]; cached != nil {
 			planned = cached.actions
 			state.graph = cloneInheritance(cached.graph)
 		} else if state.descendant {
@@ -298,7 +298,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		}
 		scope.lockedRef, scope.lockedDescriptor = ref, old
 		e.mu.Lock()
-		scope.lockedStorage = e.privateStorageLocked(scope.owner.catalog, old.address)
+		scope.lockedStorage = e.privateStorageLocked(scope.owner.catalog, old.Address())
 		e.mu.Unlock()
 		if len(planned) == 0 {
 			next, err := scope.finishInheritanceAlterCandidate(old, old)
@@ -313,7 +313,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			continue
 		}
 		command := *raw
-		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.catalog.Get(old.namespace).Name()}, {Text: old.name}}}
+		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.catalog.Get(old.Namespace()).Name()}, {Text: old.Name()}}}
 		command.Actions = planned
 		command.Only = true
 		childAuth := auth
@@ -337,7 +337,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		return Result{}, err
 	}
 	for _, old := range state.targets {
-		if state.selected[old.address] && e.privateCatalogLocked(scope.owner.catalog).Get(old.address) != old {
+		if state.selected[old.Address()] && e.privateCatalogLocked(scope.owner.catalog).Get(old.Address()) != old {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
@@ -380,7 +380,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 					parent := state.definitionRelation(view, parentAddress)
 					if pslot, ok := parent.Index[name]; ok {
 						if err := inheritanceColumnConflict(view, old.Columns[slot], parent.Columns[pslot], true); err != nil {
-							return nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.name, name))
+							return nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.Name(), name))
 						}
 					}
 				}
@@ -435,7 +435,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 			}
 			for _, origin := range graph.Columns[old.Attributes[slot]].Origins {
 				if !state.selected[origin.Parent] {
-					return nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s" of relation "%s"`, a.Column.Text, old.name))
+					return nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s" of relation "%s"`, a.Column.Text, old.Name()))
 				}
 			}
 			actions = append(actions, a)
@@ -646,8 +646,8 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 	}
 	copy := *next
 	copy.Inheritance = graph
-	if copy.revision == old.revision {
-		copy.revision++
+	if copy.Revision() == old.Revision() {
+		copy.ObjectRevision++
 	}
 	return &copy, nil
 }

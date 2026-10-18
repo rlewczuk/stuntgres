@@ -137,7 +137,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
-	ref := e.catalog.Domain.Ref(catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

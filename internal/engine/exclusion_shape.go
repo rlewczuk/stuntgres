@@ -29,7 +29,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 			}
 			var keys []sqltype.Value
 			if index.SQLIndex.requiresInsertionOutput() {
-				output, ok := row.indexOutputs[index.address]
+				output, ok := row.indexOutputs[index.Address()]
 				if !ok || !output.matches(index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
 				}
@@ -63,7 +63,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 			if uniqueHasNull(keys) {
 				continue
 			}
-			entries[index.address] = append(entries[index.address], exclusionEntry{row: row, keys: keys, admitted: true})
+			entries[index.Address()] = append(entries[index.Address()], exclusionEntry{row: row, keys: keys, admitted: true})
 		}
 	}
 	e := s.op.session.Engine()
@@ -80,7 +80,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	for index, rows := range entries {
 		p.entries[index] = rows
 	}
-	ends := maps.Clone(p.ended[parent.address])
+	ends := maps.Clone(p.ended[parent.Address()])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
@@ -94,7 +94,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 			ends[id] = candidate.version
 		}
 	}
-	p.ended[parent.address] = ends
+	p.ended[parent.Address()] = ends
 	s.installExclusionProjectionLocked(e, p)
 	return nil
 }

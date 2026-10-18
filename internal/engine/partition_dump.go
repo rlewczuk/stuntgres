@@ -12,7 +12,7 @@ import (
 
 func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
 	add := func(address ids.ObjectAddress) error {
-		id, err := dumpPredecessor(catalog, address, d.address)
+		id, err := dumpPredecessor(catalog, address, d.Address())
 		if err != nil {
 			return err
 		}
@@ -28,7 +28,7 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 		if d.Membership.DefaultBound {
 			parent := catalog.MustRelation(d.Membership.Parent)
 			for _, address := range parent.Partition.Children {
-				if address != d.address && !partitionExclusionDefaultBefore(catalog, d, catalog.MustRelation(address)) {
+				if address != d.Address() && !partitionExclusionDefaultBefore(catalog, d, catalog.MustRelation(address)) {
 					if err := add(address); err != nil {
 						return nil, err
 					}
@@ -162,7 +162,7 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
 	parent := catalog.MustRelation(d.Membership.Parent)
 	qualified := func(table *relationDescriptor) string {
-		return quoteIdentifier(catalog.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
+		return quoteIdentifier(catalog.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	}
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
 	if d.Membership.DefaultBound {
@@ -190,7 +190,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
 	}
 	var text strings.Builder
-	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + quoteIdentifier(catalog.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name))
+	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + quoteIdentifier(catalog.Get(parent.Namespace()).Name()) + "." + quoteIdentifier(parent.Name()))
 	var options strings.Builder
 	appendOption := func(option string) {
 		if options.Len() != 0 {

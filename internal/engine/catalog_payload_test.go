@@ -16,11 +16,11 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	source := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	column := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003, SubID: 2}
-	captured := &relationDescriptor{address: source}
+	captured := &relationDescriptor{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
 	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []expressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
-	d := &relationDescriptor{address: consumer, View: viewPayloadOf(definition)}
+	d := &relationDescriptor{ObjectAddress: consumer, View: viewPayloadOf(definition)}
 	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
 	}

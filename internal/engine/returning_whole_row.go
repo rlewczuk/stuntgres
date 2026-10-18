@@ -55,7 +55,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 	}
 	view := b.bindingCatalog()
 	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-	if !ok || descriptor.OwningRelation != relation.address || descriptor.SQLType.CompositeLen() != len(relation.Columns) {
+	if !ok || descriptor.OwningRelation != relation.Address() || descriptor.SQLType.CompositeLen() != len(relation.Columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
 	b.returningReadRequired = true

@@ -26,7 +26,7 @@ type materializedSnapshot struct {
 }
 
 func materializedViewReadError(d *relationDescriptor) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.name), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`materialized view "%s" has not been populated`, d.Name()), Hint: "Use the REFRESH MATERIALIZED VIEW command."}
 }
 
 func (t *dumpRelation) emitMaterializedSnapshot(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
@@ -288,13 +288,13 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			versions[i].born = e.commitSeq
 		}
 		d := *item.descriptor
-		d.revision, err = e.catalog.revisionLocked()
+		d.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
 		d.Populated = item.populated
-		next.setDescriptor(d.address, &d)
-		e.storage[d.address] = &relationStorage{versions: versions}
+		next.setDescriptor(d.Address(), &d)
+		e.storage[d.Address()] = &relationStorage{versions: versions}
 	}
 	e.catalog.state = next
 	return nil

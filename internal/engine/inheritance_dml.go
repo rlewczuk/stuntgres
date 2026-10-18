@@ -43,17 +43,17 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 		}
 		var pending []queryLeaf
 		err := inheritanceQueryClosure(catalog, root, s.op.session.token, func(child *relationDescriptor) error {
-			if child.address == root.address {
+			if child.Address() == root.Address() {
 				return nil
 			}
 			for _, target := range s.inheritedTargets {
-				if target.ref.Address == child.address {
+				if target.ref.Address == child.Address() {
 					return nil
 				}
 			}
 			ref := s.lockedRef
-			ref.Address = child.address
-			pending = append(pending, queryLeaf{ref: ref, relation: child, storage: e.privateStorageLocked(s.owner.catalog, child.address), only: true})
+			ref.Address = child.Address()
+			pending = append(pending, queryLeaf{ref: ref, relation: child, storage: e.privateStorageLocked(s.owner.catalog, child.Address()), only: true})
 			return nil
 		})
 		e.mu.Unlock()
@@ -195,14 +195,14 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 		}
 		physicalSchema := schema
 		e.mu.Lock()
-		if ns := e.privateCatalogLocked(s.owner.catalog).Get(relation.namespace); ns != nil {
+		if ns := e.privateCatalogLocked(s.owner.catalog).Get(relation.Namespace()); ns != nil {
 			physicalSchema = ns.Name()
 		}
 		e.mu.Unlock()
 		if check != "" {
-			return checkDetailError(physicalSchema, relation.name, check, detail)
+			return checkDetailError(physicalSchema, relation.Name(), check, detail)
 		}
-		return notNullDetailError(physicalSchema, relation.name, column, detail)
+		return notNullDetailError(physicalSchema, relation.Name(), column, detail)
 	}
 	for i, column := range relation.Columns {
 		if !column.Nullable {

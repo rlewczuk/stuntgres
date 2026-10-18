@@ -594,7 +594,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
-					replacement.revision++
+					replacement.ObjectRevision++
 					if mode == "shape" {
 						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
 						replacement.Attributes[0]++

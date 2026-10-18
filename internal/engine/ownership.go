@@ -56,9 +56,9 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		return t.address.ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
+		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
 	case *namespaceDescriptor:
-		return t.Temporary == (ids.SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
+		return t.Temporary == (ids.SessionToken{}) && t.Address().ObjectID != ids.PGCatalogNamespaceOID && t.Address().ObjectID != ids.PGToastNamespaceOID && t.Address().ObjectID != 13229
 	case *relationDescriptor:
 		return t.RelationKind != catalogRelation && t.RelationKind != indexRelation && t.RelationKind != compositeRelation && (t.Sequence == nil || t.Sequence.Owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:
@@ -102,50 +102,50 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 	switch old := d.(type) {
 	case *databaseDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
 	case *foreignDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
 	case *extensionDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
 	case *procedureDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
 	case *tsDictionaryDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
 	case *namespaceDescriptor:
 		next := *old
 		next.Owner = target
-		next.revision = revision
+		next.ObjectRevision = revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
 	case *collationDescriptor:
 		next := *old
 		next.Owner = target
-		next.revision = revision
+		next.ObjectRevision = revision
 		return stage.Replace(&next)
 	case *conversionDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
 	case *operatorDescriptor:
 		next := *old
-		next.Owner, next.revision = target, revision
+		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
 	case *typeDescriptor:
 		next := *old
 		next.Owner = target
-		next.revision = revision
+		next.ObjectRevision = revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		if err = stage.Replace(&next); err != nil {
 			return err
@@ -169,7 +169,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 	case *relationDescriptor:
 		next := *old
 		next.Owner = target
-		next.revision = revision
+		next.ObjectRevision = revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		if old.Sequence != nil {
 			next.SequencePlanStamp = revision
@@ -190,11 +190,11 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 				if !ok {
 					continue
 				}
-				linked := r.SQLIndex != nil && r.SQLIndex.Parent == old.address
+				linked := r.SQLIndex != nil && r.SQLIndex.Parent == old.Address()
 				if r.Sequence != nil {
 					parent := r.Sequence.Owned
 					parent.SubID = 0
-					linked = linked || parent == old.address
+					linked = linked || parent == old.Address()
 				}
 				if linked {
 					if err = stageOwnership(stage, r, target); err != nil {
@@ -263,7 +263,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			return fail(err)
 		}
 	} else if kind == "view" && old.RelationKind != viewRelation {
-		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, old.name, kind)))
+		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, old.Name(), kind)))
 	}
 	if old.RelationKind == catalogRelation || old.RelationKind == indexRelation || old.RelationKind == compositeRelation {
 		return fail(tableKind(old, "change"))
@@ -287,15 +287,15 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
 	}
-	if err = ownershipEligibility(auth, target, old.namespace); err != nil {
+	if err = ownershipEligibility(auth, target, old.Namespace()); err != nil {
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
 	err = stageOwnership(stage, old, target)
 	e.mu.Unlock()
 	if err == nil {
-		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.address}) {
-			if a == old.address {
+		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
+			if a == old.Address() {
 				continue
 			}
 			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
@@ -415,7 +415,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		return fail(err)
 	}
 	database := auth.catalog.MustDatabase(currentDatabaseAddress)
-	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.name {
+	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.Name() {
 		return fail(sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text)))
 	}
 	if target == database.Owner {
@@ -423,7 +423,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), database.address), OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), database.Address()), OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	if err = ownershipSuccessor(auth, target); err != nil {

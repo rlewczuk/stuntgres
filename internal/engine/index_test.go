@@ -129,14 +129,14 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	run(t, e, "CREATE SCHEMA moved")
 	run(t, e, "ALTER TABLE renamed SET SCHEMA moved")
 	index, _ := btreeRoot(t, e, "moved.ni")
-	if e.catalog.state.Get(index.namespace).Name() != "moved" {
+	if e.catalog.state.Get(index.Namespace()).Name() != "moved" {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")
-	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.namespace, Name: "si"})) != 0 {
+	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.Namespace(), Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
-	old := e.indexRoots[index.address]
+	old := e.indexRoots[index.Address()]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}

@@ -69,13 +69,13 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.Namespace(relation.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := catalog.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if relation.RelationKind == catalogRelation {
 			continue
 		}
-		if storage := e.storage[relation.address]; storage != nil {
+		if storage := e.storage[relation.Address()]; storage != nil {
 			for _, version := range storage.versions {
 				if !liveVersion(version, e.commitSeq, storage.ends, nil) {
 					continue

@@ -96,9 +96,9 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		descriptor := &relationDescriptor{
-			address:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
-			namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
-			name:      "invalid", revision: 1,
+			ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
+			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
+			ObjectName:      "invalid", ObjectRevision: 1,
 			Columns: []ColumnDescriptor{{Name: "id", Usage: usage}},
 			Index:   map[string]int{"id": 0}, Attributes: []int32{1},
 			AttributeHighWater: 1,

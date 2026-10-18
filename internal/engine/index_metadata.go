@@ -55,7 +55,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	parent := catalog.MustRelation(definition.Parent)
 	n := len(definition.Keys)
 	ready, valid, live := definition.publicationState()
-	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
+	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.Unique
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
@@ -115,7 +115,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		}
 		m.IndKey[n+i] = int16(attribute)
 	}
-	names = indexesMetadata{SchemaName: catalog.Get(parent.namespace).Name(), TableName: parent.name, IndexName: index.name, IndexDef: sql}
+	names = indexesMetadata{SchemaName: catalog.Get(parent.Namespace()).Name(), TableName: parent.Name(), IndexName: index.Name(), IndexDef: sql}
 	return m, names, nil
 }
 
@@ -137,12 +137,12 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.address.ObjectID, b.address.ObjectID) })
+	slices.SortFunc(indexes, func(a, b *relationDescriptor) int { return cmp.Compare(a.Address().ObjectID, b.Address().ObjectID) })
 	records := make([]indexMetadata, len(indexes))
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.Domain.Ref(catalog.Epoch(), index.address))
+		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.Domain.Ref(catalog.Epoch(), index.Address()))
 		if err != nil {
 			return nil, nil, err
 		}

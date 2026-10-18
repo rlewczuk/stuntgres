@@ -84,7 +84,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.state.epoch || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {
@@ -182,7 +182,7 @@ func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *rela
 		}
 	}
 	row := []sqltype.Value{
-		oid(0, uint32(relation.address.ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, ""), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
+		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, ""), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
 	}
 	if relation.Foreign != nil && metadata.Number > 0 && !metadata.Dropped {
 		row[23] = checked(foreignOptionsValue(source.Columns[23].Usage.Type, relation.Foreign.Columns[metadata.Number]))

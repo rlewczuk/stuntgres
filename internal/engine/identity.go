@@ -31,7 +31,7 @@ func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) e
 			break
 		}
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop sequence %s because column %s of table %s requires it", sequence.name, column, table.name), Hint: fmt.Sprintf("You can drop column %s of table %s instead.", column, table.name)}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop sequence %s because column %s of table %s requires it", sequence.Name(), column, table.Name()), Hint: fmt.Sprintf("You can drop column %s of table %s instead.", column, table.Name())}
 }
 
 func ownedSequenceName(table, column string, used func(string) bool) string {
@@ -109,10 +109,10 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			}
 			options.Persistence = persistence
 			read := e.stageRead(stage)
-			tableNamespace := read.MustNamespace(table.namespace)
+			tableNamespace := read.MustNamespace(table.Namespace())
 			if tableNamespace.Temporary != (ids.SessionToken{}) {
 				if !tableNamespace.TemporaryToast && auth.session != nil && tableNamespace.Temporary == auth.session.token {
-					auth.stagedTemporary = table.namespace
+					auth.stagedTemporary = table.Namespace()
 				}
 				if persistenceSet {
 					for _, option := range definition.Options {
@@ -123,11 +123,11 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				}
 				options.Persistence = "temporary"
 			}
-			namespace := table.namespace
+			namespace := table.Namespace()
 			used := func(name string) bool {
-				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
+				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.Name()
 			}
-			name := ownedSequenceName(table.name, table.Columns[slot].Name, used)
+			name := ownedSequenceName(table.Name(), table.Columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
 				auth.catalog = read
 				auth.recaptureCatalog(auth.catalog)
@@ -152,8 +152,8 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 }
 
 func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
-	namespace := stage.base.Get(table.namespace)
-	if staged, ok := stage.descriptors[table.namespace]; ok {
+	namespace := stage.base.Get(table.Namespace())
+	if staged, ok := stage.descriptors[table.Namespace()]; ok {
 		namespace = staged
 	}
 	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {
@@ -168,11 +168,11 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	options.Owned = table.address
+	options.Owned = table.Address()
 	options.Owned.SubID = table.Attributes[slot]
 	options.Identity = true
-	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
-	d.ACL = stage.creationACL(table.Owner, table.namespace, authorization.DefaultSequences)
+	d := &relationDescriptor{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	d.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}

@@ -57,13 +57,13 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
 	d.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	oldAddress := d.address
-	d.address.ObjectID = 26000
+	oldAddress := d.Address()
+	d.ObjectAddress.ObjectID = 26000
 	oid, _ := view.LookupType(sqltype.Oid)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.Columns[1].Usage = oid.Usage()
-	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: leaf, Planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
@@ -73,7 +73,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedOID, err := sqltype.OIDValue(oid, uint32(d.address.ObjectID))
+	expectedOID, err := sqltype.OIDValue(oid, uint32(d.Address().ObjectID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,17 +94,17 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	source := []sqltype.Value{base, oldOID}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	next.setDescriptor(d.address, d)
-	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
+	next.setDescriptor(d.Address(), d)
+	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	// Retain a real TEMP namespace and row vector in the target generation.
 	tempNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 27000}
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
 	temp := *d
-	temp.address, temp.namespace, temp.name = tempAddress, tempNamespace, "retained"
+	temp.ObjectAddress, temp.ObjectNamespace, temp.ObjectName = tempAddress, tempNamespace, "retained"
 	temp.Generations, temp.CheckConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", Owner: d.Owner, revision: 1, Temporary: e.catalog.Domain.Session(99)})
+	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
 	e.catalog.state.setDescriptor(tempAddress, &temp)
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()
@@ -121,7 +121,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
 	session.random.rand = *rand.New(gate)
 	session.random.initialized = true
-	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.address: {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}, imported: d.address, temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
+	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.Address(): {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
 		session.RequestEnd(CleanClose)
@@ -196,10 +196,10 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			case "Temporary":
 				next := cloneCatalog(f.target.catalog.state)
 				copy := *next.MustRelation(f.temp)
-				copy.address.ObjectID++
-				copy.name = "concurrent_temp"
-				next.setDescriptor(copy.address, &copy)
-				f.target.storage[copy.address] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
+				copy.ObjectAddress.ObjectID++
+				copy.ObjectName = "concurrent_temp"
+				next.setDescriptor(copy.Address(), &copy)
+				f.target.storage[copy.Address()] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
 				next.epoch++
 				f.target.catalog.state = next
 			case "CommitFrontier":

@@ -33,7 +33,7 @@ func TestExclusionReplacement(t *testing.T) {
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
 			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.sequences[tempRef.Address], b.sequences[tempRef.Address]
-			if !self && tempRef.Address.ObjectID != original.address.ObjectID {
+			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
@@ -45,7 +45,7 @@ func TestExclusionReplacement(t *testing.T) {
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.ex")
 			current := parent.ExclusionConstraints[0]
-			if current.Index != index.address || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.entries) != 1 {
+			if current.Index != index.Address() || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.entries) != 1 {
 				t.Fatal("replacement broke the actual exclusion closure")
 			}
 			if root == sourceRoot || self && root.entries[0].row == sourceRoot.entries[0].row {

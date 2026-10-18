@@ -58,16 +58,16 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	}
 	parent := auth.catalog.MustRelation(table.Membership.Parent)
 	chosen := partitionPreservedReplayChild(auth.catalog, parent)
-	if chosen == nil || chosen.address != table.address {
+	if chosen == nil || chosen.Address() != table.Address() {
 		return nil
 	}
 	var selected *relationDescriptor
 	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address || !partitionIndexPreservedInvalid(auth.catalog, index) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.catalog, index) {
 			continue
 		}
-		child := partitionDumpIndexBacking(auth.catalog, index.address, table.address)
+		child := partitionDumpIndexBacking(auth.catalog, index.Address(), table.Address())
 		if child == nil || child.SQLIndex.Constraint != nil || child.SQLIndex.Predicate != nil || len(child.SQLIndex.Include) != 0 || child.SQLIndex.NullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.Keys) != len(bound.Attributes) {
 			continue
 		}
@@ -99,7 +99,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 				}
 			}
 		}
-		tables[node.address] = true
+		tables[node.Address()] = true
 		captured.descriptors = append(captured.descriptors, node)
 		if node.Partition != nil {
 			for _, address := range node.Partition.Children {
@@ -137,7 +137,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 		return false
 	}
 	for _, descriptor := range origin.descriptors {
-		if auth.catalog.Get(descriptor.address) != descriptor {
+		if auth.catalog.Get(descriptor.Address()) != descriptor {
 			return false
 		}
 	}
@@ -147,7 +147,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
 func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *relationDescriptor) (Result, error) {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
@@ -184,10 +184,10 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	if err != nil {
 		return Result{}, err
 	}
-	if next.revision == ids.DefinitionRevision(^uint64(0)) {
+	if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	next.revision++
+	next.ObjectRevision++
 	if err = stage.Replace(next); err != nil {
 		return Result{}, err
 	}

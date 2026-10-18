@@ -10,30 +10,30 @@ import (
 )
 
 type operatorDescriptor struct {
-	address, namespace                                       ids.ObjectAddress
-	revision                                                 ids.DefinitionRevision
-	name                                                     string
+	ObjectAddress, ObjectNamespace                           ids.ObjectAddress
+	ObjectRevision                                           ids.DefinitionRevision
+	ObjectName                                               string
 	Left, Right                                              ids.OID
 	Owner                                                    authorization.PrincipalRef
 	Result, Function, Commutator, Negator, Restriction, Join ids.OID
 	Hash, Merge                                              bool
 }
 
-func (d *operatorDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *operatorDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
-func (d *operatorDescriptor) Revision() ids.DefinitionRevision { return d.revision }
-func (d *operatorDescriptor) Name() string                     { return d.name }
+func (d *operatorDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *operatorDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
+func (d *operatorDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+func (d *operatorDescriptor) Name() string                     { return d.ObjectName }
 func (*operatorDescriptor) Kind() ids.ObjectKind               { return ids.OperatorObject }
 func (d *operatorDescriptor) signature() string {
 	return strconv.FormatUint(uint64(d.Left), 10) + "," + strconv.FormatUint(uint64(d.Right), 10)
 }
 func (d *operatorDescriptor) seeded() bool {
-	index := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= d.address.ObjectID })
+	index := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= d.Address().ObjectID })
 	if index == len(builtinOperators) {
 		return false
 	}
 	row := builtinOperators[index]
-	return row.oid == d.address.ObjectID && d.namespace == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && row.name == d.name && row.left == d.Left && row.right == d.Right
+	return row.oid == d.Address().ObjectID && d.Namespace() == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) && row.name == d.Name() && row.left == d.Left && row.right == d.Right
 }
 
 type operatorProvider struct{}
@@ -41,10 +41,10 @@ type operatorProvider struct{}
 func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
 func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*operatorDescriptor)
-	if !ok || d.address.ClassID != ids.OperatorClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || d.name == "" || v.NameAddress(descriptorNameKey(d)) != d.address {
+	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
 	}
-	if _, ok := v.Namespace(d.namespace); !ok {
+	if _, ok := v.Namespace(d.Namespace()); !ok {
 		return fmt.Errorf("stuntgres: invalid operator namespace")
 	}
 	for _, id := range []ids.OID{d.Left, d.Right} {
@@ -61,16 +61,16 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	if seeded {
 		// Released metadata can refer to lookup-only routine identities. It is
 		// not a declaration of a callable implementation provider.
-		index := sort.Search(len(supportedOperatorMetadata), func(i int) bool { return supportedOperatorMetadata[i].oid >= d.address.ObjectID })
+		index := sort.Search(len(supportedOperatorMetadata), func(i int) bool { return supportedOperatorMetadata[i].oid >= d.Address().ObjectID })
 		var result, function ids.OID
-		if index < len(supportedOperatorMetadata) && supportedOperatorMetadata[index].oid == d.address.ObjectID {
+		if index < len(supportedOperatorMetadata) && supportedOperatorMetadata[index].oid == d.Address().ObjectID {
 			row := supportedOperatorMetadata[index]
 			result, function = ids.OID(row.result), ids.OID(row.procedure)
 		}
 		if d.Result != result || d.Function != function {
 			return fmt.Errorf("stuntgres: invalid seeded operator definition")
 		}
-	} else if !validOperatorName(d.name) {
+	} else if !validOperatorName(d.Name()) {
 		return fmt.Errorf("stuntgres: invalid operator name")
 	}
 	if d.Function != 0 {
@@ -104,7 +104,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 			if !ok || peer.Left != left || peer.Right != right {
 				return fmt.Errorf("stuntgres: invalid operator link")
 			}
-			if i == 1 && (id == d.address.ObjectID || d.Result != 0 && d.Result != ids.OID(sqltype.Bool)) {
+			if i == 1 && (id == d.Address().ObjectID || d.Result != 0 && d.Result != ids.OID(sqltype.Bool)) {
 				return fmt.Errorf("stuntgres: invalid operator negator")
 			}
 		}
@@ -115,9 +115,9 @@ func (e *Engine) initializeOperators() {
 	e.catalog.state.operatorNames = seededOperatorNames
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
-		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, namespace: ns, revision: 1, name: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-		e.catalog.state.setDescriptor(d.address, d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.address)
+		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	for _, row := range supportedOperatorMetadata {
 		d := e.catalog.state.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})

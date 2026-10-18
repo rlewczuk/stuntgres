@@ -60,7 +60,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			for _, mutate := range []func(*procedureDescriptor){
 				func(p *procedureDescriptor) { p.Result = 1009 },
 				func(p *procedureDescriptor) { p.Signature = "23" },
-				func(p *procedureDescriptor) { p.name = "text_soundex" },
+				func(p *procedureDescriptor) { p.ObjectName = "text_soundex" },
 				func(p *procedureDescriptor) { p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}} },
 				func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			} {
@@ -93,7 +93,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			e, ext := daitchUnitInstalled(t)
 			call := soundexUnitExpression(t, e, name)
 			before := e.CatalogRead()
-			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 			for i, address := range ext.Members { mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001+i)} }
 			next := cloneCatalog(before.state)
 			for address := range mapping {
@@ -106,7 +106,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.bindName(descriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
-			consumer := &relationDescriptor{address: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
+			consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 			next.setDescriptor(address, consumer)
 			next.epoch++
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }

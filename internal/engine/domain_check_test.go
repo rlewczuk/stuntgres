@@ -26,7 +26,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if len(d.DomainChecks) != 2 || d.DomainChecks[0].Name != "a_first" || d.DomainChecks[0].Ordinal != 1 || d.DomainChecks[1].Name != "z_last" || d.DomainChecks[1].Ordinal != 0 || !d.SQLType.HasDomainChecks() {
 		t.Fatal("lost own order/identity", d.DomainChecks)
 	}
-	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.Name()})) != 0 {
+	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.ObjectNamespace, Name: d.Name()})) != 0 {
 		t.Fatal("published into immutable prior root")
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
@@ -72,7 +72,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	if got := generatedConstraintName(long, "", "check", map[string]bool{}); got != strings.Repeat("é", 28)+"_check" {
 		t.Fatal("UTF8 clipping", got)
 	}
-	if !constraintNames(view, d.namespace, nil)["a_first"] {
+	if !constraintNames(view, d.ObjectNamespace, nil)["a_first"] {
 		t.Fatal("domain constraint missing from namespace generator")
 	}
 }

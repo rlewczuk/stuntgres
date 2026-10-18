@@ -50,14 +50,14 @@ func viewWriteError(d *relationDescriptor, operation, reason string) error {
 	if operation == "delete" {
 		command = "DELETE"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf("cannot %s view %q", verb, d.name), Detail: reason, Hint: fmt.Sprintf("To enable %s the view, provide an INSTEAD OF %s trigger or an unconditional ON %s DO INSTEAD rule.", hint, command, command)}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf("cannot %s view %q", verb, d.Name()), Detail: reason, Hint: fmt.Sprintf("To enable %s the view, provide an INSTEAD OF %s trigger or an unconditional ON %s DO INSTEAD rule.", hint, command, command)}
 }
 func viewComputedWriteError(d *relationDescriptor, operation string, slot int) error {
 	verb := "update"
 	if operation == "insert" {
 		verb = "insert into"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column %q of view %q", verb, d.Columns[slot].Name, d.name), Detail: "View columns that are not columns of their base relation are not updatable."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("cannot %s column %q of view %q", verb, d.Columns[slot].Name, d.Name()), Detail: "View columns that are not columns of their base relation are not updatable."}
 }
 
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
@@ -197,7 +197,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			break
 		}
 		if seen[ref] {
-			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.name))
+			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.Name()))
 		}
 		seen[ref] = true
 		project, sourceNode, predicates, reason := viewWriteShape(d)

@@ -31,7 +31,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	}
 	next := *old
 	next.SQLType = typ
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	}
 	next := *old
 	next.SQLType = typ
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&next); err != nil {

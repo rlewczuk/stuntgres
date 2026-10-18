@@ -30,7 +30,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, sourceDescriptor.address)
+			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, sourceDescriptor.Address())
 			session := sessionStart(t, e, nil)
 			op := transactionOperation(t, session)
 			isolation := "serializable"
@@ -141,7 +141,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				if !scope.completed || !node.committed || node.commitFrontier != wantedFrontier || node.order != beforeOrder+1 || e.serializable.order != beforeOrder+1 || e.commitSeq != wantedFrontier {
 					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.commitSeq, e.serializable.order)
 				}
-				if len(e.storage[d.address].versions) != wanted {
+				if len(e.storage[d.Address()].versions) != wanted {
 					t.Fatal("installed row count changed")
 				}
 			}

@@ -92,7 +92,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgOperatorUnitSource(t, e)
-	if d.RowType != 10009 || !d.HasIndexes || d.AttributeHighWater != 15 || d.namespace.ObjectID != 11 || len(d.Columns) != 15 {
+	if d.RowType != 10009 || !d.HasIndexes || d.AttributeHighWater != 15 || d.Namespace().ObjectID != 11 || len(d.Columns) != 15 {
 		t.Fatal("relation facts", d)
 	}
 	for i, name := range []string{"oid", "oprname", "oprnamespace", "oprowner", "oprkind", "oprcanmerge", "oprcanhash", "oprleft", "oprright", "oprresult", "oprcom", "oprnegate", "oprcode", "oprrest", "oprjoin"} {
@@ -118,7 +118,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
 		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		if row.OwningRelation != d.address || row.Owner != d.Owner {
+		if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 			t.Fatal("row/array ownership", id, row)
 		}
 	}

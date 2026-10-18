@@ -60,7 +60,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
 				return expr.ErrorAt("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
-			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.name), a.Target.Pos).(*sqlstate.Error)
+			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.Name()), a.Target.Pos).(*sqlstate.Error)
 			visible := binder.targetName
 			if binder.targetAlias != "" {
 				visible = binder.targetAlias

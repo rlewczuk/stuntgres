@@ -30,16 +30,16 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 			if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			address := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name})
+			address := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()})
 			if address != (ids.ObjectAddress{}) {
-				visible = address == d.address
+				visible = address == d.Address()
 				break
 			}
 		}
 	}
-	name := regclassIdentifier(d.name)
+	name := regclassIdentifier(d.Name())
 	if !visible {
-		name = regclassIdentifier(view.Get(d.namespace).Name()) + "." + name
+		name = regclassIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 	}
 	return name
 }

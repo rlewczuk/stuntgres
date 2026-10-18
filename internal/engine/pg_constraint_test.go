@@ -118,7 +118,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	names := []string{"oid", "conname", "connamespace", "contype", "condeferrable", "condeferred", "conenforced", "convalidated", "conrelid", "contypid", "conindid", "conparentid", "confrelid", "confupdtype", "confdeltype", "confmatchtype", "conislocal", "coninhcount", "connoinherit", "conperiod", "conkey", "confkey", "conpfeqop", "conppeqop", "conffeqop", "confdelsetcols", "conexclop", "conbin"}
 	typeIDs := []sqltype.ID{26, 19, 26, 18, 16, 16, 16, 16, 26, 26, 26, 26, 26, 18, 18, 18, 16, 21, 16, 16, 1005, 1005, 1028, 1028, 1028, 1005, 1028, 194}
-	if source.RowType != 10003 || source.AttributeHighWater != 28 || len(source.Columns) != 28 || source.namespace.ObjectID != 11 {
+	if source.RowType != 10003 || source.AttributeHighWater != 28 || len(source.Columns) != 28 || source.Namespace().ObjectID != 11 {
 		t.Fatal("source shape", source)
 	}
 	for i, column := range source.Columns {
@@ -129,7 +129,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002})
-	if row.OwningRelation != source.address || array.OwningRelation != source.address || row.Array != 10002 {
+	if row.OwningRelation != source.Address() || array.OwningRelation != source.Address() || row.Array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
 	captured, err := capturePGConstraint(context.Background(), view, ref, source)

@@ -15,7 +15,7 @@ func TestSerialDefaultMergedRootProviderValidation(t *testing.T) {
 	read := e.CatalogRead()
 	original := read.MustRelation(ref.Address)
 	candidate := *original
-	candidate.revision++
+	candidate.ObjectRevision++
 	candidate.Defaults = map[int32]columnDefault{1:definition}
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)

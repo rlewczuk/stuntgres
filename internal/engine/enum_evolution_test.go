@@ -45,10 +45,10 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -72,7 +72,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	}
 	next := *mood
 	next.SQLType = typ
-	next.revision++
+	next.ObjectRevision++
 	stage = e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

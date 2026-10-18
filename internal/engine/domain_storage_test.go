@@ -54,7 +54,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	source := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 3, values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
 	e.mu.Lock()
-	e.storage[table.address] = source
+	e.storage[table.Address()] = source
 	e.commitSeq = 3
 	e.mu.Unlock()
 	retained := e.CatalogRead()
@@ -74,7 +74,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	before := e.CatalogRead().state
 	err = scope.stageDomainDependents(restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
-	if e.CatalogRead().state != before || e.storage[table.address] != source {
+	if e.CatalogRead().state != before || e.storage[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
@@ -83,22 +83,22 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	domainUnitPublish(t, e, cascade)
 	current := e.CatalogRead()
-	next := current.MustRelation(table.address)
-	store := e.storage[table.address]
+	next := current.MustRelation(table.Address())
+	store := e.storage[table.Address()]
 	if _, ok := current.Descriptor(a.Address()); ok {
 		t.Fatal("root domain retained")
 	}
 	if _, ok := current.Descriptor(chain.Address()); ok {
 		t.Fatal("chain domain retained")
 	}
-	if len(next.Columns) != 2 || next.Columns[0].Name != "keep" || next.Columns[1].Name != "tail" || next.Attributes[0] != 1 || next.Attributes[1] != 4 || next.revision != table.revision+1 || store == source || store.generation != 4 || store.ends != source.ends {
+	if len(next.Columns) != 2 || next.Columns[0].Name != "keep" || next.Columns[1].Name != "tail" || next.Attributes[0] != 1 || next.Attributes[1] != 4 || next.Revision() != table.Revision()+1 || store == source || store.generation != 4 || store.ends != source.ends {
 		t.Fatal(next, store)
 	}
 	row := store.versions[0]
 	if row.row != 42 || row.version != 99 || row.born != 3 || len(row.values) != 2 || !sqltype.SameDatum(row.values[0], keep) || !sqltype.SameDatum(row.values[1], tail) {
 		t.Fatal(row)
 	}
-	if retained.Get(table.address) != table || len(table.Columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.SQLType {
+	if retained.Get(table.Address()) != table || len(table.Columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.SQLType {
 		t.Fatal("immutable old descriptor/storage altered")
 	}
 	if err = validateTypeProviders(current, next); err != nil {
@@ -125,7 +125,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
-	storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
+	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
 	next := cloneCatalog(e.CatalogRead().state)
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
@@ -142,8 +142,8 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	if imported.SQLType.ID() != 60002 || imported.SQLType.DomainBase().Type.ID() != 60001 || imported.SQLType.BaseType() != physical || imported.SQLType.Usage().BaseUsage().Typmod != 327686 {
 		t.Fatal(imported)
 	}
-	rebound := storage[table.address]
-	if rebound == original || rebound.versions[0].values[0].Type() != imported.SQLType || next.MustRelation(table.address).Columns[0].Usage.Type != imported.SQLType {
+	rebound := storage[table.Address()]
+	if rebound == original || rebound.versions[0].values[0].Type() != imported.SQLType || next.MustRelation(table.Address()).Columns[0].Usage.Type != imported.SQLType {
 		t.Fatal("remap did not detach/retag", rebound)
 	}
 	text, err := imported.SQLType.Output(context.Background(), rebound.versions[0].values[0])

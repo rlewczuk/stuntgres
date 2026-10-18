@@ -39,7 +39,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 		view := c.evaluation.domainCatalog()
 		if view.state != nil {
 			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
-			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.namespace).Name() {
+			if ok && d.SQLType == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.ObjectNamespace).Name() {
 				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
 					return err
 				}
@@ -219,7 +219,7 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 	if !ok || descriptor.SQLType != current {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}
-	namespace := view.Get(descriptor.namespace)
+	namespace := view.Get(descriptor.ObjectNamespace)
 	if namespace == nil {
 		return annotation, fmt.Errorf("stuntgres: missing retained composite namespace")
 	}

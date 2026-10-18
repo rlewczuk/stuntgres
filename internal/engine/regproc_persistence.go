@@ -59,8 +59,8 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 		return record(address)
 	}
 	if owner := routineDescriptorOwner(view, ids.OID(id)); owner != nil {
-		if _, exists := definitionDescriptorAt(view, reader, owner.address); exists {
-			return record(owner.address)
+		if _, exists := definitionDescriptorAt(view, reader, owner.Address()); exists {
+			return record(owner.Address())
 		}
 	}
 	return nil

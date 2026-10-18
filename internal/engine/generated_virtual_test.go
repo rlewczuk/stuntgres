@@ -123,7 +123,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	typ := d.Columns[0].Usage.Type
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	node := b.queryColumnAt(queryColumn{descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
@@ -156,18 +156,18 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	if !ok {
 		t.Fatal("oid missing")
 	}
-	original := d.address
-	d.address.ObjectID++
+	original := d.Address()
+	d.ObjectAddress.ObjectID++
 	d.Columns[1].Usage = oid.Usage()
-	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	next.setDescriptor(d.address, d)
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.address: store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.address}, EvalContext{}, nil); err != nil {
+	next.setDescriptor(d.Address(), d)
+	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.versions[0].values[1].IsNull() {
@@ -175,7 +175,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	}
 	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: store.versions[0].values}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
-	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.address.ObjectID {
+	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)
 	}
 }

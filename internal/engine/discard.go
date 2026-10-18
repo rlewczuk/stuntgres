@@ -304,7 +304,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			if !ok || leaf.relation == nil {
 				continue
 			}
-			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.name))
+			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.Name()))
 		}
 	}
 	return nil

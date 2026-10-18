@@ -252,7 +252,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 			definition.Live = false
 		}
 		copy.SQLIndex = &definition
-		state.setDescriptor(index.address, &copy)
+		state.setDescriptor(index.Address(), &copy)
 		if err := validateForeignKeys(e.catalog.read(state), child, map[string]bool{}); err == nil {
 			t.Fatal("invalid selected index authority", phase)
 		}
@@ -272,10 +272,10 @@ func TestForeignKeyTypeIdentityIsolation(t *testing.T) {
 	index := view.MustRelation(definition.Index)
 	sessionSQL(t, c, "ALTER TABLE p ALTER id TYPE BIGINT")
 	next := e.CatalogRead().MustRelation(childAddress)
-	if next.address != old.address || next.ForeignKeys[0].OID == definition.OID || next.ForeignKeys[0].Index == definition.Index || next.ForeignKeys[0].Target != definition.Target || !slices.Equal(next.ForeignKeys[0].Attributes, definition.Attributes) || !slices.Equal(next.ForeignKeys[0].Referenced, definition.Referenced) {
+	if next.Address() != old.Address() || next.ForeignKeys[0].OID == definition.OID || next.ForeignKeys[0].Index == definition.Index || next.ForeignKeys[0].Target != definition.Target || !slices.Equal(next.ForeignKeys[0].Attributes, definition.Attributes) || !slices.Equal(next.ForeignKeys[0].Referenced, definition.Referenced) {
 		t.Fatal("TYPE did not rebuild exact attachment", definition, next.ForeignKeys[0])
 	}
-	if !reflect.DeepEqual(old.ForeignKeys[0], definition) || view.Get(ref.Address) != parent || view.Get(index.address) != index {
+	if !reflect.DeepEqual(old.ForeignKeys[0], definition) || view.Get(ref.Address) != parent || view.Get(index.Address()) != index {
 		t.Fatal("TYPE changed retained catalog")
 	}
 	sessionSQL(t, c, "INSERT INTO c VALUES(1)")

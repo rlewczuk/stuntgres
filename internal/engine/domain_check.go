@@ -60,7 +60,7 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	used := constraintNames(auth.catalog, d.namespace, nil)
+	used := constraintNames(auth.catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
@@ -330,7 +330,7 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 				}
 			}
 			diagnostic := sqlError("23514", fmt.Sprintf("value for domain %s violates check constraint %q", name, check.Name)).(*sqlstate.Error)
-			diagnostic.Schema = view.Get(target.namespace).Name()
+			diagnostic.Schema = view.Get(target.ObjectNamespace).Name()
 			diagnostic.DataType, diagnostic.Constraint = target.Name(), check.Name
 			return diagnostic
 		}

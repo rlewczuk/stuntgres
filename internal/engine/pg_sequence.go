@@ -24,7 +24,7 @@ func capturePGSequence(ctx context.Context, base *catalogState, own *catalogChan
 			return nil
 		}
 		options := relation.Sequence
-		relid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(relation.address.ObjectID))
+		relid, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(relation.Address().ObjectID))
 		if err != nil {
 			return err
 		}

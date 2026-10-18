@@ -15,7 +15,7 @@ import (
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
 func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Index: map[string]int{}}
+	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
 		table.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 	}
@@ -24,9 +24,9 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	for _, table := range tables {
-		e.catalog.state.setDescriptor(table.address, table)
-		e.catalog.state.bindName(descriptorNameKey(table), table.address)
-		e.storage[table.address] = &relationStorage{}
+		e.catalog.state.setDescriptor(table.Address(), table)
+		e.catalog.state.bindName(descriptorNameKey(table), table.Address())
+		e.storage[table.Address()] = &relationStorage{}
 	}
 }
 
@@ -34,18 +34,18 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	other := inheritanceLifecycleTable(e, 20001, "other")
-	left := inheritanceLifecycleTable(e, 20002, "left", p.address)
-	right := inheritanceLifecycleTable(e, 20003, "right", p.address)
-	leaf := inheritanceLifecycleTable(e, 20004, "leaf", left.address, right.address, other.address)
-	sibling := inheritanceLifecycleTable(e, 20005, "sibling", other.address)
+	left := inheritanceLifecycleTable(e, 20002, "left", p.Address())
+	right := inheritanceLifecycleTable(e, 20003, "right", p.Address())
+	leaf := inheritanceLifecycleTable(e, 20004, "leaf", left.Address(), right.Address(), other.Address())
+	sibling := inheritanceLifecycleTable(e, 20005, "sibling", other.Address())
 	inheritanceLifecycleInstall(e, p, other, left, right, leaf, sibling)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), p.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), p.Address())); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.address})
+	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,10 +53,10 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	for _, edge := range edges {
 		addresses = append(addresses, edge.address)
 	}
-	if !reflect.DeepEqual(addresses, []ids.ObjectAddress{left.address, leaf.address, right.address}) {
+	if !reflect.DeepEqual(addresses, []ids.ObjectAddress{left.Address(), leaf.Address(), right.Address()}) {
 		t.Fatal(addresses)
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 		t.Fatal("RESTRICT accepted descendants")
 	} else {
 		var d *sqlstate.Error
@@ -67,20 +67,20 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if len(stage.removals) != 1 || e.catalog.state != base.state {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{p, left, right, leaf} {
-		if _, ok := stage.removals[table.address]; !ok {
-			t.Fatal("missing descendant", table.name)
+		if _, ok := stage.removals[table.Address()]; !ok {
+			t.Fatal("missing descendant", table.Name())
 		}
 	}
 	for _, table := range []*relationDescriptor{other, sibling} {
-		if _, ok := stage.removals[table.address]; ok {
-			t.Fatal("unrelated parent/sibling removed", table.name)
+		if _, ok := stage.removals[table.Address()]; ok {
+			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
-	if e.catalog.state != base.state || leaf.Inheritance.Parents[2] != other.address {
+	if e.catalog.state != base.state || leaf.Inheritance.Parents[2] != other.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -88,22 +88,22 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
-	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
+	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, table := range []*relationDescriptor{p, c} {
-		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), table.address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), table.Address())); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.address, c.address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address(), c.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.address}); !errors.Is(err, context.Canceled) {
+	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.catalog.state != base.state || len(stage.removals) != 2 {
@@ -114,8 +114,8 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 20000, "p")
-	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
-	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.address)
+	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
+	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.Address())
 	inheritanceLifecycleInstall(e, p, c, leaf)
 	edges, err := collectPGDepend(context.Background(), e.CatalogRead())
 	if err != nil {
@@ -123,11 +123,11 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	}
 	var got []pgDependEdge
 	for _, edge := range edges {
-		if edge.dependent == leaf.address && edge.referenced.ClassID == ids.RelationClassID {
+		if edge.dependent == leaf.Address() && edge.referenced.ClassID == ids.RelationClassID {
 			got = append(got, edge)
 		}
 	}
-	if !reflect.DeepEqual(got, []pgDependEdge{{dependent: leaf.address, referenced: c.address, deptype: 'n'}}) {
+	if !reflect.DeepEqual(got, []pgDependEdge{{dependent: leaf.Address(), referenced: c.Address(), deptype: 'n'}}) {
 		t.Fatal(got)
 	}
 }
@@ -151,18 +151,18 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 		t.Run(actions.name, func(t *testing.T) {
 			e, op, changes, parent := temporaryCatalogCandidate(t, actions.parent)
 			child := *parent
-			child.address.ObjectID++
-			child.name = "child"
+			child.ObjectAddress.ObjectID++
+			child.ObjectName = "child"
 			child.OnCommit = actions.child
 			child.Inheritance = &tableInheritance{
-				Parents: []ids.ObjectAddress{parent.address},
-				Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 1}}}},
+				Parents: []ids.ObjectAddress{parent.Address()},
+				Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}},
 				Checks:  map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{},
 			}
 			e.mu.Lock()
-			e.catalogChangeLocked(changes, child.address, &child)
+			e.catalogChangeLocked(changes, child.Address(), &child)
 			childStore := &relationStorage{}
-			changes.storage[child.address] = catalogStorageChange{replacement: childStore, relation: &child}
+			changes.storage[child.Address()] = catalogStorageChange{replacement: childStore, relation: &child}
 			e.mu.Unlock()
 			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 			if err != nil {
@@ -173,28 +173,28 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				t.Fatal(err)
 			}
 			writes := map[ids.ObjectAddress][]rowVersion{
-				parent.address: {{row: 1, version: 1, values: []sqltype.Value{one}}},
-				child.address:  {{row: 2, version: 2, values: []sqltype.Value{two}}},
+				parent.Address(): {{row: 1, version: 1, values: []sqltype.Value{one}}},
+				child.Address():  {{row: 2, version: 2, values: []sqltype.Value{two}}},
 			}
 			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.address]) != 1 || len(writes[child.address]) != 1 || changes.descriptors[parent.address] != parent || changes.descriptors[child.address] != &child || e.catalog.state.Get(child.address) != nil {
+			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.descriptors[parent.Address()] != parent || changes.descriptors[child.Address()] != &child || e.catalog.state.Get(child.Address()) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
-			if len(nextWrites[parent.address]) != 0 {
+			if len(nextWrites[parent.Address()]) != 0 {
 				t.Fatal("parent physical action did not clear writes")
 			}
 			if actions.parent == parser.OnCommitDrop {
-				if next.descriptors[parent.address] != nil || next.descriptors[child.address] != nil || len(nextWrites[child.address]) != 0 {
+				if next.descriptors[parent.Address()] != nil || next.descriptors[child.Address()] != nil || len(nextWrites[child.Address()]) != 0 {
 					t.Fatal("ON COMMIT DROP omitted descendant closure")
 				}
 			} else if actions.child == parser.OnCommitDelete {
-				if len(nextWrites[child.address]) != 0 || next.storage[child.address].replacement == childStore {
+				if len(nextWrites[child.Address()]) != 0 || next.storage[child.Address()].replacement == childStore {
 					t.Fatal("child's own DELETE action not applied")
 				}
-			} else if !reflect.DeepEqual(nextWrites[child.address], writes[child.address]) || next.storage[child.address].replacement != childStore || next.descriptors[child.address] != &child {
+			} else if !reflect.DeepEqual(nextWrites[child.Address()], writes[child.Address()]) || next.storage[child.Address()].replacement != childStore || next.descriptors[child.Address()] != &child {
 				t.Fatal("parent DELETE recursively cleared preserving child")
 			}
 		})

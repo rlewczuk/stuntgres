@@ -38,7 +38,7 @@ func databaseAdmissionFixture() (*Engine, authorization.PrincipalRef) {
 func databaseAdmissionPolicyLocked(e *Engine, acl authorization.ACLValue) {
 	candidate := cloneCatalog(e.catalog.state)
 	db := *candidate.MustDatabase(currentDatabaseAddress)
-	db.revision++
+	db.ObjectRevision++
 	db.ACL = acl
 	candidate.setDescriptor(currentDatabaseAddress, &db)
 	e.catalog.state = candidate

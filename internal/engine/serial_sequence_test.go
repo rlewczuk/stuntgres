@@ -30,16 +30,16 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view.state = cloneCatalog(view.state)
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &relationDescriptor{
-		address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, AttributeHighWater: 9,
 	}
-	owner := table.address
+	owner := table.Address()
 	owner.SubID = 7
 	sequence := &relationDescriptor{
-		address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
@@ -75,7 +75,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		{"table-is-not-sequence", func(f serialSequenceUnit) { f.sequence.RelationKind = tableRelation }, nil},
 		{"no-sequence-options", func(f serialSequenceUnit) { f.sequence.Sequence = nil }, nil},
 		{"name-is-not-ownership", func(f serialSequenceUnit) {
-			f.sequence.name = "Owned_ID_seq"
+			f.sequence.ObjectName = "Owned_ID_seq"
 			f.sequence.Sequence.Owned = ids.ObjectAddress{}
 		}, nil},
 	} {
@@ -105,7 +105,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	options := *changed.Sequence
 	options.Owned = ids.ObjectAddress{}
 	changed.Sequence = &options
-	f.engine.catalog.state.setDescriptor(changed.address, &changed)
+	f.engine.catalog.state.setDescriptor(changed.Address(), &changed)
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)

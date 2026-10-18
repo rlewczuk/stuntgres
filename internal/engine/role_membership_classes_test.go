@@ -57,7 +57,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 			return e.SetObjectACL(context.Background(), ref, acl)
 		}
 		next := *typ
-		next.revision++
+		next.ObjectRevision++
 		acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 		next.ACL = acl
 		next.ACLSyntheticDefault = false

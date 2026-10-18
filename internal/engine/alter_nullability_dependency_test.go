@@ -38,9 +38,9 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := *originalView
-		next.address.ObjectID = oid
-		next.name = "late_view"
-		next.revision = revision
+		next.ObjectAddress.ObjectID = oid
+		next.ObjectName = "late_view"
+		next.ObjectRevision = revision
 		definition := *viewOf(originalView)
 		definition.rule = rule
 		next.View = &definition
@@ -60,7 +60,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: table.Epoch}); err != nil {
 			t.Fatal(err)
 		}
-		added = next.address
+		added = next.Address()
 	}}
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t DROP b CASCADE, ALTER a SET NOT NULL"), nil)
 	if err == nil {

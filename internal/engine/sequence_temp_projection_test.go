@@ -179,7 +179,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
 	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
 	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.Columns...)
-	sourceStore := source.storage[sourceSurvivor.address]
+	sourceStore := source.storage[sourceSurvivor.Address()]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.versions))
 	for i, row := range sourceStore.versions {
 		sourceValues[i] = append([]sqltype.Value(nil), row.values...)
@@ -206,7 +206,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	for _, d := range dest.catalog.state.Descriptors() {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
 			tempNamespaces++
-			if ns.Temporary != b.token || (ns.address != namespace && ns.address != toast) || d != destBefore.view.Get(ns.address) {
+			if ns.Temporary != b.token || (ns.Address() != namespace && ns.Address() != toast) || d != destBefore.view.Get(ns.Address()) {
 				t.Fatal("imported foreign SessionToken", ns.Temporary)
 			}
 		}
@@ -233,7 +233,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 			t.Fatal("imported column uses a foreign type generation", column.Name)
 		}
 	}
-	for _, row := range dest.storage[importedSurvivor.address].versions {
+	for _, row := range dest.storage[importedSurvivor.Address()].versions {
 		for _, value := range row.values {
 			actual, ok := dest.CatalogRead().LookupType(value.Type().ID())
 			if !ok || actual != value.Type() {
@@ -319,7 +319,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if dest.catalog.state.Get(importedTable) != nil || dest.catalog.state.Get(importedSequence) != nil || dest.sequences[importedSequence] != nil {
 		t.Fatal("remapped ownership drop closure failed")
 	}
-	if dest.catalog.state.Get(index.address) != nil || dest.indexRoots[index.address] != nil {
+	if dest.catalog.state.Get(index.Address()) != nil || dest.indexRoots[index.Address()] != nil {
 		t.Fatal("remapped parent drop left index definition/root")
 	}
 	if source.catalog.state.Get(sourceTable) == nil {
@@ -375,10 +375,10 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 			}
 			for _, d := range dest.catalog.state.Descriptors() {
 				if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
-					if !self || (ns.address != namespace && ns.address != toast) {
+					if !self || (ns.Address() != namespace && ns.Address() != toast) {
 						t.Fatal("imported foreign TEMP namespace")
 					}
-					if dest.catalog.state.Get(ns.address) != source.catalog.state.Get(ns.address) {
+					if dest.catalog.state.Get(ns.Address()) != source.catalog.state.Get(ns.Address()) {
 						t.Fatal("replaced retained empty namespace")
 					}
 				}

@@ -113,7 +113,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		installed := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
-		if installed.address == ext.address {
+		if installed.Address() == ext.Address() {
 			t.Fatal("rolled-back identity reused")
 		}
 		for _, a := range installed.Members {
@@ -174,7 +174,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	var dependencies []roleDependency
 	descriptorRoleDependencies(ext, owner, &dependencies)
-	if len(dependencies) != 1 || dependencies[0].address != ext.address || dependencies[0].kind != 'o' || !descriptorRoleDependencies(ext, owner, nil) {
+	if len(dependencies) != 1 || dependencies[0].address != ext.Address() || dependencies[0].kind != 'o' || !descriptorRoleDependencies(ext, owner, nil) {
 		t.Fatal("extension owner dependency", dependencies)
 	}
 	for _, a := range ext.Members {

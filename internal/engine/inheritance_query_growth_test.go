@@ -18,7 +18,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, parentStage)
 	inherit := func(d *relationDescriptor) {
-		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
+		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
@@ -27,10 +27,10 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, childStage)
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	originalRef := ref(c)
-	originalStorage := e.storage[c.address]
+	originalStorage := e.storage[c.Address()]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage[p.address]}
+	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, lateStage)
 	lateRef := ref(late)
-	if lateRef == originalRef || e.storage[late.address] == originalStorage || e.storage[c.address] != originalStorage {
+	if lateRef == originalRef || e.storage[late.Address()] == originalStorage || e.storage[c.Address()] != originalStorage {
 		t.Fatal("growth did not preserve original and add a distinct physical relation")
 	}
 	if err = holder.Finish(nil); err != nil {

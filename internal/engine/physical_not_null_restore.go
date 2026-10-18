@@ -105,7 +105,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 		return nil, err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.address) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+	if !ok || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	seen := make(map[int32]bool, len(repairs))
@@ -246,7 +246,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return err
 	}
 	old := pair.current
-	if ref != pair.ref || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.address) {
+	if ref != pair.ref || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -276,12 +276,12 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		e.mu.Unlock()
 		return reject()
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
 	if old.Inheritance != nil {
 		next.Inheritance = cloneInheritance(old.Inheritance)

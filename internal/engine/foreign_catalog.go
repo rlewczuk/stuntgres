@@ -11,9 +11,9 @@ import (
 // SQL/MED global objects are ordinary immutable catalog descriptors. Mapping
 // names encode exact server/role identities, never role membership or SQL text.
 type foreignDescriptor struct {
-	address                             ids.ObjectAddress
-	revision                            ids.DefinitionRevision
-	name                                string
+	ObjectAddress                       ids.ObjectAddress
+	ObjectRevision                      ids.DefinitionRevision
+	ObjectName                          string
 	Owner                               authorization.PrincipalRef
 	ACL                                 authorization.ACLValue
 	Options                             []ForeignOption
@@ -23,12 +23,12 @@ type foreignDescriptor struct {
 	ServerType, Version                 *string
 }
 
-func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *foreignDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *foreignDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *foreignDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*foreignDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *foreignDescriptor) Name() string                     { return d.name }
+func (d *foreignDescriptor) Name() string                     { return d.ObjectName }
 func (d *foreignDescriptor) Kind() ids.ObjectKind {
-	switch d.address.ClassID {
+	switch d.Address().ClassID {
 	case ids.ForeignWrapperClassID:
 		return ids.ForeignWrapperObject
 	case ids.ForeignServerClassID:
@@ -53,7 +53,7 @@ type foreignCatalogProvider struct{ class ids.OID }
 func (p foreignCatalogProvider) ClassID() ids.OID { return p.class }
 func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*foreignDescriptor)
-	if !ok || d.address.ClassID != p.class || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
+	if !ok || d.Address().ClassID != p.class || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid SQL/MED descriptor")
 	}
 	switch p.class {
@@ -67,12 +67,12 @@ func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) e
 		}
 	case ids.ForeignServerClassID:
 		w, ok := v.Foreign(d.Wrapper)
-		if !ok || w.address.ClassID != ids.ForeignWrapperClassID {
+		if !ok || w.Address().ClassID != ids.ForeignWrapperClassID {
 			return fmt.Errorf("stuntgres: missing foreign-data wrapper")
 		}
 	case ids.ForeignMappingClassID:
 		s, ok := v.Foreign(d.Server)
-		if !ok || s.address.ClassID != ids.ForeignServerClassID || d.name != foreignMappingName(d.Server, d.MappedRole) {
+		if !ok || s.Address().ClassID != ids.ForeignServerClassID || d.Name() != foreignMappingName(d.Server, d.MappedRole) {
 			return fmt.Errorf("stuntgres: invalid user mapping identity")
 		}
 	default:

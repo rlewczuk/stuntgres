@@ -30,7 +30,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if !d.VirtualView || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
+		if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
 		if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -54,7 +54,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
 		array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
 		ownedArray, ok := e.CatalogRead().LookupArray(row.SQLType)
-		if !ok || ownedArray != array.SQLType || row.Array != sqltype.ID(spec.array) || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+		if !ok || ownedArray != array.SQLType || row.Array != sqltype.ID(spec.array) || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
 		}
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
@@ -145,10 +145,10 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
 	unavailable := ext
-	unavailable.address.ObjectID++
-	unavailable.name = "unavailable-component-fixture"
-	state.setDescriptor(unavailable.address, &unavailable)
-	state.bindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.name}, unavailable.address)
+	unavailable.ObjectAddress.ObjectID++
+	unavailable.ObjectName = "unavailable-component-fixture"
+	state.setDescriptor(unavailable.Address(), &unavailable)
+	state.bindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.Name()}, unavailable.Address())
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 }
 

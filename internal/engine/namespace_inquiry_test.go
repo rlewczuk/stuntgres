@@ -33,8 +33,8 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			var carried *namespaceDescriptor
 			if prior {
 				scope.catalog = newCatalogChanges()
-				carried = &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, name: "private_carried", Owner: e.authorizationDomain.Principal(10), revision: 1}
-				e.catalogChangeLocked(scope.catalog, carried.address, carried)
+				carried = &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.authorizationDomain.Principal(10), ObjectRevision: 1}
+				e.catalogChangeLocked(scope.catalog, carried.Address(), carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)
 			if err != nil {
@@ -47,7 +47,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal("private first-use candidate", id, path)
 			}
-			if prior && candidate.descriptors[carried.address] != carried {
+			if prior && candidate.descriptors[carried.Address()] != carried {
 				e.mu.Unlock()
 				t.Fatal("lost prior candidate")
 			}

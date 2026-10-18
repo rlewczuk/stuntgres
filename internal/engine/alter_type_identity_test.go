@@ -39,7 +39,7 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	generatorValue, memoryValue := *generator, *memory
 	run(t, e, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
 	after := e.catalog.state.MustRelation(tableRef.Address)
-	if after.address != before.address || after.Owner != before.Owner || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.ACL, before.ACL) || !reflect.DeepEqual(after.ColumnACL, before.ColumnACL) {
+	if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.ACL, before.ACL) || !reflect.DeepEqual(after.ColumnACL, before.ColumnACL) {
 		t.Fatal("TYPE changed ACL/attribute/owner identity", before, after)
 	}
 	if e.catalog.state.Get(sequenceRef.Address) != sequence || e.sequences[sequenceRef.Address] != generator || *generator != generatorValue || s.sequences[sequenceRef.Address] != memory || *memory != memoryValue {
@@ -102,15 +102,15 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				after := e.catalog.state.MustRelation(tableRef.Address)
 				nextSequence := e.catalog.state.MustRelation(identity.Sequence)
 				options := nextSequence.Sequence
-				if after.Identities[after.Attributes[0]] != identity || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.ACL, before.ACL) || !reflect.DeepEqual(after.ColumnACL, before.ColumnACL) || after.Owner != before.Owner || after.address != before.address || after.Columns[0].Nullable || after.Columns[0].Usage.Type.ID() != tc.typ || len(after.Defaults) != 0 {
+				if after.Identities[after.Attributes[0]] != identity || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.ACL, before.ACL) || !reflect.DeepEqual(after.ColumnACL, before.ColumnACL) || after.Owner != before.Owner || after.Address() != before.Address() || after.Columns[0].Nullable || after.Columns[0].Usage.Type.ID() != tc.typ || len(after.Defaults) != 0 {
 					t.Fatal("identity/table metadata was lost", before, after)
 				}
-				if nextSequence.address != sequence.address || nextSequence.Owner != sequence.Owner || nextSequence.namespace != sequence.namespace || nextSequence.name != sequence.name || !reflect.DeepEqual(nextSequence.ACL, sequence.ACL) || options.Owned != sequence.Sequence.Owned || !options.Identity || options.Persistence != sequence.Sequence.Persistence || options.SQLType != tc.typ || options.Min != tc.min || options.Max != tc.max || options.Start != tc.start || options.Increment != tc.increment || options.Cache != tc.cache || options.Cycle != tc.cycle {
+				if nextSequence.Address() != sequence.Address() || nextSequence.Owner != sequence.Owner || nextSequence.Namespace() != sequence.Namespace() || nextSequence.Name() != sequence.Name() || !reflect.DeepEqual(nextSequence.ACL, sequence.ACL) || options.Owned != sequence.Sequence.Owned || !options.Identity || options.Persistence != sequence.Sequence.Persistence || options.SQLType != tc.typ || options.Min != tc.min || options.Max != tc.max || options.Start != tc.start || options.Increment != tc.increment || options.Cache != tc.cache || options.Cycle != tc.cycle {
 					t.Fatal("linked sequence AS metadata", options, tc)
 				}
 				generator := e.sequences[identity.Sequence]
-				if generator.last != oldGenerator.last || generator.called != oldGenerator.called || generator.generation == oldGenerator.generation || nextSequence.revision <= sequence.revision {
-					t.Fatal("AS restarted state or retained generation", oldGenerator, generator, sequence.revision, nextSequence.revision)
+				if generator.last != oldGenerator.last || generator.called != oldGenerator.called || generator.generation == oldGenerator.generation || nextSequence.Revision() <= sequence.Revision() {
+					t.Fatal("AS restarted state or retained generation", oldGenerator, generator, sequence.Revision(), nextSequence.Revision())
 				}
 				if err := (relationProvider{}).Validate(e.CatalogRead(), after); err != nil {
 					t.Fatal(err)

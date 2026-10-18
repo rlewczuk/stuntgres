@@ -97,22 +97,22 @@ func (r installedExtensionRoutine) Validate() error {
 // Levenshtein, Metaphone and Soundex calls, which always appended.
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
-	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.address)
-	appended := expressionDependency{Ref: ref, Revision: p.revision}
+	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
+	appended := expressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
 		if p.uuidOsspProvider() != stockUUIDOssp {
 			break
 		}
 		c.RoutineReference = p
-		b.dependency(ref, p.revision)
+		b.dependency(ref, p.Revision())
 		return installedUUIDOsspFunctionExpression{UUIDGeneration: c, procedure: p, ref: ref}, nil
 	case functions.Pgcrypto:
 		if p.pgcryptoProvider() != stockPgcrypto {
 			break
 		}
 		c.RoutineReference = p
-		b.dependency(ref, p.revision)
+		b.dependency(ref, p.Revision())
 		return installedCryptoFunctionExpression{Pgcrypto: c, procedure: p, ref: ref}, nil
 	case functions.Levenshtein:
 		if p.fuzzystrmatchProvider() != stockFuzzystrmatch {
@@ -164,7 +164,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 		}
 		call.Matcher = dict.unaccentProvider().matcher
 	}
-	r.binder.dependency(ref, p.revision)
+	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p
 	node := installedFunctionExpression{InstalledText: call, procedure: p, dictionary: dict, template: tmpl, ref: ref}
 	if !node.validProvider() {

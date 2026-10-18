@@ -31,7 +31,7 @@ func (e *Engine) initializeTablePrivileges() error {
 		if i >= 6 {
 			usage.Typmod = 7
 		}
-		d.Columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.address.ObjectID), OriginAttribute: int16(i + 1)}
+		d.Columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
 		d.Index[name] = i
 		d.Attributes[i] = int32(i + 1)
 	}
@@ -46,7 +46,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.roleRecord == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || source == nil || source.address != ref.Address || source.address.ObjectID != tablePrivilegesOID || catalog.Get(ref.Address) != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.roleRecord == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || catalog.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
 	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
@@ -71,7 +71,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 		if !ok || relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != catalogRelation && relation.RelationKind != foreignRelation {
 			continue
 		}
-		namespace := catalog.Get(relation.namespace)
+		namespace := catalog.Get(relation.Namespace())
 		if namespace == nil {
 			return nil, fmt.Errorf("stuntgres: missing privilege namespace")
 		}
@@ -151,7 +151,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 				if privilege.mask == authorization.SelectPrivilege {
 					hierarchy = "YES"
 				}
-				values := [8]string{grantor.Name, granteeName, database, namespace.Name(), relation.name, privilege.name, grantable, hierarchy}
+				values := [8]string{grantor.Name, granteeName, database, namespace.Name(), relation.Name(), privilege.name, grantable, hierarchy}
 				row := make([]sqltype.Value, len(values))
 				for i, value := range values {
 					row[i] = sqltype.String(source.Columns[i].Usage.Type, value)

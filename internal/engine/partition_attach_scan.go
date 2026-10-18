@@ -81,15 +81,15 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		return ids.ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
-		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.address); current != d {
+		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.Address()); current != d {
 			return ids.ErrCatalogReplaced
 		}
 		stage.domainBases = append(stage.domainBases, d)
-		storage := e.privateStorageLocked(scope.owner.catalog, d.address)
+		storage := e.privateStorageLocked(scope.owner.catalog, d.Address())
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}
-		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.address, storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
+		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.Address(), storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
 		return nil
 	}
 	if err := partitionPhysicalDescendants(catalog, candidate, capture); err != nil {
@@ -102,7 +102,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 				return err
 			}
 		}
-		refs = append(refs, e.catalog.Domain.Ref(catalog.Epoch(), job.leaf.address))
+		refs = append(refs, e.catalog.Domain.Ref(catalog.Epoch(), job.leaf.Address()))
 	}
 	if len(refs) == 0 {
 		return nil
@@ -147,7 +147,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.Domain.Ref(catalog.Epoch(), job.leaf.address)
+		ref := catalog.owner.Domain.Ref(catalog.Epoch(), job.leaf.Address())
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err
@@ -172,11 +172,11 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 					continue
 				}
 				source.close()
-				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.leaf.name)
+				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.leaf.Name())
 				if job.exclude {
-					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.name)
+					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.Name())
 				}
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.Get(job.leaf.namespace).Name(), Table: job.leaf.name}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.Get(job.leaf.Namespace()).Name(), Table: job.leaf.Name()}
 			}
 		}
 		source.close()

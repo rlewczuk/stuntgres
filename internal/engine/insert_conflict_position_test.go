@@ -58,7 +58,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.indexRoots[f.index.address] = root
+			f.e.indexRoots[f.index.Address()] = root
 			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
@@ -70,7 +70,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			// independently stated physical positions below cannot be sorted ordinals.
 			publish := func(writes []rowVersion, deleted ids.RowID) {
 				t.Helper()
-				p := rowPublication{address: f.parent.address, relation: f.parent, store: f.store, root: f.store.versions, ends: f.store.ends, writes: writes, singleSlot: -1}
+				p := rowPublication{address: f.parent.Address(), relation: f.parent, store: f.store, root: f.store.versions, ends: f.store.ends, writes: writes, singleSlot: -1}
 				if deleted != 0 {
 					old, position, ok := rowByID(p.root, deleted, -1)
 					if !ok {
@@ -100,8 +100,8 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if p.nextEnds == nil {
 					f.store.ends = p.ends
 				}
-				f.e.storage[f.parent.address] = f.store
-				f.e.indexRoots[f.index.address] = root
+				f.e.storage[f.parent.Address()] = f.store
+				f.e.indexRoots[f.index.Address()] = root
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
@@ -125,7 +125,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			insertConflictWantHints(t, rebuilt, f.store, want)
 			// Parent shape replacement preserves slots, including the dead row2 hole.
 			parent := *f.parent
-			parent.revision++
+			parent.ObjectRevision++
 			parent.Attributes = append(slices.Clone(parent.Attributes), 30)
 			parent.AttributeHighWater = 30
 			parent.Columns = append(slices.Clone(parent.Columns), ColumnDescriptor{Name: "payload", Usage: parent.Columns[0].Usage})
@@ -137,7 +137,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				shaped.versions[i].values = append(slices.Clone(shaped.versions[i].values), sqltype.Null(parent.Columns[2].Usage.Type))
 			}
 			index := *f.index
-			index.revision++
+			index.ObjectRevision++
 			shapedDefinition := definition
 			if definition.Predicate != nil {
 				predicate := *definition.Predicate
@@ -147,20 +147,20 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			index.SQLIndex = &shapedDefinition
 			nextCatalog := *f.e.catalog.state
 			nextCatalog.descriptors = maps.Clone(nextCatalog.descriptors)
-			nextCatalog.setDescriptor(parent.address, &parent)
-			nextCatalog.setDescriptor(index.address, &index)
+			nextCatalog.setDescriptor(parent.Address(), &parent)
+			nextCatalog.setDescriptor(index.Address(), &index)
 			stores := maps.Clone(f.e.storage)
-			stores[parent.address] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
+			stores[parent.Address()] = &shaped
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
-			insertConflictWantHints(t, prepared[index.address], &shaped, want)
-			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.address: &index}, originals: map[ids.ObjectAddress]Descriptor{index.address: f.index}}
+			insertConflictWantHints(t, prepared[index.Address()], &shaped, want)
+			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]Descriptor{index.Address(): f.index}}
 			if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
-			insertConflictWantHints(t, changes.uniqueRoots[index.address], &shaped, want)
+			insertConflictWantHints(t, changes.uniqueRoots[index.Address()], &shaped, want)
 		})
 	}
 }
@@ -172,10 +172,10 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			scope, ref := insertConflictUnitScope(t, f)
 			scope.owner.isolation = isolation
 			scope.owner.frontier = 1
-			root := *f.e.indexRoots[f.index.address]
+			root := *f.e.indexRoots[f.index.Address()]
 			root.entries = slices.Clone(root.entries)
 			root.entries[0].position = -1
-			f.e.indexRoots[f.index.address] = &root
+			f.e.indexRoots[f.index.Address()] = &root
 			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -193,7 +193,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 		})
 	}
 	f := insertConflictUniqueFixture(t)
-	entry := f.e.indexRoots[f.index.address].entries[0]
+	entry := f.e.indexRoots[f.index.Address()].entries[0]
 	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.position = -1 }, func(e *logicalIndexEntry) { e.position = len(f.store.versions) }, func(e *logicalIndexEntry) { e.row++ }, func(e *logicalIndexEntry) { e.version++ }} {
 		bad := entry
 		change(&bad)
@@ -215,17 +215,17 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	validated, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
-	if err != nil || validated[f.index.name] == nil {
+	if err != nil || validated[f.index.Name()] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}
 	index := *f.index
-	index.revision++
-	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.address: &index}, originals: map[ids.ObjectAddress]Descriptor{index.address: f.index}}
+	index.ObjectRevision++
+	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]Descriptor{index.Address(): f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
-	root := changes.uniqueRoots[index.address]
-	if root != validated[index.name].root {
+	root := changes.uniqueRoots[index.Address()]
+	if root != validated[index.Name()].root {
 		t.Fatal("validated root was not genuinely reused")
 	}
 	insertConflictWantHints(t, root, f.store, map[ids.RowID]int{2: 1})

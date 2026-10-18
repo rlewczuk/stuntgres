@@ -40,7 +40,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		}
 		address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(oid)}
 		d, ok := view.Operator(address)
-		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.Left != ids.OID(left) || d.Right != ids.OID(right) || expected[ids.OID(oid)] {
+		if !ok || d.Name() != fields[2] || d.Namespace().ObjectID != 11 || d.Left != ids.OID(left) || d.Right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
 		}
 		if err := (operatorProvider{}).Validate(view, d); err != nil {
@@ -75,9 +75,9 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg Op", "earlier", "later", `Reg" Op`} {
 		ns := *view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
-		ns.name = name
-		namespaces[i] = ns.address
+		ns.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
+		ns.ObjectName = name
+		namespaces[i] = ns.Address()
 		if err := stage.Create(&ns); err != nil {
 			t.Fatal(err)
 		}
@@ -86,7 +86,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(10)}
+		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

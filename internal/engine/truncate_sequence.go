@@ -106,11 +106,11 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 			return nil, err
 		}
 		d := *sequence.relation
-		d.revision, d.SequencePlanStamp = rev, rev
+		d.ObjectRevision, d.SequencePlanStamp = rev, rev
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.address] = &sequenceGenerator{last: d.Sequence.Start, generation: rev}
+		stage.generators[d.Address()] = &sequenceGenerator{last: d.Sequence.Start, generation: rev}
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {

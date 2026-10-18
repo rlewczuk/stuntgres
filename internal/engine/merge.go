@@ -40,7 +40,7 @@ func mergeRelationKind(relation *relationDescriptor) error {
 	if relation.RelationKind == viewRelation {
 		return sqlError("0A000", "MERGE into views is unsupported")
 	}
-	err := sqlError("0A000", fmt.Sprintf(`cannot execute MERGE on relation "%s"`, relation.name)).(*sqlstate.Error)
+	err := sqlError("0A000", fmt.Sprintf(`cannot execute MERGE on relation "%s"`, relation.Name())).(*sqlstate.Error)
 	switch relation.RelationKind {
 	case sequenceRelation:
 		err.Detail = "This operation is not supported for sequences."
@@ -86,7 +86,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.relation, binder.ref = out.relation, ref
-	binder.targetName, binder.targetAlias = out.relation.name, s.Alias.Text
+	binder.targetName, binder.targetAlias = out.relation.Name(), s.Alias.Text
 	binder.insertTarget = out.relation
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])

@@ -16,7 +16,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 	if b.targetAlias != "" {
 		name = b.targetAlias
 	}
-	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.Get(b.relation.namespace).Name(), lateralForbidden: true}
+	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.Get(b.relation.Namespace()).Name(), lateralForbidden: true}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.Columns}
 }
 
@@ -29,7 +29,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if !relation.RelationKind.stored() {
 		return nil
 	}
-	namespace, ok := catalog.Namespace(relation.namespace)
+	namespace, ok := catalog.Namespace(relation.Namespace())
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -148,7 +148,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		if relation.RelationKind == tableRelation && !only {
 			return inheritanceQueryClosure(catalog, relation, token, func(physical *relationDescriptor) error {
 				child := ref
-				child.Address = physical.address
+				child.Address = physical.Address()
 				return collect(child, true)
 			})
 		}

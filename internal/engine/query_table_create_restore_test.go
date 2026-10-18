@@ -94,13 +94,13 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	if !ok {
 		t.Fatal("existing REGCLASS array descriptor is missing")
 	}
-	before := strconv.FormatUint(uint64(anchor.address.ObjectID), 10)
+	before := strconv.FormatUint(uint64(anchor.Address().ObjectID), 10)
 	value, err := array.Input(context.Background(), "[0:1]={"+before+",NULL}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	target := New()
-	target.catalog.nextOID = anchor.address.ObjectID + 100
+	target.catalog.nextOID = anchor.Address().ObjectID + 100
 	targetAnchorStage, targetAnchor := queryCreateStage(t, target, "anchor", 0)
 	queryCreatePublish(t, target, targetAnchorStage)
 	targetArray, ok := target.CatalogRead().LookupArray(testUsage(target, sqltype.Regclass).Type)
@@ -120,18 +120,18 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
-	candidate.setDescriptor(d.address, &imported)
-	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.address: targetAnchor.address}
+	candidate.setDescriptor(d.Address(), &imported)
+	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.Address(): targetAnchor.Address()}
 	if err = reownCatalogScalarTypes(candidate, stores, mapping); err != nil {
 		t.Fatal(err)
 	}
-	row := stores[d.address].versions[0].values[0]
+	row := stores[d.Address()].versions[0].values[0]
 	if row.Type() != targetArray || row.ArrayLen() != 2 || !row.ArrayElement(1).IsNull() || !reflect.DeepEqual(row.ArrayDimensions(), []sqltype.ArrayDimension{{Lower: 0, Length: 2}}) {
 		t.Fatal(row.Type(), row.ArrayDimensions())
 	}
 	got, err := row.ArrayElement(0).Text()
-	want := strconv.FormatUint(uint64(targetAnchor.address.ObjectID), 10)
+	want := strconv.FormatUint(uint64(targetAnchor.Address().ObjectID), 10)
 	if err != nil || got != want || got == before {
 		t.Fatal("foreign relation identity retained", got, want, err)
 	}
@@ -139,7 +139,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	if err != nil || old != before {
 		t.Fatal("retained original array mutated", old, err)
 	}
-	if candidate.MustRelation(d.address).Columns[0].Usage.Type != targetArray {
+	if candidate.MustRelation(d.Address()).Columns[0].Usage.Type != targetArray {
 		t.Fatal("stored Usage was not reowned")
 	}
 }
@@ -225,15 +225,15 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	imported := *d
 	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()
-	candidate.setDescriptor(d.address, &imported)
-	stores := map[ids.ObjectAddress]*relationStorage{d.address: source.storage[sourceCopy.address]}
+	candidate.setDescriptor(d.Address(), &imported)
+	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)
 	}
-	if candidate.MustRelation(d.address).Columns[0].Usage.Type != targetType {
+	if candidate.MustRelation(d.Address()).Columns[0].Usage.Type != targetType {
 		t.Fatal("XID column Usage retained foreign generation")
 	}
-	for i, row := range stores[d.address].versions {
+	for i, row := range stores[d.Address()].versions {
 		value := row.values[0]
 		if value.Type() != targetType || value.IsNull() != (i == 2) {
 			t.Fatal("XID value lost canonical generation/null", i, value)

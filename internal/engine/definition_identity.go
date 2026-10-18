@@ -311,7 +311,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			reserveDefinitionOIDs(reserved, d)
 		}
 	}
-	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
+	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
 	claimed := make(map[ids.OID]bool)
 	for address, descriptor := range next.Descriptors() {
 		claimed[address.ObjectID] = true
@@ -325,7 +325,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if d.View != nil {
 			claimed[d.View.RuleOID()] = true
 		}
-		if ns, ok := next.Namespace(d.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			for _, r := range rulesOf(d) {
 				claimed[r.OID] = true
 			}
@@ -407,7 +407,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
 	for _, old := range relations {
-		if ns, ok := next.Namespace(old.namespace); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(old.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.Defaults)+len(old.Generations)+len(old.Policies)+len(rulesOf(old)) == 0 {
@@ -498,7 +498,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			constraint := d.UniqueConstraints[i]
 			definition.Constraint = uniqueBacking(&constraint)
 			clone.SQLIndex = &definition
-			next.setDescriptor(clone.address, &clone)
+			next.setDescriptor(clone.Address(), &clone)
 			changed = true
 		}
 		for i, def := range old.ExclusionConstraints {
@@ -522,7 +522,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			definition := *index.SQLIndex
 			definition.Constraint = exclusionBacking(&d.ExclusionConstraints[i])
 			clone.SQLIndex = &definition
-			next.setDescriptor(clone.address, &clone)
+			next.setDescriptor(clone.Address(), &clone)
 			changed = true
 		}
 		for i, def := range old.ForeignKeys {
@@ -581,7 +581,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 		if changed {
 			replacement := d
-			next.setDescriptor(d.address, &replacement)
+			next.setDescriptor(d.Address(), &replacement)
 		}
 	}
 	for _, descriptor := range next.Descriptors() {
@@ -617,7 +617,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			changed.ExclusionConstraints[i].Parent = parent.ObjectID
 		}
 		if changed != nil {
-			next.setDescriptor(changed.address, changed)
+			next.setDescriptor(changed.Address(), changed)
 		}
 	}
 	if len(constraintMapping) != 0 {
@@ -627,7 +627,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			if !ok || len(rulesOf(parent)) == 0 {
 				continue
 			}
-			if namespace, ok := next.Namespace(parent.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+			if namespace, ok := next.Namespace(parent.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)

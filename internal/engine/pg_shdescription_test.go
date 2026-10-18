@@ -150,7 +150,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 func TestPGShDescriptionDescriptor(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	if d.name != "pg_shdescription" || d.address.ObjectID != 2396 || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
+	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -237,7 +237,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	catalog := cloneCatalog(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	catalog.setDescriptor(local, &relationDescriptor{address: local, Comment: "local collision"})
+	catalog.setDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
 	read := e.catalog.read(catalog)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
@@ -301,12 +301,12 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	// Construct typed immutable nested views, then use the actual relocking seam.
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name, view.RelationKind = name, viewRelation
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName, view.RelationKind = name, viewRelation
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
-		e.catalog.state.setDescriptor(view.address, &view)
+		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "shared_inner", ref)

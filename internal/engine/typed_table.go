@@ -108,7 +108,7 @@ func typedShape(table, source *relationDescriptor) error {
 			return sqlError("42804", fmt.Sprintf(`table has column "%s" where type requires "%s"`, actual.Name, member.Name))
 		}
 		if actual.Usage != member.Usage {
-			return sqlError("42804", fmt.Sprintf(`table "%s" has different type for column "%s"`, table.name, member.Name))
+			return sqlError("42804", fmt.Sprintf(`table "%s" has different type for column "%s"`, table.Name(), member.Name))
 		}
 	}
 	if len(table.Columns) > len(source.Columns) {
@@ -153,7 +153,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	next := *old
 	if s.Type == nil {
 		if old.OfType == (ids.ObjectAddress{}) {
-			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a typed table`, old.name)))
+			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a typed table`, old.Name())))
 		}
 		next.OfType = ids.ObjectAddress{}
 	} else {
@@ -179,10 +179,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		}
 		next.OfType = typ.Address()
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	if next.OfType != (ids.ObjectAddress{}) {
@@ -229,7 +229,7 @@ func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTa
 			return sqlError("42809", "cannot drop column from typed table")
 		case parser.AlterColumnType:
 			if _, exists := table.Index[action.Column.Text]; !exists {
-				return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, table.name))
+				return sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, table.Name()))
 			}
 			return expr.ErrorAt("42809", "cannot alter column type of typed table", action.Column.Pos)
 		}

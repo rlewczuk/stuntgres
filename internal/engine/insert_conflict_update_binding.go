@@ -12,7 +12,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	c := b.conflict
 	c.width = len(b.relation.Columns)
 	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName, binder.targetAlias = b.relation.name, s.Alias.Text
+	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text
 	binder.updateParameters = true
 	defer func() { binder.updateParameters = false; binder.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal

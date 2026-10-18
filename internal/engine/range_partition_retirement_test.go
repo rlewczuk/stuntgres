@@ -44,7 +44,7 @@ func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*re
 	var provider, root *relationDescriptor
 	for _, d := range catalog.Descriptors() {
 		if r, ok := d.(*relationDescriptor); ok {
-			switch r.name {
+			switch r.Name() {
 			case "rp_retire_provider":
 				provider = r
 			case "rp_retire_root":
@@ -57,7 +57,7 @@ func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*re
 	}
 	captured := false
 	for _, ref := range root.Partition.Keys[0].Derived.Dependencies {
-		captured = captured || ref.Address == provider.address
+		captured = captured || ref.Address == provider.Address()
 	}
 	if !captured {
 		t.Fatal("bound COALESCE REGCLASS key did not capture its real provider")
@@ -73,24 +73,24 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	provider, root := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider.address})
+	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := false
 	for _, edge := range edges {
-		found = found || edge.address == root.address && edge.relation == root && edge.address.SubID == 0
+		found = found || edge.address == root.Address() && edge.relation == root && edge.address.SubID == 0
 	}
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")
 	}
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), provider.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"rp_retire_provider", "rp_retire_root", "rp_retire_mid", "rp_retire_leaf", "rp_retire_other", "rp_retire_leaf_v_key", "rp_retire_other_v_key", "rp_retire_index", "rp_retire_other_index", "rp_retire_seq", "rp_retire_leaf_seq", "rp_retire_other_seq", "rp_retire_view"} {
@@ -131,12 +131,12 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	replacement := *provider
 	replacement.OnCommit = parser.OnCommitDrop
-	replacement.revision++
+	replacement.ObjectRevision++
 	if err := stage.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
-	if committed.Get(provider.address) != provider || provider.OnCommit != originalAction {
+	if committed.Get(provider.Address()) != provider || provider.OnCommit != originalAction {
 		t.Fatal("provider lifetime replacement mutated the published predecessor")
 	}
 	ref := transactionBegin(t, s)
@@ -153,7 +153,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	e.mu.Unlock()
 	_, _ = rangePartitionRetirementDescriptors(t, base)
 	writes, deletes, changes := owner.writes, owner.deletes, owner.catalog
-	if deletes[provider.address] == nil {
+	if deletes[provider.Address()] == nil {
 		t.Fatal("fixture has no actual committed-provider deletion root")
 	}
 	beforeWrites := make(map[ids.ObjectAddress][]rowVersion, len(writes))
@@ -221,10 +221,10 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	provider, _ := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	peerDescriptors := make(map[ids.ObjectAddress]Descriptor)
@@ -244,7 +244,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 			t.Fatal("physical retirement retained closure state", a)
 		}
 	}
-	if e.catalog.state.Get(provider.address) != nil || e.storage[provider.address] != nil {
+	if e.catalog.state.Get(provider.Address()) != nil || e.storage[provider.Address()] != nil {
 		t.Fatal("physical retirement retained provider")
 	}
 	for a, d := range peerDescriptors {

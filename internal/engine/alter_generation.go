@@ -17,16 +17,16 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 	}
 	slot, exists := old.Index[name]
 	if !exists {
-		return nil, 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, old.name))
+		return nil, 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, old.Name()))
 	}
 	attribute := old.Attributes[slot]
 	definition, generated := old.Generations[attribute]
 	if !generated {
 		if action.Action == parser.DropExpression && action.IfExists {
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.name)})
+			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.Name())})
 			return old, 0, nil
 		}
-		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.name))
+		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.Name()))
 	}
 	if definition.Kind == generationVirtual {
 		message := ""
@@ -38,7 +38,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 		if message != "" {
 			diagnostic := sqlError("0A000", message).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf(`Column "%s" of relation "%s" is a virtual generated column.`, name, old.name)
+			diagnostic.Detail = fmt.Sprintf(`Column "%s" of relation "%s" is a virtual generated column.`, name, old.Name())
 			return nil, 0, diagnostic
 		}
 	}

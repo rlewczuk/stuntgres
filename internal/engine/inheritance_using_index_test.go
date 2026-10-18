@@ -52,7 +52,7 @@ func TestInheritanceUsingIndexPreparedNamespace(t *testing.T) {
 	index := retiredUnitTable(t, e, "original")
 	ownershipUnitExec(t, e, "ALTER TABLE p ADD CONSTRAINT renamed PRIMARY KEY USING INDEX original,ADD CONSTRAINT sees_renamed CHECK('renamed'::regclass IS NOT NULL)")
 	parent, child, renamed := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "c"), retiredUnitTable(t, e, "renamed")
-	if renamed.address != index.address || renamed.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || len(child.UniqueConstraints) != 0 || len(parent.NotNullConstraints) != 1 || len(child.NotNullConstraints) != 1 || len(parent.CheckConstraints) != 1 || len(child.CheckConstraints) != 1 {
+	if renamed.Address() != index.Address() || renamed.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || len(child.UniqueConstraints) != 0 || len(parent.NotNullConstraints) != 1 || len(child.NotNullConstraints) != 1 || len(parent.CheckConstraints) != 1 || len(child.CheckConstraints) != 1 {
 		t.Fatal("prepared physical rename and recursive NN/CHECK effects diverged", parent.UniqueConstraints, child.UniqueConstraints)
 	}
 	if parent.Inheritance != nil && !parent.Inheritance.NotNull[parent.NotNullConstraints[0].Attribute].Local {
@@ -70,7 +70,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 				}
 				before := e.catalog.state
 				parent, index := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "original")
-				parentStore, indexRoot := e.storage[parent.address], e.indexRoots[index.address]
+				parentStore, indexRoot := e.storage[parent.Address()], e.indexRoots[index.Address()]
 				waiter := sessionStart(t, e, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -129,7 +129,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 						t.Fatal("provider notice/error ordering changed", notices, expected)
 					}
 				}
-				if e.catalog.state != before || e.storage[parent.address] != parentStore || e.indexRoots[index.address] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
+				if e.catalog.state != before || e.storage[parent.Address()] != parentStore || e.indexRoots[index.Address()] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
 					t.Fatal("failed/canceled prepared attachment published metadata or rows")
 				}
 				lockEmpty(t, e)

@@ -151,7 +151,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
 	parent, ok := view.Relation(d.Parent)
-	if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) || parent.Owner != index.Owner || parent.namespace != index.namespace {
+	if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.Constraint != nil {
@@ -396,7 +396,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.address]
+		output, produced := row.indexOutputs[index.Address()]
 		produced = produced && output.matches(index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue
@@ -561,11 +561,11 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		if parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation {
 			if parent.RelationKind == indexRelation {
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.Name()), Detail: "This operation is not supported for indexes."})
 			}
-			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
+			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.namespace)
+		ns := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Namespace())
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {
@@ -611,12 +611,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 					break
 				}
 			}
-			name = generatedRelationName(parent.name, addition.String(), "idx", func(n string) bool {
-				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: n})
+			name = generatedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
+				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
 				return ok
 			})
 		}
-		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}
+		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}
 		if _, exists := auth.catalog.LookupName(key); exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
@@ -656,7 +656,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginTable = uint32(oid)
 			columns[i].OriginAttribute = int16(i + 1)
 		}
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
+		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
 		d.AttributeHighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
 			definition.Ready, definition.Valid = false, false
@@ -700,7 +700,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
 				current := e.privateCatalogLocked(scope.owner.catalog)
 				_, exists := current.LookupName(key)
-				same := current.Epoch() == base.Epoch() && current.Get(parent.address) != nil
+				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same && exists {
 					authErr = currentAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true})
 				}

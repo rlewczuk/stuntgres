@@ -63,14 +63,14 @@ func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.Obje
 func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 	before, wasOperator := old.(*operatorDescriptor)
 	after, isOperator := next.(*operatorDescriptor)
-	if wasOperator && isOperator && before.address == after.address && before.namespace == after.namespace && before.name == after.name {
+	if wasOperator && isOperator && before.Address() == after.Address() && before.Namespace() == after.Namespace() && before.Name() == after.Name() {
 		return
 	}
 	if wasOperator {
-		key := operatorNameKey{before.namespace, before.name}
+		key := operatorNameKey{before.Namespace(), before.Name()}
 		addresses := edit.bucket(key, 0)
 		for i, address := range addresses {
-			if address == before.address {
+			if address == before.Address() {
 				copy(addresses[i:], addresses[i+1:])
 				addresses = addresses[:len(addresses)-1]
 				break
@@ -83,9 +83,9 @@ func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 		}
 	}
 	if isOperator {
-		key := operatorNameKey{after.namespace, after.name}
+		key := operatorNameKey{after.Namespace(), after.Name()}
 		addresses := edit.bucket(key, 1)
-		edit.index.Buckets[key] = append(addresses, after.address)
+		edit.index.Buckets[key] = append(addresses, after.Address())
 	}
 }
 
@@ -95,7 +95,7 @@ func rebuildOperatorNames(descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) 
 	index := &operatorNameIndex{Buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
 	for address, descriptor := range descriptors {
 		if operator, ok := descriptor.(*operatorDescriptor); ok {
-			key := operatorNameKey{operator.namespace, operator.name}
+			key := operatorNameKey{operator.Namespace(), operator.Name()}
 			index.Buckets[key] = append(index.Buckets[key], address)
 		}
 	}

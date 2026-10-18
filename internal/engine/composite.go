@@ -97,7 +97,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 }
 
 func compositeOpenError(relation *relationDescriptor, pos parser.Position) error {
-	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.name), pos).(*sqlstate.Error)
+	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), pos).(*sqlstate.Error)
 	d.Detail = "This operation is not supported for composite types."
 	return d
 }
@@ -136,7 +136,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 			continue
 		}
 		for _, c := range table.Columns {
-			if containsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.address.ObjectID < consumer.address.ObjectID) {
+			if containsRowType(c.Usage.Type, source.RowType) && (consumer == nil || table.Address().ObjectID < consumer.Address().ObjectID) {
 				consumer, column = table, c.Name
 				break
 			}
@@ -146,7 +146,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 		return nil
 	}
 	if source.RelationKind == compositeRelation {
-		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.name, consumer.name, column))
+		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.Name(), consumer.Name(), column))
 	}
-	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.name, consumer.name, column))
+	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.Name(), consumer.Name(), column))
 }

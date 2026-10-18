@@ -41,7 +41,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	found := false
 	for _, d := range binder.dependencies {
-		if d.Ref == n.ref && d.Revision == n.procedure.revision {
+		if d.Ref == n.ref && d.Revision == n.procedure.Revision() {
 			found = true
 		}
 	}
@@ -76,8 +76,8 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if proc.uuidOsspProvider() != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.address == n.procedure.address {
+	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	if proc.uuidOsspProvider() != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -216,7 +216,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.address != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
+	if err != nil || captured != n.procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -224,7 +224,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	for _, dep := range original {
 		if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 			routines++
-			if dep.Ref != n.ref || dep.Revision != captured.revision {
+			if dep.Ref != n.ref || dep.Revision != captured.Revision() {
 				t.Fatal("invented helper edge or incorrect original manifest", dep)
 			}
 		}
@@ -298,7 +298,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("graft lost ancestry or mutated original")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
-		ext.address:   {ClassID: ids.ExtensionClassID, ObjectID: 900000},
+		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
 	state := cloneCatalog(evaluation.catalog.state)

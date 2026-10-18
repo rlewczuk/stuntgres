@@ -21,10 +21,10 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	relation := &relationDescriptor{address: address, namespace: namespace, name: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
+	relation := &relationDescriptor{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	e.catalog.state.setDescriptor(address, relation)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.name}, address)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
 	return e, op, reader, address
 }
 func applyObjectGrantUnit(e *Engine, op *Operation, s *parser.ObjectGrant) error {
@@ -199,12 +199,12 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e, op, _, address := objectGrantUnitFixture(t)
 	parent := e.catalog.state.MustRelation(address)
 	index := &relationDescriptor{
-		address:      ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900002},
-		namespace:    parent.namespace,
-		name:         "grant_unit_b_idx",
-		Owner:        parent.Owner,
-		RelationKind: indexRelation,
-		SQLIndex:     &indexDefinition{Parent: address},
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900002},
+		ObjectNamespace: parent.Namespace(),
+		ObjectName:      "grant_unit_b_idx",
+		Owner:           parent.Owner,
+		RelationKind:    indexRelation,
+		SQLIndex:        &indexDefinition{Parent: address},
 	}
 	var dependencies []roleDependency
 	descriptorRoleDependencies(parent, parent.Owner, &dependencies)

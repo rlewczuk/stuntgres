@@ -43,10 +43,10 @@ func ruleIndex(d *relationDescriptor, name string) int {
 	return slices.IndexFunc(rulesOf(d), func(r ruleDefinition) bool { return r.Name == name })
 }
 func ruleMissing(name string, d *relationDescriptor) error {
-	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.name))
+	return sqlError("42704", fmt.Sprintf(`rule "%s" for relation "%s" does not exist`, name, d.Name()))
 }
 func ruleDuplicate(name string, d *relationDescriptor) error {
-	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.name))
+	return sqlError("42710", fmt.Sprintf(`rule "%s" for relation "%s" already exists`, name, d.Name()))
 }
 func ruleEvent(stmt parser.Statement) string {
 	switch stmt.(type) {
@@ -117,7 +117,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	if side == "new" {
 		frame = 2
 	}
-	b.dependencies = append(b.dependencies, expressionDependency{Ref: ref, Revision: ns.relation.revision})
+	b.dependencies = append(b.dependencies, expressionDependency{Ref: ref, Revision: ns.relation.Revision()})
 	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 

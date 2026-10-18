@@ -39,20 +39,20 @@ func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
-	record := extensionOwnerRecord{Name: ext.name, Schema: ns.name, Version: ext.Version, Owner: owner.Name}
+	record := extensionOwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
 	for _, a := range ext.Members {
 		d := catalog.Get(a)
 		var member extensionMemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
 		case *procedureDescriptor:
-			member = extensionMemberOwner{Kind: "procedure", Name: d.name, Signature: string(d.Signature)}
-			if d.intarrayProvider() != nil && d.name == "bqarr_out" {
+			member = extensionMemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
+			if d.intarrayProvider() != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
 			principal = d.Owner
 		case *tsDictionaryDescriptor:
-			member = extensionMemberOwner{Kind: "dictionary", Name: d.name}
+			member = extensionMemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
 		case *typeDescriptor:
 			member = extensionMemberOwner{Kind: "type", Name: d.Name()}
@@ -249,7 +249,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 		}
 		seen[a] = true
 		ns, ok := candidate.Namespace(ext.TargetNamespace)
-		if !ok || ns.name != record.Schema {
+		if !ok || ns.Name() != record.Schema {
 			return fmt.Errorf("stuntgres: mismatching extension owner namespace")
 		}
 		owner, ok := roles.Lookup(record.Owner)
@@ -278,7 +278,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
 			d := candidate.Get(a)
-			if d == nil || extensionMembership(d) != ext.address {
+			if d == nil || extensionMembership(d) != ext.Address() {
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {

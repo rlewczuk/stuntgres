@@ -90,11 +90,11 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.owner.Domain.Ref(authority.Epoch(), destination.address)
+	target := authority.owner.Domain.Ref(authority.Epoch(), destination.Address())
 	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0
-		if address == in.source.address {
+		if address == in.source.Address() {
 			attribute := ref.Address.SubID
 			ref = target
 			ref.Address.SubID = attributes[attribute]
@@ -161,8 +161,8 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					options := *sequence.Sequence
 					options.Persistence = "logged"
 					read := e.stageRead(stage)
-					name := ownedSequenceName(destination.name, destination.Columns[in.targetSlot(slot)].Name, func(n string) bool {
-						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: n})) != 0
+					name := ownedSequenceName(destination.Name(), destination.Columns[in.targetSlot(slot)].Name, func(n string) bool {
+						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0
 					})
 					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
@@ -174,7 +174,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
-					temporary := auth.catalog.MustNamespace(destination.namespace).Temporary
+					temporary := auth.catalog.MustNamespace(destination.Namespace()).Temporary
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
@@ -189,7 +189,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
 							continue
 						}
-						sourceNamespace := auth.catalog.MustNamespace(in.source.namespace)
+						sourceNamespace := auth.catalog.MustNamespace(in.source.Namespace())
 						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
@@ -208,8 +208,8 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 			if in.options&likeGenerated != 0 {
 				if old, ok := in.source.Generations[attribute]; ok {
 					if _, inherited := destination.Generations[target]; inherited {
-						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.targetSlot(slot)].Name, destination.name, destination.Columns[in.targetSlot(slot)].Name, destination.name)).(*sqlstate.Error)
-						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.name)
+						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.targetSlot(slot)].Name, destination.Name(), destination.Columns[in.targetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
+						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
 					node, err := in.remap(old.Expression, destination, auth.catalog)
@@ -262,7 +262,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 		}
 		for _, old := range orderedChecks(in.source) {
 			if names[old.Name] {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
@@ -279,7 +279,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
-				revision := destination.revision
+				revision := destination.Revision()
 				if provider, ok := auth.catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}

@@ -44,7 +44,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_origin(id INT,a public.collision[],n NUMERIC(5,2)[])")
 	column := table.Columns[1]
-	if column.Usage.Type != array || column.Usage.Typmod != -1 || column.OriginTable != uint32(table.address.ObjectID) || column.OriginAttribute != int16(table.Attributes[1]) {
+	if column.Usage.Type != array || column.Usage.Typmod != -1 || column.OriginTable != uint32(table.Address().ObjectID) || column.OriginAttribute != int16(table.Attributes[1]) {
 		t.Fatal("array origin", column, table)
 	}
 	if p, s, known := table.Columns[2].Usage.DecimalSize(); p != 5 || s != 2 || !known {
@@ -147,7 +147,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.CatalogRead()
-	survivor := next.MustRelation(table.address)
+	survivor := next.MustRelation(table.Address())
 	if len(survivor.Columns) != 2 || survivor.Columns[0].Name != "keep" || survivor.Columns[1].Name != "tail" || survivor.Attributes[0] != table.Attributes[0] || survivor.Attributes[1] != table.Attributes[2] {
 		t.Fatal("containing table/stable attributes lost", survivor)
 	}
@@ -184,7 +184,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	referent := domainUnitTable(t, e, op, "CREATE TABLE public.array_target(id INT)")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.array_recursive(a public.nested[])")
 	regclass, _ := e.CatalogRead().LookupType(sqltype.Regclass)
-	rcValue, err := rc.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(referent.address.ObjectID), 10)))
+	rcValue, err := rc.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(referent.Address().ObjectID), 10)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{value}}}}
-	storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
+	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
 	next := cloneCatalog(e.catalog.state)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
@@ -218,7 +218,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	reboundRegclass := *next.MustType(regclassAddress)
 	reboundRegclass.SQLType = fresh.catalog.state.MustType(regclassAddress).SQLType
 	next.setDescriptor(regclassAddress, &reboundRegclass)
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.Address(): {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.SQLType, rcArray, whole.SQLType, wholeArray, nested.SQLType, nestedArray} {
 		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
 	}
@@ -229,7 +229,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
 		t.Fatal(err)
 	}
-	imported := storage[table.address].versions[0].values[0]
+	imported := storage[table.Address()].versions[0].values[0]
 	expected := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}).SQLType
 	if imported.Type() != expected || imported.ArrayElement(0).Type().ID() != 60005 || imported.ArrayElement(1).Type().ID() != 60005 || imported.ArrayElement(0).ArrayElement(0).Type().ID() != 60003 || imported.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type().ID() != 60001 {
 		t.Fatal("nested element generations", imported)
@@ -242,7 +242,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil || oid != "60021" {
 		t.Fatal("nested REGCLASS identity", oid, err)
 	}
-	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
+	if storage[table.Address()] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
 		t.Fatal("source payload/provider mutated")
 	}
 	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
@@ -254,7 +254,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && target != address {
 			copy := *relation
-			copy.address = target
+			copy.ObjectAddress = target
 			copy.Columns = append([]ColumnDescriptor(nil), relation.Columns...)
 			for i := range copy.Columns {
 				copy.Columns[i].OriginTable = uint32(target.ObjectID)
@@ -280,7 +280,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			t.Fatal("reminted reverse association", id, array)
 		}
 	}
-	rows := newFinalRows(next.MustRelation(table.address).Columns, 1)
+	rows := newFinalRows(next.MustRelation(table.Address()).Columns, 1)
 	defer rows.Close()
 	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
@@ -312,12 +312,12 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	if err != nil {
 		t.Fatal(err)
 	}
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, name: "pg_temp_array_component", revision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, ObjectName: "pg_temp_array_component", ObjectRevision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
 	table := *prototype
-	table.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
-	table.namespace = ns.address
-	table.name = "array_component_temp"
-	table.revision = revision
+	table.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
+	table.ObjectNamespace = ns.Address()
+	table.ObjectName = "array_component_temp"
+	table.ObjectRevision = revision
 	table.RowType = 0
 	table.Columns = append([]ColumnDescriptor(nil), prototype.Columns...)
 	for i := range table.Columns {
@@ -339,7 +339,7 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	domainUnitPublish(t, e, stage)
 	e.mu.Lock()
 	op.session.mu.Lock()
-	op.session.temporaryNamespace = ns.address
+	op.session.temporaryNamespace = ns.Address()
 	op.session.mu.Unlock()
 	e.mu.Unlock()
 	return &table
@@ -363,7 +363,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{i, v}}}}
 	e.mu.Lock()
-	e.storage[table.address] = store
+	e.storage[table.Address()] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)
@@ -387,7 +387,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	sourceStore := &relationStorage{generation: 2, versions: []rowVersion{{row: 4, version: 7, born: 1, values: []sqltype.Value{sourceInt, sourceText}}}}
 	replacement.mu.Lock()
-	replacement.storage[importedSource.address] = sourceStore
+	replacement.storage[importedSource.Address()] = sourceStore
 	replacement.commitSeq = 1
 	replacement.mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*typeDescriptor)
@@ -400,7 +400,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
-	if current.Get(table.address) != table || e.storage[table.address] != store || held.Schema()[0].Usage.Type != integer {
+	if current.Get(table.Address()) != table || e.storage[table.Address()] != store || held.Schema()[0].Usage.Type != integer {
 		t.Fatal("retained TEMP identity changed")
 	}
 	if row := store.versions[0]; row.row != 42 || row.version != 99 || row.born != 1 || store.generation != 3 {
@@ -447,7 +447,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal("missing imported persistent table", importedAddresses)
 	}
 	imported := current.MustRelation(importedAddresses[0])
-	importedStore := e.storage[imported.address]
+	importedStore := e.storage[imported.Address()]
 	if importedStore == nil || len(importedStore.versions) != 1 {
 		t.Fatal("missing imported persistent storage", importedStore)
 	}
@@ -455,7 +455,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if imported.Columns[0].Usage.Type != integer || imported.Columns[1].Usage.Type != text || len(live) != 2 || !sqltype.SameDatum(live[0], i) || !sqltype.SameDatum(live[1], v) {
 		t.Fatal("persistent rows not reowned against retained builtin closure", imported, live)
 	}
-	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage[importedSource.address] != sourceStore {
+	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage[importedSource.Address()] != sourceStore {
 		t.Fatal("source persistent provider/payload mutated")
 	}
 	frame := make([]sqltype.Value, 2)
@@ -480,7 +480,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{value}}}}
 	e.mu.Lock()
-	e.storage[table.address] = store
+	e.storage[table.Address()] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)
@@ -490,7 +490,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		t.Fatal("compatible exact self replacement", err)
 	}
 	before := e.CatalogRead()
-	oldStore := e.storage[table.address]
+	oldStore := e.storage[table.Address()]
 	frontier := e.catalog.nextOID
 	revision := e.catalog.nextRevision
 	unrelated := New()
@@ -509,7 +509,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().state != before.state || e.storage[table.address] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.address) != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().state != before.state || e.storage[table.Address()] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

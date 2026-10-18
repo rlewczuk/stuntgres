@@ -21,7 +21,7 @@ func TestAlterRenameIdentity(t *testing.T) {
 	middle := e.catalog.state.MustRelation(ref.Address)
 	run(t, e, "ALTER TABLE t RENAME TO newtable")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if roleTableRef(t, e, "newtable") != ref || next.address != old.address || next.namespace != old.namespace || next.Owner != old.Owner || next.revision != old.revision+2 || middle.revision != old.revision+1 {
+	if roleTableRef(t, e, "newtable") != ref || next.Address() != old.Address() || next.Namespace() != old.Namespace() || next.Owner != old.Owner || next.Revision() != old.Revision()+2 || middle.Revision() != old.Revision()+1 {
 		t.Fatal("rename changed identity", old, middle, next)
 	}
 	if e.storage[ref.Address] != storage || &storage.versions[0].values[0] != backing || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || !reflect.DeepEqual(next.ACL, old.ACL) {

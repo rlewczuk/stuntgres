@@ -59,7 +59,7 @@ func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 func TestPGSequenceShape(t *testing.T) {
 	e := New()
 	d, _ := pgSequenceUnitSource(t, e)
-	if d.name != "pg_sequence" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
+	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -91,7 +91,7 @@ func TestPGSequenceShape(t *testing.T) {
 		name       string
 		invalidate func(*relationDescriptor)
 	}{
-		{"identity", func(r *relationDescriptor) { r.address.ObjectID = 0 }},
+		{"identity", func(r *relationDescriptor) { r.ObjectAddress.ObjectID = 0 }},
 		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
 		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
 		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
@@ -140,7 +140,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
-	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
+	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
 	state.setDescriptor(a, d)
 	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
 	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{RelationKind: viewRelation})
@@ -163,7 +163,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base := *e.catalog.state
 	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.setDescriptor(a, &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
+	base.setDescriptor(a, &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
@@ -194,10 +194,10 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	options := &sequenceOptions{SQLType: sqltype.Int2, Start: -1, Increment: -3, Max: -1, Min: -32768, Cache: 1}
-	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
+	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
 	base.setDescriptor(a, d)
 	other := *d
-	other.address = dropped
+	other.ObjectAddress = dropped
 	base.setDescriptor(dropped, &other)
 	old, err := capturePGSequence(context.Background(), &base, nil, ref, source)
 	if err != nil {
@@ -212,7 +212,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	own.descriptors[a] = &updated
 	own.descriptors[dropped] = nil
 	addition := *d
-	addition.address = added
+	addition.ObjectAddress = added
 	own.descriptors[added] = &addition
 	want := map[uint32][]any{20000: {uint32(20000), uint32(21), int64(-4), int64(-3), int64(-1), int64(-32768), int64(1), false}, 20002: {uint32(20002), uint32(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}}
 	// Latest publication has none of the retained base's sequence definitions.

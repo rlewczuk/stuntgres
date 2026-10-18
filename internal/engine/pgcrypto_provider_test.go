@@ -54,7 +54,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
 		want := expected[i]
-		if seen[address] || proc.name != want.name || proc.Signature != want.signature || proc.Owner != ext.Owner || proc.namespace != ext.TargetNamespace || proc.Result != want.result || proc.Strict != want.strict || proc.Volatility != want.volatility {
+		if seen[address] || proc.Name() != want.name || proc.Signature != want.signature || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace || proc.Result != want.result || proc.Strict != want.strict || proc.Volatility != want.volatility {
 			t.Fatal(proc)
 		}
 		seen[address] = true
@@ -68,7 +68,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			count++
 			if !seen[edge.dependent] {
 				t.Fatal(edge)
@@ -85,12 +85,12 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
 		func(p *procedureDescriptor) { p.Implementation = stockIntarray },
 		func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch },
-		func(p *procedureDescriptor) { p.name = "crypt" },
+		func(p *procedureDescriptor) { p.ObjectName = "crypt" },
 		func(p *procedureDescriptor) { p.Signature = "25" },
 		func(p *procedureDescriptor) { p.Result = 25 },
-		func(p *procedureDescriptor) { p.revision = 0 },
+		func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 		func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.address },
+		func(p *procedureDescriptor) { p.Dictionary = ext.Address() },
 		func(p *procedureDescriptor) { p.Strict = false },
 		func(p *procedureDescriptor) { p.Volatility = expr.Stable },
 	} {
@@ -204,8 +204,8 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.address: {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if mapped.pgcryptoProvider() != stockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.address == n.procedure.address {
+	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	if mapped.pgcryptoProvider() != stockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.Address() == n.procedure.Address() {
 		t.Fatal(mapped)
 	}
 	// A four-child call must retain IV/type children and its genuine installed
@@ -236,7 +236,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(aesRefs, err)
 	}
 	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
-	if mappedAES.pgcryptoProvider() != stockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
+	if mappedAES.pgcryptoProvider() != stockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}
 	for _, v := range []struct {

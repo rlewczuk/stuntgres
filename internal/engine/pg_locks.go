@@ -66,7 +66,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}
-	databaseOID, epoch := uint32(database.address.ObjectID), e.catalog.state.epoch
+	databaseOID, epoch := uint32(database.Address().ObjectID), e.catalog.state.epoch
 	predicates, err := e.capturePGPredicateLocksLocked()
 	e.mu.Unlock()
 	if err != nil {

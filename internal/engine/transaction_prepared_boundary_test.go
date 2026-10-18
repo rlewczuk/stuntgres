@@ -293,7 +293,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 	arrived, release := make(chan struct{}), make(chan struct{})
 	for _, descriptor := range entry.catalog.cached.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.name != "prepared_boundary_index" {
+		if !ok || index.SQLIndex == nil || index.Name() != "prepared_boundary_index" {
 			continue
 		}
 		derived := index.SQLIndex.Keys[0].Derived
@@ -594,7 +594,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	losingName := []string{"gid_first", "gid_second"}[loser.owner]
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == losingName {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == losingName {
 			t.Fatal("losing GID catalogue/generator survived")
 		}
 	}

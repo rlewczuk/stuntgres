@@ -88,11 +88,11 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, nil, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
-	original := f.e.indexRoots[f.index.address]
+	original := f.e.indexRoots[f.index.Address()]
 	malformed := *original
 	malformed.entries = slices.Clone(original.entries)
 	malformed.entries[0].position = len(f.store.versions)
-	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.address: &malformed}
+	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.Address(): &malformed}
 	previous := f.e.indexRoots
 	f.e.indexRoots = roots
 	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, roots, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {

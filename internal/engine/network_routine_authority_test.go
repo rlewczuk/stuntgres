@@ -65,7 +65,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				// RETURN $2 + $1: the existing provider commutes the two inputs;
 				// this real SQL occurrence selects inetpl(INET,INT8), not itself.
 				want[2630] = true
-				if len(outer.Body) != 1 || outer.Body[0].Routine.address.ObjectID != 2630 || outer.Body[0].Demand != bodyAlways {
+				if len(outer.Body) != 1 || outer.Body[0].Routine.Address().ObjectID != 2630 || outer.Body[0].Demand != bodyAlways {
 					t.Fatal("real reversed SQL body edge", outer.Body)
 				}
 			} else if len(outer.Body) != 0 {

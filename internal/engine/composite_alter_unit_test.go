@@ -19,7 +19,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address())
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.mu.Lock()
@@ -173,7 +173,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		if !ok || !current.Concrete() || current.Element() != wrapped.SQLType || wrapped.SQLType.DomainBase().Type != row || current.ID() != array.ID() || wrapped.SQLType.ID() != domain.SQLType.ID() {
 			t.Fatal("domain-array generation lost identity or reciprocity", current)
 		}
-		owned := view.MustRelation(holder.address)
+		owned := view.MustRelation(holder.Address())
 		ownRow, ok := view.LookupType(owned.RowType)
 		if !ok || owned.Columns[0].Usage.Type != current || ownRow.CompositeMember(0).Usage.Type != current {
 			t.Fatal("holder and own-row member borrowed stale domain-array codec")

@@ -65,9 +65,9 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 
 func initializeCatalogAttributes(d *relationDescriptor) {
 	d.CatalogAttributes = make([]catalogAttribute, len(d.Columns))
-	view := d.VirtualView || representedSummaryViewDefinition(d.address.ObjectID) != ""
+	view := d.VirtualView || representedSummaryViewDefinition(d.Address().ObjectID) != ""
 	for i, column := range d.Columns {
-		attribute := catalogAttributeNumber(d.address.ObjectID, column.Name, int32(i+1))
+		attribute := catalogAttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
 		d.Attributes[i], d.Columns[i].OriginAttribute = attribute, int16(attribute)
 		if attribute > d.AttributeHighWater {
 			d.AttributeHighWater = attribute
@@ -81,7 +81,7 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 			if fact.Collation != 0 || column.Usage.Type.ID() == 194 {
 				fact.Collation = 950
 			}
-			switch d.address.ObjectID {
+			switch d.Address().ObjectID {
 			case pgTypeOID:
 				fact.NotNull = i < 29
 			case 1213:

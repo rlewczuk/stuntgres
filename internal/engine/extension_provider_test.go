@@ -102,7 +102,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.address {
+		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.Address() {
 			t.Fatal("broken member placement")
 		}
 		if _, ok := d.(*tsTemplateDescriptor); ok {
@@ -129,7 +129,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	}
 	n := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			n++
 			if !seen[edge.dependent] {
 				t.Fatal("foreign member")
@@ -160,7 +160,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
-	if n.procedure.address != ext.Members[1] || n.dictionary.address != ext.Members[5] || n.template.address != ext.Members[4] {
+	if n.procedure.Address() != ext.Members[1] || n.dictionary.Address() != ext.Members[5] || n.template.Address() != ext.Members[4] {
 		t.Fatal("captured provider identity")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), node)
@@ -216,7 +216,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				for _, i := range []int{2, 3} {
 					n := *source.descriptors[ext.Members[i]].(*procedureDescriptor)
 					n.Extension = ids.ObjectAddress{}
-					n.namespace = catalogNS
+					n.ObjectNamespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
@@ -224,7 +224,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				tmpl := *source.descriptors[ext.Members[4]].(*tsTemplateDescriptor)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
-					tmpl.namespace = catalogNS
+					tmpl.ObjectNamespace = catalogNS
 				}
 				if err := loose.Create(&tmpl); err != nil {
 					t.Fatal(err)
@@ -309,13 +309,13 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.roles = advanceRoleRevision(e.roles)
 			case "database":
 				next := *e.catalog.state.MustDatabase(currentDatabaseAddress)
-				next.revision++
+				next.ObjectRevision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
 				e.catalog.state.setDescriptor(currentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.catalog.state.MustNamespace(a)
-				next.revision++
+				next.ObjectRevision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
 				e.catalog.state.setDescriptor(a, &next)
 			}

@@ -23,7 +23,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 	}
 	var defaultConflicts, generationConflicts map[int32]bool
 	for _, in := range b.createInheritance {
-		graph.Parents = append(graph.Parents, in.source.address)
+		graph.Parents = append(graph.Parents, in.source.Address())
 		stage.captureLikeSource(in.source)
 		mapper := createLikeInput{ref: in.ref, source: in.source, targetSlots: make([]int, len(in.source.Columns))}
 		for slot, c := range in.source.Columns {
@@ -31,7 +31,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			mapper.targetSlots[slot] = targetSlot
 			target := d.Attributes[targetSlot]
 			provenance := graph.Columns[target]
-			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.address, Attribute: in.source.Attributes[slot]})
+			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.Address(), Attribute: in.source.Attributes[slot]})
 			graph.Columns[target] = provenance
 		}
 		for _, c := range in.source.NotNullConstraints {
@@ -42,7 +42,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			targetSlot := mapper.targetSlots[sourceSlot]
 			target := d.Attributes[targetSlot]
 			provenance := graph.NotNull[target]
-			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.address, Attribute: c.Attribute, Constraint: c.OID})
+			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.Address(), Attribute: c.Attribute, Constraint: c.OID})
 			graph.NotNull[target] = provenance
 			if !slices.ContainsFunc(d.NotNullConstraints, func(n notNullConstraint) bool { return n.Attribute == target }) {
 				d.NotNullConstraints = append(d.NotNullConstraints, notNullConstraint{Name: c.Name, Attribute: target})
@@ -63,7 +63,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				}
 				copied := old
 				copied.OID = 0
-				if err := validateCookedDefaultTemporary(copied.Expression, auth.catalog.MustNamespace(d.namespace).Temporary); err != nil {
+				if err := validateCookedDefaultTemporary(copied.Expression, auth.catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
 				if d.Defaults == nil {
@@ -105,7 +105,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				return err
 			}
 			provenance := graph.Checks[old.Name]
-			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.address, Constraint: old.OID})
+			provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: in.source.Address(), Constraint: old.OID})
 			graph.Checks[old.Name] = provenance
 			incumbent := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == old.Name })
 			if incumbent >= 0 {
@@ -122,7 +122,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
-				revision := d.revision
+				revision := d.Revision()
 				if provider, ok := auth.catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}

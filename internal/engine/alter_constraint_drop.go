@@ -83,7 +83,7 @@ func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor
 			return next, err
 		}
 		// CASCADE can remove a self-reference from this same parent.
-		next = provider.descriptor(old.address).(*relationDescriptor)
+		next = provider.descriptor(old.Address()).(*relationDescriptor)
 	}
 	return next, nil
 }

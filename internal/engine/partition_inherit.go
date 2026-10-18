@@ -133,9 +133,9 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			slots[attribute] = i
 		}
 		rowRef := func(old ids.ObjectRef) ids.ObjectRef {
-			if old.Address.ClassID == parent.address.ClassID && old.Address.ObjectID == parent.address.ObjectID {
+			if old.Address.ClassID == parent.Address().ClassID && old.Address.ObjectID == parent.Address().ObjectID {
 				attribute := old.Address.SubID
-				old.Address = d.address
+				old.Address = d.Address()
 				if attribute != 0 {
 					old.Address.SubID = d.Attributes[parent.indexForAttribute(attribute)]
 				}
@@ -163,7 +163,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			for _, ref := range refs {
 				address := ref.Address
 				address.SubID = 0
-				revision := d.revision
+				revision := d.Revision()
 				if object, ok := auth.catalog.Descriptor(address); ok {
 					revision = object.Revision()
 				}

@@ -61,7 +61,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	index := policyIndex(old, name)
 	if drop && index < 0 {
 		if stmt.(*parser.DropPolicy).IfExists {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`policy "%s" for relation "%s" does not exist, skipping`, name, old.name))
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`policy "%s" for relation "%s" does not exist, skipping`, name, old.Name()))
 		}
 		return fail(policyMissing(name, old))
 	}
@@ -69,10 +69,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		return fail(err)
 	}
 	if old.RelationKind == catalogRelation {
-		return fail(sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, old.name)))
+		return fail(sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, old.Name())))
 	}
 	if old.RelationKind != tableRelation && old.RelationKind != partitionedRelation {
-		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.name)))
+		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.Name())))
 	}
 	var using, check *policyExpression
 	if !drop {
@@ -127,7 +127,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		next.Policies = append(next.Policies[:index], next.Policies[index+1:]...)
 	}
 	slices.SortFunc(next.Policies, func(a, b policyDefinition) int { return strings.Compare(a.Name, b.Name) })
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}

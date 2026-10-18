@@ -53,7 +53,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.buckets, buckets) || e.indexRoots[index.address].hash != root {
+		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.buckets, buckets) || e.indexRoots[index.Address()].hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}
@@ -158,7 +158,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	index, old := hashRoot(t, e, "hn")
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	store := e.storage[parent.address]
+	store := e.storage[parent.Address()]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)
 	active := true
@@ -172,7 +172,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		sessionSQL(t, writer, q)
 	}
 	writes, deletes := writer.transactions.writes, writer.transactions.deletes
-	if len(writes[parent.address]) != 3 || deletes[parent.address] == nil {
+	if len(writes[parent.Address()]) != 3 || deletes[parent.Address()] == nil {
 		t.Fatal("fixture did not stage a genuine multirow change")
 	}
 	before := indexMaintenanceCapture(e)
@@ -182,14 +182,14 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	// Dry preparation uses the same real private batch and slot/end owner as
 	// publication. Its final pre-return poll follows touched-bucket copying;
 	// cancel at the immediately preceding bucket-entry poll in the real owner.
-	p := rowPublication{address: parent.address, store: store, original: store, originalRelation: parent, relation: parent, root: store.versions, writes: writes[parent.address], ends: store.ends, deletion: deletes[parent.address], generation: store.generation, singleSlot: -1}
+	p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.versions, writes: writes[parent.Address()], ends: store.ends, deletion: deletes[parent.Address()], generation: store.generation, singleSlot: -1}
 	if err := e.prepareRowPublication(&p, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.indexRoots[index.address], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.indexRoots[index.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}

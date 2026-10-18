@@ -82,7 +82,7 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 func constraintAttributeKeys(table *relationDescriptor, expression expr.Expr) []int32 {
 	var keys []int32
 	walkBoundExpression(expression, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.address.ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
+		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
 			keys = append(keys, column.origin.Address.SubID)
 		}
 	})
@@ -94,7 +94,7 @@ func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[id
 	if !ok || table.Inheritance == nil {
 		return
 	}
-	namespace, ok := view.Namespace(table.namespace)
+	namespace, ok := view.Namespace(table.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return
 	}
@@ -208,7 +208,7 @@ func (t *dumpRelation) emitRetiredConstraints(view CatalogRead, checks bool, emi
 			if !ok {
 				return fmt.Errorf("stuntgres: missing retired constraint parent")
 			}
-			parentName := quoteIdentifier(view.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name)
+			parentName := quoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + quoteIdentifier(parent.Name())
 			rows = append(rows, "("+commentLiteral(parentName)+"::regclass, "+commentLiteral(history.Column)+", "+strconv.FormatInt(int64(history.Attribute), 10)+", "+commentLiteral(kind)+", "+commentLiteral(history.Name)+", "+commentLiteral(strconv.FormatUint(history.Archive, 10)+":"+strconv.FormatUint(history.Lifetime, 10))+", "+commentLiteral(strconv.FormatUint(uint64(history.Constraint), 10))+")")
 			if !slices.Contains(parents, parentName) {
 				parents = append(parents, parentName)
@@ -273,7 +273,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		e.mu.Unlock()
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(old.namespace)
+	namespace, ok := auth.catalog.Namespace(old.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		e.mu.Unlock()
 		return reject()
@@ -349,12 +349,12 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		}
 		records = append(records, record)
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.Inheritance = cloneInheritance(old.Inheritance)
 	provenance.Local = repair.local
 	provenance.Retired = records
@@ -405,7 +405,7 @@ func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEve
 		if !has {
 			continue
 		}
-		event := dumpEventKey{oid: table.address.ObjectID, phase: dumpRetiredConstraints}
+		event := dumpEventKey{oid: table.Address().ObjectID, phase: dumpRetiredConstraints}
 		seen := make(map[ids.ObjectAddress]bool)
 		var ready func(ids.ObjectAddress)
 		ready = func(address ids.ObjectAddress) {
@@ -420,6 +420,6 @@ func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEve
 				}
 			}
 		}
-		ready(table.address)
+		ready(table.Address())
 	}
 }

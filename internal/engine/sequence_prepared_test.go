@@ -316,7 +316,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.sequences.constants[0].ref
 	descriptor := e.catalog.state.MustRelation(ref.Address)
-	namespace := e.catalog.state.MustNamespace(descriptor.namespace)
+	namespace := e.catalog.state.MustNamespace(descriptor.Namespace())
 	for _, action := range []string{"LOGGED", "UNLOGGED"} {
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -325,7 +325,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 		_, err = e.Execute(op, statement(t, "ALTER SEQUENCE s SET "+action), 0, nil)
 		op.Done()
 		var diagnostic *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: `cannot change logged status of table "s" because it is temporary`, Schema: namespace.name, Table: "s"}
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: `cannot change logged status of table "s" because it is temporary`, Schema: namespace.Name(), Table: "s"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("got=%#v want=%#v", diagnostic, want)
 		}

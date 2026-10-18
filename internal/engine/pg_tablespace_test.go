@@ -87,11 +87,11 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 		t.Fatal("public readonly ACL", d.ACL)
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-	if row.OwningRelation != d.address || row.Owner != d.Owner {
+	if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 		t.Fatal("row identity link", row)
 	}
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
-	if array.OwningRelation != d.address || array.Owner != d.Owner {
+	if array.OwningRelation != d.Address() || array.Owner != d.Owner {
 		t.Fatal("array identity link", array)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

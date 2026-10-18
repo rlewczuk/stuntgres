@@ -55,7 +55,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.name != "pg_indexes" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
+	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
 		t.Fatal(d)
 	}
 	for i, col := range d.Columns {
@@ -74,7 +74,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
-	if row.OwningRelation != d.address {
+	if row.OwningRelation != d.Address() {
 		t.Fatal("row type linkage", row)
 	}
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -133,7 +133,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 				}
 			}
 			schema := parent
-			schema.Address = e.CatalogRead().MustRelation(parent.Address).namespace
+			schema.Address = e.CatalogRead().MustRelation(parent.Address).Namespace()
 			schemaACL := authorization.ACLValue{Explicit: true}
 			if !tc.schemaDenied {
 				schemaACL.Entries = []authorization.ACLEntry{

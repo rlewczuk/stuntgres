@@ -61,15 +61,15 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescr
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "hash_root", RelationKind: partitionedRelation, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
+	root := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "hash_root", RelationKind: partitionedRelation, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
 	leaf := *root
-	leaf.address.ObjectID++
-	leaf.name = "hash_leaf"
+	leaf.ObjectAddress.ObjectID++
+	leaf.ObjectName = "hash_leaf"
 	leaf.RelationKind = tableRelation
-	leaf.Membership = &partitionMembership{Parent: root.address, Strategy: parser.PartitionHash, Modulus: 1}
-	root.Partition = &partitionDefinition{Strategy: parser.PartitionHash, Keys: []partitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.address}}
-	catalog.setDescriptor(root.address, root)
-	catalog.setDescriptor(leaf.address, &leaf)
+	leaf.Membership = &partitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1}
+	root.Partition = &partitionDefinition{Strategy: parser.PartitionHash, Keys: []partitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.Address()}}
+	catalog.setDescriptor(root.Address(), root)
+	catalog.setDescriptor(leaf.Address(), &leaf)
 	return e, e.catalog.read(catalog), root, &leaf
 }
 
@@ -81,7 +81,7 @@ func TestHashPartitionInvariants(t *testing.T) {
 		}
 	}
 	original := *leaf.Membership
-	for _, bad := range []partitionMembership{{Parent: root.address, Modulus: 1}, {Parent: root.address, Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.address, Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
+	for _, bad := range []partitionMembership{{Parent: root.Address(), Modulus: 1}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
 		leaf.Membership = &bad
 		if err := validatePartitionDescriptor(catalog, root); err == nil {
 			t.Fatal("invalid child accepted", bad)
@@ -139,16 +139,16 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	catalog, root, source := hashPartitionUnitDescriptor(t)
 	source.Membership.Modulus = 2
 	destination := *source
-	destination.address.ObjectID++
-	destination.name = "hash_destination"
-	destination.Membership = &partitionMembership{Parent: root.address, Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
-	root.Partition.Children = append(root.Partition.Children, destination.address)
-	catalog.state.setDescriptor(destination.address, &destination)
+	destination.ObjectAddress.ObjectID++
+	destination.ObjectName = "hash_destination"
+	destination.Membership = &partitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
+	root.Partition.Children = append(root.Partition.Children, destination.Address())
+	catalog.state.setDescriptor(destination.Address(), &destination)
 	class, _ := sqltype.DefaultIndexClass(source.Columns[0].Usage.Type)
 	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
-		index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: parent.name + "_key", RelationKind: indexRelation,
-			SQLIndex: &indexDefinition{Parent: parent.address, Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
-		catalog.state.setDescriptor(index.address, index)
+		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: parent.Name() + "_key", RelationKind: indexRelation,
+			SQLIndex: &indexDefinition{Parent: parent.Address(), Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
+		catalog.state.setDescriptor(index.Address(), index)
 		return index
 	}
 	sourceIndex := makeIndex(source, 25100)
@@ -159,38 +159,38 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	}
 	movedRow := rowVersion{row: 7, version: 11, born: 1, values: []sqltype.Value{value}}
 	storage := map[ids.ObjectAddress]*relationStorage{
-		source.address:      {},
-		destination.address: {versions: []rowVersion{movedRow}},
+		source.Address():      {},
+		destination.Address(): {versions: []rowVersion{movedRow}},
 	}
 	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
-		sourceIndex.address:      {index: sourceIndex, parent: source, frontier: 1},
-		destinationIndex.address: {index: destinationIndex, parent: &destination, frontier: 1},
+		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
+		destinationIndex.Address(): {index: destinationIndex, parent: &destination, frontier: 1},
 	}}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: catalog}
-	dirty := map[ids.ObjectAddress]bool{source.address: true, destination.address: true}
+	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
 	if err := snapshot.repair(evaluation.Context, &evaluation, storage, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)
 	}
 	// The existing storage remint mutates candidate row identities in place.
 	// Repaired snapshot versions must remain the pre-remint transport authority.
-	storage[destination.address].versions[0].row = 99
-	storage[destination.address].versions[0].version = 100
-	captured := snapshot.sources[destinationIndex.address].store.versions[0]
+	storage[destination.Address()].versions[0].row = 99
+	storage[destination.Address()].versions[0].version = 100
+	captured := snapshot.sources[destinationIndex.Address()].store.versions[0]
 	if captured.row != 7 || captured.version != 11 {
 		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.row, captured.version)
 	}
 	positions := map[ids.ObjectAddress]map[indexRowIdentity]int{
-		source.address:      {},
-		destination.address: {{row: 7, version: 11}: 0},
+		source.Address():      {},
+		destination.Address(): {{row: 7, version: 11}: 0},
 	}
 	roots, err := snapshot.transport(evaluation.Context, catalog.state, storage, positions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(roots[sourceIndex.address].entries) != 0 {
+	if len(roots[sourceIndex.Address()].entries) != 0 {
 		t.Fatal("emptied source retained index entries")
 	}
-	entries := roots[destinationIndex.address].entries
+	entries := roots[destinationIndex.Address()].entries
 	if len(entries) != 1 || entries[0].row != 99 || entries[0].version != 100 || entries[0].keys[0] != value {
 		t.Fatal("moved destination did not transport exactly one reminted index entry", entries)
 	}

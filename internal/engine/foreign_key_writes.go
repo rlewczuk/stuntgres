@@ -264,13 +264,13 @@ func (s *StatementScope) checkForeignKeys() error {
 		}
 		f := job.definition
 		childAuth, parentAuth := auth, auth
-		if admission := s.foreignActionAdmissions[job.child.address]; admission != nil && admission.mutated {
+		if admission := s.foreignActionAdmissions[job.child.Address()]; admission != nil && admission.mutated {
 			childAuth = foreignActionOwner(auth, admission.relation.Owner)
 		}
-		if admission := s.foreignActionAdmissions[job.parent.address]; admission != nil && admission.mutated {
+		if admission := s.foreignActionAdmissions[job.parent.Address()]; admission != nil && admission.mutated {
 			parentAuth = foreignActionOwner(auth, admission.relation.Owner)
 		}
-		childRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.address)
+		childRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
 		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), f.Target)
 		parentRows, err := s.captureForeignKeyRows(parentRef, f.Index)
 		if err != nil {

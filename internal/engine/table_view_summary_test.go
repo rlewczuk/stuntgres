@@ -20,7 +20,7 @@ func TestTableSummaryImmutablePublication(t *testing.T) {
 	}
 	run(t, e, "CREATE INDEX summary_index ON summary_parent(n)")
 	successor := e.CatalogRead().MustRelation(address)
-	if successor == predecessor || !successor.HasIndexes || predecessor.HasIndexes || successor.revision == predecessor.revision {
+	if successor == predecessor || !successor.HasIndexes || predecessor.HasIndexes || successor.Revision() == predecessor.Revision() {
 		t.Fatal("history was not immutable same-identity publication")
 	}
 	run(t, e, "DROP INDEX summary_index")
@@ -105,8 +105,8 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	parent := base.MustRelation(address)
 	stage := e.BeginCatalogStage(base)
 	next := *parent
-	next.name = "summary_renamed"
-	next.revision++
+	next.ObjectName = "summary_renamed"
+	next.ObjectRevision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: parent.namespace, name: "summary_pending", revision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: address, Live: true}}
+	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: parent.Namespace(), ObjectName: "summary_pending", ObjectRevision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: address, Live: true}}
 	if err := stage.Create(index); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := stage.descriptors[address].(*relationDescriptor)
-	if staged.name != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
+	if staged.Name() != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}
 	if e.CatalogRead().state != base.state {
@@ -186,7 +186,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12008, "pg_group", false},
 	} {
 		relation, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
-		if !ok || relation.name != expected.name || relation.RelationKind != catalogRelation {
+		if !ok || relation.Name() != expected.name || relation.RelationKind != catalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
 		if representedSummaryTable(expected.oid) != expected.table || (representedSummaryViewDefinition(expected.oid) != "") == expected.table {
@@ -195,8 +195,8 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	}
 	for _, d := range catalog.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
-			table := representedSummaryTable(relation.address.ObjectID)
-			view := representedSummaryViewDefinition(relation.address.ObjectID) != ""
+			table := representedSummaryTable(relation.Address().ObjectID)
+			view := representedSummaryViewDefinition(relation.Address().ObjectID) != ""
 			if table && view {
 				t.Fatal("builtin classified twice")
 			}
@@ -297,7 +297,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	newOwner, _ := e.Roles().Lookup("summary_new_owner")
 	next := *previous
 	next.Owner = newOwner.Ref
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

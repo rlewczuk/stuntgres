@@ -7,7 +7,7 @@ import (
 )
 
 func physicalSelfForeignKeyDeferred(table *relationDescriptor, foreign foreignKeyConstraint) bool {
-	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.address {
+	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
 		return false
 	}
 	for i := range table.UniqueConstraints {
@@ -23,7 +23,7 @@ func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, ow
 	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	for _, foreign := range table.ForeignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
@@ -126,8 +126,8 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.Get(old.namespace)
-	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.name != raw.Name.Parts[1].Text {
+	namespace := auth.catalog.Get(old.Namespace())
+	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
 		return reject()
 	}
 	if len(foreign.Referenced) != 0 {
@@ -161,7 +161,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		}
 		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.address == provider.primary.Index {
+			if !ok || index.Address() == provider.primary.Index {
 				continue
 			}
 			eligible, eligibilityErr := foreignKeyIndexEligible(old, index, attributes)

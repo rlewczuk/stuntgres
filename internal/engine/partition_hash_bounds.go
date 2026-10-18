@@ -53,10 +53,10 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		return d
 	}
 	if preceding != nil && p.bound.Modulus%preceding.Membership.Modulus != 0 {
-		return factorError(fmt.Sprintf(`The new modulus %d is not divisible by %d, the modulus of existing partition "%s".`, p.bound.Modulus, preceding.Membership.Modulus, preceding.name))
+		return factorError(fmt.Sprintf(`The new modulus %d is not divisible by %d, the modulus of existing partition "%s".`, p.bound.Modulus, preceding.Membership.Modulus, preceding.Name()))
 	}
 	if following != nil && following.Membership.Modulus%p.bound.Modulus != 0 {
-		return factorError(fmt.Sprintf(`The new modulus %d is not a factor of %d, the modulus of existing partition "%s".`, p.bound.Modulus, following.Membership.Modulus, following.name))
+		return factorError(fmt.Sprintf(`The new modulus %d is not a factor of %d, the modulus of existing partition "%s".`, p.bound.Modulus, following.Membership.Modulus, following.Name()))
 	}
 	var conflict *relationDescriptor
 	var first int32
@@ -79,7 +79,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		}
 	}
 	if conflict != nil {
-		return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, conflict.name), p.rawBounds.Pos)
+		return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.Name(), conflict.Name()), p.rawBounds.Pos)
 	}
 	return nil
 }

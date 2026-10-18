@@ -11,12 +11,12 @@ import (
 func collationName(view CatalogRead, id uint32) string {
 	if view.state != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
-			return d.name
+			return d.Name()
 		}
 	}
 	for i := range builtinCollations {
 		if uint32(builtinCollations[i].OID) == id {
-			return builtinCollations[i].name
+			return builtinCollations[i].Name()
 		}
 	}
 	return ""
@@ -25,7 +25,7 @@ func collationName(view CatalogRead, id uint32) string {
 func collationSQLName(view CatalogRead, id uint32) string {
 	if view.state != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
-			return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.name)
+			return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 		}
 	}
 	if name := collationName(view, id); name != "" {

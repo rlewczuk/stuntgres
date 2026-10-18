@@ -30,20 +30,20 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 			break
 		}
 	}
-	candidates := visibleOperators(groups, operatorPath, descriptor.name)
-	visible := len(candidates) == 1 && candidates[0].address == descriptor.address
+	candidates := visibleOperators(groups, operatorPath, descriptor.Name())
+	visible := len(candidates) == 1 && candidates[0].Address() == descriptor.Address()
 	if alias == sqltype.Regoperator {
 		visible = false
 		for _, d := range candidates {
 			if d.Left == descriptor.Left && d.Right == descriptor.Right {
-				visible = d.address == descriptor.address
+				visible = d.Address() == descriptor.Address()
 				break
 			}
 		}
 	}
-	name := descriptor.name
+	name := descriptor.Name()
 	if !visible {
-		name = regclassIdentifier(view.Get(descriptor.namespace).Name()) + "." + name
+		name = regclassIdentifier(view.Get(descriptor.Namespace()).Name()) + "." + name
 	}
 	if alias == sqltype.Regoperator {
 		operand := func(id ids.OID) string {

@@ -10,7 +10,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	for _, sequence := range [][]bool{{true, true}, {true, false, true}, {false, true}} {
 		e := New()
 		d := concurrentUnitRelation(t, e)
-		original := e.storage[d.address]
+		original := e.storage[d.Address()]
 		changes := newCatalogChanges()
 		previous := original
 		for i, concurrent := range sequence {
@@ -19,7 +19,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
 			e.mu.Unlock()
-			shape := changes.storage[d.address]
+			shape := changes.storage[d.Address()]
 			continuous := true
 			for _, mode := range sequence[:i+1] {
 				continuous = continuous && mode
@@ -37,12 +37,12 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	d := concurrentUnitRelation(t, e)
 	private := &relationStorage{}
 	changes := newCatalogChanges()
-	changes.storage[d.address] = catalogStorageChange{replacement: private, relation: d}
+	changes.storage[d.Address()] = catalogStorageChange{replacement: private, relation: d}
 	stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &relationStorage{}, concurrent: true}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)
 	e.mu.Unlock()
-	if shape := changes.storage[d.address]; shape.original != nil || shape.materializedContinuous || !shape.materializedConcurrent {
+	if shape := changes.storage[d.Address()]; shape.original != nil || shape.materializedContinuous || !shape.materializedConcurrent {
 		t.Fatal("private CREATE acquired committed provenance", shape)
 	}
 }
@@ -51,15 +51,15 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	e := New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
-	old = e.catalog.state.MustRelation(old.address)
+	old = e.catalog.state.MustRelation(old.Address())
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
-	storage := e.storage[old.address]
-	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.address: storage.versions}, singleGeneration: storage}
-	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
+	storage := e.storage[old.Address()]
+	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.Address(): storage.versions}, singleGeneration: storage}
+	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: storage}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
-	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) || !e.materializedSourceFenceCurrent(fence) {
+	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
@@ -68,26 +68,26 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("source-only retained fence rejected", err)
 	}
-	changes.originals[old.address] = old
+	changes.originals[old.Address()] = old
 	if err := e.catalogPreflightLocked(changes); err == nil {
 		t.Fatal("source proof weakened an exact original fence")
 	}
 	changed := *current
-	changed.name = "renamed"
-	e.catalog.state.setDescriptor(current.address, &changed)
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) {
+	changed.ObjectName = "renamed"
+	e.catalog.state.setDescriptor(current.Address(), &changed)
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.Address()]) {
 		t.Fatal("source definition retargeted")
 	}
-	e.catalog.state.setDescriptor(current.address, current)
+	e.catalog.state.setDescriptor(current.Address(), current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[current.address]) {
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[current.Address()]) {
 		t.Fatal("plain rewrite bridged active source snapshot")
 	}
 	e.mu.Unlock()
 	// Snapshot vectors remain the old immutable data, not the newly installed bag.
-	if len(snapshot.committed[old.address]) != 1 {
+	if len(snapshot.committed[old.Address()]) != 1 {
 		t.Fatal("source snapshot was recaptured")
 	}
 }

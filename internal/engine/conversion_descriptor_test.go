@@ -11,7 +11,7 @@ import (
 )
 
 func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *conversionDescriptor {
-	return &conversionDescriptor{OID: oid, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
+	return &conversionDescriptor{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -51,7 +51,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	for _, corrupt := range []func(*conversionDescriptor){
 		func(d *conversionDescriptor) { d.Source = 0 }, func(d *conversionDescriptor) { d.Destination = 9 },
 		func(d *conversionDescriptor) { d.Handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.Handler.SubID = 1 },
-		func(d *conversionDescriptor) { d.namespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.revision = 0 },
+		func(d *conversionDescriptor) { d.ObjectNamespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.ObjectRevision = 0 },
 	} {
 		bad := *d
 		corrupt(&bad)
@@ -61,7 +61,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	}
 	bad := *d
 	bad.Owner = New().authorizationDomain.Principal(10)
-	bad.revision++
+	bad.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&bad); err != nil {
@@ -76,7 +76,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal("pinned capability/default invariant changed")
 	}
 	seed = *view.MustConversion(seed.Address())
-	seed.name, seed.namespace, seed.revision = "legal_seed", d.Namespace(), 2
+	seed.ObjectName, seed.ObjectNamespace, seed.ObjectRevision = "legal_seed", d.Namespace(), 2
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&seed); err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
-	if original := view.MustConversion(seed.Address()); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+	if original := view.MustConversion(seed.Address()); original.Name() != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("seed mutation changed old snapshot")
 	}
 }

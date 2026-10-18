@@ -32,7 +32,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
-	f.e.indexRoots[f.index.address] = root
+	f.e.indexRoots[f.index.Address()] = root
 	admin, adminDone := roleOperation(t, f.e, "postgres")
 	defer adminDone()
 	if _, err := f.e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "conflict_waiter"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0, nil); err != nil {
@@ -46,11 +46,11 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if !ok {
 		t.Fatal("owner principal missing")
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Address())
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privileges}}}
 	}
-	schema := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.namespace)
+	schema := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.Namespace())
 	if err := f.e.SetObjectACL(context.Background(), schema, acl(authorization.UsagePrivilege)); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	for key := range mark {
 		resource = key
 	}
-	if resource.Key() == nil || resource.ObjectRef.Address != f.index.address {
+	if resource.Key() == nil || resource.ObjectRef.Address != f.index.Address() {
 		t.Fatal("reservation is not the actual unique provider", resource)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -215,7 +215,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.Finish(result.err); !errors.Is(err, result.err) {
 		t.Fatal(err)
 	}
-	retained := f.e.storage[f.parent.address].versions
+	retained := f.e.storage[f.parent.Address()].versions
 	if len(retained) != 1 || retained[0].row != 1 || retained[0].version != 1 || retained[0].born != 1 || !reflect.DeepEqual(retained[0].values, insertConflictUnitRow(t, f, 10)) {
 		t.Fatal("failed admission changed exact committed sentinel identity or values", retained)
 	}
@@ -270,7 +270,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	stored := f.e.storage[f.parent.address].versions
+	stored := f.e.storage[f.parent.Address()].versions
 	if len(stored) != 3 || !reflect.DeepEqual(stored[1].values, prefix) || !reflect.DeepEqual(stored[2].values, proposal) {
 		t.Fatal("postfailure healthy insert did not publish exact accepted rows", stored)
 	}

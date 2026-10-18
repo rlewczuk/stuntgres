@@ -97,12 +97,12 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 }
 
 func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescriptor) queryNamespace {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
 }
 
@@ -113,7 +113,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 	b.noParameters = true
 	b.queryAuth = &auth
 	b.queryNamespace = ns
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
 	kind := d.Generations[d.Attributes[slot]].Kind
@@ -519,7 +519,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		if rows == nil {
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}
-		schema := next.Get(descriptor.namespace).Name()
+		schema := next.Get(descriptor.Namespace()).Name()
 		historical := validCheckTraversal(descriptor)
 		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
 		if eval.statementScope != nil {
@@ -571,7 +571,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 					if err != nil {
 						return err
 					}
-					return notNullDetailError(schema, descriptor.name, column.Name, detail)
+					return notNullDetailError(schema, descriptor.Name(), column.Name, detail)
 				}
 			}
 			constraint, err := validateCheckRow(historical, row, &eval)
@@ -579,7 +579,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 				return err
 			}
 			if constraint != nil {
-				return checkDetailError(schema, descriptor.name, constraint.Name, "")
+				return checkDetailError(schema, descriptor.Name(), constraint.Name, "")
 			}
 			for slot, comparison := range comparisons {
 				before := rows.versions[i].values[slot]
@@ -612,12 +612,12 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			if !storedReferenceEpochValid(view, d, ref) {
 				return fmt.Errorf("stuntgres: missing generation provider")
 			}
-			if address == d.address && ref.Address.SubID != 0 {
+			if address == d.Address() && ref.Address.SubID != 0 {
 				if _, generated := d.Generations[ref.Address.SubID]; generated {
 					return fmt.Errorf("stuntgres: generated dependency on generated attribute")
 				}
 			}
-			if address == d.address {
+			if address == d.Address() {
 				if ref.Address.SubID != 0 && !d.hasAttribute(ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: missing generation source attribute")
 				}
@@ -625,7 +625,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != ids.RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.Address().ClassID != ids.RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
 			if provider.Kind() == ids.ProcedureObject {
@@ -712,12 +712,12 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.E
 		if _, generated := d.Generations[n.origin.Address.SubID]; generated || n.virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
-		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.address.ClassID || n.origin.Address.ObjectID != d.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.Columns) || d.Attributes[n.slot] != n.origin.Address.SubID || usage != d.Columns[n.slot].Usage {
+		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.Address().ClassID || n.origin.Address.ObjectID != d.Address().ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.Columns) || d.Attributes[n.slot] != n.origin.Address.SubID || usage != d.Columns[n.slot].Usage {
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
 	case tableOIDExpression:
-		if !storedReferenceEpochValid(view, d, n.owner) || n.owner.Address != d.address || usage.Type.ID() != sqltype.Oid {
+		if !storedReferenceEpochValid(view, d, n.owner) || n.owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil

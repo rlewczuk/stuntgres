@@ -12,7 +12,7 @@ import (
 // These are actual private binding/freezing/staging calls, not SQL execution.
 func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *namespaceDescriptor, name, call string) *relationDescriptor {
 	t.Helper()
-	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.name+"."+call+" AS v").(*parser.CreateView)
+	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.Name()+"."+call+" AS v").(*parser.CreateView)
 	stage, consumer, err := func() (*CatalogStage, *relationDescriptor, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -40,8 +40,8 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: namespace.address, name: name, revision: revision, Owner: namespace.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
-		definition.consumer = d.address
+		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+		definition.consumer = d.Address()
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {
 			e.DiscardCatalogStage(stage)
@@ -66,7 +66,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 	op, done := extensionTemporaryOperation(t, e, "postgres")
 	defer done()
 	namespace := intarrayUnitTemporaryNamespace(t, e, op)
-	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", namespace.name))
+	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", namespace.Name()))
 	consumers := []*relationDescriptor{
 		intaggUnitTemporaryView(t, e, op, namespace, "ia_unit_retained_aggregate", "int_array_aggregate(2)"),
 		intaggUnitTemporaryView(t, e, op, namespace, "ia_unit_retained_enum", "int_array_enum('{2,2,NULL}')"),
@@ -80,7 +80,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		t.Fatal("replacement did not advance epoch")
 	}
 	for _, consumer := range consumers {
-		if view.Get(consumer.address) != consumer {
+		if view.Get(consumer.Address()) != consumer {
 			t.Fatal("TEMP consumer not retained exactly")
 		}
 		refs := pgDependRefs{ctx: context.Background(), catalog: view}
@@ -102,13 +102,13 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			if !storedViewReferenceValid(view, consumer, ref) {
 				t.Fatal("exact contextual TEMP authority rejected")
 			}
-			if _, err := viewOf(consumer).intaggRecipeProcedure(view, path, proc.name); err != nil {
+			if _, err := viewOf(consumer).intaggRecipeProcedure(view, path, proc.Name()); err != nil {
 				t.Fatal(err)
 			}
 			if err := e.ValidateObjectRef(view, ref); err == nil {
 				t.Fatal("ordinary stale ObjectRef was relaxed")
 			}
-			if err := validateIntaggIdentity(view, proc, ref, proc.name); err == nil {
+			if err := validateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
 				t.Fatal("fresh intagg identity validator was relaxed")
 			}
 			if storedViewReferenceValid(New().CatalogRead(), consumer, ref) {
@@ -125,7 +125,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := viewOf(consumer).intaggRecipeProcedure(e.catalog.read(state), path, proc.name); err == nil {
+			if _, err := viewOf(consumer).intaggRecipeProcedure(e.catalog.read(state), path, proc.Name()); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer
@@ -133,7 +133,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 				t.Fatal("uncaptured consumer clone gained contextual authority")
 			}
 			unretainedDefinition := *viewOf(consumer)
-			if _, err := unretainedDefinition.intaggRecipeProcedure(view, path, proc.name); err == nil {
+			if _, err := unretainedDefinition.intaggRecipeProcedure(view, path, proc.Name()); err == nil {
 				t.Fatal("recipe borrowed another retained view's authority")
 			}
 		}

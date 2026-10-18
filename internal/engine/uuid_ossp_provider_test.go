@@ -47,7 +47,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.Members[0]
 	proc := view.MustProcedure(address)
-	if proc.name != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.namespace != ext.TargetNamespace {
+	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
@@ -59,7 +59,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	count := 0
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			count++
 			if edge.dependent != address {
 				t.Fatal(edge)
@@ -82,14 +82,14 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.Implementation = stockIntagg },
 		func(p *procedureDescriptor) { p.Aggregate = &ownedAggregate{} },
 		func(p *procedureDescriptor) { p.Foreign = &foreignProcedure{} },
-		func(p *procedureDescriptor) { p.name = "uuidv4" },
+		func(p *procedureDescriptor) { p.ObjectName = "uuidv4" },
 		func(p *procedureDescriptor) { p.Signature = "25" },
 		func(p *procedureDescriptor) { p.Result = 25 },
 		func(p *procedureDescriptor) { p.Volatility = expr.Immutable },
 		func(p *procedureDescriptor) { p.Strict = false },
-		func(p *procedureDescriptor) { p.revision = 0 },
+		func(p *procedureDescriptor) { p.ObjectRevision = 0 },
 		func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.address },
+		func(p *procedureDescriptor) { p.Dictionary = ext.Address() },
 	} {
 		bad := *proc
 		mutate(&bad)
@@ -103,7 +103,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*extensionDescriptor){
 		func(x *extensionDescriptor) { x.Version = "missing" },
-		func(x *extensionDescriptor) { x.name = "pgcrypto" },
+		func(x *extensionDescriptor) { x.ObjectName = "pgcrypto" },
 		func(x *extensionDescriptor) { x.Members = nil },
 		func(x *extensionDescriptor) { x.Members = []ids.ObjectAddress{address, address} },
 	} {
@@ -119,9 +119,9 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	original := cryptoView.MustProcedure(cryptoExt.Members[0])
 	bad := *original
 	bad.Implementation = stockUUIDOssp
-	cryptoView.state.setDescriptor(bad.address, &bad)
+	cryptoView.state.setDescriptor(bad.Address(), &bad)
 	failure := stockPgcrypto.ValidateExtension(cryptoView, cryptoExt)
-	cryptoView.state.setDescriptor(bad.address, original)
+	cryptoView.state.setDescriptor(bad.Address(), original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
 	}
@@ -161,7 +161,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.address) != ext || e.catalog.state.NameAddress(key) != member {
+	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.NameAddress(key) != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

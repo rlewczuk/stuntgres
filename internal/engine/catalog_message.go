@@ -86,7 +86,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		return err
 	}
 	if r := s.materializedReplacement; r != nil {
-		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.original.address)); err != nil {
+		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.original.Address())); err != nil {
 			return err
 		}
 	}
@@ -163,8 +163,8 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		if snapshot := s.materializedSourceView; snapshot != nil {
 			if relation, ok := source.(*relationDescriptor); ok && relation.RelationKind == materializedViewRelation {
-				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
-				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.address] == nil {
+				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.generationAt(relation.Address())}
+				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.Address()] == nil {
 					c.materializedSources = append(c.materializedSources, fence)
 					continue
 				}
@@ -251,7 +251,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		captureStorage(f.address)
 	}
 	for _, d := range s.indexParents {
-		captureStorage(d.address)
+		captureStorage(d.Address())
 	}
 	for a, candidate := range s.indexCandidates {
 		index, ok := s.descriptors[a].(*relationDescriptor)

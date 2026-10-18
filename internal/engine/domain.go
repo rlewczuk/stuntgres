@@ -100,14 +100,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &typeDescriptor{SQLType: typ, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	domain := &typeDescriptor{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, namespace: ns.Address, revision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {

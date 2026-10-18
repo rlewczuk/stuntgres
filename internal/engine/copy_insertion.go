@@ -81,7 +81,7 @@ func (state *copyInsertionState) flush(s *StatementScope, b binding, rows *index
 			}
 		}
 		if err != nil {
-			return copyInsertionDiagnostic(s.op.CommandError(err), b.relation.name, state.lines[position-state.first])
+			return copyInsertionDiagnostic(s.op.CommandError(err), b.relation.Name(), state.lines[position-state.first])
 		}
 		rows.set(position, candidate)
 		return nil

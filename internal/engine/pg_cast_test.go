@@ -24,7 +24,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGCastShapeAndOwnership(t *testing.T) {
 	e := New()
 	d, _ := pgCastUnitSource(t, e)
-	if d.name != "pg_cast" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
+	if d.Name() != "pg_cast" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
 		t.Fatal(d)
 	}
 	for i, name := range []string{"oid", "castsource", "casttarget", "castfunc", "castcontext", "castmethod"} {

@@ -733,7 +733,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	} {
 		q := domainUnitBindSelect(t, e, op, "SELECT v,"+expression+" FROM os_unit_authority GROUP BY v")
 		schema := q.Root.Schema()
-		if schema[0].OriginTable != uint32(table.address.ObjectID) || schema[0].OriginAttribute != 1 {
+		if schema[0].OriginTable != uint32(table.Address().ObjectID) || schema[0].OriginAttribute != 1 {
 			t.Fatal("missing genuine input origin", schema[0])
 		}
 		column := schema[1]

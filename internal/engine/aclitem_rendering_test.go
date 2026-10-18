@@ -37,7 +37,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	comparison := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: literal, right: literal, predicate: predicate, operator: "="}
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
+	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45000}, Attributes: []int32{1}}
 	var refs []ids.ObjectRef
 	if _, err := (scalarRenderer{aclOutput: captured, owner: relation, dependencies: &refs}).sql(context.Background(), view, comparison); err != nil {
 		t.Fatal(err)

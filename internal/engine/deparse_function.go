@@ -395,7 +395,7 @@ func deparseAttribute(relation *relationDescriptor, attr int32) (string, error) 
 			return pgIdentifier(relation.Columns[i].Name), nil
 		}
 	}
-	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.name))
+	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.Name()))
 }
 
 func validateDeparseExpression(e deparseExpression) error {

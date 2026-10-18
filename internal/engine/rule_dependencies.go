@@ -192,14 +192,14 @@ func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, p
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || slices.Contains(targets, d.address) {
+		if !ok || slices.Contains(targets, d.Address()) {
 			continue
 		}
 		for _, r := range rulesOf(d) {
 			for _, target := range targets {
 				if ruleDepends(catalog, r, target) {
 					if observe != nil {
-						observe(d.address)
+						observe(d.Address())
 					}
 					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)})
 					break
@@ -247,11 +247,11 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		}
 		copy := *d
 		copy.Rules = rulesPayloadOf(kept)
-		revision, err := provider.revision(copy.revision)
+		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err
 		}
-		copy.revision = revision
+		copy.ObjectRevision = revision
 		if err := provider.replace(&copy); err != nil {
 			return err
 		}

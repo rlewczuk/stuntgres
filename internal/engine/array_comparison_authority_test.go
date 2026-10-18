@@ -24,10 +24,10 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	var source, destination *collationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*collationDescriptor); ok {
-			if d.name == "ac_source" {
+			if d.Name() == "ac_source" {
 				source = d
 			}
-			if d.name == "ac_destination" {
+			if d.Name() == "ac_destination" {
 				destination = d
 			}
 		}

@@ -185,12 +185,12 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return nil
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
 	next.NotNullConstraints[index].NoInherit = true
 	stage := e.BeginCatalogStage(auth.catalog)

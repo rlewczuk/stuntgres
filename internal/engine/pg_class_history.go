@@ -58,7 +58,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			if err != nil {
 				return err
 			}
-			next.revision = revision
+			next.ObjectRevision = revision
 			next.SubclassPredecessor, next.SubclassPublication = parent, revision
 			return stage.Replace(&next)
 		}); err != nil {

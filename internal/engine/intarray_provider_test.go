@@ -45,7 +45,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 3 || base.Extension != ext.address || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 3 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -61,7 +61,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	}
 	for i, address := range ext.Members {
 		member := view.Get(address)
-		if member == nil || member.Namespace() != ext.TargetNamespace || extensionMembership(member) != ext.address {
+		if member == nil || member.Namespace() != ext.TargetNamespace || extensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
 		owner, _, _ := descriptorACL(member)
@@ -83,7 +83,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	members := map[ids.ObjectAddress]bool{}
 	arrayInternal := false
 	for _, edge := range edges {
-		if edge.referenced == ext.address && edge.deptype == 'e' {
+		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			members[edge.dependent] = true
 		}
 		if edge.dependent == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
@@ -168,8 +168,8 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		owner := op.RoleState().CurrentUser
 		for _, d := range []*typeDescriptor{
-			{SQLType: typ, namespace: namespace, Owner: owner, revision: revision, Array: array.ID()},
-			{SQLType: array, namespace: namespace, Owner: owner, revision: revision},
+			{SQLType: typ, ObjectNamespace: namespace, Owner: owner, ObjectRevision: revision, Array: array.ID()},
+			{SQLType: array, ObjectNamespace: namespace, Owner: owner, ObjectRevision: revision},
 		} {
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -197,12 +197,12 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			func(state *catalogState, d *extensionDescriptor) {
 				proc := *state.MustProcedure(d.Members[1])
 				proc.Result++
-				state.setDescriptor(proc.address, &proc)
+				state.setDescriptor(proc.Address(), &proc)
 			},
 			func(state *catalogState, d *extensionDescriptor) {
 				proc := *state.MustProcedure(d.Members[2])
 				proc.Signature = "25"
-				state.setDescriptor(proc.address, &proc)
+				state.setDescriptor(proc.Address(), &proc)
 			},
 			func(state *catalogState, _ *extensionDescriptor) {
 				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
@@ -214,7 +214,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			candidate := cloneCatalog(e.catalog.state)
 			bad := *ext
 			bad.Members = slices.Clone(ext.Members)
-			candidate.setDescriptor(bad.address, &bad)
+			candidate.setDescriptor(bad.Address(), &bad)
 			corrupt(candidate, &bad)
 			if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
 				t.Fatal("invalid manifest accepted")
@@ -268,23 +268,23 @@ func TestIntarrayProviderControls(t *testing.T) {
 		e := New()
 		op, close := extensionTemporaryOperation(t, e, "postgres")
 		namespace := intarrayUnitTemporaryNamespace(t, e, op)
-		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.name))
+		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.Name()))
 		ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}))
 		base := e.catalog.state.MustType(ext.Members[0])
 		array := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		addresses := append([]ids.ObjectAddress{ext.address, array}, ext.Members...)
+		addresses := append([]ids.ObjectAddress{ext.Address(), array}, ext.Members...)
 		close()
-		assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.address)
+		assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.Address())
 		for _, address := range addresses {
 			if e.catalog.state.Get(address) != nil {
 				t.Fatal("retired TEMP identity retained", address)
 			}
 		}
 		for key, address := range e.catalog.state.Names() {
-			if slices.Contains(addresses, address) || key.Namespace == namespace.address {
+			if slices.Contains(addresses, address) || key.Namespace == namespace.Address() {
 				t.Fatal("retired TEMP name retained", key)
 			}
 		}
@@ -299,7 +299,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
 		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
-		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
+		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.Name()))
 		unaccent := target.catalog.state.Get(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
@@ -313,7 +313,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		if target.catalog.state.Get(namespace.address) != namespace || target.catalog.state.Get(unaccent.Address()) != unaccent {
+		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != unaccent {
 			t.Fatal("import changed live TEMP provider authority")
 		}
 		mapped, err := reownDomainDatum(value, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.SQLType: imported.SQLType}, nil)
@@ -333,8 +333,8 @@ func TestIntarrayProviderControls(t *testing.T) {
 			t.Fatal("retained codec", text, err)
 		}
 		closeOwner()
-		assertTemporaryNamespacePair(t, target, namespace.Temporary, namespace.address)
-		if target.catalog.state.Get(namespace.address) != namespace || target.catalog.state.Get(unaccent.Address()) != nil {
+		assertTemporaryNamespacePair(t, target, namespace.Temporary, namespace.Address())
+		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

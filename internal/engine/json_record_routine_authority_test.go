@@ -93,7 +93,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.revision == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
 			if declaration.Kind != functionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&jsonRoutineProvider == 0 {
@@ -107,7 +107,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.revision {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {

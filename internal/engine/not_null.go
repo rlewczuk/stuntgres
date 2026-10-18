@@ -14,9 +14,9 @@ import (
 func alterTableLookupKind(d *relationDescriptor) error {
 	switch d.RelationKind {
 	case catalogRelation:
-		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.name))
+		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.Name()))
 	case compositeRelation:
-		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.name)).(*sqlstate.Error)
+		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TYPE instead."
 		return diagnostic
 	default:
@@ -64,7 +64,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		for i := range command.Actions {
 			if command.Actions[i].Action == parser.SetNotNull {
 				a := &command.Actions[i]
-				a.NoInherit = len(inheritanceChildren(auth.catalog, old.address)) != 0
+				a.NoInherit = len(inheritanceChildren(auth.catalog, old.Address())) != 0
 				if slot, ok := old.Index[a.Column.Text]; ok {
 					for _, c := range old.NotNullConstraints {
 						if c.Attribute == old.Attributes[slot] && c.NoInherit {
@@ -165,7 +165,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	versions, ends, frontier := store.versions, store.ends, e.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
-	schema := auth.catalog.Get(old.namespace).Name()
+	schema := auth.catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -457,10 +457,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, nil
 	}
 	if next != old {
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = old.revision + 1
+		next.ObjectRevision = old.Revision() + 1
 	}
 	// USING/CHECK demand must allocate from the AS replacement, not the live
 	// generator. This statement overlay is discarded on failure, never installed
@@ -573,17 +573,17 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		addedForeignKeys = append(addedForeignKeys, next.ForeignKeys[len(next.ForeignKeys)-1].OID)
 		fkIndex++
 	}
-	if hasForeignKeys && next.revision == old.revision {
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if hasForeignKeys && next.Revision() == old.Revision() {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
-		next.revision = old.revision + 1
+		next.ObjectRevision = old.Revision() + 1
 	}
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
 	if changedValues {
-		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.address); err != nil {
+		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.Address()); err != nil {
 			return Result{}, err
 		}
 	}

@@ -22,7 +22,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	owner := e.catalog.Domain
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.Comment = "eligible default descriptor"
 	next.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
 	if err := stage.Replace(&next); err != nil {

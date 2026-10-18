@@ -90,10 +90,10 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			original := expression.presentation
 			next := cloneCatalog(e.CatalogRead().state)
 			owner := *d
-			owner.name = "renamed"
+			owner.ObjectName = "renamed"
 			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
-			next.setDescriptor(d.address, &owner)
+			next.setDescriptor(d.Address(), &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
@@ -101,7 +101,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
 				t.Fatal("lost stable owner identity", text)
 			}
-			if expression.presentation != original || d.name != "t" || d.Columns[0].Name != "id" {
+			if expression.presentation != original || d.Name() != "t" || d.Columns[0].Name != "id" {
 				t.Fatal("mutated published definition")
 			}
 		})
@@ -134,7 +134,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	next := *d
-	next.revision++
+	next.ObjectRevision++
 	e.mu.Lock()
 	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
@@ -172,7 +172,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *d
-	next.revision++
+	next.ObjectRevision++
 	e.mu.Lock()
 	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
@@ -200,7 +200,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	view := imported.CatalogRead()
 	var copied *relationDescriptor
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.name == "t" {
+		if table, ok := descriptor.(*relationDescriptor); ok && table.Name() == "t" {
 			copied = table
 			break
 		}
@@ -256,7 +256,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			state := cloneCatalog(base.state)
 			attached := *owner
 			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
-			state.setDescriptor(owner.address, &attached)
+			state.setDescriptor(owner.Address(), &attached)
 			base.state = state
 			var target ids.ObjectAddress
 			for address, descriptor := range state.Descriptors() {
@@ -290,7 +290,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			survivor, ok := stage.descriptors[owner.address].(*relationDescriptor)
+			survivor, ok := stage.descriptors[owner.Address()].(*relationDescriptor)
 			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}

@@ -91,7 +91,7 @@ func physicalNotNullFromType(old, candidate *relationDescriptor, fact notNullCon
 		}
 	}
 	parent := provenance.Retired[0].Parent
-	ref := parent.Domain().Ref(parent.Epoch, old.address)
+	ref := parent.Domain().Ref(parent.Epoch, old.Address())
 	cause := &physicalNotNullCause{Kind: physicalNotNullTypeCleanup, Ref: ref, Origin: ref, Attribute: fact.Attribute, RemovedNN: fact.OID, Primary: primary.OID, Index: primary.Index, Usage: old.Columns[slot].Usage}
 	cause.Self = cause
 	return physicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: capturePhysicalPrimarySupport(candidate, primary)}, true
@@ -99,7 +99,7 @@ func physicalNotNullFromType(old, candidate *relationDescriptor, fact notNullCon
 
 func physicalNotNullOriginValid(view CatalogRead, table *relationDescriptor, attribute int32, proof physicalNotNullProof) bool {
 	cause := proof.Cause
-	if cause == nil || cause.Self != cause || cause.Kind != physicalNotNullTypeCleanup && cause.Kind != physicalNotNullImportCleanup && cause.Kind != physicalNotNullImportFlag || cause.Ref.Address != table.address || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !storedReferenceEpochValid(view, table, cause.Ref) {
+	if cause == nil || cause.Self != cause || cause.Kind != physicalNotNullTypeCleanup && cause.Kind != physicalNotNullImportCleanup && cause.Kind != physicalNotNullImportFlag || cause.Ref.Address != table.Address() || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !storedReferenceEpochValid(view, table, cause.Ref) {
 		return false
 	}
 	if cause.Origin.Domain() == nil || cause.Origin.Epoch == 0 || cause.Origin.Address.ClassID != ids.RelationClassID || cause.Origin.Address.ObjectID == 0 || cause.Origin.Address.SubID != 0 {
@@ -121,7 +121,7 @@ func physicalPrimarySupportValid(view CatalogRead, table *relationDescriptor, pr
 		return false
 	}
 	index, ok := view.Relation(primary.Index)
-	if !ok || index.RelationKind != indexRelation || index.namespace != table.namespace || index.Owner != table.Owner || index.SQLIndex == nil || index.SQLIndex.Parent != table.address || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != uniqueBackingKind || index.SQLIndex.Constraint.OID != primary.OID || index.SQLIndex.Constraint.Index != primary.Index || index.SQLIndex.Constraint.Name != primary.Name || !index.SQLIndex.Constraint.Primary || len(index.SQLIndex.Keys) != len(support.Keys) || len(index.Columns) < len(support.Keys) {
+	if !ok || index.RelationKind != indexRelation || index.Namespace() != table.Namespace() || index.Owner != table.Owner || index.SQLIndex == nil || index.SQLIndex.Parent != table.Address() || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != uniqueBackingKind || index.SQLIndex.Constraint.OID != primary.OID || index.SQLIndex.Constraint.Index != primary.Index || index.SQLIndex.Constraint.Name != primary.Name || !index.SQLIndex.Constraint.Primary || len(index.SQLIndex.Keys) != len(support.Keys) || len(index.Columns) < len(support.Keys) {
 		return false
 	}
 	for i, key := range support.Keys {

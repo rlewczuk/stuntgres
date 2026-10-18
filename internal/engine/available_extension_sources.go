@@ -15,7 +15,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]extensi
 		return nil, err
 	}
 	typeIDs := []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Text, sqltype.Text}
-	switch source.address.ObjectID {
+	switch source.Address().ObjectID {
 	case 12081:
 	case 12085:
 		typeIDs = []sqltype.ID{sqltype.Name, sqltype.Text, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Name, 1003, sqltype.Text}
@@ -65,7 +65,7 @@ func projectAvailableExtension(name string, registration extensionControl, insta
 	}
 	text(0, name)
 	text(1, registration.Version)
-	if source.address.ObjectID == 12081 {
+	if source.Address().ObjectID == 12081 {
 		if installed != nil {
 			text(2, installed.Version)
 		}

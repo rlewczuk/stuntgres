@@ -52,13 +52,13 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 			after := e.catalog.state.MustRelation(ref.Address)
 			backing := e.catalog.state.MustRelation(indexAddress)
-			if after == parent || backing == index || after.address != parent.address || backing.address != index.address || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
+			if after == parent || backing == index || after.Address() != parent.Address() || backing.Address() != index.Address() || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
 				t.Fatal("rename copied storage/root or changed group identity")
 			}
-			if backing.name != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
+			if backing.Name() != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
 				t.Fatal("nonreciprocal renamed group")
 			}
-			if !reflect.DeepEqual(parent.UniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.ExclusionConstraints, beforeExclusion) || index.name != "old" || index.SQLIndex.Constraint.Name != "old" {
+			if !reflect.DeepEqual(parent.UniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.ExclusionConstraints, beforeExclusion) || index.Name() != "old" || index.SQLIndex.Constraint.Name != "old" {
 				t.Fatal("mutated old descriptors")
 			}
 			if len(after.Attributes) > 0 && &after.Attributes[0] != &parent.Attributes[0] {
@@ -68,13 +68,13 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 				t.Fatal("copied immutable keys")
 			}
 			candidate := *after
-			candidate.revision = ids.DefinitionRevision(^uint64(0))
+			candidate.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 			exhaustedBase := cloneCatalog(e.catalog.state)
 			exhaustedBase.setDescriptor(ref.Address, &candidate)
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
-			attempt.name = "again"
-			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.name != "new" {
+			attempt.ObjectName = "again"
+			if err := stageBackingIndexRename(failed, &attempt); err == nil || len(failed.descriptors) != 0 || backing.Name() != "new" {
 				t.Fatal("parent revision exhaustion changed group")
 			}
 			e.DiscardCatalogStage(failed)
@@ -202,7 +202,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 					case "descriptor":
 						e.mu.Lock()
 						replacement := *old
-						replacement.revision++
+						replacement.ObjectRevision++
 						replacement.Comment = "concurrent"
 						state := cloneCatalog(e.catalog.state)
 						state.setDescriptor(ref.Address, &replacement)

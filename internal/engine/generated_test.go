@@ -27,13 +27,13 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 			break
 		}
 	}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, namespace: namespace, name: "g", revision: 1, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"a": 0, "b": 1}}
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: namespace, ObjectName: "g", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"a": 0, "b": 1}}
 	return e, view, d
 }
 
 func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: node, Planned: node}}
@@ -67,7 +67,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored}}
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	columns := []queryColumn{{descriptor: d.Columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.Columns}
 	auth := AuthorizationView{catalog: view}
@@ -97,7 +97,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	volatile := functions.Random{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if generationImmutable(volatile) {
@@ -126,10 +126,10 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
-	owner := e.catalog.Domain.Ref(view.Epoch(), parent.address)
+	owner := e.catalog.Domain.Ref(view.Epoch(), parent.Address())
 	original := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner}
 	child := *parent
-	child.address.ObjectID++
+	child.ObjectAddress.ObjectID++
 	mapper := createLikeInput{source: parent}
 	left, err := mapper.remap(original, &child, view)
 	if err != nil {
@@ -180,8 +180,8 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
 	candidate := cloneCatalog(view.state)
-	candidate.setDescriptor(d.address, d)
-	candidate.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
+	candidate.setDescriptor(d.Address(), d)
+	candidate.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	read := e.catalog.read(candidate)
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
@@ -209,10 +209,10 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
-	oldAddress := d.address
-	d.address.ObjectID = 26000
+	oldAddress := d.Address()
+	d.ObjectAddress.ObjectID = 26000
 	d.Columns[1].Usage = oid.Usage()
-	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: leaf, Planned: leaf}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
@@ -220,16 +220,16 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	source := []sqltype.Value{base, oldOID}
 	rows := &relationStorage{versions: []rowVersion{{values: source}}}
 	candidate := cloneCatalog(view.state)
-	candidate.setDescriptor(d.address, d)
-	storage := map[ids.ObjectAddress]*relationStorage{d.address: rows}
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}
+	candidate.setDescriptor(d.Address(), d)
+	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
 		t.Fatal("source row mutated", n)
 	}
-	if n, _ := rows.versions[0].values[1].OID(); n != uint32(d.address.ObjectID) {
+	if n, _ := rows.versions[0].values[1].OID(); n != uint32(d.Address().ObjectID) {
 		t.Fatal("owner not recomputed", n)
 	}
 	canceled, cancel := context.WithCancel(context.Background())

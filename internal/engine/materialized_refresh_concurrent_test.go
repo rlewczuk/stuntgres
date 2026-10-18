@@ -73,19 +73,19 @@ func concurrentUnitReplace(t *testing.T, e *Engine, d *relationDescriptor, rows 
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.address], rows, populated, ids.TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.Address()], rows, populated, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = concurrent
 	queryCreatePublish(t, e, stage)
-	return e.catalog.state.MustRelation(d.address)
+	return e.catalog.state.MustRelation(d.Address())
 }
 
 func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDescriptor, name, keys, suffix string) *relationDescriptor {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	statements, err := parser.Parse("CREATE UNIQUE INDEX " + name + " ON " + parent.name + "(" + keys + ")" + suffix)
+	statements, err := parser.Parse("CREATE UNIQUE INDEX " + name + " ON " + parent.Name() + "(" + keys + ")" + suffix)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		columns[i].OriginTable = uint32(oid)
 		columns[i].OriginAttribute = int16(i + 1)
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition, AttributeHighWater: int32(len(attributes))}
+	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition, AttributeHighWater: int32(len(attributes))}
 	stage := e.BeginCatalogStage(auth.catalog)
 	err = stage.Create(index)
 	e.mu.Unlock()
@@ -152,7 +152,7 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 		t.Fatal("eligibility hint", diagnostic)
 	}
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", " INCLUDE(p)")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	for _, phase := range []string{"eligible", "nonunique", "invalid_ready", "not_ready", "not_live", "partial", "expression", "system_key", "system_include", "empty_keys", "foreign_parent", "descending", "not_distinct"} {
 		t.Run(phase, func(t *testing.T) {
 			copy := *index
@@ -199,7 +199,7 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	materializedConcurrentUnitIndex(t, e, d, "unit_partial", "i,p", " WHERE i>0")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	if err := materializedConcurrentAdmission(e.CatalogRead(), d, false); err != nil {
 		t.Fatal("any eligible index", err)
 	}
@@ -213,7 +213,7 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 	e := New()
 	d := concurrentUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	ordering, err := bindIndexOrdering(d, index.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 				suffix = " NULLS NOT DISTINCT"
 			}
 			first := materializedConcurrentUnitIndex(t, e, d, "unit_u", keys, suffix)
-			d = e.catalog.state.MustRelation(d.address)
+			d = e.catalog.state.MustRelation(d.Address())
 			indices := []*relationDescriptor{first}
 			if phase == "all_keys" {
 				indices = append(indices, materializedConcurrentUnitIndex(t, e, d, "unit_second", "i,p", ""))
@@ -303,9 +303,9 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 				produced = concurrentUnitRows(t, d, int64(20))
 				produced = append(produced, concurrentUnitRows(t, d, nil)...)
 			}
-			old := e.storage[d.address]
+			old := e.storage[d.Address()]
 			frontier := e.commitSeq
-			effective, err := materializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.indexRoots[first.address].entries, indices, produced, sqltype.OutputEnvironment{})
+			effective, err := materializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.indexRoots[first.Address()].entries, indices, produced, sqltype.OutputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -313,7 +313,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if phase == "unmatched_null" || phase == "all_keys" || phase == "null_key" || phase == "not_distinct_null_key" {
 				expected = 2
 			}
-			if len(effective) != expected || e.commitSeq != frontier || e.storage[d.address] != old || old.materializedLineage != nil {
+			if len(effective) != expected || e.commitSeq != frontier || e.storage[d.Address()] != old || old.materializedLineage != nil {
 				t.Fatal("effective bag/staging ownership", phase, len(effective))
 			}
 			if expected == 1 && &effective[0][0] != &old.versions[0].values[0] {
@@ -342,12 +342,12 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
-	first := e.storage[d.address]
+	d = e.catalog.state.MustRelation(d.Address())
+	first := e.storage[d.Address()]
 	versions, ends := first.versions, first.ends
 	frontier := e.commitSeq
 	for _, count := range []int{4, 0, 2} {
-		old := e.storage[d.address]
+		old := e.storage[d.Address()]
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, count)
 		if err := e.stageMaterializedRows(context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
@@ -363,9 +363,9 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		}
 		queryCreatePublish(t, e, stage)
 		e.DiscardCatalogStage(stage)
-		d = e.catalog.state.MustRelation(d.address)
+		d = e.catalog.state.MustRelation(d.Address())
 		frontier++
-		if e.commitSeq != frontier || !d.Populated || e.storage[d.address] != candidate || !sameMaterializedLineage(d, d, first, candidate) || len(e.indexRoots[index.address].entries) != count {
+		if e.commitSeq != frontier || !d.Populated || e.storage[d.Address()] != candidate || !sameMaterializedLineage(d, d, first, candidate) || len(e.indexRoots[index.Address()].entries) != count {
 			t.Fatal("atomic roots/frontier/lineage")
 		}
 	}
@@ -373,7 +373,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		t.Fatal("retired root changed")
 	}
 	d = concurrentUnitReplace(t, e, d, nil, false, false)
-	if sameMaterializedLineage(d, d, first, e.storage[d.address]) || e.storage[d.address].materializedLineage != nil {
+	if sameMaterializedLineage(d, d, first, e.storage[d.Address()]) || e.storage[d.Address()].materializedLineage != nil {
 		t.Fatal("plain NO DATA bridged lineage")
 	}
 }
@@ -384,12 +384,12 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.MustRelation(d.address)
-			old := e.storage[d.address]
+			d = e.catalog.state.MustRelation(d.Address())
+			old := e.storage[d.Address()]
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			if phase == "revision" {
-				d.revision = ids.DefinitionRevision(math.MaxUint64)
+				d.ObjectRevision = ids.DefinitionRevision(math.MaxUint64)
 				if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err == nil {
 					t.Fatal("revision overflow accepted")
 				}
@@ -421,19 +421,19 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					old.ends = &deletionRoot{}
 				case "storage":
 					copy := *old
-					e.storage[d.address] = &copy
+					e.storage[d.Address()] = &copy
 				case "definition":
 					copy := *d
 					copy.Owner = authorization.PrincipalRef{}
-					e.catalog.state.setDescriptor(d.address, &copy)
+					e.catalog.state.setDescriptor(d.Address(), &copy)
 				case "index_set":
 					materializedConcurrentUnitIndex(t, e, d, "unit_second", "i", "")
 				case "frontier":
 					e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				}
-				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.address], e.commitSeq
+				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.Address()], e.commitSeq
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
-				if e.catalog.state != beforeCatalog || e.storage[d.address] != beforeStore || e.commitSeq != beforeFrontier {
+				if e.catalog.state != beforeCatalog || e.storage[d.Address()] != beforeStore || e.commitSeq != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
 			}
@@ -454,12 +454,12 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	rows := refreshUnitRows(t, d, 2)
 	rows[1][0] = rows[0][0]
 	for _, concurrent := range []bool{false, true} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.address], rows, true, ids.TxRef{}); err != nil {
+		if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.Address()], rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
 		stage.materializedReplacement.concurrent = concurrent
@@ -467,17 +467,17 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 		if err == nil {
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
 		}
-		message := fmt.Sprintf(`could not create unique index "%s"`, index.name)
+		message := fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 		if concurrent {
-			message = fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.name)
+			message = fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.Name())
 		}
 		materializedConcurrentUnitError(t, err, "23505", message)
-		if e.storage[d.address].materializedLineage != nil {
+		if e.storage[d.Address()].materializedLineage != nil {
 			t.Fatal("integrity failure stamped")
 		}
 		e.DiscardCatalogStage(stage)
 	}
-	if !reflect.DeepEqual(e.storage[d.address].versions[0].values, refreshUnitRows(t, d, 1)[0]) {
+	if !reflect.DeepEqual(e.storage[d.Address()].versions[0].values, refreshUnitRows(t, d, 1)[0]) {
 		t.Fatal("uniqueness failure changed predecessor")
 	}
 }
@@ -486,10 +486,10 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.MustRelation(d.address)
+	d = e.catalog.state.MustRelation(d.Address())
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.address], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, d, e.storage[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true
@@ -501,18 +501,18 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
-	maintenance.indexSets = map[ids.ObjectAddress]int{d.address: 1}
+	maintenance.indexSets = map[ids.ObjectAddress]int{d.Address(): 1}
 	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
 	current := cloneCatalog(e.catalog.state)
 	changed := *index
-	changed.revision++
-	current.setDescriptor(index.address, &changed)
+	changed.ObjectRevision++
+	current.setDescriptor(index.Address(), &changed)
 	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}
-	if err := stage.materializedReplacementCurrent(current, e.storage[d.address]); !errors.As(err, new(CatalogConflict)) {
+	if err := stage.materializedReplacementCurrent(current, e.storage[d.Address()]); !errors.As(err, new(CatalogConflict)) {
 		t.Fatal("replacement lost final exact index identity fence", err)
 	}
 }

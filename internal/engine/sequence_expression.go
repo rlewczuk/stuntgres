@@ -186,7 +186,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
 			}
 			if d, ok := auth.definitionRelation(ref.Address); ok {
-				if ns, ok := auth.definitionNamespace(d.namespace); ok && ns.Temporary == b.op.session.token {
+				if ns, ok := auth.definitionNamespace(d.Namespace()); ok && ns.Temporary == b.op.session.token {
 					temporary = ns.Temporary
 				}
 			}
@@ -378,7 +378,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		} else {
 			namespace, _ := r.auth.definitionNamespace(ns)
 			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
-				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
+				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
 			}
 			if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
@@ -493,7 +493,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err = sequenceKind(d); err != nil {
 		return sqltype.Value{}, err
 	}
-	if ns, ok := auth.catalog.Namespace(d.namespace); ok && ns.Temporary == scope.op.session.token {
+	if ns, ok := auth.catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -509,7 +509,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	if scope.owner.readOnly && (x.name == "nextval" || x.name == "setval") {
-		ns, _ := auth.catalog.Namespace(d.namespace)
+		ns, _ := auth.catalog.Namespace(d.Namespace())
 		if ns == nil || ns.Temporary != scope.op.session.token {
 			return sqltype.Value{}, sqlError("25006", "cannot execute "+x.name+"() in a read-only transaction")
 		}
@@ -535,7 +535,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	switch x.name {
 	case "currval", "lastval":
 		if !m.valid {
-			msg := fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, d.name)
+			msg := fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, d.Name())
 			if x.name == "lastval" {
 				msg = "lastval is not yet defined in this session"
 			}
@@ -544,7 +544,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		result = m.value
 	case "nextval":
 		if m.remaining == 0 {
-			first, count, err := reserveSequence(*d.Sequence, g, d.name)
+			first, count, err := reserveSequence(*d.Sequence, g, d.Name())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -556,14 +556,14 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			m.next += d.Sequence.Increment
 		}
 		m.value, m.valid = result, true
-		session.lastSequence = d.address
+		session.lastSequence = d.Address()
 	case "setval":
 		result, err = values[1].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if result < d.Sequence.Min || result > d.Sequence.Max {
-			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.name, d.Sequence.Min, d.Sequence.Max))
+			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.Name(), d.Sequence.Min, d.Sequence.Max))
 		}
 		called := true
 		if len(x.args) == 3 {

@@ -475,20 +475,20 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		if v.simple {
 			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
 			if v.presentation.output.QuoteAllIdentifiers {
-				name = v.presentation.identifier(d.name)
+				name = v.presentation.identifier(d.Name())
 				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					name = v.presentation.identifier(catalog.Get(d.namespace).Name()) + "." + name
+					name = v.presentation.identifier(catalog.Get(d.Namespace()).Name()) + "." + name
 				}
 			}
 			if leaf.only {
 				name = "ONLY " + name
 			}
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
-			from.wholeSQL = pgIdentifier(d.name)
+			from.wholeSQL = pgIdentifier(d.Name())
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true
-				from.rowTargetSQL = v.presentation.identifier(d.name)
+				from.rowTargetSQL = v.presentation.identifier(d.Name())
 			}
 			for i, attribute := range d.Attributes {
 				if c, ok := frozen[attribute]; ok {
@@ -503,9 +503,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
 		if v.functionSources {
 			if v.presentation.output.QuoteAllIdentifiers {
-				from.relation = v.presentation.identifier(d.name)
+				from.relation = v.presentation.identifier(d.Name())
 				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					from.relation = v.presentation.identifier(catalog.Get(d.namespace).Name()) + "." + from.relation
+					from.relation = v.presentation.identifier(catalog.Get(d.Namespace()).Name()) + "." + from.relation
 				}
 			} else {
 				from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
@@ -515,7 +515,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			}
 			from.text = from.relation
 			from.slots = make(map[int]string, len(frozen))
-			qualifier := v.presentation.identifier(d.name)
+			qualifier := v.presentation.identifier(d.Name())
 			from.rowTargetSQL = qualifier
 			for i, attribute := range d.Attributes {
 				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
@@ -528,7 +528,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			v.slots[root] = from.slots
 			return from, nil
 		}
-		from.relation = quoteIdentifier(catalog.Get(d.namespace).Name()) + "." + quoteIdentifier(d.name)
+		from.relation = quoteIdentifier(catalog.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 		if v.presentation.deparse && v.presentation.pretty && !v.presentation.output.QuoteAllIdentifiers {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
 		}

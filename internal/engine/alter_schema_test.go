@@ -58,11 +58,11 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	}
 	for i, a := range addresses {
 		after := e.catalog.state.MustRelation(a)
-		if after.namespace != dest || after.revision <= before[i].revision {
+		if after.Namespace() != dest || after.Revision() <= before[i].Revision() {
 			t.Fatal("namespace/revision", before[i], after)
 		}
 		copy := *after
-		copy.namespace, copy.revision = before[i].namespace, before[i].revision
+		copy.ObjectNamespace, copy.ObjectRevision = before[i].Namespace(), before[i].Revision()
 		if i != 0 {
 			if after.SequencePlanStamp <= before[i].SequencePlanStamp {
 				t.Fatal("missing sequence invalidation")

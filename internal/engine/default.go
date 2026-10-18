@@ -241,13 +241,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+deparseSignatures[n.signature].name, n.args)
 	case tableOIDExpression:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.owner)
 		return "tableoid", nil
 	case columnExpression:
-		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.Columns) || r.owner.Attributes[n.slot] != n.origin.Address.SubID || u != r.owner.Columns[n.slot].Usage {
+		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.origin) || n.origin.Address.ClassID != r.owner.Address().ClassID || n.origin.Address.ObjectID != r.owner.Address().ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.Columns) || r.owner.Attributes[n.slot] != n.origin.Address.SubID || u != r.owner.Columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.origin)
@@ -449,11 +449,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
 			r.record(n.ref)
-			namespace, ok := view.Descriptor(sequence.namespace)
+			namespace, ok := view.Descriptor(sequence.Namespace())
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing stored sequence namespace")
 			}
-			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.name)
+			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.Name())
 			parts := []string{"CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)"}
 			for _, arg := range args[1:] {
 				text, err := r.sql(ctx, view, arg)
@@ -679,8 +679,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing default operator")
 		}
-		namespace := view.Get(d.namespace).Name()
-		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
+		namespace := view.Get(d.Namespace()).Name()
+		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.Name() + ")"
 		var operands []expr.Expr
 		boundExpressionChildren(n.provider, func(arg expr.Expr) {
 			if arg != nil {

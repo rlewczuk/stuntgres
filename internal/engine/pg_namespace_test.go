@@ -57,7 +57,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, _ := namespaceUnitSource(t, e, c)
-	if d.name != "pg_namespace" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
+	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
@@ -74,7 +74,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	}
 	for _, id := range []ids.OID{10047, 10046} {
 		typ := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.OwningRelation != d.address || typ.Owner != d.Owner {
+		if typ.OwningRelation != d.Address() || typ.Owner != d.Owner {
 			t.Fatal("row/array reciprocal owner", id, typ)
 		}
 	}
@@ -82,7 +82,7 @@ func TestPGNamespaceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	toast := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	if toast.Comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.address) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
+	if toast.Comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.Address()) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
 		t.Fatal("actual toast seed/protected root/control baseline", toast)
 	}
 }
@@ -118,8 +118,8 @@ func TestPGNamespaceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	original := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 2200})
 	next := *original
-	next.name = "renamed_public"
-	next.revision++
+	next.ObjectName = "renamed_public"
+	next.ObjectRevision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestPGNamespaceACL(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	empty := *c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
 	empty.ACL = authorization.ACLValue{Explicit: true}
-	empty.revision++
+	empty.ObjectRevision++
 	if err := stage.Replace(&empty); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		next := cloneCatalog(c.state)
 		invalid := *d
 		invalid.Columns = make([]ColumnDescriptor, width)
-		next.setDescriptor(d.address, &invalid)
+		next.setDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
@@ -262,7 +262,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
-		next.setDescriptor(d.address, &invalid)
+		next.setDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
@@ -270,17 +270,17 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		next := cloneCatalog(c.state)
 		invalid := *ns
 		invalid.Owner = owner
-		next.setDescriptor(ns.address, &invalid)
+		next.setDescriptor(ns.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, d)
 	}
 	next := cloneCatalog(c.state)
 	invalid := *ns
-	invalid.name = "stale_toast"
-	next.setDescriptor(ns.address, &invalid)
+	invalid.ObjectName = "stale_toast"
+	next.setDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	invalid = *ns
 	invalid.TemporaryToast = true
-	next.setDescriptor(ns.address, &invalid)
+	next.setDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	next.setDescriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ns)
@@ -288,7 +288,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	next = cloneCatalog(c.state)
 	invalid = *ns
 	invalid.Temporary = foreign.catalog.Domain.Session(1)
-	next.setDescriptor(ns.address, &invalid)
+	next.setDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	next.setDescriptor(currentDatabaseAddress, (*databaseDescriptor)(nil))
@@ -347,7 +347,7 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	identity := op.RoleState()
 	withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() {
 		current := e.CatalogRead().MustNamespace(address)
-		if current.Owner != actor || current.address != original.address || op.RoleState() != identity {
+		if current.Owner != actor || current.Address() != original.Address() || op.RoleState() != identity {
 			t.Fatal("fixture bypassed real namespace/caller authority")
 		}
 		roleExecute(t, e, op, "CREATE TABLE namespace_fixture_table(i INT)")
@@ -356,13 +356,13 @@ func TestPGNamespaceFixtureOwnership(t *testing.T) {
 	check := func() {
 		t.Helper()
 		current := e.CatalogRead().MustNamespace(address)
-		if current.Owner != original.Owner || current.address != original.address || current.ACL.Explicit != original.ACL.Explicit || !slices.Equal(current.ACL.Entries, original.ACL.Entries) || op.RoleState() != identity {
+		if current.Owner != original.Owner || current.Address() != original.Address() || current.ACL.Explicit != original.ACL.Explicit || !slices.Equal(current.ACL.Entries, original.ACL.Entries) || op.RoleState() != identity {
 			t.Fatal("fixture did not restore exact owner/ACL/caller authority")
 		}
 	}
 	check()
 	table := e.CatalogRead().MustRelation(roleTableRef(t, e, "namespace_fixture_table").Address)
-	if table.Owner != actor || table.namespace != address {
+	if table.Owner != actor || table.Namespace() != address {
 		t.Fatal("fixture changed real object creator", table)
 	}
 	roleErrorPosition(t, e, op, "CREATE TABLE namespace_fixture_denied(i INT)", "42501", "permission denied for schema public", "", "14")

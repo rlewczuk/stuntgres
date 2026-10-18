@@ -39,7 +39,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 			primary = true
 		}
 		index, ok := view.Relation(c.Index)
-		if !ok || index.SQLIndex == nil || index.name != c.Name || index.SQLIndex.Parent != parent.address || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != uniqueBackingKind || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Constraint.Index != c.Index || index.SQLIndex.Constraint.Name != c.Name || index.SQLIndex.NullsNotDistinct != c.NullsNotDistinct || len(index.SQLIndex.Keys) != len(c.Attributes) {
+		if !ok || index.SQLIndex == nil || index.Name() != c.Name || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.Kind != uniqueBackingKind || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Constraint.Index != c.Index || index.SQLIndex.Constraint.Name != c.Name || index.SQLIndex.NullsNotDistinct != c.NullsNotDistinct || len(index.SQLIndex.Keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
 		if index.SQLIndex.Constraint.Primary != c.Primary {
@@ -128,51 +128,51 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		local[c.Name] = true
 	}
 	view := e.stageRead(stage)
-	used := constraintNames(view, d.namespace, nil)
+	used := constraintNames(view, d.Namespace(), nil)
 	for name := range local {
 		used[name] = true
 	}
 	for key := range view.Names() {
-		if key.ClassID == ids.RelationClassID && key.Namespace == d.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == d.Namespace() {
 			used[key.Name] = true
 		}
 	}
-	used[d.name] = true
+	used[d.Name()] = true
 	indices := make([]*relationDescriptor, 0, len(declarations))
 	for i := start; i < len(d.UniqueConstraints); i++ {
 		c := &d.UniqueConstraints[i]
-		if c.Name == d.name {
+		if c.Name == d.Name() {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		if c.Name == "" {
 			if c.Primary {
-				c.Name = generatedConstraintName(d.name, "", "pkey", used)
+				c.Name = generatedConstraintName(d.Name(), "", "pkey", used)
 			} else {
 				labels := make([]string, len(c.Attributes))
 				for j, a := range c.Attributes {
 					labels[j] = d.Columns[slices.Index(d.Attributes, a)].Name
 				}
-				c.Name = generatedConstraintName(d.name, strings.Join(labels, "_"), "key", used)
+				c.Name = generatedConstraintName(d.Name(), strings.Join(labels, "_"), "key", used)
 			}
 		}
 		// An existing backing relation wins over a same-named local NN/CHECK
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
-			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: c.Name}
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
 			if stage.lookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
 		if local[c.Name] {
-			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, c.Name, d.name))
+			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, c.Name, d.Name()))
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
-		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: c.Name}
+		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
 		if stage.lookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		for _, index := range indices {
-			if index.name == c.Name {
+			if index.Name() == c.Name {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -191,13 +191,13 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		if err != nil {
 			return err
 		}
-		definition := &indexDefinition{Method: btreeMethod, Parent: d.address, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
-		index := &relationDescriptor{address: c.Index, namespace: d.namespace, name: c.Name, revision: revision, Owner: d.Owner, RelationKind: indexRelation, SQLIndex: definition}
+		definition := &indexDefinition{Method: btreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
+		index := &relationDescriptor{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: indexRelation, SQLIndex: definition}
 		if source := declarations[i-start].source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
-			definition.Parent, definition.Constraint = d.address, uniqueBacking(c)
+			definition.Parent, definition.Constraint = d.Address(), uniqueBacking(c)
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Keys = slices.Clone(source.SQLIndex.Keys)
@@ -349,11 +349,11 @@ func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.Ind
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
 func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
-	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.name)
+	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.Name())
 	if building {
-		message = fmt.Sprintf(`could not create unique index "%s"`, index.name)
+		message = fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 	}
-	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: message, Schema: schema, Table: parent.name, Constraint: index.name}
+	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: message, Schema: schema, Table: parent.Name(), Constraint: index.Name()}
 	if detailAllowed {
 		labels := make([]string, len(key))
 		values := make([]string, len(key))
@@ -433,7 +433,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	if cmp == 0 {
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
-			ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), parent.address)
+			ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), parent.Address())
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.Keys)
 			if err != nil {
 				return err

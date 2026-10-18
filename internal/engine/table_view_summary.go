@@ -39,7 +39,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 			if err != nil {
 				return err
 			}
-			next.revision = revision
+			next.ObjectRevision = revision
 			if err := stage.Replace(&next); err != nil {
 				return err
 			}
@@ -68,7 +68,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 		if !parent.HasIndexes {
 			next := *parent
 			next.HasIndexes = true
-			catalog.state.setDescriptor(parent.address, &next)
+			catalog.state.setDescriptor(parent.Address(), &next)
 		}
 	}
 	return nil
@@ -96,16 +96,16 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		if !ok {
 			continue
 		}
-		builtinTable := relation.RelationKind == catalogRelation && representedSummaryTable(relation.address.ObjectID)
+		builtinTable := relation.RelationKind == catalogRelation && representedSummaryTable(relation.Address().ObjectID)
 		builtinDefinition := ""
 		if relation.RelationKind == catalogRelation {
-			builtinDefinition = representedSummaryViewDefinition(relation.address.ObjectID)
+			builtinDefinition = representedSummaryViewDefinition(relation.Address().ObjectID)
 		}
-		if source.address.ObjectID == 12003 {
+		if source.Address().ObjectID == 12003 {
 			if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && !builtinTable {
 				continue
 			}
-		} else if source.address.ObjectID == 12006 {
+		} else if source.Address().ObjectID == 12006 {
 			if relation.RelationKind != materializedViewRelation {
 				continue
 			}
@@ -116,15 +116,15 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		if err != nil {
 			return nil, err
 		}
-		schema := catalog.Get(relation.namespace).Name()
-		if source.address.ObjectID == 12003 {
+		schema := catalog.Get(relation.Namespace()).Name()
+		if source.Address().ObjectID == 12003 {
 			tablespace := sqltype.Null(source.Columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
 			// Represented shared catalogs belong to pg_global.
-			if builtinTable && (relation.address.ObjectID == 2396 || relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ids.ParameterClassID) {
+			if builtinTable && (relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
-			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), tablespace, boolean(4, relation.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.RLSEnabled)})
+			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.RLSEnabled)})
 		} else {
 			definition := builtinDefinition
 			if relation.View != nil {
@@ -140,10 +140,10 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 				}
 				definition += ";"
 			}
-			if source.address.ObjectID == 12006 {
-				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
+			if source.Address().ObjectID == 12006 {
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
 			} else {
-				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.name), text(2, owner.Name), text(3, definition)})
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), text(3, definition)})
 			}
 		}
 	}

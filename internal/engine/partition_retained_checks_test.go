@@ -30,7 +30,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		return v
 	}
 	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
-		ref := catalog.owner.Domain.Ref(catalog.Epoch(), leaf.address)
+		ref := catalog.owner.Domain.Ref(catalog.Epoch(), leaf.Address())
 		ref.Address.SubID = leaf.Attributes[slot]
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: integer(n)}
@@ -48,7 +48,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}}
 	e.catalog.state = catalog.state
 	e.commitSeq = 3
-	e.storage = map[ids.ObjectAddress]*relationStorage{leaf.address: store}
+	e.storage = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
 	snapshot, err := e.captureIndexSnapshot(context.Background(), catalog, e.storage, nil, 3)
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if len(snapshot.sources) != 0 || len(snapshot.partitionRows) != 1 {
 		t.Fatal("unindexed CHECK history was not captured", snapshot)
 	}
-	history := snapshot.partitionRows[leaf.address]
+	history := snapshot.partitionRows[leaf.Address()]
 	if &history.store.versions[0] != &store.versions[0] {
 		t.Fatal("original immutable versions were needlessly copied")
 	}
@@ -178,7 +178,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.owner.Domain.Ref(catalog.Epoch(), leaf.address)}
+	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.owner.Domain.Ref(catalog.Epoch(), leaf.Address())}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}
@@ -201,10 +201,10 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("changed stored literal did not enforce its CHECK", err)
 	}
 	// Mapping changes the candidate lookup key, not its immutable original row authority.
-	destination := leaf.address
+	destination := leaf.Address()
 	destination.ObjectID = 27000
-	snapshot.captureMapping(map[ids.ObjectAddress]ids.ObjectAddress{leaf.address: destination}, nil)
-	if snapshot.partitionRows[destination].relation != leaf || snapshot.partitionRows[leaf.address].relation != nil {
+	snapshot.captureMapping(map[ids.ObjectAddress]ids.ObjectAddress{leaf.Address(): destination}, nil)
+	if snapshot.partitionRows[destination].relation != leaf || snapshot.partitionRows[leaf.Address()].relation != nil {
 		t.Fatal("row history address mapping lost provenance")
 	}
 }

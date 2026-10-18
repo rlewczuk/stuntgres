@@ -63,7 +63,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	d, ref := pgAMUnitSource(t, e)
 	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
 		t.Helper()
-		if d.name != "pg_am" || d.namespace.ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {
@@ -89,7 +89,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})
 		ownedRow, rowOK := catalog.LookupType(10015)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10014 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != d.Owner || array.Owner != d.Owner {
+		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10014 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
 		if err := (relationProvider{}).Validate(catalog, d); err != nil {

@@ -22,7 +22,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *old
-	next.SQLType, next.revision = typ, old.revision+1
+	next.SQLType, next.ObjectRevision = typ, old.ObjectRevision+1
 	stage := source.BeginCatalogStage(source.CatalogRead())
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

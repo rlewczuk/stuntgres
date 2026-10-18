@@ -13,7 +13,7 @@ func materializedIndexEligible(parent, index *relationDescriptor) bool {
 		return false
 	}
 	d := index.SQLIndex
-	if d.Parent != parent.address || !d.Unique || !d.Valid || !d.Ready || !d.Live || d.Predicate != nil || len(d.Keys) == 0 {
+	if d.Parent != parent.Address() || !d.Unique || !d.Valid || !d.Ready || !d.Live || d.Predicate != nil || len(d.Keys) == 0 {
 		return false
 	}
 	for _, key := range d.Keys {
@@ -41,8 +41,8 @@ func materializedConcurrentAdmission(view CatalogRead, parent *relationDescripto
 			return nil
 		}
 	}
-	namespace := view.MustNamespace(parent.namespace)
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.name), pgIdentifier(parent.name)), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
+	namespace := view.MustNamespace(parent.Namespace())
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.Name()), pgIdentifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
 func materializedEligibleIndexes(view CatalogRead, parent *relationDescriptor) []*relationDescriptor {
@@ -142,7 +142,7 @@ func materializedDuplicatePreflight(ctx context.Context, view CatalogRead, paren
 	if err != nil {
 		return err
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.name), Detail: "Row: " + text}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: fmt.Sprintf(`new data for materialized view "%s" contains duplicate rows without any null columns`, parent.Name()), Detail: "Row: " + text}
 }
 
 func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, new []sqltype.Value) (bool, error) {
@@ -297,7 +297,7 @@ type materializedSourceFence struct {
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.RelationKind != materializedViewRelation {
+	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != materializedViewRelation {
 		return false
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)

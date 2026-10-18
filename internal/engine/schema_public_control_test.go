@@ -53,7 +53,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			owners := make(map[string]authorization.PrincipalRef)
 			for _, descriptor := range before.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
-					names[ns.name], owners[ns.name] = ns.ACL, ns.Owner
+					names[ns.Name()], owners[ns.Name()] = ns.ACL, ns.Owner
 				}
 			}
 			var dump bytes.Buffer
@@ -73,9 +73,9 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			gotNames := make(map[string]authorization.ACLValue)
 			for _, descriptor := range after.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
-					gotNames[ns.name] = ns.ACL
-					if ns.Owner != owners[ns.name] {
-						t.Fatal("namespace owner changed", ns.name)
+					gotNames[ns.Name()] = ns.ACL
+					if ns.Owner != owners[ns.Name()] {
+						t.Fatal("namespace owner changed", ns.Name())
 					}
 				}
 			}

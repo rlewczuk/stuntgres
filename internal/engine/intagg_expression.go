@@ -59,7 +59,7 @@ func sameIntaggIdentity(a *procedureDescriptor, ar ids.ObjectRef, b *procedureDe
 	if ar != br || (a == nil) != (b == nil) {
 		return false
 	}
-	return a == nil || a.address == b.address && a.revision == b.revision
+	return a == nil || a.Address() == b.Address() && a.Revision() == b.Revision()
 }
 
 func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.ObjectRef, name string) error {
@@ -70,7 +70,7 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 		return nil
 	}
 	actual, ok := v.Procedure(ref.Address)
-	if !ok || actual != proc || ref.Domain() != v.owner.Domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intaggProvider() != stockIntagg {
+	if !ok || actual != proc || ref.Domain() != v.owner.Domain || ref.Epoch != v.Epoch() || proc.Name() != name || proc.intaggProvider() != stockIntagg {
 		return fmt.Errorf("stuntgres: invalid stored intagg identity")
 	}
 	return stockIntagg.validateProcedure(v, proc)
@@ -83,8 +83,8 @@ func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.O
 	if p.intaggProvider() != stockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
-	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.address)
-	r.binder.dependencies = append(r.binder.dependencies, expressionDependency{Ref: ref, Revision: p.revision})
+	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
+	r.binder.dependencies = append(r.binder.dependencies, expressionDependency{Ref: ref, Revision: p.Revision()})
 	return p, ref, nil
 }
 

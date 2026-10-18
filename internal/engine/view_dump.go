@@ -27,26 +27,26 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		if !ok || namespace.Temporary != (ids.SessionToken{}) {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
 		}
-		return extension.address.ObjectID, nil
+		return extension.Address().ObjectID, nil
 	}
 	if operator, ok := object.(*operatorDescriptor); ok {
 		if operator.seeded() {
 			return 0, nil
 		}
 		if operator.Function != 0 {
-			return operator.address.ObjectID, nil
+			return operator.Address().ObjectID, nil
 		}
 		if source := operatorShellGenerator(view, operator); source != nil {
-			return source.address.ObjectID, nil
+			return source.Address().ObjectID, nil
 		}
-		return operator.address.ObjectID, nil
+		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*procedureDescriptor); ok {
 		ext, ok := view.Extension(proc.Extension)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
 		}
-		return ext.address.ObjectID, nil
+		return ext.Address().ObjectID, nil
 	}
 	if dictionary, ok := object.(*tsDictionaryDescriptor); ok {
 		return dumpPredecessor(view, dictionary.Extension, consumer)
@@ -77,7 +77,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	if source.RelationKind == indexRelation && source.SQLIndex != nil && source.SQLIndex.Constraint != nil {
 		unique := source.SQLIndex.Constraint
 		parent, ok := view.Relation(source.SQLIndex.Parent)
-		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || parent.namespace != source.namespace || parent.Owner != source.Owner || unique.Index != source.address {
+		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || parent.Namespace() != source.Namespace() || parent.Owner != source.Owner || unique.Index != source.Address() {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
 		if !backingConstraintPresent(parent, source) {
@@ -102,19 +102,19 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.namespace != source.namespace {
+		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table
 	}
-	namespace, exists := view.Namespace(source.namespace)
+	namespace, exists := view.Namespace(source.Namespace())
 	if !exists || namespace.Temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
-	if source.address == consumer && source.RelationKind != viewRelation {
+	if source.Address() == consumer && source.RelationKind != viewRelation {
 		return 0, nil
 	}
-	return source.address.ObjectID, nil
+	return source.Address().ObjectID, nil
 }
 
 // Ready declarations retain source allocation order. Only collision-remapped

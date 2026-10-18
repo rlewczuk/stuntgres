@@ -18,7 +18,7 @@ type indexLayoutLineage struct {
 }
 
 func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bool {
-	if index == nil || oldParent == nil || parent == nil || oldParent.address != parent.address {
+	if index == nil || oldParent == nil || parent == nil || oldParent.Address() != parent.Address() {
 		return false
 	}
 	sameAttribute := func(attribute int32) bool {
@@ -34,7 +34,7 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 		}
 		for _, dependency := range key.Derived.Dependencies {
 			a := dependency.Address
-			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
+			if a.ClassID == parent.Address().ClassID && a.ObjectID == parent.Address().ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
 				return false
 			}
 		}
@@ -47,7 +47,7 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 	if predicate := index.SQLIndex.Predicate; predicate != nil {
 		for _, dependency := range predicate.Dependencies {
 			a := dependency.Address
-			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
+			if a.ClassID == parent.Address().ClassID && a.ObjectID == parent.Address().ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
 				return false
 			}
 		}
@@ -88,10 +88,10 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		if lineage.targetParent.address != parent.address {
+		if lineage.targetParent.Address() != parent.Address() {
 			continue
 		}
-		if lineage.target.SQLIndex.Parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
+		if lineage.target.SQLIndex.Parent != parent.Address() || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
@@ -118,7 +118,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			root = private
 		} else {
 			source, ok := e.catalog.state.Relation(address)
-			current := e.storage[parent.address]
+			current := e.storage[parent.Address()]
 			for edge := &lineage; edge != nil; edge = edge.previous {
 				if ok && sameIndexKeySemantics(source, edge.source) {
 					lineage.source, lineage.sourceParent = edge.source, edge.sourceParent
@@ -235,7 +235,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		var outputs map[ids.ObjectAddress]indexRowOutput
 		for _, captured := range captures {
 			lineage := captured.lineage
-			output, ok := sourceWrites[position].indexOutputs[lineage.source.address]
+			output, ok := sourceWrites[position].indexOutputs[lineage.source.Address()]
 			if !ok && !lineage.target.SQLIndex.hasRuntimeDomainConversion() {
 				continue
 			}
@@ -249,7 +249,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 				}
 			}
 			output.index = lineage.target
-			outputs[lineage.target.address] = output
+			outputs[lineage.target.Address()] = output
 		}
 		if outputs != nil {
 			if !copied {
@@ -270,8 +270,8 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
-		if _, captured := changes.originals[index.address]; !captured {
-			changes.originals[index.address] = e.catalog.state.Get(index.address)
+		if _, captured := changes.originals[index.Address()]; !captured {
+			changes.originals[index.Address()] = e.catalog.state.Get(index.Address())
 		}
 	}
 }
@@ -293,8 +293,8 @@ func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, chan
 			return err
 		}
 		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == partitionedRelation {
-			delete(changes.uniqueRoots, index.address)
-			delete(changes.indexCandidates, index.address)
+			delete(changes.uniqueRoots, index.Address())
+			delete(changes.indexCandidates, index.Address())
 			continue
 		}
 		var root *logicalIndexRoot
@@ -315,7 +315,7 @@ func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, chan
 			if stage.indexCandidates == nil {
 				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[index.address] = changes.indexCandidates[index.address]
+			stage.indexCandidates[index.Address()] = changes.indexCandidates[index.Address()]
 		}
 	}
 	return ctx.Err()

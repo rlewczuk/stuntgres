@@ -76,7 +76,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				return err
 			}
 			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*typeDescriptor)
-			if !ok || row.OwningRelation != relation.address {
+			if !ok || row.OwningRelation != relation.Address() {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
 			// Removal already stages the owned array, so the descriptor scan
@@ -303,7 +303,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					if target.ClassID == f.Target.ClassID && target.ObjectID == f.Target.ObjectID && target.SubID != 0 {
 						depends = slices.Contains(f.Referenced, target.SubID)
 					}
-					automatic := target.ClassID == d.address.ClassID && target.ObjectID == d.address.ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
+					automatic := target.ClassID == d.Address().ClassID && target.ObjectID == d.Address().ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
 					if depends || automatic {
 						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, target: target, root: root, oid: f.OID, label: "constraint " + dependencyIdentifier(f.Name) + " on table " + name, relation: d, automatic: automatic})
 					}
@@ -495,13 +495,13 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if !slices.Contains(targets, edge.target) {
 			targets = append(targets, edge.target)
 		}
-		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == ids.OperatorClassID || edge.address.ClassID == ids.TypeClassID || edge.address.ClassID == ids.ExtensionClassID || edge.address.ClassID == ids.ProcedureClassID || edge.address.ClassID == ids.TSTemplateClassID || edge.address.ClassID == ids.TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
+		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == ids.OperatorClassID || edge.address.ClassID == ids.TypeClassID || edge.address.ClassID == ids.ExtensionClassID || edge.address.ClassID == ids.ProcedureClassID || edge.address.ClassID == ids.TSTemplateClassID || edge.address.ClassID == ids.TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.Address() {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == ids.RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
 			}
 		}
-		if edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
+		if edge.relation != nil && edge.address == edge.relation.Address() && hierarchyRelation(edge.relation) {
 			hierarchyTargets = append(hierarchyTargets, edge.address)
 		}
 	}
@@ -520,19 +520,19 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		}
 	}
 	for _, edge := range edges {
-		if edge.relation != nil && (edge.column != "" || edge.address.ClassID == 2606) && !seen[edge.relation.address] {
+		if edge.relation != nil && (edge.column != "" || edge.address.ClassID == 2606) && !seen[edge.relation.Address()] {
 			relations = append(relations, edge.relation)
-			seen[edge.relation.address] = true
+			seen[edge.relation.Address()] = true
 		}
 	}
 	for _, edge := range edges {
-		if scope != nil && edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
+		if scope != nil && edge.relation != nil && edge.address == edge.relation.Address() && hierarchyRelation(edge.relation) {
 			if err := scope.acquirePartitionDropLocks(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), edge.address)); err != nil {
 				return err
 			}
 		}
 	}
-	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
+	sort.Slice(relations, func(i, j int) bool { return relations[i].Address().ObjectID < relations[j].Address().ObjectID })
 	e := provider.owner
 	if scope != nil {
 		// Lock owners are not deletion/projection targets. A policy edge
@@ -541,21 +541,21 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		lockSeen := make(map[ids.ObjectAddress]bool)
 		for _, r := range relations {
 			lockRelations = append(lockRelations, r)
-			lockSeen[r.address] = true
+			lockSeen[r.Address()] = true
 		}
 		for _, edge := range edges {
 			r := edge.relation
-			if r == nil || lockSeen[r.address] {
+			if r == nil || lockSeen[r.Address()] {
 				continue
 			}
-			if edge.address.ClassID == ids.PolicyClassID || edge.address == r.address && (r.RelationKind == tableRelation || r.RelationKind == foreignRelation) {
+			if edge.address.ClassID == ids.PolicyClassID || edge.address == r.Address() && (r.RelationKind == tableRelation || r.RelationKind == foreignRelation) {
 				lockRelations = append(lockRelations, r)
-				lockSeen[r.address] = true
+				lockSeen[r.Address()] = true
 			}
 		}
-		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].address.ObjectID < lockRelations[j].address.ObjectID })
+		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].Address().ObjectID < lockRelations[j].Address().ObjectID })
 		for _, r := range lockRelations {
-			ref := e.catalog.Domain.Ref(provider.base.Epoch(), r.address)
+			ref := e.catalog.Domain.Ref(provider.base.Epoch(), r.Address())
 			if err := provider.acquire(ref, true); err != nil {
 				return err
 			}
@@ -584,25 +584,25 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		return err
 	}
 	for _, old := range relations {
-		if provider.removed(old.address) {
+		if provider.removed(old.Address()) {
 			continue
 		}
 		// Whole-relation targets need no standalone shape projection or
 		// surviving-participant capability check.
-		if slices.Contains(targets, old.address) {
+		if slices.Contains(targets, old.Address()) {
 			continue
 		}
-		ref := e.catalog.Domain.Ref(provider.base.Epoch(), old.address)
+		ref := e.catalog.Domain.Ref(provider.base.Epoch(), old.Address())
 		next := old
 		consumed := false
 		for _, edge := range edges {
-			if edge.column == "" || edge.relation.address != old.address {
+			if edge.column == "" || edge.relation.Address() != old.Address() {
 				continue
 			}
-			if provider.removed(old.address) {
+			if provider.removed(old.Address()) {
 				break
 			}
-			if replacement, ok := provider.replacement(old.address).(*relationDescriptor); ok {
+			if replacement, ok := provider.replacement(old.Address()).(*relationDescriptor); ok {
 				next = replacement
 			}
 			// The closure captured a live stable attribute. A nested cascade
@@ -623,14 +623,14 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if !consumed {
 			continue
 		}
-		if provider.removed(old.address) {
+		if provider.removed(old.Address()) {
 			continue
 		}
-		revision, er := provider.revision(old.revision)
+		revision, er := provider.revision(old.Revision())
 		if er != nil {
 			return er
 		}
-		next.revision = revision
+		next.ObjectRevision = revision
 		if err := provider.projectColumn(old, next); err != nil {
 			return err
 		}
@@ -723,12 +723,12 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	if !cascade {
 		message := "cannot drop desired object(s) because other objects depend on them"
 		if len(schemas) == 1 {
-			message = "cannot drop schema " + dependencyIdentifier(schemas[0].name) + " because other objects depend on it"
+			message = "cannot drop schema " + dependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	}
 	for _, d := range schemas {
-		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), d.address), true); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), d.Address()), true); err != nil {
 			return err
 		}
 	}
@@ -759,7 +759,7 @@ func (provider *dropProvider) removeDomainCheck(d *typeDescriptor, oid ids.OID) 
 	if err != nil {
 		return err
 	}
-	next.revision, err = provider.revision(d.revision)
+	next.ObjectRevision, err = provider.revision(d.ObjectRevision)
 	if err != nil {
 		return err
 	}

@@ -29,7 +29,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 				case "revision":
 					old := e.catalog.state.MustRelation(ref.Address)
 					next := *old
-					next.revision++
+					next.ObjectRevision++
 					next.Comment = "retained"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)
@@ -114,7 +114,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 					cancel()
 				case "descriptor":
 					next := *old
-					next.revision++
+					next.ObjectRevision++
 					next.Comment = "changed"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					defer e.DiscardCatalogStage(stage)

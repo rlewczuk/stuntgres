@@ -27,7 +27,7 @@ type alterTypePreparation struct {
 func alterTypeColumn(original *relationDescriptor, name string) (int, error) {
 	slot, ok := original.Index[name]
 	if !ok {
-		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.name))
+		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.Name()))
 	}
 	return slot, nil
 }
@@ -69,7 +69,7 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 	for i, column := range original.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
-	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.Get(original.namespace).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: original.Name(), original: original.Name(), schema: auth.catalog.Get(original.Namespace()).Name(), ref: ref, columns: columns}
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.Columns}
 }
 
@@ -146,7 +146,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
 				return fail(err)
 			}
-			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.name)))
+			return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.Name())))
 		}
 		return prepared, nil
 	}
@@ -227,7 +227,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			continue
 		}
 		for _, dependency := range definition.Dependencies {
-			if dependency.Address.ClassID == next.address.ClassID && dependency.Address.ObjectID == next.address.ObjectID && dependency.Address.SubID == next.Attributes[slot] {
+			if dependency.Address.ClassID == next.Address().ClassID && dependency.Address.ObjectID == next.Address().ObjectID && dependency.Address.SubID == next.Attributes[slot] {
 				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
 				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.indexForAttribute(attribute)].Name)
 				return fail(diagnostic)
@@ -259,20 +259,20 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	if edges := viewDependencyClosure(auth.catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
 		view := edges[0].view
-		name := view.name
+		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
 			name = quoteIdentifier(name)
 		}
-		namespace := auth.catalog.Get(view.namespace).Name()
+		namespace := auth.catalog.Get(view.Namespace()).Name()
 		path, err := e.lookupPath(auth, relationLookup)
 		if err != nil {
 			return fail(err)
 		}
 		visible := false
 		for _, schema := range path {
-			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.name})
+			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.Name()})
 			if len(found) != 0 {
-				visible = len(found) == 1 && found[0] == view.address
+				visible = len(found) == 1 && found[0] == view.Address()
 				break
 			}
 		}
@@ -395,7 +395,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			}
 		}
 	}
-	writes, deletes := scope.columnProjectionRoots(old.address)
+	writes, deletes := scope.columnProjectionRoots(old.Address())
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {

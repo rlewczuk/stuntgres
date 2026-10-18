@@ -13,16 +13,16 @@ func TestInheritanceGuards(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	catalog := e.catalog.read(cloneCatalog(base.state))
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, name: "p", RelationKind: tableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
-	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, name: "c", RelationKind: tableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &tableInheritance{
-		Parents: []ids.ObjectAddress{parent.address},
-		Columns: map[int32]inheritedColumn{5: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 3}}}, 8: {Local: true}},
-		NotNull: map[int32]inheritedConstraint{5: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 3, Constraint: 90003}}}},
+	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, ObjectName: "p", RelationKind: tableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
+	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: tableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &tableInheritance{
+		Parents: []ids.ObjectAddress{parent.Address()},
+		Columns: map[int32]inheritedColumn{5: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 3}}}, 8: {Local: true}},
+		NotNull: map[int32]inheritedConstraint{5: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 3, Constraint: 90003}}}},
 	}}
-	standalone := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: tableRelation}
-	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: viewRelation, View: &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: parent.address}}}}}
+	standalone := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: tableRelation}
+	view := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: viewRelation, View: &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: parent.Address()}}}}}
 	for _, relation := range []*relationDescriptor{parent, child, standalone, view} {
-		catalog.state.setDescriptor(relation.address, relation)
+		catalog.state.setDescriptor(relation.Address(), relation)
 	}
 	assertError := func(err error, code, message, position string) {
 		t.Helper()
@@ -31,9 +31,9 @@ func TestInheritanceGuards(t *testing.T) {
 			t.Fatalf("diagnostic got %#v want %#v", err, want)
 		}
 	}
-	cyclic := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: viewRelation}
-	cyclic.View = &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: cyclic.address}}, {ref: ids.ObjectRef{Address: parent.address}}}}
-	catalog.state.setDescriptor(cyclic.address, cyclic)
+	cyclic := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: viewRelation}
+	cyclic.View = &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: cyclic.Address()}}, {ref: ids.ObjectRef{Address: parent.Address()}}}}
+	catalog.state.setDescriptor(cyclic.Address(), cyclic)
 	assertError(inheritanceTargetGuard(catalog, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*relationDescriptor{parent, view} {
 		assertError(inheritanceTargetGuard(catalog, relation), "0A000", "recursive table inheritance is unsupported", "")

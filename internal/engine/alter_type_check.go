@@ -35,7 +35,7 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 		for _, check := range ordered {
 			affected := false
 			for _, dependency := range check.Dependencies {
-				if dependency.Ref.Address.ClassID == survivor.address.ClassID && dependency.Ref.Address.ObjectID == survivor.address.ObjectID && dependency.Ref.Address.SubID == attribute {
+				if dependency.Ref.Address.ClassID == survivor.Address().ClassID && dependency.Ref.Address.ObjectID == survivor.Address().ObjectID && dependency.Ref.Address.SubID == attribute {
 					affected = true
 					break
 				}
@@ -70,14 +70,14 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	for i, column := range next.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: next.name, original: next.name, schema: auth.catalog.Get(next.namespace).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: next.Name(), original: next.Name(), schema: auth.catalog.Get(next.Namespace()).Name(), ref: ref, columns: columns}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.Columns}
 	var ordered []checkConstraint
 	for _, pending := range queue {
 		// Parse in CHECK context so selected calls remain functions, rather than
 		// the general scalar grammar's function-style casts. Only the extracted
 		// expression is bound; this wrapper never creates catalog metadata.
-		syntax, err := parser.ParseWithOptions("CREATE TABLE "+quoteIdentifier(next.name)+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
+		syntax, err := parser.ParseWithOptions("CREATE TABLE "+quoteIdentifier(next.Name())+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
@@ -106,7 +106,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		for _, dependency := range dependencies {
 			address := dependency.Address
 			address.SubID = 0
-			revision := replacement.revision
+			revision := replacement.Revision()
 			if descriptor, exists := auth.catalog.Descriptor(address); exists {
 				revision = descriptor.Revision()
 			}
@@ -152,8 +152,8 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext
 			return err
 		}
 		if value.IsNull() {
-			diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, v.relation.name)).(*sqlstate.Error)
-			diagnostic.Schema, diagnostic.Table, diagnostic.Column = v.schema, v.relation.name, column.Name
+			diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, v.relation.Name())).(*sqlstate.Error)
+			diagnostic.Schema, diagnostic.Table, diagnostic.Column = v.schema, v.relation.Name(), column.Name
 			return diagnostic
 		}
 	}
@@ -164,8 +164,8 @@ func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext
 	if err != nil || failed == nil {
 		return err
 	}
-	diagnostic := sqlError("23514", fmt.Sprintf(`check constraint "%s" of relation "%s" is violated by some row`, failed.Name, v.relation.name)).(*sqlstate.Error)
-	diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = v.schema, v.relation.name, failed.Name
+	diagnostic := sqlError("23514", fmt.Sprintf(`check constraint "%s" of relation "%s" is violated by some row`, failed.Name, v.relation.Name())).(*sqlstate.Error)
+	diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = v.schema, v.relation.Name(), failed.Name
 	return diagnostic
 }
 

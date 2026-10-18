@@ -78,15 +78,15 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 			return nil, ids.ErrCatalogReplaced
 		}
 		actual, exists := authority.Relation(address)
-		actualParent, parentExists := authority.Relation(parent.address)
+		actualParent, parentExists := authority.Relation(parent.Address())
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if parent.Partition != nil {
 			continue
 		}
-		store, root := storage[parent.address], roots[address]
-		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
+		store, root := storage[parent.Address()], roots[address]
+		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.Address()) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if (root.hash != nil) != (index.SQLIndex.Method == hashMethod) {
@@ -214,18 +214,18 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 		}
 		address := snapshot.destination(sourceAddress)
 		index, ok := next.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != snapshot.destination(source.parent.address) || len(index.SQLIndex.Keys) != len(source.index.SQLIndex.Keys) || index.SQLIndex.Method != source.index.SQLIndex.Method {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != snapshot.destination(source.parent.Address()) || len(index.SQLIndex.Keys) != len(source.index.SQLIndex.Keys) || index.SQLIndex.Method != source.index.SQLIndex.Method {
 			return nil, ids.ErrCatalogReplaced
 		}
 		parent, ok := next.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
-		store, selected := storage[parent.address], positions[parent.address]
+		store, selected := storage[parent.Address()], positions[parent.Address()]
 		if store == nil || selected == nil {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if !checkedParents[parent.address] {
+		if !checkedParents[parent.Address()] {
 			count := 0
 			for _, row := range source.store.versions {
 				if err := ctx.Err(); err != nil {
@@ -243,7 +243,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			if count != len(selected) || count != len(store.versions) {
 				return nil, ids.ErrCatalogReplaced
 			}
-			checkedParents[parent.address] = true
+			checkedParents[parent.Address()] = true
 		}
 		usage := make([]sqltype.Usage, len(index.SQLIndex.Keys))
 		for i, key := range index.SQLIndex.Keys {

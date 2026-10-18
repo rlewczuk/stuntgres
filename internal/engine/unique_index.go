@@ -18,10 +18,10 @@ func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDes
 		}
 	}
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0

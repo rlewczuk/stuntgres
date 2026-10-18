@@ -45,9 +45,9 @@ type Descriptor interface {
 	Kind() ids.ObjectKind
 }
 type namespaceDescriptor struct {
-	address        ids.ObjectAddress
-	name           string
-	revision       ids.DefinitionRevision
+	ObjectAddress  ids.ObjectAddress
+	ObjectName     string
+	ObjectRevision ids.DefinitionRevision
 	Owner          authorization.PrincipalRef
 	ACL            authorization.ACLValue
 	Comment        string
@@ -55,65 +55,65 @@ type namespaceDescriptor struct {
 	TemporaryToast bool
 }
 
-func (d *namespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *namespaceDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *namespaceDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *namespaceDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*namespaceDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *namespaceDescriptor) Name() string                     { return d.name }
+func (d *namespaceDescriptor) Name() string                     { return d.ObjectName }
 func (*namespaceDescriptor) Kind() ids.ObjectKind               { return ids.NamespaceObject }
 
 type relationDescriptor struct {
-	address, namespace   ids.ObjectAddress
-	name                 string
-	revision             ids.DefinitionRevision
-	SequencePlanStamp    ids.DefinitionRevision
-	Columns              []ColumnDescriptor
-	Index                map[string]int
-	Attributes           []int32
-	AttributeHighWater   int32
-	DroppedAttributes    map[int32]attributeMetadata
-	CatalogAttributes    []catalogAttribute
-	Owner                authorization.PrincipalRef
-	ACL                  authorization.ACLValue
-	ColumnACL            map[int32]authorization.ACLValue
-	Comment              string
-	ColumnComments       map[int32]string
-	NotNullConstraints   []notNullConstraint
-	PhysicalNotNull      map[int32]physicalNotNullProof
-	CheckConstraints     []checkConstraint
-	Policies             []policyDefinition
-	Rules                rulesPayload
-	RLSEnabled           bool
-	RLSForced            bool
-	UniqueConstraints    []uniqueConstraint
-	ExclusionConstraints []exclusionConstraint
-	ForeignKeys          []foreignKeyConstraint
-	Defaults             map[int32]columnDefault
-	Generations          map[int32]columnGeneration
-	Identities           map[int32]columnIdentity
-	Inheritance          *tableInheritance
-	RelationKind         relationKind
-	HasIndexes           bool                // Sticky publication history; removing an index does not clear it.
-	HasSubclasses        bool                // Sticky inheritance/table/index partition publication history.
-	SubclassPredecessor  *relationDescriptor // Exact first-subclass marker publication only.
-	SubclassPublication  ids.DefinitionRevision
-	OnCommit             parser.OnCommitAction
-	Sequence             *sequenceOptions
-	View                 viewPayload
-	Populated            bool                // Independent of stored row count, including populated-empty MVs.
-	AutoExtensions       []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
-	VirtualView          bool
-	SQLIndex             *indexDefinition
-	Partition            *partitionDefinition
-	Membership           *partitionMembership
-	RowType              sqltype.ID
-	OfType               ids.ObjectAddress
-	Foreign              *foreignTableDefinition
+	ObjectAddress, ObjectNamespace ids.ObjectAddress
+	ObjectName                     string
+	ObjectRevision                 ids.DefinitionRevision
+	SequencePlanStamp              ids.DefinitionRevision
+	Columns                        []ColumnDescriptor
+	Index                          map[string]int
+	Attributes                     []int32
+	AttributeHighWater             int32
+	DroppedAttributes              map[int32]attributeMetadata
+	CatalogAttributes              []catalogAttribute
+	Owner                          authorization.PrincipalRef
+	ACL                            authorization.ACLValue
+	ColumnACL                      map[int32]authorization.ACLValue
+	Comment                        string
+	ColumnComments                 map[int32]string
+	NotNullConstraints             []notNullConstraint
+	PhysicalNotNull                map[int32]physicalNotNullProof
+	CheckConstraints               []checkConstraint
+	Policies                       []policyDefinition
+	Rules                          rulesPayload
+	RLSEnabled                     bool
+	RLSForced                      bool
+	UniqueConstraints              []uniqueConstraint
+	ExclusionConstraints           []exclusionConstraint
+	ForeignKeys                    []foreignKeyConstraint
+	Defaults                       map[int32]columnDefault
+	Generations                    map[int32]columnGeneration
+	Identities                     map[int32]columnIdentity
+	Inheritance                    *tableInheritance
+	RelationKind                   relationKind
+	HasIndexes                     bool                // Sticky publication history; removing an index does not clear it.
+	HasSubclasses                  bool                // Sticky inheritance/table/index partition publication history.
+	SubclassPredecessor            *relationDescriptor // Exact first-subclass marker publication only.
+	SubclassPublication            ids.DefinitionRevision
+	OnCommit                       parser.OnCommitAction
+	Sequence                       *sequenceOptions
+	View                           viewPayload
+	Populated                      bool                // Independent of stored row count, including populated-empty MVs.
+	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
+	VirtualView                    bool
+	SQLIndex                       *indexDefinition
+	Partition                      *partitionDefinition
+	Membership                     *partitionMembership
+	RowType                        sqltype.ID
+	OfType                         ids.ObjectAddress
+	Foreign                        *foreignTableDefinition
 }
 
-func (d *relationDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *relationDescriptor) Revision() ids.DefinitionRevision { return d.revision }
-func (d *relationDescriptor) Namespace() ids.ObjectAddress     { return d.namespace }
-func (d *relationDescriptor) Name() string                     { return d.name }
+func (d *relationDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *relationDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
+func (d *relationDescriptor) Namespace() ids.ObjectAddress     { return d.ObjectNamespace }
+func (d *relationDescriptor) Name() string                     { return d.ObjectName }
 func (*relationDescriptor) Kind() ids.ObjectKind               { return ids.RelationObject }
 
 func (d *relationDescriptor) hasAttribute(sub int32) bool {
@@ -196,7 +196,7 @@ type namespaceProvider struct{}
 func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
-	if !ok || ns == nil || ns.TemporaryToast && ns.Temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.address) != ns {
+	if !ok || ns == nil || ns.TemporaryToast && ns.Temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.Address()) != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
 	if ns.Temporary != (ids.SessionToken{}) && (ns.Temporary.Domain() != v.Domain() || ns.Temporary.ID() == 0 || privateSessionOf(ns.Temporary) != nil) {
@@ -219,15 +219,15 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || d.Kind() != ids.RelationObject || d.Address().ClassID != ids.RelationClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
 		return fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
-	ns, ok := v.Descriptor(r.namespace)
+	ns, ok := v.Descriptor(r.Namespace())
 	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
 	if r.OnCommit > parser.OnCommitDrop || r.OnCommit != parser.OnCommitUnspecified && (r.RelationKind != tableRelation || ns.(*namespaceDescriptor).Temporary == (ids.SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
-	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.namespace, Name: r.name})
-	if len(found) != 1 || found[0] != r.address || len(r.Columns) != len(r.Attributes) || len(r.Index) != len(r.Columns) {
+	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.Namespace(), Name: r.Name()})
+	if len(found) != 1 || found[0] != r.Address() || len(r.Columns) != len(r.Attributes) || len(r.Index) != len(r.Columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
 	if r.VirtualView && r.RelationKind != catalogRelation {
@@ -252,10 +252,10 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 	}
 	if r.RelationKind.stored() || r.RelationKind == partitionedRelation || r.RelationKind == viewRelation || r.RelationKind == compositeRelation || r.RelationKind == foreignRelation {
-		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.namespace, Name: r.name})
+		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.Namespace(), Name: r.Name()})
 		if len(types) != 0 {
 			row, ok := v.Type(types[0])
-			if len(types) != 1 || !ok || row.OwningRelation != r.address || row.SQLType.ID() != r.RowType {
+			if len(types) != 1 || !ok || row.OwningRelation != r.Address() || row.SQLType.ID() != r.RowType {
 				return CatalogConflict{}
 			}
 		}
@@ -265,7 +265,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: missing foreign relation definition")
 		}
 		server, ok := v.Foreign(r.Foreign.Server)
-		if !ok || server.address.ClassID != ids.ForeignServerClassID {
+		if !ok || server.Address().ClassID != ids.ForeignServerClassID {
 			return fmt.Errorf("stuntgres: missing foreign server identity")
 		}
 	} else if r.Foreign != nil {
@@ -286,7 +286,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		offset, exists := r.Index[c.Name]
 		ordered := i == 0 || r.Attributes[i] > r.Attributes[i-1]
 		if r.RelationKind == catalogRelation {
-			ordered = r.Attributes[i] == catalogAttributeNumber(r.address.ObjectID, c.Name, int32(i+1))
+			ordered = r.Attributes[i] == catalogAttributeNumber(r.Address().ObjectID, c.Name, int32(i+1))
 		}
 		if r.Attributes[i] <= 0 || r.Attributes[i] > r.AttributeHighWater || !ordered || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
@@ -295,7 +295,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		catalogNull := r.RelationKind == catalogRelation && r.address.ObjectID == pgAttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
+		catalogNull := r.RelationKind == catalogRelation && r.Address().ObjectID == pgAttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
 		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
@@ -355,12 +355,12 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.Relation(tableAddress)
-			if !ok || table.RelationKind != tableRelation && table.RelationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.Owner != r.Owner || table.namespace != r.namespace {
+			if !ok || table.RelationKind != tableRelation && table.RelationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.Owner != r.Owner || table.Namespace() != r.Namespace() {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
 			if r.Sequence.Identity {
 				identity, exists := table.Identities[owned.SubID]
-				if !exists || identity.Sequence != r.address {
+				if !exists || identity.Sequence != r.Address() {
 					return fmt.Errorf("stuntgres: inconsistent identity sequence ownership")
 				}
 			}
@@ -421,9 +421,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: identity column has default")
 		}
 		sequence, exists := v.Relation(identity.Sequence)
-		owned := r.address
+		owned := r.Address()
 		owned.SubID = attribute
-		if !exists || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned || sequence.Owner != r.Owner || sequence.namespace != r.namespace {
+		if !exists || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned || sequence.Owner != r.Owner || sequence.Namespace() != r.Namespace() {
 			return fmt.Errorf("stuntgres: invalid column identity sequence")
 		}
 	}
@@ -721,11 +721,11 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *
 		return err
 	}
 	old, ok := s.base.Relation(ref.Address)
-	validRevision := ok && d != nil && old.revision != ids.DefinitionRevision(^uint64(0)) && d.revision == old.revision+1
-	if s.terminalCleanup && ok && old.revision == ids.DefinitionRevision(^uint64(0)) {
-		validRevision = d != nil && d != old && d.revision == old.revision
+	validRevision := ok && d != nil && old.Revision() != ids.DefinitionRevision(^uint64(0)) && d.Revision() == old.Revision()+1
+	if s.terminalCleanup && ok && old.Revision() == ids.DefinitionRevision(^uint64(0)) {
+		validRevision = d != nil && d != old && d.Revision() == old.Revision()
 	}
-	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || !validRevision || original == nil || replacement == nil || e.stageStorageLocked(s, ref.Address) != original {
+	if !ok || ref.Address.SubID != 0 || d == nil || d.Address() != old.Address() || d.Namespace() != old.Namespace() || d.Name() != old.Name() || !validRevision || original == nil || replacement == nil || e.stageStorageLocked(s, ref.Address) != original {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -863,7 +863,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.OwningRelation).(*relationDescriptor); ok && backing.RelationKind == compositeRelation {
-			if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
+			if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), backing.Address()), false); err != nil {
 				return err
 			}
 		}
@@ -875,7 +875,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.RowType != 0 {
 		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*typeDescriptor)
-		if !ok || row.OwningRelation != r.address {
+		if !ok || row.OwningRelation != r.Address() {
 			return CatalogConflict{}
 		}
 		provider.removedRowType(row.Address())
@@ -987,7 +987,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 	}
 	if r := s.materializedReplacement; r != nil {
-		if err := s.materializedReplacementCurrent(e.stageCatalogBaseLocked(s), e.stageStorageLocked(s, r.original.address)); err != nil {
+		if err := s.materializedReplacementCurrent(e.stageCatalogBaseLocked(s), e.stageStorageLocked(s, r.original.Address())); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -1091,7 +1091,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
 				for address, d := range current.Descriptors() {
-					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.Get(address)) {
+					if _, removed := s.removals[address]; d.Namespace() == ns.Address() && (!removed || d != s.base.Get(address)) {
 						e.mu.Unlock()
 						return ChangeSet{}, CatalogConflict{}
 					}
@@ -1185,7 +1185,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		if r := s.materializedReplacement; r != nil {
-			if err := s.materializedReplacementCurrent(current, currentStorage[r.original.address]); err != nil {
+			if err := s.materializedReplacementCurrent(current, currentStorage[r.original.Address()]); err != nil {
 				e.mu.Unlock()
 				return ChangeSet{}, err
 			}
@@ -1272,7 +1272,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			storage[a] = shape.replacement
 		}
 		if replacement := s.materializedReplacement; replacement != nil {
-			storage[replacement.original.address] = replacement.storage
+			storage[replacement.original.Address()] = replacement.storage
 		}
 		for k, a := range s.names {
 			next.bindName(k, a)
@@ -1296,8 +1296,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				rebuildIndexes[a] = true
 			}
 			if replacement := s.materializedReplacement; replacement != nil {
-				buildStores[replacement.original.address] = replacement.storage
-				rebuildIndexes[replacement.original.address] = true
+				buildStores[replacement.original.Address()] = replacement.storage
+				rebuildIndexes[replacement.original.Address()] = true
 			}
 		}
 		// New parents and their backing indices publish together. Build from
@@ -1333,7 +1333,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		var runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef
 		if r := s.materializedReplacement; r != nil && r.concurrent {
-			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.address: r.original.Owner}
+			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.Address(): r.original.Owner}
 		}
 		evaluation := EvalContext{Context: p.ctx, Scope: 1, Frame: 1, statementScope: scope}
 		if scope != nil {
@@ -1434,7 +1434,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		if r := s.materializedReplacement; r != nil {
-			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage[r.original.address]); err != nil {
+			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage[r.original.Address()]); err != nil {
 				if op != nil {
 					op.session.mu.Unlock()
 				}
@@ -1490,7 +1490,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}

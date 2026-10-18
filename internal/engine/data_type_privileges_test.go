@@ -25,7 +25,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.address)
+	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.Address())
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
 
@@ -67,7 +67,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.address)
+	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
 	stale := ref
 	stale.Epoch++
 	if rows, err := captureDataTypePrivileges(context.Background(), catalog, auth, "unit_database", stale, source); rows != nil || err == nil {
@@ -102,8 +102,8 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.catalog.state)
 	typ, _ := (f.e.catalog.read(state)).LookupType(sqltype.Int4)
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, namespace: f.schema, name: "dtp_unit", Owner: f.owner, revision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
-	state.setDescriptor(relation.address, relation)
+	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
+	state.setDescriptor(relation.Address(), relation)
 	catalog := f.e.catalog.read(state)
 	auth := dtpUnitAuthority(t, f, catalog)
 	auth.state.CurrentUser = f.reader
@@ -132,7 +132,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	changed := cloneCatalog(state)
 	revoked := *relation
 	revoked.ColumnACL = nil
-	changed.setDescriptor(relation.address, &revoked)
+	changed.setDescriptor(relation.Address(), &revoked)
 	auth.recaptureCatalog(f.e.catalog.read(changed))
 	fresh, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
 	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.anonymous) {

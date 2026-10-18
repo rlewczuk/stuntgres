@@ -110,7 +110,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			values := partitionReplacementRow(source, destination, version.values)
 			validation := destination
-			if destination.address == address && history.relation != nil {
+			if destination.Address() == address && history.relation != nil {
 				var err error
 				validation, err = retainedChecks.forRow(ctx, history, destination, original, values, snapshot, evaluation)
 				if err != nil {
@@ -118,7 +118,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 			}
 			detail := func() (string, error) { return failingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := catalog.Get(destination.namespace).Name()
+			schema := catalog.Get(destination.Namespace()).Name()
 			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
 				return nil, err
 			}
@@ -136,7 +136,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 				child = parent
 			}
-			if destination.address == address {
+			if destination.Address() == address {
 				continue
 			}
 			if dirty == nil {
@@ -149,8 +149,8 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			removed[address][i] = true
 			version.values = values
-			incoming[destination.address] = append(incoming[destination.address], version)
-			dirty[address], dirty[destination.address] = true, true
+			incoming[destination.Address()] = append(incoming[destination.Address()], version)
+			dirty[address], dirty[destination.Address()] = true, true
 		}
 	}
 	for address := range dirty {

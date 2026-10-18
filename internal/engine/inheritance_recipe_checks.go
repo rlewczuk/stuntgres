@@ -23,7 +23,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 	}
 	byAddress := make(map[ids.ObjectAddress]*dumpRelation, len(tables))
 	for i := range tables {
-		byAddress[tables[i].descriptor.address] = &tables[i]
+		byAddress[tables[i].descriptor.Address()] = &tables[i]
 	}
 	var include func(*dumpRelation)
 	var component []*dumpRelation
@@ -40,8 +40,8 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 				}
 			}
 		}
-		for _, child := range inheritanceChildren(view, table.descriptor.address) {
-			if target := byAddress[child.address]; target != nil {
+		for _, child := range inheritanceChildren(view, table.descriptor.Address()) {
+			if target := byAddress[child.Address()]; target != nil {
 				include(target)
 			}
 		}
@@ -52,10 +52,10 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 		}
 		component = nil
 		include(&tables[i])
-		leader := component[0].descriptor.address
+		leader := component[0].descriptor.Address()
 		for _, table := range component {
-			if table.descriptor.address.ObjectID < leader.ObjectID {
-				leader = table.descriptor.address
+			if table.descriptor.Address().ObjectID < leader.ObjectID {
+				leader = table.descriptor.Address()
 			}
 		}
 		for _, table := range component {
@@ -91,7 +91,7 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 	}
 	byOID := make(map[ids.OID]*dumpRelation, len(tables))
 	for i := range tables {
-		byOID[tables[i].descriptor.address.ObjectID] = &tables[i]
+		byOID[tables[i].descriptor.Address().ObjectID] = &tables[i]
 	}
 	components := make(map[ids.ObjectAddress][]dumpEventKey)
 	var order []ids.ObjectAddress
@@ -303,7 +303,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if !ok {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(table.namespace)
+	namespace, namespaceOK := auth.catalog.Namespace(table.Namespace())
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
@@ -386,7 +386,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	if !ok || target.RelationKind != tableRelation || target.Partition != nil || target.Membership != nil {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(target.namespace)
+	namespace, namespaceOK := auth.catalog.Namespace(target.Namespace())
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
@@ -409,7 +409,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		if (relationProvider{}).Validate(auth.catalog, table) != nil {
 			continue
 		}
-		if inheritedRecipeConnected(auth.catalog, target.address, table.address) {
+		if inheritedRecipeConnected(auth.catalog, target.Address(), table.Address()) {
 			return nil
 		}
 	}
@@ -447,7 +447,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 			}
 		}
 		for _, child := range inheritanceChildren(view, address) {
-			if appendTarget(child.address) {
+			if appendTarget(child.Address()) {
 				return true
 			}
 		}
@@ -459,7 +459,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil && len(table.Generations) != 0 {
-			if namespace, ok := view.Namespace(table.namespace); ok && namespace.Temporary == (ids.SessionToken{}) {
+			if namespace, ok := view.Namespace(table.Namespace()); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
 			}
@@ -474,7 +474,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 		if !ok || table.RelationKind != tableRelation || table.Partition != nil || table.Membership != nil {
 			continue
 		}
-		if namespace, ok := view.Namespace(table.namespace); !ok || namespace.Temporary != (ids.SessionToken{}) {
+		if namespace, ok := view.Namespace(table.Namespace()); !ok || namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if !inheritanceParticipant(view, table) {
@@ -493,7 +493,7 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 			if selected == nil {
 				selected = make(map[ids.ObjectAddress]*dumpRelation)
 			}
-			selected[tables[i].descriptor.address] = &tables[i]
+			selected[tables[i].descriptor.Address()] = &tables[i]
 		}
 	}
 	return selected, nil

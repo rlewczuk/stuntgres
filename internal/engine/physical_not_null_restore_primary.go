@@ -36,7 +36,7 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 }
 
 func physicalImportedIndexMatches(source *relationDescriptor, constructor *physicalNotNullConstructor, current *relationDescriptor, primary *uniqueConstraint) bool {
-	if source == nil || source.address != primary.Index || source.name != constructor.indexName || source.namespace != current.namespace || source.SQLIndex == nil || source.SQLIndex.Parent != current.address || source.SQLIndex.Constraint != nil || len(source.SQLIndex.Keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
+	if source == nil || source.Address() != primary.Index || source.Name() != constructor.indexName || source.Namespace() != current.Namespace() || source.SQLIndex == nil || source.SQLIndex.Parent != current.Address() || source.SQLIndex.Constraint != nil || len(source.SQLIndex.Keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
 		return false
 	}
 	for i, attribute := range primary.Attributes {
@@ -77,7 +77,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.address) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {

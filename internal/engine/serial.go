@@ -36,11 +36,11 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			return err
 		}
 		read := e.stageRead(stage)
-		if read.MustNamespace(table.namespace).Temporary != (ids.SessionToken{}) {
+		if read.MustNamespace(table.Namespace()).Temporary != (ids.SessionToken{}) {
 			options.Persistence = "temporary"
 		}
-		name := ownedSequenceName(table.name, table.Columns[slot].Name, func(name string) bool {
-			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: name})) != 0
+		name := ownedSequenceName(table.Name(), table.Columns[slot].Name, func(name string) bool {
+			return name == table.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: name})) != 0
 		})
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
@@ -51,10 +51,10 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-		options.Owned = table.address
+		options.Owned = table.Address()
 		options.Owned.SubID = table.Attributes[slot]
-		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
-		sequence.ACL = stage.creationACL(table.Owner, table.namespace, authorization.DefaultSequences)
+		sequence := &relationDescriptor{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
+		sequence.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 		sequence.AttributeHighWater = 3
 		if err := stage.Create(sequence); err != nil {
 			return err
@@ -64,7 +64,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		}
 		stage.generators[address] = &sequenceGenerator{last: options.Start, generation: revision}
 		// Route synthetic syntax through the same closed default binder as Restore.
-		namespace, _ := read.Descriptor(table.namespace)
+		namespace, _ := read.Descriptor(table.Namespace())
 		declarations[slot].defaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(name)}}}}
 	}
 	return nil

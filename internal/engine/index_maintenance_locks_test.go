@@ -172,7 +172,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			} else {
 				btreeWantKeys(t, e, "ix", "1")
 			}
-			if e.indexRoots[index.address] == old {
+			if e.indexRoots[index.Address()] == old {
 				t.Fatal("waited rebuild reused predecessor")
 			}
 			if got := btreeKeys(t, old); len(got) != 1 || got[0] != "1" {
@@ -196,7 +196,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if remove {
-		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), old.address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), old.Address())); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -211,9 +211,9 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 		t.Fatal(err)
 	}
 	next := *old
-	next.address.ObjectID = oid
-	next.name = newName
-	next.revision = revision
+	next.ObjectAddress.ObjectID = oid
+	next.ObjectName = newName
+	next.ObjectRevision = revision
 	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
 	for i := range next.Columns {
 		next.Columns[i].OriginTable = uint32(oid)
@@ -265,7 +265,7 @@ func TestIndexMaintenanceGrantIncarnationIndexSetAndEpoch(t *testing.T) {
 			indexMaintenanceUnchanged(t, e, before)
 			if action == "recreate" {
 				current, root := btreeRoot(t, e, "ix")
-				if current.address == original.address || root != before.roots[current.address] {
+				if current.Address() == original.Address() || root != before.roots[current.Address()] {
 					t.Fatal("old grant affected recreated name")
 				}
 			}
@@ -355,7 +355,7 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		index, old := btreeRoot(t, e, "ix")
 		sessionSQL(t, actor, q)
 		next, fresh := btreeRoot(t, e, "ix")
-		if fresh == old || next.address != index.address || len(fresh.entries) != 1 {
+		if fresh == old || next.Address() != index.Address() || len(fresh.entries) != 1 {
 			t.Fatal("real parent MAINTAIN did not rebuild populated root", q, old, fresh)
 		}
 		lockEmpty(t, e)
@@ -378,7 +378,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			base := e.CatalogRead()
 			ref := roleTableRef(t, e, name)
 			next := *base.MustRelation(ref.Address)
-			next.revision++
+			next.ObjectRevision++
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
 			if err := stage.Replace(&next); err != nil {
@@ -391,14 +391,14 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			if e.indexRoots[index.address] != oldRoot {
+			if e.indexRoots[index.Address()] != oldRoot {
 				t.Fatal("compatible fixture revision rebuilt a root")
 			}
 			transactionEnd(t, writer, tx, false)
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.catalog.state.Get(ref.Address) != &next || e.indexRoots[index.address] == oldRoot {
+			if e.catalog.state.Get(ref.Address) != &next || e.indexRoots[index.Address()] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

@@ -51,14 +51,14 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	if len(raw) == 0 {
 		return nil
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
-	used := constraintNames(auth.catalog, d.namespace, d)
+	used := constraintNames(auth.catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.NotNullConstraints)+len(d.CheckConstraints))
 	start := 0
 	for _, c := range d.CheckConstraints {
@@ -117,7 +117,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
-			name = generatedConstraintName(d.name, column, "check", used)
+			name = generatedConstraintName(d.Name(), column, "check", used)
 		}
 		if current[name] {
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
@@ -125,13 +125,13 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		if ancestor, ok := inherited[name]; ok {
 			equality := expressionBinder{checkDefinitionEquality: true}
 			if !equality.sameGroupExpression(node, ancestor.Expression) {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 			}
 			if c.NoInherit {
-				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
+				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.Name()))
 			}
 			if ancestor.NotValid && !c.NotValid {
-				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, name, d.name))
+				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, name, d.Name()))
 			}
 			current[name] = true
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
@@ -142,10 +142,10 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 				if provenance, inherited := d.Inheritance.Checks[name]; inherited {
 					old := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
 					if old < 0 || !sameGroupExpression(d.CheckConstraints[old].Expression, node) {
-						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 					}
 					if c.NoInherit {
-						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
+						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.Name()))
 					}
 					provenance.Local = true
 					d.Inheritance.Checks[name] = provenance
@@ -154,11 +154,11 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 				}
 			}
 			if altering {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 			}
 			const index = "pg_constraint_conrelid_contypid_conname_index"
 			diagnostic := sqlError("23505", `duplicate key value violates unique constraint "`+index+`"`).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.address.ObjectID, name)
+			diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.Address().ObjectID, name)
 			diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = "pg_catalog", "pg_constraint", index
 			return diagnostic
 		}
@@ -171,7 +171,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		for _, ref := range dependencies {
 			address := ref.Address
 			address.SubID = 0
-			revision := d.revision
+			revision := d.Revision()
 			if descriptor, ok := auth.catalog.Descriptor(address); ok {
 				revision = descriptor.Revision()
 			}
@@ -212,7 +212,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 		for _, dep := range c.Dependencies {
 			address := dep.Ref.Address
 			address.SubID = 0
-			if address == d.address {
+			if address == d.Address() {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
@@ -244,13 +244,13 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	add := func(ref ids.ObjectRef, d *relationDescriptor) error {
 		address := ref.Address
 		address.SubID = 0
-		if address.ClassID != ids.RelationClassID || d != nil && address == d.address {
+		if address.ClassID != ids.RelationClassID || d != nil && address == d.Address() {
 			return nil
 		}
 		if _, incumbent := stage.base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
 			provider, staged := stage.descriptors[address].(*relationDescriptor)
-			if !staged || provider.address != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.base.Epoch() {
+			if !staged || provider.Address() != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
 			return nil
@@ -259,7 +259,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if d != nil && d.View != nil {
 			// The stage's evolved consumer retains the incumbent definition's
 			// immutable provenance; old epochs never become generic stage refs.
-			incumbent, _ := stage.base.Relation(d.address)
+			incumbent, _ := stage.base.Relation(d.Address())
 			valid = incumbent != nil && incumbent.View == d.View && storedViewReferenceValid(stage.base, incumbent, ref)
 			if ref.Epoch == stage.base.Epoch() {
 				valid = storedViewReferenceValid(stage.base, d, ref)
@@ -438,7 +438,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 		for _, dep := range c.Dependencies {
 			address := dep.Ref.Address
 			address.SubID = 0
-			if address == d.address {
+			if address == d.Address() {
 				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.hasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
@@ -577,10 +577,10 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 		}
 	}
 	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -593,7 +593,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 			var dependency ids.ObjectAddress
 			for _, dep := range c.Dependencies {
 				a := dep.Ref.Address
-				if a.ClassID == d.address.ClassID && a.ObjectID == d.address.ObjectID {
+				if a.ClassID == d.Address().ClassID && a.ObjectID == d.Address().ObjectID {
 					continue
 				}
 				for _, target := range targets {
@@ -618,11 +618,11 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 				return nil, err
 			}
 			copy := *d
-			revision, err := provider.revision(copy.revision)
+			revision, err := provider.revision(copy.Revision())
 			if err != nil {
 				return nil, err
 			}
-			copy.revision = revision
+			copy.ObjectRevision = revision
 			copy.CheckConstraints = kept
 			if err := provider.replace(&copy); err != nil {
 				return nil, err
@@ -630,10 +630,10 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 		}
 	}
 	slices.SortStableFunc(edges, func(a, b checkDependencyEdge) int {
-		if a.relation.address.ObjectID < b.relation.address.ObjectID {
+		if a.relation.Address().ObjectID < b.relation.Address().ObjectID {
 			return -1
 		}
-		if a.relation.address.ObjectID > b.relation.address.ObjectID {
+		if a.relation.Address().ObjectID > b.relation.Address().ObjectID {
 			return 1
 		}
 		return cmp.Compare(a.check.Ordinal, b.check.Ordinal)

@@ -16,7 +16,7 @@ import (
 func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
-	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.address)
+	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.Address())
 	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -71,11 +71,11 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		{"proof_composite", compositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
 	}
 	for i, spec := range specs {
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, namespace: f.schema, name: spec.name, Owner: f.owner, revision: 2, RelationKind: spec.kind, ACL: spec.acl}
+		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, ObjectNamespace: f.schema, ObjectName: spec.name, Owner: f.owner, ObjectRevision: 2, RelationKind: spec.kind, ACL: spec.acl}
 		if spec.name == "proof_column_only" {
 			d.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
-		state.setDescriptor(d.address, d)
+		state.setDescriptor(d.Address(), d)
 	}
 	catalog := f.e.catalog.read(state)
 	f.e.mu.Lock()
@@ -150,7 +150,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	changed := cloneCatalog(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
 	named.ACL = authorization.ACLValue{Explicit: true}
-	changed.setDescriptor(named.address, &named)
+	changed.setDescriptor(named.Address(), &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)
 	renamed.Name = "renamed_reader"
@@ -184,7 +184,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.address)
+	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
 	rows, err := captureTablePrivileges(canceled, catalog, AuthorizationView{}, "unit_database", ref, source)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)

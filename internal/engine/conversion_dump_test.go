@@ -22,14 +22,14 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	hidden := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, name: "hidden", revision: 1, Owner: e.authorizationDomain.Principal(10)}
-	collision := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, name: "__stuntgres_conversion_2", revision: 1, Owner: e.authorizationDomain.Principal(10)}
+	hidden := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "hidden", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	collision := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, ObjectName: "__stuntgres_conversion_2", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	first, second := conversionUnitDefinition(e, 90000, "a", true), conversionUnitDefinition(e, 90001, "b", true)
 	plain := conversionUnitDefinition(e, 90002, "plain", false)
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
-	seed.name, seed.namespace, seed.revision = "seed_moved", hidden.address, 2
+	seed.ObjectName, seed.ObjectNamespace, seed.ObjectRevision = "seed_moved", hidden.Address(), 2
 	seedCollision := conversionUnitDefinition(e, 90003, "__stuntgres_conversion_seed_4519", false)
-	seedCollision.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	seedCollision.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	stage := e.BeginCatalogStage(view)
 	for _, d := range []Descriptor{hidden, collision, first, second, plain, seedCollision} {
 		if err := stage.Create(d); err != nil {
@@ -43,7 +43,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	namespaces := make(map[string]bool)
 	for _, descriptor := range e.CatalogRead().Descriptors() {
 		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
-			namespaces[namespace.name] = true
+			namespaces[namespace.Name()] = true
 		}
 	}
 	var dump bytes.Buffer
@@ -69,10 +69,10 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	current := e.CatalogRead()
 	for _, descriptor := range current.Descriptors() {
 		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
-			if !namespaces[namespace.name] {
-				t.Fatal("unexpected replay namespace survived", namespace.name)
+			if !namespaces[namespace.Name()] {
+				t.Fatal("unexpected replay namespace survived", namespace.Name())
 			}
-			delete(namespaces, namespace.name)
+			delete(namespaces, namespace.Name())
 		}
 	}
 	if len(namespaces) != 0 {

@@ -33,9 +33,9 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if !ok || relation.RelationKind != sequenceRelation {
 			return nil
 		}
-		namespace := base.Get(relation.namespace)
+		namespace := base.Get(relation.Namespace())
 		if own != nil {
-			if current, overridden := own.descriptors[relation.namespace]; overridden {
+			if current, overridden := own.descriptors[relation.Namespace()]; overridden {
 				namespace = current
 			}
 		}
@@ -51,8 +51,8 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 			return err
 		}
 		row := make([]sqltype.Value, 11)
-		row[0] = sqltype.String(source.Columns[0].Usage.Type, ns.name)
-		row[1] = sqltype.String(source.Columns[1].Usage.Type, relation.name)
+		row[0] = sqltype.String(source.Columns[0].Usage.Type, ns.Name())
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, relation.Name())
 		row[2] = sqltype.String(source.Columns[2].Usage.Type, owner.Name)
 		row[3], err = sqltype.RegtypeValue(source.Columns[3].Usage.Type, uint32(relation.Sequence.SQLType))
 		if err != nil {
@@ -71,7 +71,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 		rows = append(rows, row)
-		provider.refs = append(provider.refs, e.catalog.Domain.Ref(base.epoch, relation.address))
+		provider.refs = append(provider.refs, e.catalog.Domain.Ref(base.epoch, relation.Address()))
 		return nil
 	}
 	for address, descriptor := range base.Descriptors() {

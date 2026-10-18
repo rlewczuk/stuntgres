@@ -17,11 +17,11 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
+	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
 	view.state = cloneCatalog(view.state)
-	view.state.setDescriptor(relation.address, relation)
-	schema := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
-	view.state.setDescriptor(schema.address, schema)
+	view.state.setDescriptor(relation.Address(), relation)
+	schema := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
+	view.state.setDescriptor(schema.Address(), schema)
 	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()
 		got, err := rawObjectACL(view, address)
@@ -57,7 +57,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		check(ids.ObjectAddress{SubID: subid}, authorization.ACLValue{})
 		check(ids.ObjectAddress{ClassID: 2615, ObjectID: 48002, SubID: subid}, whole)
 	}
-	check(relation.address, whole)
+	check(relation.Address(), whole)
 	for _, subid := range []int32{1, 65537, -65535} {
 		check(ids.ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, column)
 	}
@@ -95,12 +95,12 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal(err)
 		}
 		sequence.RelationKind, sequence.Sequence = sequenceRelation, &options
-		sequence.SequencePlanStamp = sequence.revision
+		sequence.SequencePlanStamp = sequence.Revision()
 		if err := stage.Create(sequence); err != nil {
 			t.Fatal(err)
 		}
 		domainUnitPublish(t, engine, stage)
-		ref := engine.catalog.Domain.Ref(engine.CatalogRead().Epoch(), sequence.address)
+		ref := engine.catalog.Domain.Ref(engine.CatalogRead().Epoch(), sequence.Address())
 		want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 			objectACLUnitEntry(principal, principal, authorization.SelectPrivilege|authorization.UpdatePrivilege|authorization.UsagePrivilege, 0),
 			{Grantor: principal, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
@@ -108,7 +108,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		if err := engine.SetObjectACL(context.Background(), ref, want); err != nil {
 			t.Fatal(err)
 		}
-		got, err := rawObjectACL(engine.CatalogRead(), sequence.address)
+		got, err := rawObjectACL(engine.CatalogRead(), sequence.Address())
 		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Fatal("sequence raw ACL", got, want, err)
 		}

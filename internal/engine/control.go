@@ -30,7 +30,7 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
 func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
-	if d.address.ObjectID == ids.PGToastNamespaceOID {
+	if d.Address().ObjectID == ids.PGToastNamespaceOID {
 		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
 	}
 	if !d.ACL.Explicit {
@@ -96,7 +96,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		namespace := e.catalog.state.MustNamespace(index.namespace)
+		namespace := e.catalog.state.MustNamespace(index.Namespace())
 		if namespace.Temporary != (ids.SessionToken{}) || index.SQLIndex.Ready && index.SQLIndex.Valid && index.SQLIndex.Live {
 			continue
 		}
@@ -104,13 +104,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if ok && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 			continue
 		}
-		if invalid == nil || namespace.name < invalidSchema || namespace.name == invalidSchema && index.name < invalid.name {
-			invalid, invalidSchema = index, namespace.name
+		if invalid == nil || namespace.Name() < invalidSchema || namespace.Name() == invalidSchema && index.Name() < invalid.Name() {
+			invalid, invalidSchema = index, namespace.Name()
 		}
 	}
 	if invalid != nil {
 		e.mu.Unlock()
-		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.name))
+		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.Name()))
 	}
 	tables := make([]dumpRelation, 0)
 	catalog := e.catalog.read(e.catalog.state)
@@ -168,7 +168,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var preamble []string
 	for address, name := range e.foreignNamespaces {
 		ns, ok := e.catalog.state.Namespace(address)
-		if !ok || ns.name != name {
+		if !ok || ns.Name() != name {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
 		}
@@ -197,7 +197,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if b.oid == ids.PublicNamespaceOID {
 			baselineOwner = "pg_database_owner"
 		}
-		builtins = append(builtins, builtinSchema{original: b.name, name: ns.name, owner: role.Name, baselineOwner: baselineOwner})
+		builtins = append(builtins, builtinSchema{original: b.name, name: ns.Name(), owner: role.Name, baselineOwner: baselineOwner})
 	}
 	remaining := 0
 	for i := range builtins {
@@ -354,9 +354,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				text := "CREATE EXTENSION " + quoteIdentifier(t.name) + " WITH SCHEMA " + quoteIdentifier(ns.name) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
-				viewDependencies[dumpEventKey{oid: t.address.ObjectID}] = nil
-				viewIndices[t.address.ObjectID] = len(views)
+				text := "CREATE EXTENSION " + quoteIdentifier(t.Name()) + " WITH SCHEMA " + quoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
+				viewDependencies[dumpEventKey{oid: t.Address().ObjectID}] = nil
+				viewIndices[t.Address().ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
 				continue
 			case *typeDescriptor:
@@ -416,7 +416,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if valid && ns.Comment != namespaceCommentBaseline(a.ObjectID) {
-					schemaComments = append(schemaComments, dumpComment{ns.name, ns.Comment})
+					schemaComments = append(schemaComments, dumpComment{ns.Name(), ns.Comment})
 				}
 				if valid && (a.ObjectID == ids.PublicNamespaceOID || a.ObjectID == ids.PGCatalogNamespaceOID || a.ObjectID == ids.PGToastNamespaceOID || a.ObjectID == 13229) &&
 					!bootstrapNamespaceDumpable(ns) {
@@ -434,7 +434,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						return err
 					}
 					_, configured := e.foreignNamespaces[a]
-					schemas = append(schemas, dumpSchema{name: ns.name, owner: role.Name, configured: configured})
+					schemas = append(schemas, dumpSchema{name: ns.Name(), owner: role.Name, configured: configured})
 				}
 				continue
 			}
@@ -444,7 +444,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if r.RelationKind == catalogRelation {
 			continue
 		}
-		ns, ok := e.catalog.state.Namespace(r.namespace)
+		ns, ok := e.catalog.state.Namespace(r.Namespace())
 		if !ok {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
@@ -462,16 +462,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if r.RelationKind == compositeRelation {
-			composites[r.address.ObjectID] = r
-			viewDependencies[dumpEventKey{oid: r.address.ObjectID}] = nil
+			composites[r.Address().ObjectID] = r
+			viewDependencies[dumpEventKey{oid: r.Address().ObjectID}] = nil
 			continue
 		}
 		if r.SQLIndex != nil {
 			// Key declarations and their table constraints must use the same
 			// captured private-name projection, including deferred local keys.
-			r = catalog.MustRelation(r.address)
+			r = catalog.MustRelation(r.Address())
 			virtual := partitionReplayVirtualUniqueRoot(catalog, r)
-			if virtual != nil && virtual.address != r.address {
+			if virtual != nil && virtual.Address() != r.Address() {
 				continue
 			}
 			if r.SQLIndex.Constraint != nil && !partitionReplaySeparateConstraint(catalog, r) {
@@ -488,14 +488,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				e.mu.Unlock()
 				return err
 			}
-			oid := r.address.ObjectID
+			oid := r.Address().ObjectID
 			if partitionReplayUsingIndex(catalog, r) {
 				parent := catalog.MustRelation(r.SQLIndex.Parent)
 				kind := "UNIQUE"
 				if r.SQLIndex.Constraint.Primary {
 					kind = "PRIMARY KEY"
 				}
-				sql += "ALTER TABLE " + quoteIdentifier(ns.name) + "." + quoteIdentifier(parent.name) + " ADD CONSTRAINT " + quoteIdentifier(r.name) + " " + kind + " USING INDEX " + quoteIdentifier(r.name) + ";\n"
+				sql += "ALTER TABLE " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + quoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + quoteIdentifier(r.Name()) + ";\n"
 			}
 			event := dumpEventKey{oid: oid}
 			viewDependencies[event] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
@@ -551,23 +551,23 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				options = " WITH (" + strings.Join(installed, ", ") + ")"
 			}
-			sql := "CREATE VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns +
+			sql := "CREATE VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns +
 				options + " AS " + body + ";\n"
 			if r.RelationKind == materializedViewRelation {
-				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns + " AS " + body + " WITH NO DATA;\n"
+				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
 				storage := e.storage[a]
 				if storage == nil {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: materialized view storage is missing")
 				}
-				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.Columns, attributes: r.Attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, descriptor: r})
+				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, descriptor: r})
 			}
 			// Capture every source occurrence and expression dependency from the
 			// same immutable catalog used to render the definition. Attribute
 			// references depend on their parent relation, not its column OID.
 			predecessors := make(map[ids.OID]bool)
 			addPredecessor := func(address ids.ObjectAddress) error {
-				predecessor, err := dumpPredecessor(e.catalog.read(e.catalog.state), address, r.address)
+				predecessor, err := dumpPredecessor(e.catalog.read(e.catalog.state), address, r.Address())
 				if err != nil {
 					return err
 				}
@@ -586,7 +586,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				sql += "ALTER MATERIALIZED VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + " DEPENDS ON EXTENSION " + quoteIdentifier(extension.name) + ";\n"
+				sql += "ALTER MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + quoteIdentifier(extension.Name()) + ";\n"
 			}
 			for _, leaf := range viewOf(r).sources {
 				if err := addPredecessor(leaf.ref.Address); err != nil {
@@ -606,7 +606,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 			}
-			oid := r.address.ObjectID
+			oid := r.Address().ObjectID
 			event := dumpEventKey{oid: oid}
 			viewDependencies[event] = make([]dumpEventKey, 0, len(predecessors))
 			for predecessor := range predecessors {
@@ -622,7 +622,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				e.mu.Unlock()
 				return fmt.Errorf("stuntgres: sequence state missing")
 			}
-			sequence := dumpSequence{owner: principal.Name, schema: ns.name, name: r.name, options: *r.Sequence, state: *g, comment: r.Comment}
+			sequence := dumpSequence{owner: principal.Name, schema: ns.Name(), name: r.Name(), options: *r.Sequence, state: *g, comment: r.Comment}
 			if owned := r.Sequence.Owned; owned != (ids.ObjectAddress{}) {
 				tableAddress := owned
 				tableAddress.SubID = 0
@@ -631,8 +631,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: sequence ownership target missing")
 				}
-				tableSchema := e.catalog.state.Get(table.namespace).Name()
-				sequence.ownedTable = quoteIdentifier(tableSchema) + "." + quoteIdentifier(table.name)
+				tableSchema := e.catalog.state.Get(table.Namespace()).Name()
+				sequence.ownedTable = quoteIdentifier(tableSchema) + "." + quoteIdentifier(table.Name())
 				for i, sub := range table.Attributes {
 					if sub == owned.SubID {
 						sequence.ownedColumn = table.Columns[i].Name
@@ -650,11 +650,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		oid := r.address.ObjectID
+		oid := r.Address().ObjectID
 		var predecessors []ids.OID
 		if r.Inheritance != nil {
 			for _, parent := range r.Inheritance.Parents {
-				predecessor, err := dumpPredecessor(catalog, parent, r.address)
+				predecessor, err := dumpPredecessor(catalog, parent, r.Address())
 				if err != nil {
 					e.mu.Unlock()
 					return err
@@ -668,11 +668,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		for _, check := range r.CheckConstraints {
-			if check.NotValid || recipePlan[r.address] != nil && recipePlan[r.address].deferredChecks[check.Name] {
+			if check.NotValid || recipePlan[r.Address()] != nil && recipePlan[r.Address()].deferredChecks[check.Name] {
 				continue
 			}
 			add := func(address ids.ObjectAddress) error {
-				predecessor, err := dumpPredecessor(catalog, address, r.address)
+				predecessor, err := dumpPredecessor(catalog, address, r.Address())
 				if err != nil {
 					return err
 				}
@@ -704,7 +704,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				deferDefaults = deferDefaults || definition.Expression.ResultUsage().Type.ContainsRegclass()
 			}
 			addPredecessor := func(address ids.ObjectAddress) error {
-				owner := r.address
+				owner := r.Address()
 				if eligible {
 					owner = ids.ObjectAddress{}
 				}
@@ -735,11 +735,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 		for _, definition := range r.Generations {
-			if recipePlan[r.address] != nil {
+			if recipePlan[r.Address()] != nil {
 				continue
 			}
 			for _, dependency := range definition.Dependencies {
-				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
+				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.Address())
 				if err != nil {
 					e.mu.Unlock()
 					return err
@@ -767,15 +767,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.Identities))
 		for _, identity := range r.Identities {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
-			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.Sequence, state: *e.sequences[identity.Sequence], comment: sequence.Comment}
+			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.sequences[identity.Sequence], comment: sequence.Comment}
 		}
 		var versions []rowVersion
 		var ends *deletionRoot
 		if storage != nil {
 			versions, ends = storage.versions, storage.ends
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnComments, notNullConstraints: r.NotNullConstraints, defaults: r.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.Identities, identitySequences: linked})
-		if selected := recipePlan[r.address]; selected != nil {
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnComments, notNullConstraints: r.NotNullConstraints, defaults: r.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.Identities, identitySequences: linked})
+		if selected := recipePlan[r.Address()]; selected != nil {
 			tables[len(tables)-1].recipePlaceholders = true
 			tables[len(tables)-1].recipeComponent = selected.recipeComponent
 			tables[len(tables)-1].deferredChecks = selected.deferredChecks
@@ -829,13 +829,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if d.Function == 0 && operatorShellGenerator(catalog, d) != nil {
 			continue
 		}
-		id := d.address.ObjectID
+		id := d.Address().ObjectID
 		viewDependencies[dumpEventKey{oid: id}] = nil
 		for _, dependency := range operatorDependencyAddresses(catalog, d) {
 			if dependency.ClassID == ids.NamespaceClassID {
 				continue
 			}
-			predecessor, err := dumpPredecessor(catalog, dependency, d.address)
+			predecessor, err := dumpPredecessor(catalog, dependency, d.Address())
 			if err != nil {
 				return err
 			}
@@ -948,14 +948,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			return err
 		}
-		declarations[d.address.ObjectID] = declaration
+		declarations[d.Address().ObjectID] = declaration
 		if d.Function != 0 {
 			text, err := operatorDumpLinks(catalog, d)
 			if err != nil {
 				return err
 			}
 			if text != "" {
-				operatorLinks[d.address.ObjectID] = text
+				operatorLinks[d.Address().ObjectID] = text
 			}
 		}
 	}
@@ -1198,7 +1198,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if original.SQLIndex != nil && original.SQLIndex.Constraint != nil && original.SQLIndex.Constraint.Primary {
 				parent := originalCatalog.MustRelation(original.SQLIndex.Parent)
 				for i := range parent.UniqueConstraints {
-					if parent.UniqueConstraints[i].Index == original.address {
+					if parent.UniqueConstraints[i].Index == original.Address() {
 						if err := emitPhysicalPrimaryCleanup(originalCatalog, parent, &parent.UniqueConstraints[i], emit, setOwner); err != nil {
 							return err
 						}
@@ -1238,7 +1238,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		t := tables[tableIndices[oid]]
-		t.descriptor = catalog.MustRelation(t.descriptor.address)
+		t.descriptor = catalog.MustRelation(t.descriptor.Address())
 		inheritedOwnerReplay := t.descriptor.Inheritance != nil && t.owner != "postgres"
 		if inheritedOwnerReplay {
 			// Retain a real captured-role directive before the privileged CREATE;
@@ -1264,7 +1264,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			line.WriteString("CREATE TABLE " + qualified)
 			if typed {
 				source := catalog.MustType(t.descriptor.OfType)
-				namespace := catalog.Get(source.namespace).Name()
+				namespace := catalog.Get(source.ObjectNamespace).Name()
 				line.WriteString(" OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()))
 			}
 			if hasElements {
@@ -1458,8 +1458,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						line.WriteString(", ")
 					}
 					parent := catalog.MustRelation(address)
-					namespace := catalog.Get(parent.namespace).Name()
-					line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.name))
+					namespace := catalog.Get(parent.Namespace()).Name()
+					line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.Name()))
 				}
 				line.WriteString(")")
 			}
@@ -1507,7 +1507,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		if attachAfterCreate {
 			source := catalog.MustType(t.descriptor.OfType)
-			namespace := catalog.Get(source.namespace).Name()
+			namespace := catalog.Get(source.ObjectNamespace).Name()
 			if err := emit("ALTER TABLE " + qualified + " OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()) + ";\n"); err != nil {
 				return err
 			}
@@ -1607,7 +1607,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				rankAuthority = true
 			}
-			qualified := quoteIdentifier(catalog.Get(table.descriptor.namespace).Name()) + "." + quoteIdentifier(table.name)
+			qualified := quoteIdentifier(catalog.Get(table.descriptor.Namespace()).Name()) + "." + quoteIdentifier(table.name)
 			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, commentLiteral(qualified), commentLiteral(column.Name))); err != nil {
 				return err
 			}
@@ -2138,7 +2138,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 		if creation, ok := stmt.(*parser.CreateIndex); ok {
 			if index := stage.capturePhysicalImportIndex(physicalIndexBase, creation, historicalRefs); index != nil {
-				physicalIndexes[index.address] = index
+				physicalIndexes[index.Address()] = index
 			}
 		}
 		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {

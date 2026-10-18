@@ -30,10 +30,10 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 40)
 				peerNamespace := b.temporaryNamespace
-				peerName := e.catalog.state.MustNamespace(peerNamespace).name
+				peerName := e.catalog.state.MustNamespace(peerNamespace).Name()
 				ownName := ""
 				if !fresh {
-					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).name
+					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).Name()
 				}
 				query := "CREATE TEMP SEQUENCE created START 60 CACHE 3"
 				code, message := "42P16", "only temporary relations may be created in temporary schemas"
@@ -125,15 +125,15 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						t.Fatal("valid own temporary creation", err)
 					}
 					ns := e.catalog.state.MustNamespace(a.temporaryNamespace)
-					if ns.Temporary != a.token || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
+					if ns.Temporary != a.token || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.Address() != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
-					assertTemporaryNamespacePair(t, e, a.token, ns.address)
-					address := NameAddressForTempMove(t, e, ns.address, "created")
+					assertTemporaryNamespacePair(t, e, a.token, ns.Address())
+					address := NameAddressForTempMove(t, e, ns.Address(), "created")
 					d := e.catalog.state.MustRelation(address)
 					want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
 					g := e.sequences[address]
-					if d.namespace != ns.address || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.SequencePlanStamp != d.revision {
+					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalog.namespaceGeneration

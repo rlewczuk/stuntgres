@@ -40,7 +40,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		t.Fatal("released full-IN declaration", d)
 	}
 	view := e.CatalogRead()
-	if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.Name || captured.Signature != identity.Signature || captured.Result != 3802 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.revision == 0 || view.Get(address) != captured {
+	if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != identity.Name || captured.Signature != identity.Signature || captured.Result != 3802 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || view.Get(address) != captured {
 		t.Fatal("bound descriptor is not the owned released routine", captured)
 	}
 	for i, id := range []sqltype.ID{3802, 4072, 3802, 16} {

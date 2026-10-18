@@ -206,8 +206,8 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	if !errors.As(err, &record) || c.number == 0 {
 		return err
 	}
-	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.name, c.number)
-	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.name)) {
+	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.Name(), c.number)
+	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.Name())) {
 		return err
 	}
 	result := *record

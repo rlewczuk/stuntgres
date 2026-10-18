@@ -75,19 +75,19 @@ func foreignKeyIndex(view CatalogRead, parent *relationDescriptor, attributes []
 		if err != nil {
 			return nil, err
 		}
-		if eligible && (found == nil || index.address.ObjectID < found.address.ObjectID) {
+		if eligible && (found == nil || index.Address().ObjectID < found.Address().ObjectID) {
 			found = index
 		}
 	}
 	if found == nil {
-		return nil, sqlError("42830", fmt.Sprintf(`there is no unique constraint matching given keys for referenced table "%s"`, parent.name))
+		return nil, sqlError("42830", fmt.Sprintf(`there is no unique constraint matching given keys for referenced table "%s"`, parent.Name()))
 	}
 	return found, nil
 }
 
 func foreignKeyIndexEligible(parent, index *relationDescriptor, attributes []int32) (bool, error) {
 	d := index.SQLIndex
-	if d == nil || d.Parent != parent.address || !d.Unique || !d.Ready || !d.Valid || !d.Live || d.Predicate != nil || len(d.Keys) != len(attributes) {
+	if d == nil || d.Parent != parent.Address() || !d.Unique || !d.Ready || !d.Valid || !d.Live || d.Predicate != nil || len(d.Keys) != len(attributes) {
 		return false, nil
 	}
 	for _, attribute := range attributes {
@@ -148,7 +148,7 @@ func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDe
 }
 
 func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescriptor, attributes []int32) error {
-	ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), parent.address)
+	ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 			return err
 		}
 		if rights&authorization.ReferencesPrivilege == 0 {
-			return sqlError("42501", "permission denied for table "+parent.name)
+			return sqlError("42501", "permission denied for table "+parent.Name())
 		}
 	}
 	return nil
@@ -190,10 +190,10 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 	}
 	if parent.RelationKind != tableRelation {
-		return sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, parent.name))
+		return sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, parent.Name()))
 	}
-	childTemp := view.MustNamespace(child.namespace).Temporary
-	parentTemp := view.MustNamespace(parent.namespace).Temporary
+	childTemp := view.MustNamespace(child.Namespace()).Temporary
+	parentTemp := view.MustNamespace(parent.Namespace()).Temporary
 	if childTemp != (ids.SessionToken{}) && parentTemp == (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on temporary tables may reference only temporary tables")
 	}
@@ -241,7 +241,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 			}
 		}
 		if referenced == nil {
-			return sqlError("42704", fmt.Sprintf(`there is no primary key for referenced table "%s"`, parent.name))
+			return sqlError("42704", fmt.Sprintf(`there is no primary key for referenced table "%s"`, parent.Name()))
 		}
 	} else {
 		referenced, err = foreignKeyAttributes(parent, raw.Referenced)
@@ -278,19 +278,19 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err := foreignKeyReferencesAllowed(auth, parent, referenced); err != nil {
 		return err
 	}
-	used := constraintNames(view, child.namespace, child)
+	used := constraintNames(view, child.Namespace(), child)
 	name := raw.Name.Text
 	if name == "" {
 		labels := make([]string, len(raw.Columns))
 		for i, column := range raw.Columns {
 			labels[i] = column.Text
 		}
-		name = generatedConstraintName(child.name, strings.Join(labels, "_"), "fkey", used)
+		name = generatedConstraintName(child.Name(), strings.Join(labels, "_"), "fkey", used)
 	}
 	if relationConstraintNameExists(child, name) {
-		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.name))
+		return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, child.Name()))
 	}
-	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.address, Referenced: referenced, Index: index.address, Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
+	f := foreignKeyConstraint{Name: name, Attributes: local, Target: parent.Address(), Referenced: referenced, Index: index.Address(), Full: raw.Full, UpdateAction: raw.UpdateAction, DeleteAction: raw.DeleteAction, DeleteAttributes: deleteAttributes, NotValid: raw.NotValid}
 	if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return err
 	}
 	child.ForeignKeys = append(child.ForeignKeys, f)
-	stage.descriptors[child.address] = child
+	stage.descriptors[child.Address()] = child
 	return nil
 }
 
@@ -319,7 +319,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 			}
 			captured := targets[i]
 			if captured == (ids.ObjectRef{}) {
-				if current.Address != child.address {
+				if current.Address != child.Address() {
 					return ids.ErrCatalogReplaced
 				}
 			} else if current != captured {
@@ -363,7 +363,7 @@ func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[
 		if !eligible {
 			return fmt.Errorf("stuntgres: foreign-key index authority mismatch")
 		}
-		if view.MustNamespace(parent.namespace).Temporary != view.MustNamespace(child.namespace).Temporary {
+		if view.MustNamespace(parent.Namespace()).Temporary != view.MustNamespace(child.Namespace()).Temporary {
 			return fmt.Errorf("stuntgres: foreign-key temporary provenance mismatch")
 		}
 		if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
@@ -398,17 +398,17 @@ func foreignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value
 }
 
 func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, parent *relationDescriptor, f foreignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
-	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.name, f.Name)).(*sqlstate.Error)
-	d.Schema = auth.catalog.Get(child.namespace).Name()
-	d.Table, d.Constraint = child.name, f.Name
+	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.Name(), f.Name)).(*sqlstate.Error)
+	d.Schema = auth.catalog.Get(child.Namespace()).Name()
+	d.Table, d.Constraint = child.Name(), f.Name
 	if partial {
 		d.Detail = "MATCH FULL does not allow mixing of null and nonnull key values."
 		return d
 	}
-	violating, attributes, suffix := child, f.Attributes, fmt.Sprintf(` is not present in table "%s".`, parent.name)
+	violating, attributes, suffix := child, f.Attributes, fmt.Sprintf(` is not present in table "%s".`, parent.Name())
 	if parentSide {
-		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.name, f.Name, child.name)
-		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.name)
+		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
+		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
 	disposition, err := rowSecurityDecision(auth, violating, auth.state.CurrentUser, policySelect, false)
 	if err != nil {
@@ -422,7 +422,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), violating.address), keys)
+	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), violating.Address()), keys)
 	if err != nil {
 		return err
 	}

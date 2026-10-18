@@ -55,7 +55,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*relationDescriptor)
-				if candidate == old || candidate.revision != old.revision+1 || e.catalog.state != catalog || e.storage[ref.Address] != store {
+				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != catalog || e.storage[ref.Address] != store {
 					t.Fatal("stage published before Finish")
 				}
 				shape := scope.catalog.storage[ref.Address]
@@ -169,7 +169,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					}
 				case "descriptor":
 					changed := *old
-					changed.revision++
+					changed.ObjectRevision++
 					changed.Comment = "external generation provider change"
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					if err := stage.Replace(&changed); err != nil {
@@ -239,7 +239,7 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	e, admin, _, ref := generatedAuthorizationFixture(t)
 	old := e.catalog.state.MustRelation(ref.Address)
 	limit := *old
-	limit.revision = ids.DefinitionRevision(^uint64(0))
+	limit.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&limit); err != nil {
 		t.Fatal(err)

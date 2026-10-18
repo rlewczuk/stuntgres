@@ -148,7 +148,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	bound := &binding.keys[0]
 	manager := f.e.locks
 	indexRef := ref
-	indexRef.Address = bound.index.address
+	indexRef.Address = bound.index.Address()
 	oldKey := insertConflictUnitRow(t, f, 10)[:1]
 	newKey := insertConflictUnitRow(t, f, 20)[:1]
 	if err := scope.acquireUnique(indexRef, bound, oldKey); err != nil {

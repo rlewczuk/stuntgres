@@ -86,7 +86,7 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 			if field == "sequence_stamp" {
 				d.SequencePlanStamp = ids.DefinitionRevision(^uint64(0))
 			} else {
-				d.revision = ids.DefinitionRevision(^uint64(0))
+				d.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 			}
 			alterSchemaPublishDescriptor(t, e, &d)
 			before, frontier := e.catalog.state, e.catalog.nextRevision
@@ -121,13 +121,13 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
 	lockPending(t, e, 1)
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	next.Comment = "grant-time comment"
 	alterSchemaPublishDescriptor(t, e, &next)
 	transactionEnd(t, a, tx, false)
 	lockAwait(t, done, nil)
 	moved := e.catalog.state.MustRelation(ref.Address)
-	if moved.Comment != "grant-time comment" || moved.revision <= next.revision || roleTableRef(t, e, "s2.t") != ref {
+	if moved.Comment != "grant-time comment" || moved.Revision() <= next.Revision() || roleTableRef(t, e, "s2.t") != ref {
 		t.Fatal("prewait descriptor used", moved)
 	}
 	lockEmpty(t, e)
@@ -138,7 +138,7 @@ func TestAlterSchemaActualTemporaryDestination(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE temporary_probe")
-	destination := e.catalog.state.MustNamespace(s.temporaryNamespace).name
+	destination := e.catalog.state.MustNamespace(s.temporaryNamespace).Name()
 	before, frontier := e.catalog.state, e.catalog.nextRevision
 	err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s1.t SET SCHEMA "+destination, true)
 	renameWantError(t, err, "0A000", "temporary schema creation is unsupported")
@@ -167,8 +167,8 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
 			lockPending(t, e, 1)
 			next := *e.catalog.state.MustRelation(address)
-			next.name = "grant_q2"
-			next.revision++
+			next.ObjectName = "grant_q2"
+			next.ObjectRevision++
 			next.SequencePlanStamp++
 			alterSchemaPublishDescriptor(t, e, &next)
 			before, frontier := e.catalog.state, e.catalog.nextRevision
@@ -181,7 +181,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			} else {
 				lockAwait(t, done, nil)
 				moved := e.catalog.state.MustRelation(address)
-				if moved.name != "grant_q2" || moved.Sequence != next.Sequence || moved.SequencePlanStamp <= next.SequencePlanStamp {
+				if moved.Name() != "grant_q2" || moved.Sequence != next.Sequence || moved.SequencePlanStamp <= next.SequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
 				destination := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})

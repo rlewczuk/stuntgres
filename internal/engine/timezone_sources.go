@@ -30,7 +30,7 @@ func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDe
 		return nil
 	}
 	var err error
-	switch d.address.ObjectID {
+	switch d.Address().ObjectID {
 	case 12005:
 		err = sqltype.VisitTimezoneNames(ctx, input.TransactionStart.Unix(), func(f sqltype.TimezoneNameFact) error {
 			return appendFact(f.Name, f.Abbrev, f.East, f.IsDST)
@@ -49,18 +49,18 @@ func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDe
 }
 
 func timezoneViewWriteError(d *relationDescriptor, operation string) error {
-	message := fmt.Sprintf(`cannot update view "%s"`, d.name)
+	message := fmt.Sprintf(`cannot update view "%s"`, d.Name())
 	action := "updating the view"
 	switch operation {
 	case "insert":
-		message = fmt.Sprintf(`cannot insert into view "%s"`, d.name)
+		message = fmt.Sprintf(`cannot insert into view "%s"`, d.Name())
 		action = "inserting into the view"
 	case "delete":
-		message = fmt.Sprintf(`cannot delete from view "%s"`, d.name)
+		message = fmt.Sprintf(`cannot delete from view "%s"`, d.Name())
 		action = "deleting from the view"
 	}
 	detail := "Views that do not select from a single table or view are not automatically updatable."
-	if d.address.ObjectID == 12004 {
+	if d.Address().ObjectID == 12004 {
 		detail = "Views containing UNION, INTERSECT, or EXCEPT are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)

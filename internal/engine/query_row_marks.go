@@ -18,7 +18,7 @@ type queryRowMark struct {
 }
 
 func isPGSequencesRelation(relation *relationDescriptor) bool {
-	return relation.RelationKind == catalogRelation && relation.address.ObjectID == 12048
+	return relation.RelationKind == catalogRelation && relation.Address().ObjectID == 12048
 }
 
 // SQL marks remain intact for binding, admission and clause diagnostics.

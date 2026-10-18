@@ -32,7 +32,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	parent := scope.lockedDescriptor.(*relationDescriptor)
 	if parent.RelationKind == sequenceRelation {
-		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.name), Detail: "This operation is not supported for sequences."})
+		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."})
 	}
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
 	var backing ids.ObjectAddress
@@ -70,7 +70,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		}
 	}
 	if kind == 0 {
-		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.name)))
+		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.Name())))
 	}
 	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.catalog, parent) {
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
@@ -83,17 +83,17 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 			e.DiscardCatalogStage(stage)
 			return fail(ids.ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}); exists {
+		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}
-		if index.revision == ids.DefinitionRevision(^uint64(0)) {
+		if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			e.DiscardCatalogStage(stage)
 			return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 		}
 		next := *index
-		next.name = raw.NewName.Text
-		next.revision++
+		next.ObjectName = raw.NewName.Text
+		next.ObjectRevision++
 		err = stageBackingIndexRename(stage, &next)
 		if err == nil {
 			err = stage.Replace(&next)
@@ -144,7 +144,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 func renameLocalConstraint(parent *relationDescriptor, old, destination string, kind byte) (*relationDescriptor, error) {
 	collision := func(name string) error {
 		if name == destination {
-			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.name))
+			return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, destination, parent.Name()))
 		}
 		return nil
 	}
@@ -173,11 +173,11 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 			return nil, err
 		}
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next := *parent
-	next.revision++
+	next.ObjectRevision++
 	if kind == 'n' {
 		next.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
 		for i := range next.NotNullConstraints {

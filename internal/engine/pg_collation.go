@@ -32,7 +32,7 @@ func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.Object
 			}
 			row[i] = v
 		}
-		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, d.Name())
 		row[4] = sqltype.String(source.Columns[4].Usage.Type, d.Provider)
 		row[5] = sqltype.Boolean(source.Columns[5].Usage.Type, d.Deterministic)
 		v, err := sqltype.Integer(source.Columns[6].Usage.Type, int64(d.Encoding))

@@ -11,14 +11,14 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if raw == nil {
 		return nil, nil
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	ns := queryNamespace{
 		columns:    columns,
-		qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}},
+		qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}},
 		frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)

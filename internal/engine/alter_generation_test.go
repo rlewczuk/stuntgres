@@ -81,7 +81,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	}
 	drop.IfExists = true
 	same, _, err := e.generationCandidate(scope, admin, auth, dropped, drop)
-	if err != nil || same != dropped || same.revision != dropped.revision {
+	if err != nil || same != dropped || same.Revision() != dropped.Revision() {
 		t.Fatal("no-op changed descriptor", err)
 	}
 	if e.catalog.state.Get(ref.Address) != old {
@@ -134,8 +134,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	own.born = 0
 	insert := row(5, 6)
 	insert.born = 0
-	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.address: {own, insert}}
-	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.address: {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
+	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {own, insert}}
+	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)
@@ -160,7 +160,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 			t.Fatal("source changed", r)
 		}
 	}
-	if scope.ownWrites[old.address][0].base != 3 || scope.ownWrites[old.address][0].values[1] != integer(2) {
+	if scope.ownWrites[old.Address()][0].base != 3 || scope.ownWrites[old.Address()][0].values[1] != integer(2) {
 		t.Fatal("own source changed")
 	}
 }

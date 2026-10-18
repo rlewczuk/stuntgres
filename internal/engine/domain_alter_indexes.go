@@ -36,7 +36,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	}
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int)
 	for _, source := range snapshot.sources {
-		address := source.parent.address
+		address := source.parent.Address()
 		if positions[address] != nil {
 			continue
 		}

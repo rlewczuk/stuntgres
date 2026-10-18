@@ -207,12 +207,12 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 			failure = err
 			return
 		}
-		if current.revision != captured.revision {
+		if current.Revision() != captured.Revision() {
 			failure = CatalogConflict{}
 			return
 		}
 		for _, original := range definition.Dependencies {
-			if original.Address != captured.address {
+			if original.Address != captured.Address() {
 				continue
 			}
 			if !storedReferenceEpochValid(view, parent, original) {
@@ -222,7 +222,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 			ref := original
 			ref.Epoch = view.Epoch() // Project only the certified source recipe.
 			for _, existing := range *dependencies {
-				if existing.Ref == ref && existing.Revision == captured.revision {
+				if existing.Ref == ref && existing.Revision == captured.Revision() {
 					return
 				}
 			}
@@ -230,7 +230,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 				*dependencies = slices.Clone(*dependencies)
 				*private = true
 			}
-			*dependencies = append(*dependencies, expressionDependency{Ref: ref, Revision: captured.revision})
+			*dependencies = append(*dependencies, expressionDependency{Ref: ref, Revision: captured.Revision()})
 			return
 		}
 		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
@@ -252,7 +252,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 		record(captured)
 		if captured != nil {
 			failure = walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
-				current, ok := view.Procedure(body.address)
+				current, ok := view.Procedure(body.Address())
 				if !ok || !sameRoutineDeclaration(current, body) {
 					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")
 				}
@@ -749,7 +749,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	rules := rulesOf(b.relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
 	if matched {
-		dependency := expressionDependency{Ref: b.ref, Revision: current.revision}
+		dependency := expressionDependency{Ref: b.ref, Revision: current.Revision()}
 		if !slices.Contains(program.events, dependency) {
 			program.events = append(program.events, dependency)
 		}
@@ -766,7 +766,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	}
 	key := ruleAncestry{b.ref, event}
 	if slices.Contains(ancestry, key) {
-		return -1, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, b.relation.name))
+		return -1, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, b.relation.Name()))
 	}
 	ancestry = append(ancestry, key)
 	if s, ok := stmt.(*parser.Insert); ok && s.Conflict != nil {
@@ -869,7 +869,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		}
 	}
 	if (!original || conditionalInstead) && ruleReturning(stmt) != nil && providers == 0 {
-		return -1, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot perform %s RETURNING on relation "%s"`, event, b.relation.name), Hint: "You need an unconditional ON " + event + " DO INSTEAD rule with a RETURNING clause."}
+		return -1, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot perform %s RETURNING on relation "%s"`, event, b.relation.Name()), Hint: "You need an unconditional ON " + event + " DO INSTEAD rule with a RETURNING clause."}
 	}
 	if len(parser.StatementWith(stmt)) != 0 && len(program.commands)-firstCommand > 1 {
 		return -1, sqlError("0A000", "WITH cannot be used in a query that is rewritten by rules into multiple queries")

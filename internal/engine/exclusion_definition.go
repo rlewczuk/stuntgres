@@ -24,7 +24,7 @@ type exclusionConstraint struct {
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
-		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.name != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.address || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
 		d := index.SQLIndex
@@ -101,9 +101,9 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		return indexCapability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
-	used := constraintNames(auth.catalog, parent.namespace, parent)
+	used := constraintNames(auth.catalog, parent.Namespace(), parent)
 	for key := range auth.catalog.Names() {
-		if key.ClassID == ids.RelationClassID && key.Namespace == parent.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == parent.Namespace() {
 			used[key.Name] = true
 		}
 	}
@@ -112,36 +112,36 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		for i := range s.Keys {
 			labels[i] = columns[i].Name
 		}
-		name = generatedConstraintName(parent.name, strings.Join(labels, "_"), "excl", used)
+		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.base.Find(parent.address); altering {
-			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}) != (ids.ObjectAddress{}) {
+		if _, altering := stage.base.Find(parent.Address()); altering {
+			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
 		for _, c := range parent.ForeignKeys {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		for _, c := range parent.UniqueConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		for _, c := range parent.ExclusionConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		for _, c := range parent.CheckConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		for _, c := range parent.NotNullConstraints {
 			if c.Name == name {
-				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.name))
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
 		if used[name] {
@@ -166,7 +166,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err := partitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
-	index := &relationDescriptor{address: c.Index, namespace: parent.namespace, name: name, revision: revision, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
+	index := &relationDescriptor{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
 	for i := range columns {
 		index.Columns[i].Nullable = true
 		index.Columns[i].NullabilityKnown = true
@@ -174,7 +174,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		index.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	parent.ExclusionConstraints = append(parent.ExclusionConstraints, c)
-	if _, existing := stage.base.Find(parent.address); existing {
+	if _, existing := stage.base.Find(parent.Address()); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err
 		}
@@ -204,11 +204,11 @@ func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnviron
 }
 
 func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog CatalogRead) error {
-	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.name)
+	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.Name())
 	if building {
-		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.name)
+		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.Name())
 	}
-	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23P01", Message: message, Schema: schema, Table: parent.name, Constraint: index.name, Detail: "Key conflicts with existing key."}
+	d := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23P01", Message: message, Schema: schema, Table: parent.Name(), Constraint: index.Name(), Detail: "Key conflicts with existing key."}
 	if building {
 		d.Detail = "Key conflicts exist."
 	}

@@ -51,7 +51,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			view := e.CatalogRead()
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != identity.Name || captured.Signature != identity.Signature || uint32(captured.Result) != tc.result || captured.revision == 0 || view.Get(address) != captured {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != identity.Name || captured.Signature != identity.Signature || uint32(captured.Result) != tc.result || captured.Revision() == 0 || view.Get(address) != captured {
 				t.Fatal("declaration is not engine-owned", captured)
 			}
 			var args []expr.Expr

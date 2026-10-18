@@ -35,13 +35,13 @@ func backingConstraintPresent(parent *relationDescriptor, index *relationDescrip
 	}
 	if c.Kind == uniqueBackingKind {
 		for _, definition := range parent.UniqueConstraints {
-			if definition.OID == c.OID && definition.Index == index.address && definition.Name == c.Name && definition.Primary == c.Primary {
+			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && definition.Primary == c.Primary {
 				return true
 			}
 		}
 	} else if c.Kind == exclusionBackingKind {
 		for _, definition := range parent.ExclusionConstraints {
-			if definition.OID == c.OID && definition.Index == index.address && definition.Name == c.Name && !c.Primary {
+			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && !c.Primary {
 				return true
 			}
 		}

@@ -1045,7 +1045,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			views = append(views, view)
 		}
 	}
-	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
+	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	for _, view := range views {
 		rule := viewOf(view).rule
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
@@ -1064,7 +1064,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 			definition.rule = rule
 			replacement := *view
 			replacement.View = &definition
-			next.setDescriptor(view.address, &replacement)
+			next.setDescriptor(view.Address(), &replacement)
 		}
 		reserved[rule] |= ruleOID | claimedOID
 	}

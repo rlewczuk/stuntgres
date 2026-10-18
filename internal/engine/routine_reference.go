@@ -22,7 +22,7 @@ func expressionRoutineDescriptor(node expr.Expr) (*procedureDescriptor, error) {
 		return nil, nil
 	}
 	d, ok := reference.(*procedureDescriptor)
-	if !ok || d == nil || d.address.ClassID != ids.ProcedureClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 {
+	if !ok || d == nil || d.Address().ClassID != ids.ProcedureClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid routine reference carrier")
 	}
 	return d, nil
@@ -50,7 +50,7 @@ func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescri
 }
 
 func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
-	current, ok := view.Procedure(captured.address)
+	current, ok := view.Procedure(captured.Address())
 	if !ok || !sameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
@@ -59,14 +59,14 @@ func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) 
 
 func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
 	return current != nil && captured != nil &&
-		current.name == captured.name && current.Signature == captured.Signature &&
+		current.Name() == captured.Name() && current.Signature == captured.Signature &&
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
 		current.Conversion == captured.Conversion
 }
 
-func (d *relationDescriptor) RoutineRecipeOID() uint32 { return uint32(d.address.ObjectID) }
+func (d *relationDescriptor) RoutineRecipeOID() uint32 { return uint32(d.Address().ObjectID) }
 
 func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 	carrier, ok := node.(interface {
@@ -76,11 +76,11 @@ func expressionRecipeDescriptor(node expr.Expr) (*relationDescriptor, error) {
 		return nil, nil
 	}
 	recipe, ok := carrier.CallRoutineRecipeReference().(*relationDescriptor)
-	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != viewRelation || recipe.address.ClassID != ids.RelationClassID || recipe.address.ObjectID == 0 {
+	if !ok || recipe == nil || recipe.View == nil || recipe.RelationKind != viewRelation || recipe.Address().ClassID != ids.RelationClassID || recipe.Address().ObjectID == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
-	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.address ||
-		temporary != (ids.SessionToken{}) && consumer != recipe.address {
+	if consumer, temporary := recipe.View.TemporaryConsumer(); consumer != (ids.ObjectAddress{}) && consumer != recipe.Address() ||
+		temporary != (ids.SessionToken{}) && consumer != recipe.Address() {
 		return nil, fmt.Errorf("stuntgres: invalid grafted routine recipe")
 	}
 	return recipe, nil
@@ -102,7 +102,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 		return err
 	}
 	if auth.engine != nil {
-		current, ok := auth.catalog.Relation(recipe.address)
+		current, ok := auth.catalog.Relation(recipe.Address())
 		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.engine.authorizationDomain.Principal(recipe.Owner.ID()) {
 			return ids.ErrCatalogReplaced
 		}

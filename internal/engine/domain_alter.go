@@ -131,7 +131,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		err = fmt.Errorf("stuntgres: invalid domain constraint action")
 	}
 	if err == nil && raw.Action != parser.DomainDropCheck {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err == nil {
 			err = stage.replaceDescriptor(&next, false)
 		}
@@ -160,7 +160,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
-				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.address), lock.AccessShare, true); err != nil {
+				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.Address()), lock.AccessShare, true); err != nil {
 					return Result{}, err
 				}
 			}
@@ -181,7 +181,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			return Result{}, discoveryErr
 		}
 		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.relation.address), lock.Share, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.relation.Address()), lock.Share, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -195,7 +195,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if graphErr == nil {
 			for i := range fence.uses {
 				use := &fence.uses[i]
-				use.storage = e.stageStorageLocked(stage, use.relation.address)
+				use.storage = e.stageStorageLocked(stage, use.relation.Address())
 				if use.storage == nil {
 					graphErr = CatalogConflict{}
 					break
@@ -210,7 +210,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		}
 		stage.domainValidation = fence
 		for _, use := range fence.uses {
-			writes, deletes := scope.columnProjectionRoots(use.relation.address)
+			writes, deletes := scope.columnProjectionRoots(use.relation.Address())
 			if err := evaluation.validateSelectedDomainRows(auth.catalog, &chosen, use, frontier, writes, deletes); err != nil {
 				return Result{}, err
 			}

@@ -36,7 +36,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "ext_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	_, err = binder.bindFunctionProvider(raw)
 	extensionUnitError(t, err, "42883")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
@@ -150,7 +150,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.catalog.state.MustDatabase(currentDatabaseAddress)
-	if retained != db || retained.name != "ext_authority" {
+	if retained != db || retained.Name() != "ext_authority" {
 		t.Fatal("replacement overwrote destination database")
 	}
 	revoke := extensionUnitGrant("ext_authority", "ext_db_actor")

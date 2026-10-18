@@ -29,9 +29,9 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 		done()
 		t.Fatal(err)
 	}
-	s.lockedRef = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.address)
+	s.lockedRef = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
 	s.lockedDescriptor = p
-	s.lockedStorage = e.storage[p.address]
+	s.lockedStorage = e.storage[p.Address()]
 	if err = e.locks.Acquire(ctx, s.ticket, lock.Resource{ObjectRef: s.lockedRef}, lock.RowExclusive); err != nil {
 		s.Finish(err)
 		done()
@@ -43,9 +43,9 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 func TestInheritanceDMLAdmission(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 22000, "p")
-	l := inheritanceLifecycleTable(e, 22001, "l", p.address)
-	r := inheritanceLifecycleTable(e, 22002, "r", p.address)
-	d := inheritanceLifecycleTable(e, 22003, "d", l.address, r.address)
+	l := inheritanceLifecycleTable(e, 22001, "l", p.Address())
+	r := inheritanceLifecycleTable(e, 22002, "r", p.Address())
+	d := inheritanceLifecycleTable(e, 22003, "d", l.Address(), r.Address())
 	inheritanceLifecycleInstall(e, p, l, r, d)
 	s, done := inheritanceDMLScope(t, e, p, context.Background())
 	defer done()
@@ -85,7 +85,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &relationStorage{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
@@ -116,7 +116,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 func TestInheritanceDMLAuthority(t *testing.T) {
 	e := New()
 	p := inheritanceLifecycleTable(e, 22000, "p")
-	c := inheritanceLifecycleTable(e, 22001, "c", p.address)
+	c := inheritanceLifecycleTable(e, 22001, "c", p.Address())
 	outsider := inheritanceLifecycleTable(e, 22002, "outsider")
 	inheritanceLifecycleInstall(e, p, c, outsider)
 	s, done := inheritanceDMLScope(t, e, p, context.Background())
@@ -125,11 +125,11 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := s.inheritedTargets[0]
-	if s.mutationStorage(child.ref) != e.storage[c.address] || s.mutationStorage(s.lockedRef) != e.storage[p.address] {
+	if s.mutationStorage(child.ref) != e.storage[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
 	foreign := child.ref
-	foreign.Address = outsider.address
+	foreign.Address = outsider.Address()
 	if s.mutationStorage(foreign) != nil {
 		t.Fatal("unrelated live table gained mutation authority")
 	}
@@ -140,10 +140,10 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	}
 	before := s.inheritedTargets[0]
 	next := *c
-	next.revision++
-	next.name = "renamed"
+	next.ObjectRevision++
+	next.ObjectName = "renamed"
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(c.address, &next)
+	e.catalog.state.setDescriptor(c.Address(), &next)
 	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}

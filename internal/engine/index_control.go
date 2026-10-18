@@ -55,11 +55,11 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if presentation.dump {
 		identifier = quoteIdentifier
 	}
-	schema := catalog.Get(parent.namespace).Name()
-	if !presentation.dump && parent.namespace == presentation.temporary {
+	schema := catalog.Get(parent.Namespace()).Name()
+	if !presentation.dump && parent.Namespace() == presentation.temporary {
 		schema = "pg_temp"
 	}
-	parentName := identifier(schema) + "." + identifier(parent.name)
+	parentName := identifier(schema) + "." + identifier(parent.Name())
 	if presentation.pretty && !presentation.output.QuoteAllIdentifiers {
 		parentName = relationDiagnosticNameAt(catalog, parent, presentation.path)
 	}
@@ -81,7 +81,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		if parent.Partition != nil {
 			only = "ONLY "
 		}
-		sql.WriteString("INDEX " + identifier(index.name) + " ON " + only + parentName + " USING " + method + " (")
+		sql.WriteString("INDEX " + identifier(index.Name()) + " ON " + only + parentName + " USING " + method + " (")
 	}
 	for i, key := range index.SQLIndex.Keys {
 		if i > 0 {

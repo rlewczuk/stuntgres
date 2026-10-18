@@ -54,7 +54,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 			if state.layouts == nil {
 				state.layouts = make(map[ids.ObjectAddress]*inheritanceQuerySegment)
 			}
-			state.layouts[d.address] = &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, len(layout))}
+			state.layouts[d.Address()] = &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, len(layout))}
 		}
 		return nil
 	}
@@ -131,15 +131,15 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 		destination = selected
 	}
-	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), destination.address)
-	if state.groups[destination.address] == nil {
+	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), destination.Address())
+	if state.groups[destination.Address()] == nil {
 		if err := s.acquirePartitionLock(ref, lock.RowExclusive); err != nil {
 			return err
 		}
 	}
 	leafBinding := b
 	leafBinding.relation, leafBinding.ref = destination, ref
-	schema := state.catalog.Get(destination.namespace).Name()
+	schema := state.catalog.Get(destination.Namespace()).Name()
 	physicalRow := state.rowFor(destination, row)
 	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
@@ -163,8 +163,8 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 			return err
 		}
 		if !accepts {
-			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.target.name)).(*sqlstate.Error)
-			err.Schema, err.Table = state.catalog.Get(state.target.namespace).Name(), state.target.name
+			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.target.Name())).(*sqlstate.Error)
+			err.Schema, err.Table = state.catalog.Get(state.target.Namespace()).Name(), state.target.Name()
 			detail, detailErr := s.op.session.Engine().rowConstraintDetail(s, &b, row)
 			if detailErr != nil {
 				return detailErr
@@ -178,9 +178,9 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 }
 
 func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
-	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), parent.address)
-	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.name)).(*sqlstate.Error)
-	err.Schema, err.Table = state.catalog.Get(parent.namespace).Name(), parent.name
+	ref := state.catalog.owner.Domain.Ref(state.catalog.Epoch(), parent.Address())
+	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.Name())).(*sqlstate.Error)
+	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
 	decision, securityErr := rowSecurityDecision(state.auth, state.target, state.auth.state.CurrentUser, policyInsert, true)
@@ -255,7 +255,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 }
 
 func (state *partitionInsertState) rowFor(d *relationDescriptor, row []sqltype.Value) []sqltype.Value {
-	if segment := state.layouts[d.address]; segment != nil {
+	if segment := state.layouts[d.Address()]; segment != nil {
 		return segment.mapValues(row)
 	}
 	return row
@@ -266,7 +266,7 @@ func (state *partitionInsertState) rowFor(d *relationDescriptor, row []sqltype.V
 // consumer; otherwise storage must own a separate immutable physical tuple.
 func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value {
 	state := s.partitionInsert
-	if state.layouts[state.destination.address] == nil {
+	if state.layouts[state.destination.Address()] == nil {
 		return row
 	}
 	if s.insertReturning != nil {
@@ -278,7 +278,7 @@ func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value
 
 func (s *StatementScope) partitionInsertionGroup(ref ids.ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
-	address := state.destination.address
+	address := state.destination.Address()
 	group := state.groups[address]
 	if group == nil {
 		group = &partitionInsertGroup{ref: ref.Domain().Ref(ref.Epoch, address)}

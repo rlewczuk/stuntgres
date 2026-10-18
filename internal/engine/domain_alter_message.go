@@ -13,7 +13,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	if fence := stage.domainValidation; fence != nil {
 		stores := make(map[ids.ObjectAddress]*relationStorage, len(fence.uses))
 		for _, use := range fence.uses {
-			stores[use.relation.address] = e.stageStorageLocked(stage, use.relation.address)
+			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
 		}
 		if !fence.current(e.catalog.read(current), stores) {
 			return CatalogConflict{}
@@ -27,7 +27,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		committed.allowContainers = true
 		for i := range committed.uses {
 			use := &committed.uses[i]
-			use.storage = e.storage[use.relation.address]
+			use.storage = e.storage[use.relation.Address()]
 			if use.storage == nil {
 				return CatalogConflict{}
 			}

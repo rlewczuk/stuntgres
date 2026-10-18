@@ -122,7 +122,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	// must accept an explicit baseline but serialization must not discard it.
 	explicit := *d
 	explicit.ACLSyntheticDefault = false
-	explicit.revision++
+	explicit.ObjectRevision++
 	change := e.BeginCatalogStage(view)
 	if err := change.Replace(&explicit); err != nil {
 		t.Fatal(err)

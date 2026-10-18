@@ -126,10 +126,10 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	old = e.CatalogRead().MustRelation(old.address)
+	old = e.CatalogRead().MustRelation(old.Address())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.NotNullConstraints[0].OID}
+	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), attribute: 1, constraint: old.NotNullConstraints[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
 	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 			altered.UniqueConstraints = []uniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}
 		candidate := cloneCatalog(before)
-		candidate.setDescriptor(old.address, &altered)
+		candidate.setDescriptor(old.Address(), &altered)
 		e.catalog.state = candidate
 		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)
@@ -191,8 +191,8 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, raw, origin); err != nil {
 		t.Fatal(err)
 	}
-	current := e.CatalogRead().MustRelation(old.address)
-	if !current.NotNullConstraints[0].NoInherit || old.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].OID != origin.constraint || current.Columns[0].Nullable || current.revision != old.revision+1 {
+	current := e.CatalogRead().MustRelation(old.Address())
+	if !current.NotNullConstraints[0].NoInherit || old.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].OID != origin.constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
 		t.Fatal("repair changed identity/local nullability or old capture", current)
 	}
 }

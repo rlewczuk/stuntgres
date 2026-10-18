@@ -24,7 +24,7 @@ func (snapshot *indexSnapshot) needsOwnerRepair() bool {
 		return false
 	}
 	for _, source := range snapshot.sources {
-		if snapshot.destination(source.parent.address) != source.parent.address && indexHasTableOID(source.index.SQLIndex) {
+		if snapshot.destination(source.parent.Address()) != source.parent.Address() && indexHasTableOID(source.index.SQLIndex) {
 			return true
 		}
 	}
@@ -39,8 +39,8 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.Ob
 	}
 	var changed map[ids.ObjectAddress]map[int32]bool
 	for _, source := range snapshot.sources {
-		address := snapshot.destination(source.parent.address)
-		if address == source.parent.address {
+		address := snapshot.destination(source.parent.Address())
+		if address == source.parent.Address() {
 			continue
 		}
 		parent, ok := next.Relation(address)
@@ -72,8 +72,8 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 	}
 	var repairedStores map[ids.ObjectAddress]relationStorage
 	for address, source := range snapshot.sources {
-		parentAddress := snapshot.destination(source.parent.address)
-		affected := moved[parentAddress] || parentAddress != source.parent.address && indexHasTableOID(source.index.SQLIndex)
+		parentAddress := snapshot.destination(source.parent.Address())
+		affected := moved[parentAddress] || parentAddress != source.parent.Address() && indexHasTableOID(source.index.SQLIndex)
 		for attribute, different := range changed[parentAddress] {
 			affected = affected || different && indexAttributeAffected(source.index.SQLIndex, attribute)
 		}
@@ -99,7 +99,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err != nil {
 			return err
 		}
-		schema := evaluation.catalog.Get(parent.namespace).Name()
+		schema := evaluation.catalog.Get(parent.Namespace()).Name()
 		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
 			return err
 		}

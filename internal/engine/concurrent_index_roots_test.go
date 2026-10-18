@@ -73,8 +73,8 @@ func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *relationDe
 	t.Helper()
 	e.mu.Lock()
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	snapshot := *e.storage[parent.address]
-	root := e.indexRoots[index.address]
+	snapshot := *e.storage[parent.Address()]
+	root := e.indexRoots[index.Address()]
 	e.mu.Unlock()
 	expected, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
@@ -174,7 +174,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	concurrentUnitIndex(t, e, "ui", true, false)
 	sessionSQL(t, c, "ALTER INDEX ui RENAME TO renamed")
 	renamed, _ := concurrentUnitIndex(t, e, "renamed", true, false)
-	if renamed.name != "renamed" || invalid.name != "ui" || !renamed.SQLIndex.Unique || !invalid.SQLIndex.Unique || renamed.SQLIndex.Constraint != nil {
+	if renamed.Name() != "renamed" || invalid.Name() != "ui" || !renamed.SQLIndex.Unique || !invalid.SQLIndex.Unique || renamed.SQLIndex.Constraint != nil {
 		t.Fatal("standalone rename corrupted immutable identity")
 	}
 	sessionSQL(t, c, "DELETE FROM t WHERE n=1")

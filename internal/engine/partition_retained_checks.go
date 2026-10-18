@@ -61,7 +61,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 			address := dependency.Address
 			whole := address
 			whole.SubID = 0
-			if whole != h.relation.address {
+			if whole != h.relation.Address() {
 				continue
 			}
 			if address.SubID == 0 {
@@ -104,7 +104,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 		address := dependency.Ref.Address
 		whole := address
 		whole.SubID = 0
-		if whole == h.relation.address {
+		if whole == h.relation.Address() {
 			if address.SubID == 0 {
 				for _, attribute := range h.relation.Attributes {
 					changed, err := partitionRetainedAttributeChanged(ctx, h, d, attribute, before, after)
@@ -187,7 +187,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 		p.descriptor = *d
 		p.descriptor.CheckConstraints = slices.Clone(d.CheckConstraints)
 		p.initialized = true
-		ownerChanged := snapshot.destination(h.relation.address) != h.relation.address
+		ownerChanged := snapshot.destination(h.relation.Address()) != h.relation.Address()
 		for i, check := range d.CheckConstraints {
 			if !check.NotValid {
 				continue
@@ -212,7 +212,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 				address := dependency.Ref.Address
 				whole := address
 				whole.SubID = 0
-				if whole != h.relation.address {
+				if whole != h.relation.Address() {
 					continue
 				}
 				for attribute, generation := range h.relation.Generations {

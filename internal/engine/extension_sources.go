@@ -13,7 +13,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if source.address.ObjectID == ids.ExtensionClassID {
+	if source.Address().ObjectID == ids.ExtensionClassID {
 		ids := [8]sqltype.ID{sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid, sqltype.Bool, sqltype.Text, 1028, 1009}
 		if len(source.Columns) != len(ids) {
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")
@@ -27,7 +27,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 	}
 	descriptors := make([]Descriptor, 0)
 	for _, d := range catalog.Descriptors() {
-		if d.Address().ClassID == source.address.ObjectID {
+		if d.Address().ClassID == source.Address().ObjectID {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -56,8 +56,8 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 		switch d := descriptor.(type) {
 		case *extensionDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
 			integer(2, int64(d.Owner.ID()))
 			integer(3, int64(d.TargetNamespace.ObjectID))
 			boolean(4, true)
@@ -65,9 +65,9 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
 		case *procedureDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
 			integer(3, int64(d.Owner.ID()))
 			integer(4, procedureArity(d))
 			integer(5, int64(d.Result))
@@ -92,13 +92,13 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			}
 			text(8, parallel)
 		case *tsTemplateDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
 		case *tsDictionaryDescriptor:
-			integer(0, int64(d.address.ObjectID))
-			text(1, d.name)
-			integer(2, int64(d.namespace.ObjectID))
+			integer(0, int64(d.Address().ObjectID))
+			text(1, d.Name())
+			integer(2, int64(d.Namespace().ObjectID))
 			integer(3, int64(d.Owner.ID()))
 			integer(4, int64(d.Template.ObjectID))
 			text(5, "rules = 'unaccent'")

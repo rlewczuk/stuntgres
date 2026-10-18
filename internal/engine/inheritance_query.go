@@ -47,8 +47,8 @@ func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, le
 	source := &querySource{ref: leaf.ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
 	err := inheritanceQueryClosure(catalog, leaf.relation, token, func(physical *relationDescriptor) error {
 		child := leaf
-		child.ref.Address, child.relation = physical.address, physical
-		child.storage = view.read().generationAt(physical.address)
+		child.ref.Address, child.relation = physical.Address(), physical
+		child.storage = view.read().generationAt(physical.Address())
 		layout, err := inheritanceQueryLayout(leaf.relation, physical)
 		if err != nil {
 			return err

@@ -26,7 +26,7 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if d.name != "pg_extension" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
+	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
@@ -51,7 +51,7 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10073})
 	ownedRow, ok := e.CatalogRead().LookupType(10074)
 	ownedArray, arrayOK := e.CatalogRead().LookupArray(ownedRow)
-	if !ok || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10073 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+	if !ok || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10073 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	return d
@@ -214,7 +214,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
 	row := captured.anonymous[0]
-	for i, expected := range []ids.OID{ext.address.ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
+	for i, expected := range []ids.OID{ext.Address().ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
 		actual, err := row[[]int{0, 2, 3}[i]].OID()
 		if err != nil || actual != uint32(expected) {
 			t.Fatal("descriptor-derived identity", i, actual, expected, err)
@@ -223,7 +223,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	name, nameErr := row[1].Text()
 	version, versionErr := row[5].Text()
 	relocatable, relocatableErr := row[4].Boolean()
-	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.name || version != ext.Version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
+	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.Name() || version != ext.Version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
 		t.Fatal("installed descriptor attributes", row, nameErr, versionErr, relocatableErr)
 	}
 	if empty.count() != 0 || captured.ref != ref {

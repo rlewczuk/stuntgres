@@ -43,7 +43,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	index := ruleIndex(old, name)
 	if s, ok := stmt.(*parser.DropRule); ok && index < 0 && !(old.View != nil && name == "_RETURN") {
 		if s.IfExists {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.name))
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.Name()))
 		}
 		return fail(ruleMissing(name, old))
 	}
@@ -63,7 +63,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	case *parser.CreateRule:
 		if strings.EqualFold(s.Event, "SELECT") {
 			if old.RelationKind != viewRelation {
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`relation "%s" cannot have ON SELECT rules`, old.name), Detail: "This operation is not supported for tables."})
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`relation "%s" cannot have ON SELECT rules`, old.Name()), Detail: "This operation is not supported for tables."})
 			}
 			if !s.Instead || len(s.Actions) == 0 {
 				return fail(sqlError("0A000", "rules on SELECT must have action INSTEAD SELECT"))
@@ -79,10 +79,10 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(sqlError("0A000", "event qualifications are not implemented for rules on SELECT"))
 			}
 			if name != "_RETURN" {
-				return fail(sqlError("42P17", fmt.Sprintf(`view rule for "%s" must be named "_RETURN"`, old.name)))
+				return fail(sqlError("42P17", fmt.Sprintf(`view rule for "%s" must be named "_RETURN"`, old.Name())))
 			}
 			if !s.Replace {
-				return fail(sqlError("55000", fmt.Sprintf(`"%s" is already a view`, old.name)))
+				return fail(sqlError("55000", fmt.Sprintf(`"%s" is already a view`, old.Name())))
 			}
 			creation := &parser.CreateView{Name: s.Table, Query: query, Replace: true, Pos: s.Pos}
 			var analysis parser.Statement = creation
@@ -152,17 +152,17 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		rulesOf(&next)[index].Name = s.Rename.Text
 	case *parser.DropRule:
 		if old.View != nil && name == "_RETURN" {
-			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.name, old.name), Hint: fmt.Sprintf("You can drop view %s instead.", old.name)})
+			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.Name(), old.Name()), Hint: fmt.Sprintf("You can drop view %s instead.", old.Name())})
 		}
 		next.Rules = rulesPayloadOf(append(rulesOf(&next)[:index], rulesOf(&next)[index+1:]...))
 	}
 	slices.SortFunc(rulesOf(&next), func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}
 	if next.View != old.View {
-		viewOf(&next).quoteRevision = next.revision
+		viewOf(&next).quoteRevision = next.Revision()
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)

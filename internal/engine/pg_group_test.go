@@ -91,7 +91,7 @@ func pgGroupUnitMembers(t *testing.T, row []sqltype.Value, want ...uint32) {
 func TestPGGroupDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgGroupUnitSource(t, e)
-	if d.name != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
+	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
 		t.Fatal("descriptor shape")
 	}
 	for i, typ := range []sqltype.ID{sqltype.Name, sqltype.Oid, 1028} {
@@ -111,7 +111,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011})
-	if d.RowType != 12012 || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12011 || row.Owner != d.Owner || array.Owner != d.Owner || row.SQLType.Concrete() {
+	if d.RowType != 12012 || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12011 || row.Owner != d.Owner || array.Owner != d.Owner || row.SQLType.Concrete() {
 		t.Fatal("existing row/array ownership links")
 	}
 	if representedSummaryTable(12008) || representedSummaryViewDefinition(12008) == "" {
@@ -235,13 +235,13 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name, view.RelationKind, view.VirtualView = name, viewRelation, false
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName, view.RelationKind, view.VirtualView = name, viewRelation, false
 		attrs := slices.Clone(d.Attributes)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.address, &view)
-		return e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
+		e.catalog.state.setDescriptor(view.Address(), &view)
+		return e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
 	}
 	inner := addView(20010, "pg_group_inner", ref)
 	outer := addView(20011, "pg_group_outer", inner)

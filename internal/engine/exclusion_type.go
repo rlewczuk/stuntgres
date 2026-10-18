@@ -42,7 +42,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if replacement, ok := stage.descriptors[old.Index].(*relationDescriptor); ok {
 			index = replacement
 		}
-		oldParent := stage.base.MustRelation(parent.address)
+		oldParent := stage.base.MustRelation(parent.Address())
 		evolved, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
@@ -69,8 +69,8 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
 		copy := *evolved
-		copy.address = c.Index
-		copy.revision, err = e.catalog.revisionLocked()
+		copy.ObjectAddress = c.Index
+		copy.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func rebindImportedExclusions(next *catalogState) error {
 			indexCopy, definitionCopy := *index, *definition
 			definitionCopy.Exclusion = operators
 			indexCopy.SQLIndex = &definitionCopy
-			next.setDescriptor(index.address, &indexCopy)
+			next.setDescriptor(index.Address(), &indexCopy)
 		}
 		if replacement != nil {
 			next.setDescriptor(address, replacement)

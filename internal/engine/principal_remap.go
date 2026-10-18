@@ -81,10 +81,10 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					return nil, err
 				}
 			}
-			if d.address.ClassID == ids.ForeignMappingClassID {
-				n.name = foreignMappingName(n.Server, n.MappedRole)
+			if d.Address().ClassID == ids.ForeignMappingClassID {
+				n.ObjectName = foreignMappingName(n.Server, n.MappedRole)
 				state.unbindName(descriptorNameKey(d))
-				state.bindName(descriptorNameKey(&n), n.address)
+				state.bindName(descriptorNameKey(&n), n.Address())
 			}
 			state.setDescriptor(addr, &n)
 		case *procedureDescriptor:

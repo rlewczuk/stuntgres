@@ -11,8 +11,8 @@ func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogC
 	if !ok || d.RelationKind != tableRelation {
 		return false
 	}
-	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.namespace)
-	return ok && ns.Temporary == (ids.SessionToken{}) && d.namespace.ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
+	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.Namespace())
+	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {

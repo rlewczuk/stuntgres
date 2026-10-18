@@ -12,7 +12,7 @@ import (
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
 func captureUsingIndexDefinition(reader definitionReader, parent *relationDescriptor, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
-	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
+	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
 	descriptor, _ := reader.descriptor(address)
 	if descriptor == nil {
 		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
@@ -86,7 +86,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		}
 		parent = candidate
 	}
-	descriptor, present := reader.descriptor(captured.index.address)
+	descriptor, present := reader.descriptor(captured.index.Address())
 	index, ok := descriptor.(*relationDescriptor)
 	if !present || !ok || index.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
@@ -94,20 +94,20 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	prepared.index = index
 	name := captured.syntax.Name.Text
 	if name == "" {
-		name = index.name
+		name = index.Name()
 	}
-	if name != index.name {
-		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.name, name)}
+	if name != index.Name() {
+		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.Name(), name)}
 	}
-	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name})
-	if destination != (ids.ObjectAddress{}) && destination != index.address {
+	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
+	if destination != (ids.ObjectAddress{}) && destination != index.Address() {
 		prepared.err = sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		return prepared, nil
 	}
 	if captured.syntax.Primary {
 		for _, constraint := range parent.UniqueConstraints {
 			if constraint.Primary {
-				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
+				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 				return prepared, nil
 			}
 		}
@@ -117,7 +117,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		}
 		for _, constraint := range parent.NotNullConstraints {
 			if constraint.NotValid && slices.Contains(captured.attributes, constraint.Attribute) {
-				prepared.err = incompatibleNotValid(constraint.Name, parent.name)
+				prepared.err = incompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
 			}
 		}
@@ -133,18 +133,18 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		prepared.err = err
 		return prepared, nil
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.address}
+	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
 	next := *parent
 	next.UniqueConstraints = make([]uniqueConstraint, len(parent.UniqueConstraints)+1)
 	copy(next.UniqueConstraints, parent.UniqueConstraints)
 	next.UniqueConstraints[len(parent.UniqueConstraints)] = constraint
-	if index.revision == ids.DefinitionRevision(^uint64(0)) {
+	if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		prepared.err = fmt.Errorf("stuntgres: definition revision exhausted")
 		return prepared, nil
 	}
 	clone := *index
-	clone.name = name
-	clone.revision++
+	clone.ObjectName = name
+	clone.ObjectRevision++
 	definition := *index.SQLIndex
 	definition.Constraint = uniqueBacking(&constraint)
 	clone.SQLIndex = &definition

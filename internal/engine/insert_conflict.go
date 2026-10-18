@@ -116,7 +116,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 				return nil
 			}
 		}
-		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.name))
+		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.Name()))
 	}
 	binder := e.indexExpressionBinder(shared.op, shared.input, auth, b.relation)
 	binder.parameters = shared.parameters
@@ -202,20 +202,20 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		def := index.SQLIndex
-		if def.Parent != parent.address || !def.Live || !def.Ready || (!def.Unique && !def.isExclusion()) {
+		if def.Parent != parent.Address() || !def.Live || !def.Ready || (!def.Unique && !def.isExclusion()) {
 			continue
 		}
 		if c.constraint != (ids.ObjectAddress{}) {
-			if index.address == c.namedIndex {
+			if index.Address() == c.namedIndex {
 				if c.update != nil && def.isExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
 				}
-				c.selected = append(c.selected, index.address)
+				c.selected = append(c.selected, index.Address())
 			}
 			continue
 		}
 		if len(c.keys) == 0 {
-			c.selected = append(c.selected, index.address)
+			c.selected = append(c.selected, index.Address())
 			continue
 		}
 		if !def.Unique {
@@ -240,7 +240,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			return err
 		}
 		if implied {
-			c.selected = append(c.selected, index.address)
+			c.selected = append(c.selected, index.Address())
 		}
 	}
 	if (len(c.keys) != 0 || c.constraint != (ids.ObjectAddress{})) && len(c.selected) == 0 {

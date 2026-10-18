@@ -73,7 +73,7 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 func TestAttributeRankRestorePublication(t *testing.T) {
 	e := New().restoreStage()
 	base := e.CatalogRead()
-	old := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "rank_restore", revision: 1, Owner: e.authorizationDomain.Principal(10), Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.ID(1007)), DeclaredDimensions: 2, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, AttributeHighWater: 2, Index: map[string]int{"a": 0}, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dimensions: 2, Dropped: true, Local: true, Facts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"}, Typmod: -1}}}
+	old := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "rank_restore", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.ID(1007)), DeclaredDimensions: 2, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, AttributeHighWater: 2, Index: map[string]int{"a": 0}, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dimensions: 2, Dropped: true, Local: true, Facts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"}, Typmod: -1}}}
 	old.Columns = append(old.Columns, ColumnDescriptor{Name: "scalar", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 3})
 	old.Attributes = append(old.Attributes, 3)
 	old.Index["scalar"] = 1
@@ -113,8 +113,8 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
 		t.Fatal(err)
 	}
-	current := e.CatalogRead().MustRelation(old.address)
-	if current.Columns[0].DeclaredDimensions != 3 || old.Columns[0].DeclaredDimensions != 2 || current.revision != old.revision+1 || current.Columns[0].Usage != old.Columns[0].Usage || current.Columns[0].Name != old.Columns[0].Name || len(current.DroppedAttributes) != 1 {
+	current := e.CatalogRead().MustRelation(old.Address())
+	if current.Columns[0].DeclaredDimensions != 3 || old.Columns[0].DeclaredDimensions != 2 || current.Revision() != old.Revision()+1 || current.Columns[0].Usage != old.Columns[0].Usage || current.Columns[0].Name != old.Columns[0].Name || len(current.DroppedAttributes) != 1 {
 		t.Fatal("rank repair changed authority or old root", old, current)
 	}
 	before := e.catalog.state

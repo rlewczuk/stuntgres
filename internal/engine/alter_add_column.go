@@ -50,7 +50,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		return fail(sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, column.Name)))
 	}
 	if _, exists := old.Index[column.Name]; exists {
-		message := fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.name)
+		message := fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.Name())
 		if !action.IfNotExists {
 			return fail(sqlError("42701", message))
 		}
@@ -81,7 +81,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	declaration, err := bindCreateColumnDeclaration(column, old.name)
+	declaration, err := bindCreateColumnDeclaration(column, old.Name())
 	if err != nil {
 		return fail(err)
 	}
@@ -101,7 +101,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
 	next.CheckConstraints = slices.Clone(old.CheckConstraints)
 	next.Index[column.Name] = len(next.Columns)
-	definition := ColumnDescriptor{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.address.ObjectID), OriginAttribute: int16(attribute)}
+	definition := ColumnDescriptor{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
@@ -120,7 +120,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
-		binder.defaultTemporary = auth.catalog.MustNamespace(old.namespace).Temporary
+		binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.bindDefault(declaration.defaultExpr, definition)
 		if err != nil {
 			return fail(alterCookingError(err))

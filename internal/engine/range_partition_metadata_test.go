@@ -144,17 +144,17 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	rest := rangePartitionRelation(t, e, "rest")
 	e.mu.Lock()
 	for _, virtual := range []*relationDescriptor{root, middle} {
-		if e.storage[virtual.address] != nil {
-			t.Errorf("virtual relation owns storage: %v", virtual.address)
+		if e.storage[virtual.Address()] != nil {
+			t.Errorf("virtual relation owns storage: %v", virtual.Address())
 		}
 	}
-	if e.storage[leaf.address] == nil || e.storage[rest.address] == nil {
+	if e.storage[leaf.Address()] == nil || e.storage[rest.Address()] == nil {
 		t.Error("physical leaf lacks storage")
 	}
 	e.mu.Unlock()
 	for _, relation := range []*relationDescriptor{root, middle, leaf, rest} {
 		if err := validatePartitionDescriptor(e.CatalogRead(), relation); err != nil {
-			t.Fatal(relation.name, err)
+			t.Fatal(relation.Name(), err)
 		}
 	}
 	t.Run("catalog-backed key collation", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		provider := view.MustCollation(address)
 		var other *collationDescriptor
 		for _, descriptor := range view.Descriptors() {
-			if d, ok := descriptor.(*collationDescriptor); ok && d.name == "rp_admission_other" {
+			if d, ok := descriptor.(*collationDescriptor); ok && d.Name() == "rp_admission_other" {
 				other = d
 			}
 		}
@@ -204,7 +204,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 	})
 	var physical []ids.ObjectAddress
-	if err := partitionPhysicalDescendants(e.CatalogRead(), root, func(d *relationDescriptor) error { physical = append(physical, d.address); return nil }); err != nil || !reflect.DeepEqual(physical, []ids.ObjectAddress{leaf.address, rest.address}) {
+	if err := partitionPhysicalDescendants(e.CatalogRead(), root, func(d *relationDescriptor) error { physical = append(physical, d.Address()); return nil }); err != nil || !reflect.DeepEqual(physical, []ids.ObjectAddress{leaf.Address(), rest.Address()}) {
 		t.Fatal(physical, err)
 	}
 	for _, test := range []struct {
@@ -217,7 +217,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 			p.Children = append(slices.Clone(p.Children), p.Children[0])
 			d.Partition = &p
 		}},
-		{"foreign default", func(d *relationDescriptor) { p := *d.Partition; p.DefaultChild = leaf.address; d.Partition = &p }},
+		{"foreign default", func(d *relationDescriptor) { p := *d.Partition; p.DefaultChild = leaf.Address(); d.Partition = &p }},
 		{"no keys", func(d *relationDescriptor) { p := *d.Partition; p.Keys = nil; d.Partition = &p }},
 		{"missing comparison", func(d *relationDescriptor) {
 			p := *d.Partition
@@ -262,13 +262,13 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	}
 	cyclic := cloneCatalog(e.CatalogRead().state)
 	cyclicRoot, cyclicMiddle := *root, *middle
-	cyclicRoot.Membership = &partitionMembership{Parent: middle.address, DefaultBound: true}
+	cyclicRoot.Membership = &partitionMembership{Parent: middle.Address(), DefaultBound: true}
 	middleDefinition := *middle.Partition
-	middleDefinition.Children = []ids.ObjectAddress{root.address}
-	middleDefinition.DefaultChild = root.address
+	middleDefinition.Children = []ids.ObjectAddress{root.Address()}
+	middleDefinition.DefaultChild = root.Address()
 	cyclicMiddle.Partition = &middleDefinition
-	cyclic.setDescriptor(root.address, &cyclicRoot)
-	cyclic.setDescriptor(middle.address, &cyclicMiddle)
+	cyclic.setDescriptor(root.Address(), &cyclicRoot)
+	cyclic.setDescriptor(middle.Address(), &cyclicMiddle)
 	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
@@ -277,13 +277,13 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	rootDefinition := *root.Partition
 	rootDefinition.DefaultChild = ids.ObjectAddress{}
 	overlappingRoot.Partition = &rootDefinition
-	overlappingRest.Membership = &partitionMembership{Parent: root.address, Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
-	overlapping.setDescriptor(root.address, &overlappingRoot)
-	overlapping.setDescriptor(rest.address, &overlappingRest)
+	overlappingRest.Membership = &partitionMembership{Parent: root.Address(), Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
+	overlapping.setDescriptor(root.Address(), &overlappingRoot)
+	overlapping.setDescriptor(rest.Address(), &overlappingRest)
 	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
-	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.address || middle.Membership.Lower[1].Kind != -1 {
+	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.Address() || middle.Membership.Lower[1].Kind != -1 {
 		t.Fatal("validation mutated source metadata")
 	}
 }

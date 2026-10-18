@@ -39,7 +39,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgDatabaseUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_database" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
@@ -62,7 +62,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
 	ownedRow, ok := catalog.LookupType(1248)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if d.RowType != 1248 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10052 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+	if d.RowType != 1248 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10052 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 }
@@ -87,7 +87,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	database := catalog.MustDatabase(currentDatabaseAddress)
-	for i, want := range map[int]string{1: database.name, 4: "c", 12: "C", 13: "C"} {
+	for i, want := range map[int]string{1: database.Name(), 4: "c", 12: "C", 13: "C"} {
 		if got, err := row[i].Text(); err != nil || got != want {
 			t.Fatal("text", i, got, want, err)
 		}
@@ -172,7 +172,7 @@ func TestPGDatabasePublication(t *testing.T) {
 		t.Fatal("missing predefined principal")
 	}
 	next := *original
-	next.Owner, next.revision = successor.Ref, original.revision+1
+	next.Owner, next.ObjectRevision = successor.Ref, original.Revision()+1
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)

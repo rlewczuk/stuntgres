@@ -238,7 +238,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, Owner: owner}
+		d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
 			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -246,16 +246,16 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			}}
 		}
 		d.Comment = namespaceCommentBaseline(ns.oid)
-		e.catalog.state.setDescriptor(d.address, d)
-		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}, d.address)
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
-			d.revision = 1
+			d.ObjectRevision = 1
 		}
 		if typ.NamespaceName() == "information_schema" {
-			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
+			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
@@ -274,8 +274,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
 		d.Owner = e.authorizationDomain.Principal(10)
-		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-		d.revision = 1
+		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+		d.ObjectRevision = 1
 		e.catalog.state.setDescriptor(d.Address(), d)
 		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
@@ -429,7 +429,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.revision})
+				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
@@ -629,7 +629,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					if source.RelationKind == indexRelation {
 						kind = "indexes"
 					}
-					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.name)).(*sqlstate.Error)
+					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.Name())).(*sqlstate.Error)
 					diagnostic.Detail = "This operation is not supported for " + kind + "."
 					if pos := like.Name.Parts[0].Pos.Character; pos > 0 {
 						diagnostic.Position = strconv.Itoa(pos)
@@ -641,7 +641,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
-					if !ok || sourceType.OwningRelation != source.address || sourceType.SQLType.ID() != source.RowType {
+					if !ok || sourceType.OwningRelation != source.Address() || sourceType.SQLType.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
 					if err := auth.CanUse(typeRef); err != nil {
@@ -765,7 +765,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.Temporary != (ids.SessionToken{}) {
+			if ns := auth.catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
@@ -913,7 +913,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	if auth.session != nil {
-		namespace, _ := auth.definitionDescriptor(d.namespace)
+		namespace, _ := auth.definitionDescriptor(d.Namespace())
 		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}

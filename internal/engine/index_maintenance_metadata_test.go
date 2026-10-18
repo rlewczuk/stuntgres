@@ -35,7 +35,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	ni, _ := btreeRoot(t, e, "ni")
 	ei, _ := btreeRoot(t, e, "ei")
 	m, n := indexMaintenanceMetadata(t, e, capture, "ni")
-	want := indexMaintenanceMetadataFlags(ni.address.ObjectID, ni.SQLIndex.Parent.ObjectID, 4)
+	want := indexMaintenanceMetadataFlags(ni.Address().ObjectID, ni.SQLIndex.Parent.ObjectID, 4)
 	want.IndKey = []int16{2, 2, 2, 2}
 	want.IndClass = []ids.OID{1978, 1978, 1978, 1978}
 	want.IndCollation = []ids.OID{0, 0, 0, 0}
@@ -44,7 +44,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal("complete simple metadata", m, n, want)
 	}
 	expressions, names := indexMaintenanceMetadata(t, e, capture, "ei")
-	expected := indexMaintenanceMetadataFlags(ei.address.ObjectID, ei.SQLIndex.Parent.ObjectID, 3)
+	expected := indexMaintenanceMetadataFlags(ei.Address().ObjectID, ei.SQLIndex.Parent.ObjectID, 3)
 	expected.IndKey = []int16{0, 0, 2}
 	expected.IndClass = []ids.OID{3126, 1978, 1978}
 	expected.IndCollation = []ids.OID{100, 0, 0}
@@ -64,7 +64,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	for _, name := range []string{"u", "distinct_u"} {
 		index, _ := btreeRoot(t, e, name)
 		got, n := indexMaintenanceMetadata(t, e, capture, name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.Parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 1)
 		want.IndIsUnique = true
 		want.IndNullsNotDistinct = name == "u"
 		want.IndKey = []int16{1}
@@ -88,7 +88,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	run(t, e, "ALTER INDEX ni RENAME TO renamed_ni")
 	run(t, e, "ALTER TABLE t RENAME COLUMN n TO renamed_n")
 	run(t, e, "ALTER TABLE t RENAME TO renamed_t")
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.address))
+	old, oldNames, err := projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames.IndexName != "ni" || oldNames.TableName != "t" {
 		t.Fatal("historical capture consulted current catalog", old, oldNames, err)
 	}
@@ -102,11 +102,11 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, record := range records {
-		if record.IndexRelID == ni.address.ObjectID {
+		if record.IndexRelID == ni.Address().ObjectID {
 			t.Fatal("dropped metadata remained published")
 		}
 	}
-	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.address))
+	old, _, err = projectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), ni.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) {
 		t.Fatal("drop mutated old capture", old, err)
 	}
@@ -127,20 +127,20 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 	constraint := *un.SQLIndex.Constraint
 	run(t, e, "ALTER INDEX un RENAME TO renamed_un")
 	renamed, _ := btreeRoot(t, e, "renamed_un")
-	if renamed.address != un.address || renamed.SQLIndex.Constraint.OID != constraint.OID || renamed.SQLIndex.Constraint.Index != constraint.Index {
+	if renamed.Address() != un.Address() || renamed.SQLIndex.Constraint.OID != constraint.OID || renamed.SQLIndex.Constraint.Index != constraint.Index {
 		t.Fatal("domain backing rename lost real constraint/index link")
 	}
 	check := func(name string, attribute int16, class, collation ids.OID) {
 		t.Helper()
 		index, _ := btreeRoot(t, e, name)
 		got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.Parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 1)
 		want.IndIsUnique, want.IndNullsNotDistinct = true, true
 		want.IndKey = []int16{attribute}
 		want.IndClass = []ids.OID{class}
 		want.IndCollation = []ids.OID{collation}
 		want.IndOption = []int16{0}
-		if !reflect.DeepEqual(got, want) || index.SQLIndex.Keys[0].Class.OID() != uint32(class) || index.SQLIndex.Constraint.Index != index.address {
+		if !reflect.DeepEqual(got, want) || index.SQLIndex.Keys[0].Class.OID() != uint32(class) || index.SQLIndex.Constraint.Index != index.Address() {
 			t.Fatal("real domain backing descriptor/vector truth", name, got, want)
 		}
 	}
@@ -153,7 +153,7 @@ func TestIndexMaintenanceMetadataDomainBackingClasses(t *testing.T) {
 	oldConstraint := *beforeType.SQLIndex.Constraint
 	run(t, e, "ALTER TABLE q ALTER n TYPE BIGINT USING n::bigint")
 	afterType, typedRoot := btreeRoot(t, e, "renamed_un")
-	if afterType.address == beforeType.address || afterType.SQLIndex.Constraint.OID == oldConstraint.OID || afterType.SQLIndex.Constraint.Index != afterType.address || typedRoot == oldRoot || beforeType.SQLIndex.Keys[0].Class.OID() != 1978 || beforeType.SQLIndex.Constraint.Index != oldConstraint.Index {
+	if afterType.Address() == beforeType.Address() || afterType.SQLIndex.Constraint.OID == oldConstraint.OID || afterType.SQLIndex.Constraint.Index != afterType.Address() || typedRoot == oldRoot || beforeType.SQLIndex.Keys[0].Class.OID() != 1978 || beforeType.SQLIndex.Constraint.Index != oldConstraint.Index {
 		t.Fatal("TYPE lost candidate identities/backing link or mutated retained class/root")
 	}
 	if !reflect.DeepEqual(btreeKeys(t, oldRoot), []string{"1", "NULL"}) {
@@ -176,7 +176,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ci")
 	got, names := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ci")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.Parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 3)
 	want.IndKey = []int16{3, 3, 3}
 	want.IndClass = []ids.OID{3126, 3126, 3126}
 	want.IndCollation = []ids.OID{950, 951, 100}
@@ -191,7 +191,7 @@ func TestIndexMaintenanceMetadataCollationAndRepeatedKeys(t *testing.T) {
 	}
 	repeated, _ := btreeRoot(t, e, "repeated")
 	m, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "repeated")
-	expected := indexMaintenanceMetadataFlags(repeated.address.ObjectID, repeated.SQLIndex.Parent.ObjectID, 32)
+	expected := indexMaintenanceMetadataFlags(repeated.Address().ObjectID, repeated.SQLIndex.Parent.ObjectID, 32)
 	expected.IndKey = make([]int16, 32)
 	expected.IndClass = make([]ids.OID, 32)
 	expected.IndCollation = make([]ids.OID, 32)
@@ -212,7 +212,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	}
 	index, _ := btreeRoot(t, e, "ix")
 	got, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), "ix")
-	want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.Parent.ObjectID, 3)
+	want := indexMaintenanceMetadataFlags(index.Address().ObjectID, index.SQLIndex.Parent.ObjectID, 3)
 	want.IndKey = []int16{1, 2, 3}
 	want.IndClass = []ids.OID{1978, 3126, 10069}
 	want.IndCollation = []ids.OID{0, 100, 0}
@@ -247,7 +247,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("metadata ignored cancellation", err)
 	}
 	foreign := New()
-	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.address)); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, foreign.catalog.Domain.Ref(old.Epoch(), index.Address())); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
 	if _, _, err := projectIndexMetadata(context.Background(), old, e.catalog.Domain.Ref(old.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123456})); err == nil {

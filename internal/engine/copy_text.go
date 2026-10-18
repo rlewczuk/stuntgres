@@ -363,7 +363,7 @@ func (c *copyCursor) diagnostic(err error) error {
 		return err
 	}
 	result := *record
-	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.relation.name, c.number)
+	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.relation.Name(), c.number)
 	if c.column != "" {
 		if c.nullInput {
 			result.Context += fmt.Sprintf(", column %s: null input", c.column)

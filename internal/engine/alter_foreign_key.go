@@ -98,7 +98,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 				}
 				if len(attributes) != 0 {
 					if index, keyErr := foreignKeyIndex(auth.catalog, parent, attributes); keyErr == nil {
-						captures[i].index = index.address
+						captures[i].index = index.Address()
 					}
 				}
 			}
@@ -193,11 +193,11 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		if err != nil {
 			return err
 		}
-		children, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
+		children, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), child.Address()), ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
-		parents, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), parent.address), f.Index)
+		parents, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), parent.Address()), f.Index)
 		if err != nil {
 			return err
 		}

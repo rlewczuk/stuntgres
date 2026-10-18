@@ -55,7 +55,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	installer, _ := extensionTemporaryOperation(t, e, "postgres")
 	roleExecute(t, e, owner, "CREATE TEMP TABLE ext_seed(id INT)")
 	namespace := e.catalog.state.MustNamespace(owner.session.temporaryNamespace)
-	if err := extensionUnitExecute(t, e, installer, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.name)); err != nil {
+	if err := extensionUnitExecute(t, e, installer, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.Name())); err != nil {
 		t.Fatal(err)
 	}
 	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
@@ -108,14 +108,14 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescripto
 	if !ok {
 		t.Fatal("physical end removed retained TEMP namespace metadata")
 	}
-	assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.address)
-	for _, address := range append([]ids.ObjectAddress{ext.address}, ext.Members[:]...) {
+	assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.Address())
+	for _, address := range append([]ids.ObjectAddress{ext.Address()}, ext.Members[:]...) {
 		if e.catalog.state.Get(address) != nil {
 			t.Fatal("retired provider identity retained", address)
 		}
 	}
 	for key, address := range e.catalog.state.Names() {
-		if address == ext.address || slices.Contains(ext.Members[:], address) || key.Namespace == ext.TargetNamespace {
+		if address == ext.Address() || slices.Contains(ext.Members[:], address) || key.Namespace == ext.TargetNamespace {
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
@@ -124,7 +124,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescripto
 		t.Fatal(err)
 	}
 	for _, edge := range edges {
-		if edge.referenced == ext.address || edge.dependent == ext.address || slices.Contains(ext.Members[:], edge.referenced) || slices.Contains(ext.Members[:], edge.dependent) {
+		if edge.referenced == ext.Address() || edge.dependent == ext.Address() || slices.Contains(ext.Members[:], edge.referenced) || slices.Contains(ext.Members[:], edge.dependent) {
 			t.Fatal("dangling retirement edge", edge)
 		}
 	}
@@ -148,13 +148,13 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		}
 	})
 	survivor := extensionTemporaryConsumerUnits(t, e, installer, ext)
-	store := e.storage[survivor.address]
+	store := e.storage[survivor.Address()]
 	oldRows, oldEnds := store.versions, store.ends
-	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "ext_survivor_id"})
+	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "ext_survivor_id"})
 	oldIndex := e.indexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.descriptors[survivor.address].(*relationDescriptor)
+	replacement := stage.descriptors[survivor.Address()].(*relationDescriptor)
 	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
@@ -165,19 +165,19 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	if err != nil || installed {
 		t.Fatal("late dependent bypassed whole-root fence", installed, err)
 	}
-	if e.catalog.state.Get(survivor.address) != survivor || e.catalog.state.Get(ext.address) != ext {
+	if e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(ext.Address()) != ext {
 		t.Fatal("failed candidate published partially")
 	}
 	if err := e.endTemporarySession(owner.session); err != nil {
 		t.Fatal(err)
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
-	current := e.catalog.state.MustRelation(survivor.address)
-	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.address] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.epoch != base.epoch {
+	current := e.catalog.state.MustRelation(survivor.Address())
+	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.Address()] != store || e.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.epoch != base.epoch {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {
-		if _, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: name}); exists {
+		if _, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: name}); exists {
 			t.Fatal("view closure incomplete", name)
 		}
 	}
@@ -235,7 +235,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		if err == nil || e.catalog.state != before {
 			t.Fatal("private maintenance acquired public TEMP authority", err)
 		}
-		if err := e.endTemporarySession(private); err != nil || e.catalog.state != before || e.catalog.state.Get(ext.address) != ext {
+		if err := e.endTemporarySession(private); err != nil || e.catalog.state != before || e.catalog.state.Get(ext.Address()) != ext {
 			t.Fatal("private retirement borrowed a public token", err)
 		}
 		closePrivate()
@@ -248,10 +248,10 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		roleExecute(t, e, peer, "CREATE TEMP TABLE peer_survives(id INT)")
 		peerNamespace := e.catalog.state.Get(peer.session.temporaryNamespace)
 		maximum := *survivor
-		maximum.revision = ids.DefinitionRevision(^uint64(0))
+		maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 		e.mu.Lock()
 		next := cloneCatalog(e.catalog.state)
-		next.setDescriptor(survivor.address, &maximum)
+		next.setDescriptor(survivor.Address(), &maximum)
 		e.catalog.state = next
 		e.mu.Unlock()
 		closeOwner()
@@ -259,8 +259,8 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || owner.session.temporaryNamespace != (ids.ObjectAddress{}) {
 			t.Fatal("physical retirement touched peer namespace or retained owner authority")
 		}
-		current := e.catalog.state.MustRelation(survivor.address)
-		if current.revision != maximum.revision || current == &maximum || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 {
+		current := e.catalog.state.MustRelation(survivor.Address())
+		if current.Revision() != maximum.Revision() || current == &maximum || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 {
 			t.Fatal("terminal revision exhaustion bypassed identity replacement")
 		}
 		values := make([]sqltype.Value, 1)
@@ -292,7 +292,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("structural retirement spun instead of returning")
 		}
-		if e.catalog.state != broken || e.catalog.state.Get(ext.address) != ext {
+		if e.catalog.state != broken || e.catalog.state.Get(ext.Address()) != ext {
 			t.Fatal("failed cleanup partially installed")
 		}
 	})
@@ -300,9 +300,9 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 func TestExtensionTemporaryLookup(t *testing.T) {
 	e, owner, installer, ext, _ := extensionTemporaryInstalled(t)
 	namespace := e.catalog.state.MustNamespace(ext.TargetNamespace)
-	roleExecute(t, e, owner, "SET search_path TO "+namespace.name)
-	roleExecute(t, e, installer, "SET search_path TO "+namespace.name)
-	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.name}, {Text: "unaccent"}}}
+	roleExecute(t, e, owner, "SET search_path TO "+namespace.Name())
+	roleExecute(t, e, installer, "SET search_path TO "+namespace.Name())
+	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: "unaccent"}}}
 	e.mu.Lock()
 	ownAuth, err := e.authorizationLocked(owner)
 	foreignAuth, foreignErr := e.authorizationLocked(installer)
@@ -311,11 +311,11 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		t.Fatal(err, foreignErr)
 	}
 	ownPath, err := e.lookupPath(ownAuth, installedFunctionLookup)
-	if err != nil || slices.Contains(ownPath, namespace.address) {
+	if err != nil || slices.Contains(ownPath, namespace.Address()) {
 		t.Fatal("own TEMP helpers must be excluded", ownPath, err)
 	}
 	path, err := e.lookupPath(foreignAuth, installedFunctionLookup)
-	if err != nil || !slices.Contains(path, namespace.address) {
+	if err != nil || !slices.Contains(path, namespace.Address()) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
 	selected, err := e.lookupNamespaces(foreignAuth, qualified, installedFunctionLookup)
@@ -324,19 +324,19 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	}
 	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {
 		selected, err := e.lookupNamespaces(foreignAuth, qualified, kind)
-		if err != nil || selected.qualified != namespace.address {
+		if err != nil || selected.qualified != namespace.Address() {
 			t.Fatal("captured superuser namespace USAGE denied", kind, selected, err)
 		}
 	}
 	for _, kind := range []lookupKind{functionLookup, operatorLookup, collationLookup, conversionLookup} {
 		path, err := e.lookupPath(foreignAuth, kind)
-		if err != nil || slices.Contains(path, namespace.address) {
+		if err != nil || slices.Contains(path, namespace.Address()) {
 			t.Fatal("general TEMP path isolation", kind, path, err)
 		}
 	}
 	roleAttributeCreate(t, e, installer, "ext_temp_actor", true, parser.RoleOptions{})
 	actor, _ := extensionTemporaryOperation(t, e, "ext_temp_actor")
-	roleExecute(t, e, actor, "SET search_path TO "+namespace.name)
+	roleExecute(t, e, actor, "SET search_path TO "+namespace.Name())
 	e.mu.Lock()
 	denied, err := e.authorizationLocked(actor)
 	e.mu.Unlock()
@@ -348,7 +348,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		extensionUnitError(t, err, "42501")
 	}
 	path, err = e.lookupPath(denied, installedFunctionLookup)
-	if err != nil || slices.Contains(path, namespace.address) {
+	if err != nil || slices.Contains(path, namespace.Address()) {
 		t.Fatal("denied TEMP schema was not implicitly omitted", path, err)
 	}
 }
@@ -436,7 +436,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if _, err := replaceWithFreshCatalog(context.Background(), target); err != nil {
 			t.Fatal(err)
 		}
-		if target.catalog.state.Get(installed.address) != installed || installed.Owner != actor.Ref {
+		if target.catalog.state.Get(installed.Address()) != installed || installed.Owner != actor.Ref {
 			t.Fatal("replacement substituted named TEMP owner authority")
 		}
 		before := target.roles
@@ -499,12 +499,12 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal("destination TEMP overlay", err)
 	}
-	for _, address := range append([]ids.ObjectAddress{ext.address, ext.TargetNamespace}, ext.Members[:]...) {
+	for _, address := range append([]ids.ObjectAddress{ext.Address(), ext.TargetNamespace}, ext.Members[:]...) {
 		if e.catalog.state.Get(address) != original.Get(address) {
 			t.Fatal("retained provider identity changed", address)
 		}
 	}
-	if e.catalog.state.NameAddress(descriptorNameKey(ext)) != ext.address {
+	if e.catalog.state.NameAddress(descriptorNameKey(ext)) != ext.Address() {
 		t.Fatal("global TEMP extension name lost")
 	}
 	for _, member := range ext.Members {
@@ -625,7 +625,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	if err == nil {
 		t.Fatal("late schema dependent bypassed publication fence")
 	}
-	if e.catalog.state.Get(survivor.address) != survivor || !reflect.DeepEqual(e.catalog.state.Get(ext.address), ext) {
+	if e.catalog.state.Get(survivor.Address()) != survivor || !reflect.DeepEqual(e.catalog.state.Get(ext.Address()), ext) {
 		t.Fatal("failed schema candidate published partially")
 	}
 }

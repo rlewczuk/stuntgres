@@ -14,14 +14,14 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	u := typ.Usage()
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "v", Usage: u}}, Index: map[string]int{"v": 0}}
+	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "v", Usage: u}}, Index: map[string]int{"v": 0}}
 	column := columnExpression{Info: expr.Info{Usage: u, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
-	d := &indexDefinition{Parent: parent.address, Keys: []indexKey{{Derived: &derivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
+	d := &indexDefinition{Parent: parent.Address(), Keys: []indexKey{{Derived: &derivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
 	for i, v := range values {

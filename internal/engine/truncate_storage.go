@@ -123,7 +123,7 @@ func (s *StatementScope) stageTruncate() error {
 		ref := selected.ref
 		d, ok := auth.catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
-		if !ok || d.namespace != selected.relation.namespace || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
+		if !ok || d.Namespace() != selected.relation.Namespace() || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
 			err = ids.ErrCatalogReplaced
 			break
 		}
@@ -218,7 +218,7 @@ func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName)
 		return ids.ErrCatalogReplaced
 	}
 	descriptor, ok := auth.catalog.Relation(ref.Address)
-	if !ok || descriptor.namespace != named.namespace {
+	if !ok || descriptor.Namespace() != named.namespace {
 		return ids.ErrCatalogReplaced
 	}
 	return nil

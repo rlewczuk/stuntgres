@@ -70,7 +70,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	ns := *auth.catalog.MustNamespace(mood.Namespace())
 	ns.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	namespaceStage := e.BeginCatalogStage(auth.catalog)
-	ns.revision++
+	ns.ObjectRevision++
 	if err := namespaceStage.Replace(&ns); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	next := *mood
 	next.ACL = authorization.ACLValue{Explicit: true}
 	next.ACLSyntheticDefault = false
-	next.revision++
+	next.ObjectRevision++
 	revoke := e.BeginCatalogStage(e.CatalogRead())
 	if err := revoke.Replace(&next); err != nil {
 		t.Fatal(err)

@@ -125,7 +125,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	}
 	sequence := rangePartitionRelation(t, e, "seq")
 	currentRoot := rangePartitionRelation(t, e, "root")
-	expectedOwned := currentRoot.address
+	expectedOwned := currentRoot.Address()
 	expectedOwned.SubID = currentRoot.Attributes[currentRoot.Index["payload"]]
 	if sequence.Sequence.Owned != expectedOwned || sequence.Owner != currentRoot.Owner {
 		t.Fatal("self remap changed virtual column ownership identity")
@@ -175,7 +175,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	partition := *root.Partition
 	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
 	candidate.Partition = &partition
-	state.setDescriptor(root.address, &candidate)
+	state.setDescriptor(root.Address(), &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
@@ -294,8 +294,8 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	imported.OID = 90001
 	// The old identity belongs to the retained live overlay, not the import.
 	temporary := *provider
-	temporary.name = "retained_temp_provider"
-	temporary.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
+	temporary.ObjectName = "retained_temp_provider"
+	temporary.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
 	next := cloneCatalog(view.state)
 	next.setDescriptor(provider.Address(), &temporary)

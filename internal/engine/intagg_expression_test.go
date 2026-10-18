@@ -63,7 +63,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 		t.Fatal("aggregate epoch collapsed")
 	}
 	proc := *call.procedure
-	proc.revision++
+	proc.ObjectRevision++
 	changed = call
 	changed.procedure = &proc
 	if b.sameAggregateCall(call, changed) {
@@ -205,7 +205,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	_, call := intaggUnitAggregate(t, e)
 	enum := intaggUnitEnum(t, e, "{2,2,NULL}")
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}

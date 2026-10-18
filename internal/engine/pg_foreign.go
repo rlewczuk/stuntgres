@@ -66,10 +66,10 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 	var descriptors []Descriptor
 	for _, d := range auth.catalog.Descriptors() {
 		if foreign, ok := d.(*foreignDescriptor); ok {
-			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ids.ForeignMappingClassID {
+			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == pgUserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
-		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
+		} else if r, ok := d.(*relationDescriptor); ok && source.Address().ObjectID == ids.ForeignTableClassID && r.Foreign != nil {
 			descriptors = append(descriptors, d)
 		}
 	}
@@ -91,7 +91,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 		putString := func(index int, value string) { row[index] = sqltype.String(source.Columns[index].Usage.Type, value) }
 		var err error
 		if relation, ok := descriptor.(*relationDescriptor); ok {
-			if err = putOID(0, uint32(relation.address.ObjectID)); err != nil {
+			if err = putOID(0, uint32(relation.Address().ObjectID)); err != nil {
 				return nil, err
 			}
 			if err = putOID(1, uint32(relation.Foreign.Server.ObjectID)); err != nil {
@@ -100,12 +100,12 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			row[2], err = foreignOptionsValue(source.Columns[2].Usage.Type, relation.Foreign.Options)
 		} else {
 			d := descriptor.(*foreignDescriptor)
-			if err = putOID(0, uint32(d.address.ObjectID)); err != nil {
+			if err = putOID(0, uint32(d.Address().ObjectID)); err != nil {
 				return nil, err
 			}
-			switch source.address.ObjectID {
+			switch source.Address().ObjectID {
 			case ids.ForeignWrapperClassID:
-				putString(1, d.name)
+				putString(1, d.Name())
 				for i, value := range []uint32{uint32(d.Owner.ID()), uint32(d.Handler.ObjectID), uint32(d.Validator.ObjectID)} {
 					if err = putOID(i+2, value); err != nil {
 						return nil, err
@@ -117,7 +117,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				}
 				row[6], err = foreignOptionsValue(source.Columns[6].Usage.Type, d.Options)
 			case ids.ForeignServerClassID:
-				putString(1, d.name)
+				putString(1, d.Name())
 				if err = putOID(2, uint32(d.Owner.ID())); err != nil {
 					return nil, err
 				}
@@ -148,10 +148,10 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				if !ok {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if err = putOID(1, uint32(server.address.ObjectID)); err != nil {
+				if err = putOID(1, uint32(server.Address().ObjectID)); err != nil {
 					return nil, err
 				}
-				putString(2, server.name)
+				putString(2, server.Name())
 				if err = putOID(3, uint32(d.MappedRole.ID())); err != nil {
 					return nil, err
 				}

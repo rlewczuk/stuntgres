@@ -250,8 +250,8 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.catalog.Domain.Ref(set.catalog.Epoch(), d.address)
-	b.dependency(ref, d.revision)
+	ref := b.engine.catalog.Domain.Ref(set.catalog.Epoch(), d.Address())
+	b.dependency(ref, d.Revision())
 	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
@@ -297,8 +297,8 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 			return nil, sqlError("0A000", "operator implementation has no registered provider")
 		}
 	} else {
-		namespace := b.bindingCatalog().Get(d.namespace).Name()
-		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.name, Pos: pos}}}, Args: rawArgs, Pos: pos}
+		namespace := b.bindingCatalog().Get(d.Namespace()).Name()
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.Name(), Pos: pos}}}, Args: rawArgs, Pos: pos}
 		node, err = b.bindFunctionProvider(raw)
 	}
 	if err != nil {
@@ -308,7 +308,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 	if err != nil {
 		return nil, err
 	}
-	if actual == nil || actual.address != d.address {
+	if actual == nil || actual.Address() != d.Address() {
 		return nil, sqlError("0A000", "operator implementation has no registered provider")
 	}
 	return node, nil

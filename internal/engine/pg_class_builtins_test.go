@@ -35,16 +35,16 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			t.Helper()
 			row, err := e.pgClassRow(context.Background(), catalog, roles, source, d)
 			if err != nil {
-				t.Fatal(d.name, err)
+				t.Fatal(d.Name(), err)
 			}
 			indexed, err := row[14].Boolean()
 			if err != nil || indexed != want || d.HasIndexes != want {
-				t.Fatal("owned index metadata/projection", d.name, d.HasIndexes, indexed, want, err)
+				t.Fatal("owned index metadata/projection", d.Name(), d.HasIndexes, indexed, want, err)
 			}
 		}
 		for _, fact := range tables {
 			d, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
-			if !ok || d.name != fact.name || d.RelationKind != catalogRelation {
+			if !ok || d.Name() != fact.name || d.RelationKind != catalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
 			project(d, true)
@@ -53,7 +53,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			found := 0
 			for _, descriptor := range catalog.Descriptors() {
 				d, ok := descriptor.(*relationDescriptor)
-				if ok && d.name == name && d.RelationKind == catalogRelation {
+				if ok && d.Name() == name && d.RelationKind == catalogRelation {
 					found++
 					project(d, false)
 				}
@@ -64,7 +64,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, name: "unindexed", RelationKind: tableRelation, Owner: e.authorizationDomain.Principal(10)}
+		ordinary := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: tableRelation, Owner: e.authorizationDomain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

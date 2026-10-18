@@ -43,7 +43,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
+		if old, ok := descriptor.(*relationDescriptor); ok && old.Name() == "d" {
 			next := *old
 			probe.Info = expr.Info{Usage: old.Columns[1].Usage}
 			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {Expression: probe}}

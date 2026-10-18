@@ -60,7 +60,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	}
 	for _, id := range []ids.OID{12075, 12074} {
 		typ := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.OwningRelation != d.address {
+		if typ.OwningRelation != d.Address() {
 			t.Fatal("type owner", typ)
 		}
 		if err := (typeProvider{}).Validate(catalog, typ); err != nil {
@@ -303,8 +303,8 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
-	store := e.storage[d.address]
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.Address())
+	store := e.storage[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID
 	switch route {
@@ -317,7 +317,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
 		next := *d
-		next.revision++
+		next.ObjectRevision++
 		if err = stage.Replace(&next); err == nil {
 			var publication *PreparedCatalogPublication
 			publication, err = e.ValidateCatalogStage(context.Background(), stage)
@@ -358,7 +358,7 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	e.enrollSerializableLocked(b.Ref(), Serializable)
 	first, overlap := e.serializable.nodes[a.Ref()], e.serializable.nodes[b.Ref()]
 	first.captured, overlap.captured = true, true
-	first.reads[d.address] = struct{}{}
+	first.reads[d.Address()] = struct{}{}
 	before, err := e.capturePGPredicateLocksLocked()
 	if err != nil || len(before) != 1 {
 		t.Fatal("real SSI read", before, err)

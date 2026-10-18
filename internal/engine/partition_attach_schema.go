@@ -23,7 +23,7 @@ func partitionAttachKindError(d *relationDescriptor) error {
 	case indexRelation:
 		kind = "indexes"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ATTACH PARTITION cannot be performed on relation "%s"`, d.name), Detail: "This operation is not supported for " + kind + "."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ATTACH PARTITION cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
 func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDescriptor) error {
@@ -31,8 +31,8 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		return partitionAttachKindError(child)
 	}
 	for ancestor := parent; ancestor != nil; {
-		if ancestor.address == child.address {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07", Message: "circular inheritance not allowed", Detail: fmt.Sprintf(`"%s" is already a child of "%s".`, parent.name, child.name)}
+		if ancestor.Address() == child.Address() {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07", Message: "circular inheritance not allowed", Detail: fmt.Sprintf(`"%s" is already a child of "%s".`, parent.Name(), child.Name())}
 		}
 		if ancestor.Membership == nil {
 			break
@@ -40,7 +40,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		ancestor, _ = catalog.Relation(ancestor.Membership.Parent)
 	}
 	if child.Membership != nil {
-		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.name))
+		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.Name()))
 	}
 	if child.OfType != (ids.ObjectAddress{}) {
 		return sqlError("42809", "cannot attach a typed table as partition")
@@ -48,17 +48,17 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if child.Inheritance != nil && len(child.Inheritance.Parents) != 0 {
 		return sqlError("42809", "cannot attach inheritance child as partition")
 	}
-	if inheritanceHasChildren(catalog, child.address) {
+	if inheritanceHasChildren(catalog, child.Address()) {
 		return sqlError("42809", "cannot attach inheritance parent as partition")
 	}
-	parentNamespace := catalog.MustNamespace(parent.namespace)
-	childNamespace := catalog.MustNamespace(child.namespace)
+	parentNamespace := catalog.MustNamespace(parent.Namespace())
+	childNamespace := catalog.MustNamespace(child.Namespace())
 	if parentNamespace.Temporary == (ids.SessionToken{}) && childNamespace.Temporary != (ids.SessionToken{}) {
-		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.name))
+		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.Name()))
 	}
 	for _, attribute := range child.Attributes {
 		if _, ok := child.Identities[attribute]; ok {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.name, child.Columns[child.indexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.Name(), child.Columns[child.indexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
 		}
 	}
 	// Existing FK execution boundaries precede publication.
@@ -68,7 +68,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 			continue
 		}
 		for _, foreign := range table.ForeignKeys {
-			if table.address == child.address || foreign.Target == child.address {
+			if table.Address() == child.Address() || foreign.Target == child.Address() {
 				return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 			}
 		}
@@ -83,7 +83,7 @@ func samePartitionColumnUsage(a, b sqltype.Usage) bool {
 func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent, child *relationDescriptor) (*relationDescriptor, error) {
 	for _, column := range child.Columns {
 		if _, ok := parent.Index[column.Name]; !ok {
-			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.name, column.Name, parent.name), Detail: "The new partition may contain only the columns present in parent."}
+			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}
 		}
 	}
 	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
@@ -94,13 +94,13 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		}
 		other := child.Columns[slot]
 		if column.Usage.Type != other.Usage.Type || column.Usage.Typmod != other.Usage.Typmod {
-			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, child.name, column.Name))
+			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, child.Name(), column.Name))
 		}
 		if column.Usage.Collation.ID != other.Usage.Collation.ID {
-			return nil, sqlError("42P21", fmt.Sprintf(`child table "%s" has different collation for column "%s"`, child.name, column.Name))
+			return nil, sqlError("42P21", fmt.Sprintf(`child table "%s" has different collation for column "%s"`, child.Name(), column.Name))
 		}
 		if !column.Nullable && other.Nullable {
-			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table "%s" must be marked NOT NULL`, column.Name, child.name))
+			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table "%s" must be marked NOT NULL`, column.Name, child.Name()))
 		}
 		_, generated := child.Generations[child.Attributes[slot]]
 		_, requiredGeneration := parent.Generations[parent.Attributes[i]]
@@ -119,7 +119,7 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		attribute := child.Attributes[in.targetSlots[parentSlot]]
 		at := slices.IndexFunc(child.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
 		if at >= 0 && !required.NotValid && child.NotNullConstraints[at].NotValid {
-			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.NotNullConstraints[at].Name, child.name))
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.NotNullConstraints[at].Name, child.Name()))
 		}
 	}
 	for _, required := range parent.CheckConstraints {
@@ -137,13 +137,13 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		}
 		binder := expressionBinder{checkDefinitionEquality: true}
 		if !binder.sameGroupExpression(mapped, actual.Expression) {
-			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different definition for check constraint "%s"`, child.name, required.Name))
+			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different definition for check constraint "%s"`, child.Name(), required.Name))
 		}
 		if actual.NoInherit {
-			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on child table "%s"`, required.Name, child.name))
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on child table "%s"`, required.Name, child.Name()))
 		}
 		if !required.NotValid && actual.NotValid {
-			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, required.Name, child.name))
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, required.Name, child.Name()))
 		}
 	}
 	if err := ctxScope.op.Context().Err(); err != nil {

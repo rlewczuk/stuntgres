@@ -188,7 +188,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := auth.catalog.MustExtension(extension)
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.name) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.name) + " instead."})
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.Name()) + " instead."})
 			}
 		}
 		end := len(roots)
@@ -232,7 +232,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			case *foreignDescriptor:
 				foreign := d.(*foreignDescriptor)
 				err = foreignOwnershipEligibility(auth, foreign, target)
-				if err == nil && foreign.address.ClassID == ids.ForeignServerClassID {
+				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
 			case *namespaceDescriptor:

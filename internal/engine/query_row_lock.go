@@ -126,7 +126,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 		if mark.wait == parser.RowLockSkip {
 			return false, nil
 		}
-		return false, sqlError("55P03", fmt.Sprintf("could not obtain lock on row in relation %q", leaf.relation.name))
+		return false, sqlError("55P03", fmt.Sprintf("could not obtain lock on row in relation %q", leaf.relation.Name()))
 	}
 	if err != nil {
 		return false, err

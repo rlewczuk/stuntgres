@@ -108,7 +108,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		outputs = &r.precheck
 		shared = &r.sharedPrecheck
 	}
-	if output, ok := (*outputs)[index.address]; ok {
+	if output, ok := (*outputs)[index.Address()]; ok {
 		if !output.matches(index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
@@ -145,7 +145,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		*outputs = maps.Clone(*outputs)
 	}
 	*shared = false
-	(*outputs)[index.address] = output
+	(*outputs)[index.Address()] = output
 	if index.SQLIndex.Method == hashMethod && member {
 		return true, bound.scratch, nil
 	}
@@ -185,14 +185,14 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 		outputs := batch.candidate(i).indexes
 		for j := range binding.keys {
 			index := binding.keys[j].index
-			if output, exists := outputs[index.address]; !exists || !output.matches(index) {
+			if output, exists := outputs[index.Address()]; !exists || !output.matches(index) {
 				return ids.ErrCatalogReplaced
 			}
 		}
 		for j := range binding.insertion {
 			insertion := &binding.insertion[j]
 			if insertion.unique == nil {
-				if output, exists := outputs[insertion.index.address]; !exists || !output.matches(insertion.index) {
+				if output, exists := outputs[insertion.index.Address()]; !exists || !output.matches(insertion.index) {
 					return ids.ErrCatalogReplaced
 				}
 			}
@@ -239,11 +239,11 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		}
 		return output.member, output.keys, nil
 	}
-	if output, exists := row.indexOutputs[index.address]; exists {
+	if output, exists := row.indexOutputs[index.Address()]; exists {
 		return read(output)
 	}
 	identity := indexRowIdentity{row: row.row, version: row.version}
-	if output, exists := s.existingIndexOutputs[index.address][identity]; exists {
+	if output, exists := s.existingIndexOutputs[index.Address()][identity]; exists {
 		return read(output)
 	}
 	if !index.SQLIndex.hasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
@@ -283,14 +283,14 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	current := e.privateCatalogLocked(s.owner.catalog)
-	currentIndex, ok := current.Relation(index.address)
+	currentIndex, ok := current.Relation(index.Address())
 	if !ok || !sameIndexKeySemantics(index, currentIndex) {
 		e.mu.Unlock()
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	root := e.indexRoots[index.address]
-	if changes := s.owner.catalog; changes != nil && changes.uniqueRoots[index.address] != nil {
-		root = changes.uniqueRoots[index.address]
+	root := e.indexRoots[index.Address()]
+	if changes := s.owner.catalog; changes != nil && changes.uniqueRoots[index.Address()] != nil {
+		root = changes.uniqueRoots[index.Address()]
 	}
 	e.mu.Unlock()
 	if root == nil {

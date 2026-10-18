@@ -96,7 +96,7 @@ func (p *dropProvider) replacement(address ids.ObjectAddress) Descriptor {
 			return effect.descriptor
 		}
 	}
-	if p.identitySource != nil && p.identitySource.address == address {
+	if p.identitySource != nil && p.identitySource.Address() == address {
 		return p.identitySource
 	}
 	if p.prepared != nil && p.prepared.input != nil {
@@ -393,10 +393,10 @@ func (p *dropProvider) replacePartitionDescriptor(d *relationDescriptor) error {
 
 func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 	if p.stage == nil {
-		p.observe(old.address)
+		p.observe(old.Address())
 		if old.RelationKind != compositeRelation && old.RelationKind != foreignRelation {
 			p.owner.mu.Lock()
-			err := p.evolveIndexes(old.address, nil)
+			err := p.evolveIndexes(old.Address(), nil)
 			p.owner.mu.Unlock()
 			if err != nil {
 				return err
@@ -419,9 +419,9 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return p.scope.stagePrivateColumnShape(stage, p.changes, old, next)
 	}
 	e.mu.Lock()
-	storage := e.stageStorageLocked(stage, old.address)
-	storageOwner := stage.base.MustRelation(old.address)
-	if e.stageCatalogBaseLocked(stage).Get(old.address) != storageOwner || storage == nil {
+	storage := e.stageStorageLocked(stage, old.Address())
+	storageOwner := stage.base.MustRelation(old.Address())
+	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || storage == nil {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -439,7 +439,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return err
 	}
 	replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.Address())
 	return stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends)
 }
 
@@ -504,7 +504,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.Relation(ref.Address); !present {
@@ -752,7 +752,7 @@ func (prepared *preparedDrop) indexEffect(index int, effect dropEffect) {
 	case effect.remove.Address != (ids.ObjectAddress{}):
 		address = effect.remove.Address
 	case effect.after != nil:
-		address = effect.after.address
+		address = effect.after.Address()
 	case effect.layout != nil:
 		address = effect.index
 	default:
@@ -779,7 +779,7 @@ func (p *dropProvider) inputDescriptor(address ids.ObjectAddress) Descriptor {
 }
 
 func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) Descriptor {
-	if p.identitySource != nil && p.identitySource.address == address {
+	if p.identitySource != nil && p.identitySource.Address() == address {
 		return p.identitySource
 	}
 	if p.prepared != nil && p.prepared.input != nil {

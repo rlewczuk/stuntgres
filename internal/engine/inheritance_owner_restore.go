@@ -39,7 +39,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	if !ok || table.Inheritance == nil || table.RelationKind != tableRelation {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	namespace, ok := auth.catalog.Namespace(table.namespace)
+	namespace, ok := auth.catalog.Namespace(table.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
@@ -98,7 +98,7 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 	if !ok || table.Inheritance == nil || table.Owner != pair.creator {
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(table.namespace)
+	namespace, ok := auth.catalog.Namespace(table.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return reject()
 	}

@@ -20,7 +20,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	c := parent.UniqueConstraints[0]
 	index, empty := btreeRoot(t, e, "u")
-	if c.OID == 0 || c.Index != index.address || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.address || index.Owner != parent.Owner || index.namespace != parent.namespace || len(empty.entries) != 0 {
+	if c.OID == 0 || c.Index != index.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || index.Owner != parent.Owner || index.Namespace() != parent.Namespace() || len(empty.entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
 	if index.AttributeHighWater != int32(len(index.Attributes)) {
@@ -34,7 +34,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 			t.Fatal(result)
 		}
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
-		if e.indexRoots[index.address] != old {
+		if e.indexRoots[index.Address()] != old {
 			t.Fatal("failed batch published root")
 		}
 		lockEmpty(t, e)
@@ -46,7 +46,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.address != parent.address || next.UniqueConstraints[0].OID == c.OID || next.UniqueConstraints[0].Index == c.Index {
+	if next.Address() != parent.Address() || next.UniqueConstraints[0].OID == c.OID || next.UniqueConstraints[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
 	if _, ok := e.catalog.state.Find(c.Index); ok {
@@ -79,7 +79,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	index, _ := btreeRoot(t, e, "u")
-	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, index.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, index.Address())
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
 	ordering, err := bindIndexOrdering(parent, index.SQLIndex)
 	if err != nil {

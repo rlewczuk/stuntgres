@@ -23,15 +23,15 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *r
 		descriptors = reader[0].descriptors()
 	}
 	for _, descriptor := range descriptors {
-		if candidate != nil && descriptor.Address() == candidate.address {
+		if candidate != nil && descriptor.Address() == candidate.Address() {
 			descriptor = candidate
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.namespace == namespace {
+		if domain, ok := descriptor.(*typeDescriptor); ok && domain.ObjectNamespace == namespace {
 			for _, constraint := range domain.DomainChecks {
 				names[constraint.Name] = true
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.namespace == namespace {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Namespace() == namespace {
 			for _, constraint := range relation.NotNullConstraints {
 				names[constraint.Name] = true
 			}
@@ -314,22 +314,22 @@ func nameCreateNotNull(d *relationDescriptor, read CatalogRead) error {
 	if len(d.NotNullConstraints) == 0 {
 		return nil
 	}
-	used := constraintNames(read, d.namespace, nil)
+	used := constraintNames(read, d.Namespace(), nil)
 	// A local false entry was generated; true entries were explicitly named.
 	local := make(map[string]bool, len(d.NotNullConstraints))
 	for i := range d.NotNullConstraints {
 		constraint := &d.NotNullConstraints[i]
 		if constraint.Name == "" {
-			constraint.Name = generatedConstraintName(d.name, d.Columns[constraint.Attribute-1].Name, "not_null", used)
+			constraint.Name = generatedConstraintName(d.Name(), d.Columns[constraint.Attribute-1].Name, "not_null", used)
 			local[constraint.Name] = false
 		} else {
 			if explicit, exists := local[constraint.Name]; exists {
 				if explicit {
-					return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, constraint.Name, d.name))
+					return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, constraint.Name, d.Name()))
 				}
 				const index = "pg_constraint_conrelid_contypid_conname_index"
 				diagnostic := sqlError("23505", `duplicate key value violates unique constraint "`+index+`"`).(*sqlstate.Error)
-				diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.address.ObjectID, constraint.Name)
+				diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.Address().ObjectID, constraint.Name)
 				diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = "pg_catalog", "pg_constraint", index
 				return diagnostic
 			}

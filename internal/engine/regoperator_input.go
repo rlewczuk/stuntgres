@@ -30,7 +30,7 @@ func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name stri
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
 		for _, d := range groups[name] {
-			if d.namespace != ns {
+			if d.Namespace() != ns {
 				continue
 			}
 			signature := operatorSignature{d.Left, d.Right}
@@ -139,7 +139,7 @@ func (r capturedOperatorInput) ResolveRegoper(ctx context.Context, text string) 
 	if len(candidates) > 1 {
 		return 0, sqlError("42725", "more than one operator named "+text)
 	}
-	return uint32(candidates[0].address.ObjectID), nil
+	return uint32(candidates[0].Address().ObjectID), nil
 }
 func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text string) (uint32, error) {
 	if err := ctx.Err(); err != nil {
@@ -200,7 +200,7 @@ func (r capturedOperatorInput) ResolveRegoperator(ctx context.Context, text stri
 	}
 	for _, d := range candidates {
 		if d.Left == oids[0] && d.Right == oids[1] {
-			return uint32(d.address.ObjectID), nil
+			return uint32(d.Address().ObjectID), nil
 		}
 	}
 	return 0, sqlError("42883", "operator does not exist: "+text)

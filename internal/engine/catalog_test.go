@@ -97,7 +97,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	makeDesc := func(oid ids.OID, name string) *relationDescriptor {
-		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: name, revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+		return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
 	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
@@ -173,9 +173,9 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			// seam; exhaustion must not wrap, reuse or publish anything.
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.catalog.state.setDescriptor(address, &namespaceDescriptor{address: address, name: "last", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
+				e.catalog.state.setDescriptor(address, &namespaceDescriptor{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
-				e.catalog.state.setDescriptor(address, &relationDescriptor{address: address, name: "last", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
+				e.catalog.state.setDescriptor(address, &relationDescriptor{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
 			before := e.catalog.state
 			e.catalog.nextOID = last
@@ -210,7 +210,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: "canceled", revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.AttributeHighWater = 1
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
@@ -291,7 +291,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	prepare := func(name string) *PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
-		d := &relationDescriptor{address: address, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: name, revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+		d := &relationDescriptor{ObjectAddress: address, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 		d.AttributeHighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
@@ -516,10 +516,10 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	descriptor := &namespaceDescriptor{
-		address:  ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1},
-		name:     "feature",
-		revision: 1,
-		Owner:    owner,
+		ObjectAddress:  ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1},
+		ObjectName:     "feature",
+		ObjectRevision: 1,
+		Owner:          owner,
 	}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -625,7 +625,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: creation.Address, name: "private", revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.AttributeHighWater = 1
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -734,7 +734,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	d := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "private", revision: 1}
+	d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "private", ObjectRevision: 1}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -771,7 +771,7 @@ func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 			for i := range attributes {
 				attributes[i] = int32(i + 1)
 			}
-			d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "bad", revision: 1, Columns: tc.columns, Index: tc.index, Attributes: attributes}
+			d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", ObjectRevision: 1, Columns: tc.columns, Index: tc.index, Attributes: attributes}
 			d.AttributeHighWater = int32(len(attributes))
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -851,7 +851,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			run(t, e, "INSERT INTO public.sentinel VALUES (11)")
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
-			d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "p", revision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+			d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 			d.AttributeHighWater = 1
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -862,7 +862,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			if published {
 				changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
-				if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != d.address {
+				if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != d.Address() {
 					t.Fatalf("initial publication = %#v, %v", changes, err)
 				}
 				run(t, e, "INSERT INTO public.p VALUES (22)")
@@ -871,11 +871,11 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			sentinel := catalogRef(t, e, before, "sentinel")
 			owner := e.catalog.Domain
 			sentinelStorage := e.storage[sentinel.Address]
-			publishedStorage := e.storage[d.address]
+			publishedStorage := e.storage[d.Address()]
 			storageCount := len(e.storage)
 			assertUnchanged := func() {
 				t.Helper()
-				if e.catalog.Domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.address] != publishedStorage {
+				if e.catalog.Domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.Address()] != publishedStorage {
 					t.Fatal("lifecycle operation changed committed authority/storage")
 				}
 				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))
@@ -887,7 +887,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 					if len(rows) != 1 || rows[0][0] != int64(22) {
 						t.Fatalf("published rows changed: %v", rows)
 					}
-				} else if _, exists := before.Descriptor(d.address); exists || len(before.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name})) != 0 {
+				} else if _, exists := before.Descriptor(d.Address()); exists || len(before.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()})) != 0 {
 					t.Fatal("discarded descriptor/name was published")
 				}
 			}

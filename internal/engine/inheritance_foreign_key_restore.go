@@ -12,11 +12,11 @@ import (
 // the referenced relation must first inherit that declaration. Replay the real
 // constraint after both physical row streams and its actual key provider exist.
 func inheritedForeignKeyDeferred(view CatalogRead, source *relationDescriptor, foreign *foreignKeyConstraint) bool {
-	if foreign.NotValid || source.RelationKind != tableRelation || source.Partition != nil || source.Membership != nil || foreign.Target == source.address {
+	if foreign.NotValid || source.RelationKind != tableRelation || source.Partition != nil || source.Membership != nil || foreign.Target == source.Address() {
 		return false
 	}
 	target, ok := view.Relation(foreign.Target)
-	return ok && target.RelationKind == tableRelation && target.Partition == nil && target.Membership == nil && inheritedForeignKeyDescendant(view, target, source.address)
+	return ok && target.RelationKind == tableRelation && target.Partition == nil && target.Membership == nil && inheritedForeignKeyDescendant(view, target, source.Address())
 }
 
 func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor, ancestor ids.ObjectAddress) bool {
@@ -31,10 +31,10 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 	visited := make(map[ids.ObjectAddress]bool)
 	var walk func(*relationDescriptor) bool
 	walk = func(relation *relationDescriptor) bool {
-		if visited[relation.address] || relation.Inheritance == nil {
+		if visited[relation.Address()] || relation.Inheritance == nil {
 			return false
 		}
-		visited[relation.address] = true
+		visited[relation.Address()] = true
 		for _, address := range relation.Inheritance.Parents {
 			if address == ancestor {
 				return true
@@ -51,7 +51,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 func inheritedForeignKeyEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	for i := range tables {
 		source := tables[i].descriptor
-		event := dumpEventKey{oid: source.address.ObjectID, phase: dumpInheritedForeignKeys}
+		event := dumpEventKey{oid: source.Address().ObjectID, phase: dumpInheritedForeignKeys}
 		for i := range source.ForeignKeys {
 			foreign := &source.ForeignKeys[i]
 			if !inheritedForeignKeyDeferred(view, source, foreign) {
@@ -64,11 +64,11 @@ func inheritedForeignKeyEvents(view CatalogRead, graph map[dumpEventKey][]dumpEv
 			if !present {
 				return fmt.Errorf("stuntgres: missing inherited foreign-key replay provider")
 			}
-			addDumpDependency(graph, event, dumpEventKey{oid: source.address.ObjectID, phase: dumpRows})
+			addDumpDependency(graph, event, dumpEventKey{oid: source.Address().ObjectID, phase: dumpRows})
 			addDumpDependency(graph, event, dumpEventKey{oid: foreign.Target.ObjectID, phase: dumpRows})
 			addDumpDependency(graph, event, dumpEventKey{oid: foreign.Target.ObjectID, phase: dumpTableCompletion})
 			addDumpDependency(graph, event, provider)
-			addDumpDependency(graph, dumpEventKey{oid: source.address.ObjectID, phase: dumpTableCompletion}, event)
+			addDumpDependency(graph, dumpEventKey{oid: source.Address().ObjectID, phase: dumpTableCompletion}, event)
 		}
 	}
 	return nil
@@ -179,10 +179,10 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	source, sourceOK := auth.catalog.Relation(sourceRef.Address)
 	target, targetOK := auth.catalog.Relation(targetRef.Address)
-	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != tableRelation || target.RelationKind != tableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.catalog, target, source.address) {
+	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != tableRelation || target.RelationKind != tableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.catalog, target, source.Address()) {
 		return reject()
 	}
-	if auth.catalog.MustNamespace(source.namespace).Temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.namespace).Temporary != (ids.SessionToken{}) {
+	if auth.catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {
@@ -225,7 +225,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	for address, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
 		}
 		eligible, err := foreignKeyIndexEligible(target, index, attributes)
@@ -236,7 +236,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	pending.child = sourceRef
 	pending.definitions[0].target = targetRef.Address
-	pending.definitions[0].path = []ids.ObjectAddress{target.namespace}
+	pending.definitions[0].path = []ids.ObjectAddress{target.Namespace()}
 	pending.definitions[0].inherited = receipt
 	return pending, true, nil
 }
@@ -252,7 +252,7 @@ func inheritedForeignColumnsUnchanged(table *relationDescriptor, columns []resto
 }
 
 func inheritedForeignRelationUnchanged(current, before *relationDescriptor) bool {
-	return current != nil && current.address == before.address && current.namespace == before.namespace && current.name == before.name && current.Owner == before.Owner && current.OfType == before.OfType && current.RelationKind == tableRelation && current.Partition == nil && current.Membership == nil
+	return current != nil && current.Address() == before.Address() && current.Namespace() == before.Namespace() && current.Name() == before.Name() && current.Owner == before.Owner && current.OfType == before.OfType && current.RelationKind == tableRelation && current.Partition == nil && current.Membership == nil
 }
 
 // Comments and final attribute-rank repairs do not alter these key/provider
@@ -266,17 +266,17 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	}
 	source, _ := view.Relation(receipt.source.Address)
 	target, _ := view.Relation(receipt.target.Address)
-	if !inheritedForeignRelationUnchanged(source, receipt.beforeSource) || !inheritedForeignRelationUnchanged(target, receipt.beforeTarget) || !inheritedForeignKeyDescendant(view, target, source.address) || !inheritedForeignColumnsUnchanged(source, receipt.columns) || !inheritedForeignColumnsUnchanged(source, receipt.deleted) || !inheritedForeignColumnsUnchanged(target, receipt.referenced) {
+	if !inheritedForeignRelationUnchanged(source, receipt.beforeSource) || !inheritedForeignRelationUnchanged(target, receipt.beforeTarget) || !inheritedForeignKeyDescendant(view, target, source.Address()) || !inheritedForeignColumnsUnchanged(source, receipt.columns) || !inheritedForeignColumnsUnchanged(source, receipt.deleted) || !inheritedForeignColumnsUnchanged(target, receipt.referenced) {
 		return ids.ErrCatalogReplaced
 	}
 	seen := 0
 	for address, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
 		}
 		observed, exists := receipt.providers[address]
-		if !exists || index.SQLIndex != observed.current.SQLIndex || index.Owner != observed.current.Owner || index.namespace != observed.current.namespace || index.name != observed.current.name || len(index.Columns) != len(observed.current.Columns) {
+		if !exists || index.SQLIndex != observed.current.SQLIndex || index.Owner != observed.current.Owner || index.Namespace() != observed.current.Namespace() || index.Name() != observed.current.Name() || len(index.Columns) != len(observed.current.Columns) {
 			return ids.ErrCatalogReplaced
 		}
 		for i, column := range index.Columns {

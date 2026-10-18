@@ -11,7 +11,7 @@ import (
 
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
-		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
+		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.Address(), role)}
 		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
 			return d, nil
 		}
@@ -20,15 +20,15 @@ func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*fore
 	if err != nil {
 		return nil, err
 	}
-	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.name))
+	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.Name()))
 }
 func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*foreignProcedure, error) {
 	if wrapper.Handler == (ids.ObjectAddress{}) {
-		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.name))
+		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.Name()))
 	}
 	p, ok := catalog.Procedure(wrapper.Handler)
 	if !ok || p.Foreign == nil || p.Foreign.Wrapper == nil {
-		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.name))
+		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.Name()))
 	}
 	return p.Foreign, nil
 }
@@ -70,7 +70,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	importer, ok := handler.Wrapper.(ForeignSchemaImporter)
 	if !ok {
 		e.mu.Unlock()
-		return Result{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.name))
+		return Result{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.Name()))
 	}
 	mapping, err := foreignMappingFor(auth, server)
 	if err != nil {
@@ -87,7 +87,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	request := ForeignImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.name, Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingOptions: slices.Clone(mapping.Options), Options: options, Except: s.ImportExcept}
+	request := ForeignImportRequest{RemoteSchema: s.RemoteSchema.Text, LocalSchema: s.LocalSchema.Text, Server: server.Name(), Role: role.Name, WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), MappingOptions: slices.Clone(mapping.Options), Options: options, Except: s.ImportExcept}
 	for _, table := range s.ImportFilter {
 		request.Tables = append(request.Tables, table.Text)
 	}

@@ -111,30 +111,30 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		switch old := descriptor.(type) {
 		case *databaseDescriptor:
 			next := *old
-			next.ACL, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *namespaceDescriptor:
 			next := *old
 			next.ACL = nextACL
-			next.revision = revision
+			next.ObjectRevision = revision
 			err = stage.Replace(&next)
 		case *typeDescriptor:
 			next := *old
 			next.ACL = nextACL
 			next.ACLSyntheticDefault = false
-			next.revision = revision
+			next.ObjectRevision = revision
 			err = stage.Replace(&next)
 		case *procedureDescriptor:
 			next := *old
-			next.ACL, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *foreignDescriptor:
 			next := *old
-			next.ACL, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *parameterDescriptor:
 			next := *old
-			next.ACL, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
 				err = stage.Remove(stage.owner.catalog.Domain.Ref(stage.base.Epoch(), address))
 			} else {
@@ -142,12 +142,12 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			}
 		case *tablespaceDescriptor:
 			next := *old
-			next.ACL, next.revision = nextACL, revision
+			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
 		case *relationDescriptor:
 			next := *old
 			next.ACL = nextACL
-			next.revision = revision
+			next.ObjectRevision = revision
 			next.Policies = policies
 			if nextColumns != nil {
 				next.ColumnACL = nextColumns

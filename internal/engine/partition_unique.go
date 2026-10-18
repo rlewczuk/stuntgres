@@ -73,7 +73,7 @@ func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) 
 			}
 		}
 		if !found {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unique constraint on partitioned table must include all partitioning columns", Detail: fmt.Sprintf(`%s constraint on table "%s" lacks column "%s" which is part of the partition key.`, kind, table.name, partitionKey.Label)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unique constraint on partitioned table must include all partitioning columns", Detail: fmt.Sprintf(`%s constraint on table "%s" lacks column "%s" which is part of the partition key.`, kind, table.Name(), partitionKey.Label)}
 		}
 	}
 	return nil
@@ -91,7 +91,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 		in.targetSlots[i] = slot
 	}
 	d := *old
-	d.Parent, d.PartitionParent, d.Constraint = child.address, ids.ObjectAddress{}, nil
+	d.Parent, d.PartitionParent, d.Constraint = child.Address(), ids.ObjectAddress{}, nil
 	d.Keys, d.Include = slices.Clone(old.Keys), slices.Clone(old.Include)
 	for i := range d.Include {
 		a, err := in.attribute(child, d.Include[i])
@@ -231,8 +231,8 @@ func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *rela
 }
 
 func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error {
-	if stage.base.Get(d.address) == nil {
-		stage.descriptors[d.address] = d
+	if stage.base.Get(d.Address()) == nil {
+		stage.descriptors[d.Address()] = d
 		return nil
 	}
 	return stage.Replace(d)
@@ -241,14 +241,14 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
 	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
-	if stage.base.Get(parentIndex.address) != nil {
+	if stage.base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
 	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.SQLIndex)
 	if err != nil {
 		return nil, err
 	}
-	mapped.PartitionParent = parentIndex.address
+	mapped.PartitionParent = parentIndex.Address()
 	mapped.Valid = true
 	mapped.Constraint = parentIndex.SQLIndex.Constraint
 	if err = partitionUniqueCoverage(child, mapped); err != nil {
@@ -258,15 +258,15 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	var candidates []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == child.address && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == child.Address() && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			candidates = append(candidates, index)
 		}
 	}
 	slices.SortFunc(candidates, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -293,15 +293,15 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 			continue
 		}
 		next, definition := *candidate, *candidate.SQLIndex
-		definition.PartitionParent = parentIndex.address
+		definition.PartitionParent = parentIndex.Address()
 		next.SQLIndex = &definition
-		next.revision++
+		next.ObjectRevision++
 		if parentIndex.SQLIndex.Constraint != nil {
 			changed := *child
 			changed.UniqueConstraints = slices.Clone(child.UniqueConstraints)
 			for i := range changed.UniqueConstraints {
 				c := &changed.UniqueConstraints[i]
-				if c.Index == candidate.address {
+				if c.Index == candidate.Address() {
 					c.Parent = parentIndex.SQLIndex.Constraint.OID
 					c.IsLocal = false
 				}
@@ -321,9 +321,9 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	}
 	suffix := "idx"
 	addition := strings.Join(labels, "_")
-	used := constraintNames(view, child.namespace, child)
+	used := constraintNames(view, child.Namespace(), child)
 	for key := range view.Names() {
-		if key.ClassID == ids.RelationClassID && key.Namespace == child.namespace {
+		if key.ClassID == ids.RelationClassID && key.Namespace == child.Namespace() {
 			used[key.Name] = true
 		}
 	}
@@ -337,7 +337,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 			addition = ""
 		}
 	}
-	name := generatedConstraintName(child.name, addition, suffix, used)
+	name := generatedConstraintName(child.Name(), addition, suffix, used)
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
@@ -346,7 +346,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	if err != nil {
 		return nil, err
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: child.namespace, name: name, revision: revision, Owner: child.Owner, RelationKind: indexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), AttributeHighWater: parentIndex.AttributeHighWater, Index: make(map[string]int, len(parentIndex.Columns))}
+	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: indexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), AttributeHighWater: parentIndex.AttributeHighWater, Index: make(map[string]int, len(parentIndex.Columns))}
 	for i := range index.Columns {
 		index.Columns[i].OriginTable = uint32(oid)
 		index.Columns[i].OriginAttribute = int16(i + 1)
@@ -366,11 +366,11 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 					break
 				}
 			}
-			c := exclusionConstraint{OID: cid, Name: name, Index: index.address, Parent: backing.OID, Operators: mapped.Exclusion, Deferrable: source.Deferrable, InitiallyDeferred: source.InitiallyDeferred}
+			c := exclusionConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Operators: mapped.Exclusion, Deferrable: source.Deferrable, InitiallyDeferred: source.InitiallyDeferred}
 			changed.ExclusionConstraints = append(slices.Clone(child.ExclusionConstraints), c)
 			mapped.Constraint = exclusionBacking(&c)
 		} else {
-			c := uniqueConstraint{OID: cid, Name: name, Index: index.address, Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.NullsNotDistinct, Attributes: make([]int32, len(mapped.Keys))}
+			c := uniqueConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.NullsNotDistinct, Attributes: make([]int32, len(mapped.Keys))}
 			for i, key := range mapped.Keys {
 				c.Attributes[i] = key.Attribute
 			}
@@ -394,7 +394,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 }
 
 func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
-	if original, ok := stage.base.Relation(table.address); ok {
+	if original, ok := stage.base.Relation(table.Address()); ok {
 		stage.domainBases = append(stage.domainBases, original)
 	}
 	for _, address := range table.Partition.Children {
@@ -409,7 +409,7 @@ func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage,
 		next, definition := *index, *index.SQLIndex
 		definition.Valid = valid
 		next.SQLIndex = &definition
-		next.revision++
+		next.ObjectRevision++
 		return stagePartitionDescriptor(stage, &next)
 	}
 	return nil
@@ -465,7 +465,7 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 	inline := len(indexes)
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != table.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != table.Address() {
 			continue
 		}
 		if backing := index.SQLIndex.Constraint; backing != nil && (backing.Kind == uniqueBackingKind && !usingIndexDump(index) || backing.Kind == exclusionBackingKind) {
@@ -475,10 +475,10 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 	}
 	slices.SortFunc(indexes[inline:], func(a, b *relationDescriptor) int {
 		priority := func(index *relationDescriptor) ids.OID {
-			if source := view.state.dumpPriorities[index.address]; source != 0 {
+			if source := view.state.dumpPriorities[index.Address()]; source != 0 {
 				return source
 			}
-			return index.address.ObjectID
+			return index.Address().ObjectID
 		}
 		left, right := priority(a), priority(b)
 		if left < right {
@@ -487,10 +487,10 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 		if left > right {
 			return 1
 		}
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0

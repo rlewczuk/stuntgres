@@ -279,7 +279,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()
-	custom := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, name: "feature", revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	custom := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, ObjectName: "feature", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err = stage.Create(custom); err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base = e.CatalogRead()
-	for _, address := range []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.TypeClassID, ObjectID: 23}, custom.address} {
+	for _, address := range []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.TypeClassID, ObjectID: 23}, custom.Address()} {
 		stage = e.BeginCatalogStage(base)
 		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)

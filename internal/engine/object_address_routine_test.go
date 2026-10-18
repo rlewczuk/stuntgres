@@ -40,7 +40,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.revision == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
@@ -55,7 +55,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.revision || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}
@@ -346,7 +346,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if ref, err := expressionRoutineDescriptor(folded); err != nil || ref != nil {
 			t.Fatal("folded literal retained executable identity", ref, err)
 		}
-		if ref, err := expressionRoutineDescriptor(node); err != nil || ref == nil || ref.address.ObjectID != 3537 {
+		if ref, err := expressionRoutineDescriptor(node); err != nil || ref == nil || ref.Address().ObjectID != 3537 {
 			t.Fatal("folding erased original identity", ref, err)
 		}
 		if folded.ResultUsage() != node.ResultUsage() || !reflect.DeepEqual(before, expr.InfoOf(node)) {

@@ -91,7 +91,7 @@ func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 	for _, usage := range []sqltype.Usage{testUsage(New(), sqltype.Name), stale} {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
-		d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "invalid", revision: 1, Columns: []ColumnDescriptor{{Name: "n", Usage: usage}}, Index: map[string]int{"n": 0}, Attributes: []int32{1}}
+		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "invalid", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "n", Usage: usage}}, Index: map[string]int{"n": 0}, Attributes: []int32{1}}
 		d.AttributeHighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)

@@ -55,9 +55,9 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.TargetNamespace, Extension: ext.address, revision: revision, name: member.name, Signature: member.signature, RoutineKind: functionRoutine, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: functionRoutine, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -68,18 +68,18 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 
 func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	if v.owner == nil || p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
+	if v.owner == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
 		return invalid()
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.TargetNamespace || proc.Extension != ext.address || proc.revision == 0 || proc.RoutineKind != functionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != functionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
 		for j, member := range fuzzystrmatchMembers {
-			if proc.name == member.name && proc.Signature == member.signature && proc.Result == member.result {
+			if proc.Name() == member.name && proc.Signature == member.signature && proc.Result == member.result {
 				if seen[j] {
 					return invalid()
 				}
@@ -107,11 +107,11 @@ func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedure
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.address) != proc || proc.fuzzystrmatchProvider() != p {
+	if v.Get(proc.Address()) != proc || proc.fuzzystrmatchProvider() != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
 	for _, address := range ext.Members {
-		if address == proc.address {
+		if address == proc.Address() {
 			return nil
 		}
 	}

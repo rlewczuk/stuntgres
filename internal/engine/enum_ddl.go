@@ -201,7 +201,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		next := *old
 		next.SQLType = typ
-		next.revision = revision
+		next.ObjectRevision = revision
 		if err := stage.Replace(&next); err != nil {
 			return Result{}, err
 		}

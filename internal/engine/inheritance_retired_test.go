@@ -14,7 +14,7 @@ import (
 func retiredUnitTable(t *testing.T, e *Engine, name string) *relationDescriptor {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok && r.name == name {
+		if r, ok := d.(*relationDescriptor); ok && r.Name() == name {
 			return r
 		}
 	}
@@ -67,7 +67,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 			t.Fatal("DROP did not move exactly one live contribution to history", pair.p)
 		}
 		h := pair.p.Retired[0]
-		if h.Parent.Address != p.address || h.Parent.Epoch != before.Epoch() || h.Archive != 0 || h.Replayed || h.Attribute != 1 || h.Column != "a" || h.Constraint != pair.source || h.Own != pair.own || h.Check != pair.check || h.Lifetime != uint64(before.Epoch()) {
+		if h.Parent.Address != p.Address() || h.Parent.Epoch != before.Epoch() || h.Archive != 0 || h.Replayed || h.Attribute != 1 || h.Column != "a" || h.Constraint != pair.source || h.Own != pair.own || h.Check != pair.check || h.Lifetime != uint64(before.Epoch()) {
 			t.Fatal("wrong actual removed provider certificate", h)
 		}
 		if err := validateRetiredInheritance(e.CatalogRead(), current, pair.p, pair.own, pair.check); err != nil {
@@ -87,7 +87,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		{bottom.Inheritance.NotNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
 		{bottom.Inheritance.Checks[ck.Name], ck.OID},
 	} {
-		if pair.p.count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.address || pair.p.Origins[0].Constraint != pair.source {
+		if pair.p.count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.Address() || pair.p.Origins[0].Constraint != pair.source {
 			t.Fatal("leaf copied ancestor historical multiplicity instead of actual live child fact", pair.p)
 		}
 	}
@@ -139,7 +139,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	next.CheckConstraints = nil
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
 	scope.recordInheritanceAlterAction(p, &next, action)
-	event := state.events[p.address]
+	event := state.events[p.Address()]
 	if len(event) != 1 || len(event[0].retiredNotNull) != 1 || len(event[0].retiredChecks) != 1 {
 		t.Fatal("actual DROP callback failed to capture removed facts", event)
 	}
@@ -154,7 +154,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 		{action: parser.AlterTableAction{Action: parser.DropConstraint}, retiredNotNull: p.NotNullConstraints, retiredChecks: p.CheckConstraints},
 		{action: action, attribute: 1, retiredNotNull: []notNullConstraint{{OID: p.NotNullConstraints[0].OID + 100000, Name: "nn", Attribute: 1}}},
 	} {
-		state.events[p.address] = []inheritanceAlterEvent{bad}
+		state.events[p.Address()] = []inheritanceAlterEvent{bad}
 		g := cloneInheritance(c.Inheritance)
 		inheritRetiredColumnConstraints(state, c, g, 1)
 		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
@@ -222,7 +222,7 @@ func TestInheritanceConstraintHistoryValidity(t *testing.T) {
 		t.Fatal("retirement silently validated or rebuilt invalid enforcement")
 	}
 	for _, dependency := range current.CheckConstraints[0].Dependencies {
-		if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == retiredUnitTable(t, e, "p").address.ObjectID && dependency.Ref.Address.SubID == 1 {
+		if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == retiredUnitTable(t, e, "p").Address().ObjectID && dependency.Ref.Address.SubID == 1 {
 			t.Fatal("retained history pinned the removed live source column")
 		}
 	}

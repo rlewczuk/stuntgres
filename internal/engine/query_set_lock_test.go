@@ -71,7 +71,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	right := base
 	right.Address.ObjectID = 1000000
 	copy := *original
-	copy.address, copy.name = right.Address, "t_right"
+	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
 	e.catalog.state.setDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
@@ -79,7 +79,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
-		d.address, d.name, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
+		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
 		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
 		e.catalog.state.setDescriptor(ref.Address, &d)
@@ -181,7 +181,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
-		d.address, d.name, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
+		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		return ref
 	}
@@ -227,12 +227,12 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		e.mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
-				t.Fatal(d.name, err)
+				t.Fatal(d.Name(), err)
 			}
 		} else {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
-				t.Fatal(d.name, err)
+				t.Fatal(d.Name(), err)
 			}
 		}
 	}

@@ -24,30 +24,30 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
 			current := cloneCatalog(f.e.catalog.state)
-			current.setDescriptor(local.address, &local)
+			current.setDescriptor(local.Address(), &local)
 			f.e.catalog.state = current
 			mapped, err := mapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
 			mapped.Valid, mapped.Ready, mapped.Live = true, true, true
-			mapped.PartitionParent = f.parent.address
+			mapped.PartitionParent = f.parent.Address()
 			backing := *f.child
-			backing.address.ObjectID = 46300
-			backing.name = "attach_built_unique"
+			backing.ObjectAddress.ObjectID = 46300
+			backing.ObjectName = "attach_built_unique"
 			backing.SQLIndex = mapped
 			backing.Columns = slices.Clone(f.child.Columns)
 			backing.Attributes = slices.Clone(f.child.Attributes)
 			next := cloneCatalog(current)
-			next.setDescriptor(backing.address, &backing)
-			next.bindName(descriptorNameKey(&backing), backing.address)
+			next.setDescriptor(backing.Address(), &backing)
+			next.bindName(descriptorNameKey(&backing), backing.Address())
 			// Completing the only child's backing makes the virtual parent
 			// valid in this private candidate, without changing its old head.
 			parentIndex := *f.parent
 			parentDefinition := *f.parent.SQLIndex
 			parentDefinition.Valid = true
 			parentIndex.SQLIndex = &parentDefinition
-			next.setDescriptor(parentIndex.address, &parentIndex)
+			next.setDescriptor(parentIndex.Address(), &parentIndex)
 			integer := func(slot int, n int64) sqltype.Value {
 				value, err := sqltype.Integer(f.leaf.Columns[slot].Usage.Type, n)
 				if err != nil {
@@ -63,12 +63,12 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{row: 2, version: 2, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
-			f.e.storage[f.leaf.address] = store
+			f.e.storage[f.leaf.Address()] = store
 			oldRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.address: oldRoot}
+			f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.entries)
 			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.indexRoots)
@@ -79,10 +79,10 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			}
 			if duplicate {
 				var diagnostic *sqlstate.Error
-				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.name {
+				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.Name() {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.catalog.state.Get(backing.address) != nil {
+				if f.e.catalog.state.Get(backing.Address()) != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return
@@ -90,8 +90,8 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			built := roots[backing.address]
-			if built == nil || roots[local.address] != oldRoot || roots[f.parent.address] != nil || len(built.entries) != 2 {
+			built := roots[backing.Address()]
+			if built == nil || roots[local.Address()] != oldRoot || roots[f.parent.Address()] != nil || len(built.entries) != 2 {
 				t.Fatal("backing omitted real populated rows, replaced local index, or materialized virtual root", roots)
 			}
 			for i, entry := range built.entries {
@@ -107,7 +107,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 					t.Fatal("physical attribute mapping or INCLUDE uniqueness changed", entry)
 				}
 			}
-			if backing.SQLIndex.PartitionParent != f.parent.address || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+			if backing.SQLIndex.PartitionParent != f.parent.Address() || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				t.Fatal("new backing lost ancestry or hijacked unrelated local index")
 			}
 		})

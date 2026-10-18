@@ -181,7 +181,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
-					replacement.revision++
+					replacement.ObjectRevision++
 					switch mode {
 					case "attribute":
 						replacement.Attributes = append([]int32(nil), replacement.Attributes...)

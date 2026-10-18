@@ -85,7 +85,7 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 						forward = &parent.ForeignKeys[i]
 					}
 				}
-				if len(parent.ForeignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.address || len(parent.NotNullConstraints) != 1 || !parent.NotNullConstraints[0].NoInherit || !child.Columns[child.Index["a"]].Nullable {
+				if len(parent.ForeignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.Address() || len(parent.NotNullConstraints) != 1 || !parent.NotNullConstraints[0].NoInherit || !child.Columns[child.Index["a"]].Nullable {
 					t.Fatal("roundtrip changed actual physical constraint facts", parent.ForeignKeys, parent.NotNullConstraints, child.Columns)
 				}
 				_, err = testExecute(e, context.Background(), statement(t, "INSERT INTO p VALUES(2)"), nil)

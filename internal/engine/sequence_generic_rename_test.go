@@ -34,7 +34,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 				t.Fatal("utility unexpectedly returned rows")
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.address != before.address || after.Owner != before.Owner || after.namespace != before.namespace || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(after.Columns, before.Columns) {
+			if after.Address() != before.Address() || after.Owner != before.Owner || after.Namespace() != before.Namespace() || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(after.Columns, before.Columns) {
 				t.Fatal("rename changed identity/owner/options/shape")
 			}
 			if e.sequences[ref.Address] != generator || *generator != state {
@@ -109,7 +109,7 @@ func TestSequenceGenericRenamePreservesCacheAndDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.address != before.address || after.Owner != before.Owner || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(descriptorReferences(after), dependencies) || e.sequences[ref.Address] != generator || *generator != state {
+			if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(descriptorReferences(after), dependencies) || e.sequences[ref.Address] != generator || *generator != state {
 				t.Fatal("rename changed ownership/dependencies/generator")
 			}
 			for _, q := range []string{"SELECT currval('identity')", "SELECT lastval()", "SELECT nextval('identity')"} {

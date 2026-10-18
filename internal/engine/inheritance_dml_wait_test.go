@@ -20,7 +20,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
-	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{c.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: p.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{c.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	// Child publication may issue the parent's real subclass-marker revision.
 	// Return the actual published identities, not pre-publication candidates.
 	published := e.CatalogRead()
-	return e, published.MustRelation(p.address), published.MustRelation(c.address)
+	return e, published.MustRelation(p.Address()), published.MustRelation(c.Address())
 }
 
 func TestInheritanceDMLContention(t *testing.T)  { inheritanceDMLQueued(t, false) }
@@ -50,7 +50,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.address)
+	old := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
 	if err = e.locks.Acquire(op.Context(), holder.ticket, lock.Resource{ObjectRef: old}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		stage, next := queryCreateStage(t, e, "c", 1)
 		next.Inheritance = cloneInheritance(c.Inheritance)
 		queryCreatePublish(t, e, stage)
-		if next.address == old.Address || e.storage[next.address] == e.storage[old.Address] {
+		if next.Address() == old.Address || e.storage[next.Address()] == e.storage[old.Address] {
 			t.Fatal("replacement did not mint a fresh physical identity")
 		}
 		if err = holder.Finish(nil); err != nil {

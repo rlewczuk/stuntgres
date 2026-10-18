@@ -219,7 +219,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		base := e.CatalogRead()
 		indexRef := catalogRef(t, e, base, "u")
 		next := *base.MustRelation(indexRef.Address)
-		next.revision++
+		next.ObjectRevision++
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
 		if err := stage.Replace(&next); err != nil {

@@ -15,7 +15,7 @@ func TestUpdateCoreSameLengthCatalogGuard(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	old := e.catalog.state.MustRelation(ref.Address)
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	original := e.storage[ref.Address]

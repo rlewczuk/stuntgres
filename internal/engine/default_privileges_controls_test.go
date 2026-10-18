@@ -57,7 +57,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		f.schema = f.op.session.temporaryNamespace
 		namespace := f.e.catalog.state.MustNamespace(f.schema)
 		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
-		f.grant(t, "tables", "insert", []string{namespace.name})
+		f.grant(t, "tables", "insert", []string{namespace.Name()})
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 		table := defaultUnitTable(t, f, stage, "temporary_survivor", f.owner)
 		if err := defaultUnitPublish(t, f.e, stage); err != nil {
@@ -77,11 +77,11 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		rights := authorization.ACLRights(table.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
-		if f.e.catalog.state.Get(table.address) != table || f.e.catalog.state.MustNamespace(table.namespace).Temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
+		if f.e.catalog.state.Get(table.Address()) != table || f.e.catalog.state.MustNamespace(table.Namespace()).Temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
-		grant := defaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{namespace.name}, []string{"default_reader"})
+		grant := defaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{namespace.Name()}, []string{"default_reader"})
 		if err = f.apply(grant); err != nil {
 			t.Fatal(err)
 		}
@@ -93,7 +93,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
-		if f.e.catalog.state.Get(table.address) != nil {
+		if f.e.catalog.state.Get(table.Address()) != nil {
 			t.Fatal("physical end retained TEMP child")
 		}
 		if f.e.catalog.state.defaultACLs[tempKey] != nil || endSnapshot.state.defaultACLs[tempKey] == nil || f.e.catalog.state.defaultACLs[global] == nil {
@@ -107,7 +107,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		// Target has a live TEMP namespace at exactly the imported schema identity.
 		state := cloneCatalog(target.e.catalog.state)
 		ns := *state.MustNamespace(target.schema)
-		ns.name = "pg_temp_collision"
+		ns.ObjectName = "pg_temp_collision"
 		ns.Temporary = target.op.session.token
 		state.unbindName(descriptorNameKey(state.Get(target.schema)))
 		state.setDescriptor(target.schema, &ns)
@@ -127,7 +127,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		// A source TEMP-only record is projected out even on a foreign import.
 		tempSource := cloneCatalog(source.e.catalog.state)
 		tempNS := *tempSource.MustNamespace(source.schema)
-		tempNS.name = "pg_temp_source"
+		tempNS.ObjectName = "pg_temp_source"
 		tempNS.Temporary = source.op.session.token
 		tempSource.unbindName(descriptorNameKey(tempSource.Get(source.schema)))
 		tempSource.setDescriptor(source.schema, &tempNS)

@@ -29,18 +29,18 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	if d.RelationKind != tableRelation || len(graph.Parents) == 0 || len(graph.Columns) != len(d.Columns) {
 		return invalid()
 	}
-	childNS, ok := v.Namespace(d.namespace)
+	childNS, ok := v.Namespace(d.Namespace())
 	if !ok {
 		return invalid()
 	}
 	seen := make(map[ids.ObjectAddress]bool, len(graph.Parents))
 	for _, address := range graph.Parents {
 		parent, ok := v.Relation(address)
-		if !ok || parent.address != address || parent.RelationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.address {
+		if !ok || parent.Address() != address || parent.RelationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.Address() {
 			return invalid()
 		}
 		seen[address] = true
-		parentNS, ok := v.Namespace(parent.namespace)
+		parentNS, ok := v.Namespace(parent.Namespace())
 		if !ok || parentNS.Temporary != (ids.SessionToken{}) && parentNS.Temporary != childNS.Temporary {
 			return invalid()
 		}
@@ -187,13 +187,13 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	visited := make(map[ids.ObjectAddress]bool)
 	var visit func(*relationDescriptor) bool
 	visit = func(current *relationDescriptor) bool {
-		if visiting[current.address] {
+		if visiting[current.Address()] {
 			return false
 		}
-		if visited[current.address] {
+		if visited[current.Address()] {
 			return true
 		}
-		visiting[current.address] = true
+		visiting[current.Address()] = true
 		if current.Inheritance != nil {
 			for _, address := range current.Inheritance.Parents {
 				parent, ok := v.Relation(address)
@@ -202,8 +202,8 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				}
 			}
 		}
-		delete(visiting, current.address)
-		visited[current.address] = true
+		delete(visiting, current.Address())
+		visited[current.Address()] = true
 		return true
 	}
 	if !visit(d) {

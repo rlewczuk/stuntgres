@@ -29,7 +29,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return source, err
 	case catalogRelation:
-		switch d.address.ObjectID {
+		switch d.Address().ObjectID {
 		case pgLocksOID:
 			return e.capturePGLocksLocked(ctx, ref, d)
 		case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgUserMappingsOID:
@@ -82,12 +82,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, fmt.Errorf("stuntgres: unknown virtual catalog view")
 		}
-		if d.address.ObjectID == 2396 {
+		if d.Address().ObjectID == 2396 {
 			source, err := capturePGShDescription(ctx, scope.commentRoles, ref, d)
 			e.mu.Unlock()
 			return source, err
 		}
-		if d.address.ObjectID == 2224 {
+		if d.Address().ObjectID == 2224 {
 			base := e.catalog.state
 			if scope.owner.sequenceCatalog != nil {
 				base = scope.owner.sequenceCatalog
@@ -97,19 +97,19 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			return source, err
 		}
 		var catalog CatalogRead
-		switch d.address.ObjectID {
+		switch d.Address().ObjectID {
 		case 2609, 3079, ids.ParameterClassID:
 			catalog = scope.commentCatalog
 		default:
 			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
 		var roles authorization.Read
-		if d.address.ObjectID == ids.ParameterClassID {
+		if d.Address().ObjectID == ids.ParameterClassID {
 			roles = scope.commentRoles
 		} else {
 			roles = e.roleRead(catalog, scope.deparseAuth.roleRecord)
 		}
-		if d.address.ObjectID == 12002 {
+		if d.Address().ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				e.mu.Unlock()
@@ -121,7 +121,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return source, err
 		}
-		if d.address.ObjectID == 12006 {
+		if d.Address().ObjectID == 12006 {
 			source, err := e.captureTableViewSummary(ctx, catalog, roles, ref, d, viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 			e.mu.Unlock()
 			return source, err
@@ -135,12 +135,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return source, err
 	case viewRelation:
 		for _, active := range scope.activeViews {
-			if active == d.address {
+			if active == d.Address() {
 				e.mu.Unlock()
-				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.name))
+				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 			}
 		}
-		scope.activeViews = append(scope.activeViews, d.address)
+		scope.activeViews = append(scope.activeViews, d.Address())
 		defer func() { scope.activeViews = scope.activeViews[:len(scope.activeViews)-1] }()
 		root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), invoker, mark, locks, outputUses)
 		if err != nil {
@@ -168,7 +168,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return source, nil
 	case indexRelation:
 		e.mu.Unlock()
-		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.name))
+		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.Name()))
 	default:
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: unsupported relation source")

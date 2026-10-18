@@ -52,7 +52,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			}
 			tables = append(tables, address)
 			for _, child := range inheritanceChildren(catalog, address) {
-				visit(child.address)
+				visit(child.Address())
 			}
 		}
 		for _, root := range roots {
@@ -86,7 +86,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		private := false
 		for _, address := range tables {
 			table := catalog.MustRelation(address)
-			if catalog.MustNamespace(table.namespace).Temporary != (ids.SessionToken{}) {
+			if catalog.MustNamespace(table.Namespace()).Temporary != (ids.SessionToken{}) {
 				private = true
 				break
 			}

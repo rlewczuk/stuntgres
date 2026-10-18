@@ -160,11 +160,11 @@ func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ids.Ob
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
 	if d, ok := descriptor.(*relationDescriptor); ok {
-		text := regclassIdentifier(d.name)
+		text := regclassIdentifier(d.Name())
 		if namedObjectVisibleAt(view, reader, path, d) {
 			return text
 		}
-		namespace, _ := definitionDescriptorAt(view, reader, d.namespace)
+		namespace, _ := definitionDescriptorAt(view, reader, d.Namespace())
 		return regclassIdentifier(namespace.Name()) + "." + text
 	}
 	return strconv.FormatUint(uint64(id), 10)

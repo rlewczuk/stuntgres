@@ -26,7 +26,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgCollationUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_collation" || d.namespace.ObjectID != 11 || d.Owner != owner || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
+	if d.Name() != "pg_collation" || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
 		t.Fatal("catalog identity", d)
 	}
 	names := [...]string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}
@@ -54,7 +54,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	}
 	ownedRow, rowOK := catalog.LookupType(d.RowType)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+	if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("relational row/array ownership", row, array)
 	}
 }
@@ -104,7 +104,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 				t.Fatal("OID field", i, got, want, err)
 			}
 		}
-		for i, want := range map[int]string{1: definition.name, 4: definition.Provider} {
+		for i, want := range map[int]string{1: definition.Name(), 4: definition.Provider} {
 			if got, err := row[i].Text(); err != nil || got != want {
 				t.Fatal("identity field", i, got, want, err)
 			}
@@ -184,7 +184,7 @@ func TestPGCollationCapture(t *testing.T) {
 	}
 	check(old, "pgc_capture")
 	next := *c
-	next.name, next.revision = "pgc_capture_renamed", c.revision+1
+	next.ObjectName, next.ObjectRevision = "pgc_capture_renamed", c.ObjectRevision+1
 	stage = e.BeginCatalogStage(before)
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

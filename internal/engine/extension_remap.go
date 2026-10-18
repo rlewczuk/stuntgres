@@ -44,7 +44,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		return &n
 	case *extensionDescriptor:
 		n := *d
-		n.address = address(n.address)
+		n.ObjectAddress = address(n.Address())
 		n.TargetNamespace = address(n.TargetNamespace)
 		var members []ids.ObjectAddress
 		for i, a := range d.Members {
@@ -59,19 +59,19 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		if members != nil {
 			n.Members = members
 		}
-		if n.address == d.address && n.TargetNamespace == d.TargetNamespace && members == nil {
+		if n.Address() == d.Address() && n.TargetNamespace == d.TargetNamespace && members == nil {
 			return d
 		}
 		return &n
 	case *procedureDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
 		n.Dictionary = address(n.Dictionary)
-		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.address, n.namespace, mapping)
+		n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), n.Namespace(), mapping)
 		if n.intarrayProvider() != nil {
-			if n.name == "bqarr_in" {
+			if n.Name() == "bqarr_in" {
 				n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			} else {
 				if oid, err := strconv.ParseUint(string(n.Signature), 10, 32); err == nil {
@@ -82,22 +82,22 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 				}
 			}
 		}
-		if n.address == d.address && n.namespace == d.namespace && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
+		if n.Address() == d.Address() && n.Namespace() == d.Namespace() && n.Extension == d.Extension && n.Dictionary == d.Dictionary && n.Signature == d.Signature && n.Result == d.Result && n.Aggregate == d.Aggregate {
 			return d
 		}
 		return &n
 	case *tsTemplateDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
 		n.Init = address(n.Init)
 		n.Lexize = address(n.Lexize)
 		return &n
 	case *tsDictionaryDescriptor:
 		n := *d
-		n.address = address(n.address)
-		n.namespace = address(n.namespace)
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
 		n.Extension = address(n.Extension)
 		n.Template = address(n.Template)
 		return &n

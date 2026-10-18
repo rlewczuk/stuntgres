@@ -64,7 +64,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if old.RelationKind == sequenceRelation {
 			return fail(&sqlstate.Error{
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809",
-				Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, old.name),
+				Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, old.Name()),
 				Detail:  "This operation is not supported for sequences.",
 			})
 		}
@@ -73,22 +73,22 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			return fail(err)
 		}
 	} else {
-		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.namespace)); err != nil {
+		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
 			return fail(err)
 		}
-		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: destination}); exists {
+		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination}); exists {
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
 		}
 	}
-	if old.revision == ids.DefinitionRevision(^uint64(0)) {
+	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	next := *old
-	next.revision++
+	next.ObjectRevision++
 	if columnRename {
 		next.Columns, next.Index = renamed.Columns, renamed.Index
 	} else {
-		next.name = destination
+		next.ObjectName = destination
 		if old.RelationKind == sequenceRelation {
 			// Relation rename invalidates analyzed sequence source without
 			// making every descriptor revision a sequence-plan event.
@@ -123,7 +123,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	if _, conflict := err.(CatalogConflict); conflict && !columnRename {
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
-		winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: destination})
+		winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination})
 		sameEpoch := current.epoch == ref.Epoch
 		e.mu.Unlock()
 		if sameEpoch && exists && winner != ref.Address {
@@ -148,7 +148,7 @@ func renameColumnCandidate(old *relationDescriptor, name, destination string) (*
 		return nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, destination))
 	}
 	if _, exists := old.Index[destination]; exists {
-		return nil, sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, destination, old.name))
+		return nil, sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, destination, old.Name()))
 	}
 	next := *old
 	next.Columns = slices.Clone(old.Columns)

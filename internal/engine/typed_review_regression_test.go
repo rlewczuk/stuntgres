@@ -80,11 +80,11 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		t.Fatal("callback did not reject captured epoch", called, err)
 	}
 	view := e.CatalogRead()
-	if view.Epoch() == epoch || view.Get(source.address) == source || view.Get(table.address) == table {
+	if view.Epoch() == epoch || view.Get(source.Address()) == source || view.Get(table.Address()) == table {
 		t.Fatal("stale typed state resurrected")
 	}
 	for _, name := range []string{"pair", "typed", "holder"} {
-		if _, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: source.namespace, Name: name}); ok {
+		if _, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: source.Namespace(), Name: name}); ok {
 			t.Fatal("replacement resurrected old relation", name)
 		}
 	}
@@ -122,7 +122,7 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 			called, granted := false, false
 			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				called = true
-				ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.address)
+				ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
 				lockState := e.locks.Inspect()
 				if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
 					for _, holder := range entry.Holders {
@@ -147,10 +147,10 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			predecessor, before := root, e.CatalogRead()
-			storage := e.storage[root.address]
+			storage := e.storage[root.Address()]
 			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
-			root = e.CatalogRead().MustRelation(predecessor.address)
-			if root == predecessor || !root.HasSubclasses || predecessor.HasSubclasses || root.address != predecessor.address || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.revision == predecessor.revision || before.Get(predecessor.address) != predecessor || e.storage[root.address] != storage {
+			root = e.CatalogRead().MustRelation(predecessor.Address())
+			if root == predecessor || !root.HasSubclasses || predecessor.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage[root.Address()] != storage {
 				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
 			}
 			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
@@ -158,7 +158,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			view := e.CatalogRead()
 			childRef := roleTableRef(t, e, "child")
 			child := view.MustRelation(childRef.Address)
-			rootStorage, childStorage := e.storage[root.address], e.storage[child.address]
+			rootStorage, childStorage := e.storage[root.Address()], e.storage[child.Address()]
 			original := e.catalog.Providers[ids.RelationClassID]
 			called := false
 			var after *catalogState
@@ -179,7 +179,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				t.Fatal("late semantic own-row dependency admitted", called, err)
 			}
 			current := e.CatalogRead()
-			if current.state != after || current.Get(source.address) != source || current.Get(root.address) != root || current.Get(child.address) != child || e.storage[root.address] != rootStorage || e.storage[child.address] != childStorage {
+			if current.state != after || current.Get(source.Address()) != source || current.Get(root.Address()) != root || current.Get(child.Address()) != child || e.storage[root.Address()] != rootStorage || e.storage[child.Address()] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
 			if root.OfType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
@@ -220,7 +220,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	next := *stage.base.MustType(address)
-	next.ACL, next.revision = acl, next.revision+1
+	next.ACL, next.ObjectRevision = acl, next.ObjectRevision+1
 	next.ACLSyntheticDefault = false
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

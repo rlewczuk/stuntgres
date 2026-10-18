@@ -68,7 +68,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 		}
 		record, found, err := decodeExtensionOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
 		if err != nil || !found {
-			t.Fatal("valid manifest rejected", installed.ext.name, err)
+			t.Fatal("valid manifest rejected", installed.ext.Name(), err)
 		}
 		for _, kind := range []string{"version", "missing", "extra", "duplicate", "name", "signature", "foreign_procedure", "foreign_dictionary", "foreign_type", "owner"} {
 			t.Run(record.Name+"/"+kind, func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 func TestPgcryptoControlRemap(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	before := e.CatalogRead()
-	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.address: {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
 	for i, address := range ext.Members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
@@ -129,7 +129,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	view := e.catalog.read(next)
-	remapped := next.MustExtension(mapping[ext.address])
+	remapped := next.MustExtension(mapping[ext.Address()])
 	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
 	}
@@ -139,10 +139,10 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.MustProcedure(original)
-		if remapped.Members[i] != proc.address || proc.Extension != remapped.address || proc.namespace != old.namespace || proc.Owner != old.Owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
+		if remapped.Members[i] != proc.Address() || proc.Extension != remapped.Address() || proc.Namespace() != old.Namespace() || proc.Owner != old.Owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
 			t.Fatal("remapped member identity", proc)
 		}
-		if old.address != original || old.Extension != ext.address || ext.Members[i] != original {
+		if old.Address() != original || old.Extension != ext.Address() || ext.Members[i] != original {
 			t.Fatal("source generation mutated")
 		}
 	}
@@ -162,8 +162,8 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	call := bound.(installedCryptoFunctionExpression)
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{
-		address:  address,
-		Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
+		ObjectAddress: address,
+		Defaults:      map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
 		Generations: map[int32]columnGeneration{2: {
 			Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref},
 		}},

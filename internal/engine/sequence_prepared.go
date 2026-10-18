@@ -98,7 +98,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 			if !ok || constant.temporary != auth.session.token || d.RelationKind != sequenceRelation {
 				return false, ids.ErrCatalogReplaced
 			}
-			ns, ok := auth.catalog.Namespace(d.namespace)
+			ns, ok := auth.catalog.Namespace(d.Namespace())
 			if !ok || ns.Temporary != constant.temporary {
 				return false, ids.ErrCatalogReplaced
 			}

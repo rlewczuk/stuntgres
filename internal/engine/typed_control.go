@@ -16,7 +16,7 @@ func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 		if !ok || table.OfType == (ids.ObjectAddress{}) {
 			continue
 		}
-		namespace := e.catalog.state.MustNamespace(table.namespace)
+		namespace := e.catalog.state.MustNamespace(table.Namespace())
 		if namespace.Temporary == (ids.SessionToken{}) {
 			continue
 		}
@@ -24,7 +24,7 @@ func (e *Engine) checkTemporaryTypedReplacementLocked() error {
 		if !ok {
 			return fmt.Errorf("stuntgres: missing typed source")
 		}
-		if e.catalog.state.MustNamespace(source.namespace).Temporary == (ids.SessionToken{}) {
+		if e.catalog.state.MustNamespace(source.ObjectNamespace).Temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("%s", temporaryTypedReplacementError)
 		}
 	}

@@ -154,7 +154,7 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 				if _, ok := e.catalog.state.Find(blocker.Address); ok {
 					t.Fatal("owned blocker survived drop")
 				}
-				found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: "late"})
+				found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: "late"})
 				if create {
 					if len(found) != 0 {
 						t.Fatal("failed CREATE published late sequence")
@@ -317,7 +317,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			if _, ok := e.catalog.state.Find(sequence.Address); ok {
 				t.Fatal("original OWNED BY dependency did not cascade after victim release")
 			}
-			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.state.MustRelation(table.Address).namespace, Name: "victim_staged"})) != 0 {
+			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.state.MustRelation(table.Address).Namespace(), Name: "victim_staged"})) != 0 {
 				t.Fatal("deadlock victim published previously staged sequence")
 			}
 			transactionEnd(t, b, br, false)

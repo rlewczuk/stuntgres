@@ -56,7 +56,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				// Private test-owned provenance is invalidated after both real producers
 				// staged data, selecting the final all-store veto rather than an early row
 				// validation failure. No manager prevention is bypassed in public tests.
-				s.stage.rows[c.address][0].base++
+				s.stage.rows[c.Address()][0].base++
 			}
 			err = s.Finish(nil)
 			if reject {
@@ -85,7 +85,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 					}
 				}
 			}
-			if before[p.address][0].values[0] != inheritanceQueryInt(e, 10) || before[c.address][0].values[0] != inheritanceQueryInt(e, 20) {
+			if before[p.Address()][0].values[0] != inheritanceQueryInt(e, 10) || before[c.Address()][0].values[0] != inheritanceQueryInt(e, 20) {
 				t.Fatal("immutable predecessor payload changed")
 			}
 			lockEmpty(t, e)

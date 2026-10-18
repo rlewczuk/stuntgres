@@ -62,7 +62,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgOpclassUnitSource(t, e)
-	if d.name != "pg_opclass" || d.namespace.ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
+	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
 		t.Fatal("descriptor", d)
 	}
 	for i, name := range []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"} {
@@ -177,10 +177,10 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
-		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{Parent: parent.address, Method: tc.method, Keys: []indexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
-		e.catalog.state.setDescriptor(parent.address, parent)
-		e.catalog.state.setDescriptor(index.address, index)
+		parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
+		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{Parent: parent.Address(), Method: tc.method, Keys: []indexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
+		e.catalog.state.setDescriptor(parent.Address(), parent)
+		e.catalog.state.setDescriptor(index.Address(), index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -190,7 +190,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("real root", tc, root, err)
 		}
 		catalog := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.Domain.Ref(catalog.Epoch(), index.address))
+		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.Domain.Ref(catalog.Epoch(), index.Address()))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}

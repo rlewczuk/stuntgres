@@ -107,7 +107,7 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 }
 func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
 	if ns, ok := view.Namespace(namespace); ok {
-		actual, canonical = ns.name, ns.name
+		actual, canonical = ns.Name(), ns.Name()
 		if ns.Temporary != (ids.SessionToken{}) {
 			canonical = "pg_temp"
 		}
@@ -276,13 +276,13 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	}
 	switch d := d.(type) {
 	case *namespaceDescriptor:
-		_, canonical = objectNamespace(view, d.address)
+		_, canonical = objectNamespace(view, d.Address())
 		r.identity = pgIdentifier(canonical)
 		r.names = []string{canonical}
 		display = r.name
 	case *relationDescriptor:
 		r.kind = objectRelationKind(view, d)
-		display = regclassSpelling(view, path, d.address.ObjectID)
+		display = regclassSpelling(view, path, d.Address().ObjectID)
 		if a.SubID != 0 {
 			r.kind += " column"
 			attr := objectAttributeName(view, d, a.SubID)
@@ -309,8 +309,8 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 			right = objectQualifiedType(view, d.Right)
 			r.args = append(r.args, right)
 		}
-		r.identity = pgIdentifier(canonical) + "." + d.name + "(" + left + "," + right + ")"
-		display = d.name
+		r.identity = pgIdentifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
+		display = d.Name()
 		if !namedObjectVisible(view, path, d) {
 			display = pgIdentifier(canonical) + "." + display
 		}
@@ -357,10 +357,10 @@ func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.Obje
 			continue
 		}
 		r.found = true
-		actual, canonical := objectNamespace(view, d.namespace)
-		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.name)
-		r.names = []string{canonical, d.name, name}
-		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.address.ObjectID)
+		actual, canonical := objectNamespace(view, d.Namespace())
+		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.Name())
+		r.names = []string{canonical, d.Name(), name}
+		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.Address().ObjectID)
 		switch a.ClassID {
 		case 2606:
 			r.kind = "table constraint"

@@ -15,12 +15,12 @@ type derivedIndexKey struct {
 }
 
 func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
 	columns := make([]queryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.Get(parent.namespace).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace

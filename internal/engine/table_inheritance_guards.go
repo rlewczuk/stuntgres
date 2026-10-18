@@ -13,7 +13,7 @@ import (
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
 func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
 	if relation.View == nil {
-		if relation.RelationKind == tableRelation && inheritanceHasChildren(catalog, relation.address) {
+		if relation.RelationKind == tableRelation && inheritanceHasChildren(catalog, relation.Address()) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
@@ -25,11 +25,11 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 	if relation.View == nil {
 		return inheritanceTargetGuard(catalog, relation)
 	}
-	if visited[relation.address] {
+	if visited[relation.Address()] {
 		// The existing view binder owns recursive-view diagnostics.
 		return nil
 	}
-	visited[relation.address] = true
+	visited[relation.Address()] = true
 	for _, source := range viewOf(relation).sources {
 		live, ok := catalog.Relation(source.ref.Address)
 		if !ok {
@@ -63,10 +63,10 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescripto
 }
 
 func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, Descriptor], replacement func(ids.ObjectAddress) Descriptor, removed func(ids.ObjectAddress) bool, relation *relationDescriptor) error {
-	if removed(relation.address) {
+	if removed(relation.Address()) {
 		return nil
 	}
-	if current, ok := replacement(relation.address).(*relationDescriptor); ok {
+	if current, ok := replacement(relation.Address()).(*relationDescriptor); ok {
 		relation = current
 	}
 	if relation.Inheritance != nil {
@@ -79,7 +79,7 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, De
 		if current := replacement(address); current != nil {
 			descriptor = current
 		}
-		if child, ok := descriptor.(*relationDescriptor); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.Parents, relation.address) {
+		if child, ok := descriptor.(*relationDescriptor); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.Parents, relation.Address()) {
 			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 		}
 	}
@@ -129,7 +129,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 		case parser.DropNotNull, parser.DropConstraint:
 			if action.Action == parser.DropConstraint && relation.Inheritance != nil {
 				if provenance, exists := relation.Inheritance.Checks[action.Constraint.Text]; exists && provenance.count() != 0 {
-					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.name))
+					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.Name()))
 				}
 			}
 			if relation.Inheritance == nil {
@@ -141,7 +141,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 					matches = constraint.Attribute == relation.Attributes[slot]
 				}
 				if matches && relation.Inheritance.NotNull[constraint.Attribute].count() != 0 {
-					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.name))
+					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.Name()))
 				}
 			}
 		}

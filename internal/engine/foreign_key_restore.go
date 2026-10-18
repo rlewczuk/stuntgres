@@ -103,7 +103,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			copy := *old
 			copy.ForeignKeys = slices.Clone(old.ForeignKeys)
 			child = &copy
-			stage.descriptors[child.address] = child
+			stage.descriptors[child.Address()] = child
 		}
 		for i := range declaration.definitions {
 			definition := &declaration.definitions[i]
@@ -164,7 +164,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			if err != nil {
 				return err
 			}
-			childStore, parentStore := e.storage[child.address], e.storage[parent.address]
+			childStore, parentStore := e.storage[child.Address()], e.storage[parent.Address()]
 			if childStore == nil || parentStore == nil {
 				return ids.ErrCatalogReplaced
 			}

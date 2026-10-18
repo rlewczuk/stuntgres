@@ -25,7 +25,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
 		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
-			auth.stagedTemporary = ns.address
+			auth.stagedTemporary = ns.Address()
 		}
 	}
 	ns := auth.catalog.MustNamespace(ref.Address)
@@ -35,7 +35,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 			return ids.ObjectRef{}, err
 		}
 		if !actor.Superuser {
-			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.name)
+			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.Name())
 		}
 	}
 	return ref, nil
@@ -68,7 +68,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		}
 		owned := make(map[ids.ObjectAddress]bool, len(namespaces))
 		for _, ns := range namespaces {
-			owned[ns.address] = true
+			owned[ns.Address()] = true
 		}
 		children, captureErr := namespaceChildren(base, owned)
 		e.mu.Unlock()
@@ -133,7 +133,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		}
 		stage.domainBases = append(stage.domainBases, ns)
 		for key := range base.state.defaultACLs {
-			if key.Schema == ns.address {
+			if key.Schema == ns.Address() {
 				if stage.defaultACLs == nil {
 					stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 				}

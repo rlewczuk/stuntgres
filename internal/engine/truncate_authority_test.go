@@ -30,7 +30,7 @@ func truncateUnitReplace(t *testing.T, e *Engine, ref ids.ObjectRef, change func
 	base := e.CatalogRead()
 	original := base.MustRelation(ref.Address)
 	next := *original
-	next.revision++
+	next.ObjectRevision++
 	change(&next)
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Replace(&next); err != nil {
@@ -43,7 +43,7 @@ func truncateUnitFK(t *testing.T, e *Engine, parent, child ids.ObjectRef) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	next := *base.MustRelation(child.Address)
-	next.revision++
+	next.ObjectRevision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.mu.Lock()
 	err := e.stageForeignKey(catalogAuthorization(e, base), stage, &next, raw, parent.Address, ids.ObjectAddress{})
@@ -107,13 +107,13 @@ func TestTruncateClosure(t *testing.T) {
 	// target-independent table as proof that closure walks incoming edges only.
 	selected := map[ids.ObjectAddress]int{p.Address: 1}
 	edges := truncateReferencers(e.CatalogRead(), selected)
-	if len(edges) != 1 || edges[0].relation.name != "c" || edges[0].parent.name != "p" {
+	if len(edges) != 1 || edges[0].relation.Name() != "c" || edges[0].parent.Name() != "p" {
 		t.Fatal("not relation-level incoming closure", edges)
 	}
 	c := roleTableRef(t, e, "c")
 	selected[c.Address] = 2
 	edges = truncateReferencers(e.CatalogRead(), selected)
-	if len(edges) != 1 || edges[0].relation.name != "g" {
+	if len(edges) != 1 || edges[0].relation.Name() != "g" {
 		t.Fatal("not next FK wave", edges)
 	}
 	selected[roleTableRef(t, e, "g").Address] = 3
@@ -193,7 +193,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	}
 	// A real host rename changes the excluded descriptor after acquisition.
 	// Final hierarchy reconciliation must apply the same TEMP-token exclusion.
-	truncateUnitReplace(t, e, peerRef, func(d *relationDescriptor) { d.name = "renamed_peer_child" })
+	truncateUnitReplace(t, e, peerRef, func(d *relationDescriptor) { d.ObjectName = "renamed_peer_child" })
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -253,12 +253,12 @@ func TestTruncateAdmission(t *testing.T) {
 			lockPending(t, e, 1)
 			switch kind {
 			case "name":
-				truncateUnitReplace(t, e, p, func(d *relationDescriptor) { d.name = "renamed" })
+				truncateUnitReplace(t, e, p, func(d *relationDescriptor) { d.ObjectName = "renamed" })
 			case "nontruncate-storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
-				next.revision++
+				next.ObjectRevision++
 				replacement := &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, old, replacement, len(old.versions), old.generation, old.ends); err != nil {
 					t.Fatal(err)

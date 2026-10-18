@@ -103,7 +103,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	replacement := *old
 	definition := *viewOf(old)
 	replacement.View = &definition
-	replacement.revision++
+	replacement.ObjectRevision++
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	previous := definition.sources[0].ref
 	definition.sources[0].ref = wref

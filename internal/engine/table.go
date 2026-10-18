@@ -63,7 +63,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation {
 			if relation.RelationKind == indexRelation {
 				e.mu.Unlock()
-				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP INDEX to remove an index."}
+				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: "Use DROP INDEX to remove an index."}
 			}
 			e.mu.Unlock()
 			hint := "Use DROP SEQUENCE to remove a sequence."
@@ -76,7 +76,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			if relation.RelationKind == materializedViewRelation {
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: hint}
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: hint}
 		}
 		if seen[ref.Address] {
 			continue

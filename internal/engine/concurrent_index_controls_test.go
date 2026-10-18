@@ -288,8 +288,8 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	var original *relationDescriptor
 	e.mu.Lock()
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.name == "retained_ci_temp_index" {
-			namespace := e.catalog.state.MustNamespace(index.namespace)
+		if index, ok := descriptor.(*relationDescriptor); ok && index.Name() == "retained_ci_temp_index" {
+			namespace := e.catalog.state.MustNamespace(index.Namespace())
 			if namespace.Temporary == s.token {
 				original = index
 			}
@@ -303,7 +303,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	retained := e.catalog.state.Get(original.address) == original && e.indexRoots[original.address] == nil
+	retained := e.catalog.state.Get(original.Address()) == original && e.indexRoots[original.Address()] == nil
 	e.mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
@@ -327,13 +327,13 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			base := e.CatalogRead()
 			e.mu.Lock()
 			parent := e.catalog.state.MustRelation(original.SQLIndex.Parent)
-			store := e.storage[parent.address]
+			store := e.storage[parent.Address()]
 			snapshot := *store
 			e.mu.Unlock()
 			next, definition := *original, *original.SQLIndex
 			definition.Ready = true
 			next.SQLIndex = &definition
-			next.revision++
+			next.ObjectRevision++
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -343,8 +343,8 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
-			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.address: {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

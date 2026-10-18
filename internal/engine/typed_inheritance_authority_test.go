@@ -30,10 +30,10 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			child.NotNullConstraints = []notNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
 			child.CheckConstraints = []checkConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
 			child.Defaults = map[int32]columnDefault{7: {OID: 23005, Expression: defaultExpression}}
-			column := inheritedColumn{Local: kind != "other_parent", Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 1}}}
-			nn := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 1, Constraint: 23000}}}
-			check := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.address, Constraint: 23002}}}
-			parents := []ids.ObjectAddress{parent.address}
+			column := inheritedColumn{Local: kind != "other_parent", Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}
+			nn := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 23000}}}
+			check := inheritedConstraint{Local: kind == "local", Origins: []inheritanceOrigin{{Parent: parent.Address(), Constraint: 23002}}}
+			parents := []ids.ObjectAddress{parent.Address()}
 			var other *relationDescriptor
 			if kind == "other_parent" {
 				other = inheritanceUnitRelation(e, "q", 22002, "id")
@@ -41,10 +41,10 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				other.NotNullConstraints = []notNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
 				other.CheckConstraints = []checkConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
 				other.Defaults = map[int32]columnDefault{1: {OID: 23012, Expression: defaultExpression}}
-				parents = append(parents, other.address)
-				column.Origins = append(column.Origins, inheritanceOrigin{Parent: other.address, Attribute: 1})
-				nn.Origins = append(nn.Origins, inheritanceOrigin{Parent: other.address, Attribute: 1, Constraint: 23010})
-				check.Origins = append(check.Origins, inheritanceOrigin{Parent: other.address, Constraint: 23011})
+				parents = append(parents, other.Address())
+				column.Origins = append(column.Origins, inheritanceOrigin{Parent: other.Address(), Attribute: 1})
+				nn.Origins = append(nn.Origins, inheritanceOrigin{Parent: other.Address(), Attribute: 1, Constraint: 23010})
+				check.Origins = append(check.Origins, inheritanceOrigin{Parent: other.Address(), Constraint: 23011})
 			}
 			child.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{7: column}, NotNull: map[int32]inheritedConstraint{7: nn}, Checks: map[string]inheritedConstraint{"positive": check}}
 			// The parent's attribute and its owned constraints/default are retired;
@@ -71,7 +71,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				if !graph.NotNull[7].Local || !graph.Checks["positive"].Local || len(graph.NotNull[7].Origins) != 0 || len(graph.Checks["positive"].Origins) != 0 || !graph.Columns[7].ExplicitDefault {
 					t.Fatal("last provider did not become replayable local authority", graph)
 				}
-			} else if graph.NotNull[7].Local || graph.Checks["positive"].Local || graph.Columns[7].ExplicitDefault || !reflect.DeepEqual(graph.NotNull[7].Origins, []inheritanceOrigin{{Parent: other.address, Attribute: 1, Constraint: 23010}}) || !reflect.DeepEqual(graph.Checks["positive"].Origins, []inheritanceOrigin{{Parent: other.address, Constraint: 23011}}) {
+			} else if graph.NotNull[7].Local || graph.Checks["positive"].Local || graph.Columns[7].ExplicitDefault || !reflect.DeepEqual(graph.NotNull[7].Origins, []inheritanceOrigin{{Parent: other.Address(), Attribute: 1, Constraint: 23010}}) || !reflect.DeepEqual(graph.Checks["positive"].Origins, []inheritanceOrigin{{Parent: other.Address(), Constraint: 23011}}) {
 				t.Fatal("surviving provider authority was lost", graph)
 			}
 			if len(child.Inheritance.NotNull[7].Origins) != len(nn.Origins) || child.Inheritance.Columns[7].ExplicitDefault {
@@ -92,10 +92,10 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	child.Attributes = []int32{3, 8}
 	child.AttributeHighWater = 8
 	for i, attribute := range child.Attributes {
-		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.address.ObjectID), int16(attribute)
+		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.Address().ObjectID), int16(attribute)
 	}
-	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.address}, Columns: map[int32]inheritedColumn{3: {Origins: []inheritanceOrigin{{Parent: table.address, Attribute: 1}}}, 8: {Origins: []inheritanceOrigin{{Parent: table.address, Attribute: 7}}}}}
-	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.address: {1: true}})
+	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}, Columns: map[int32]inheritedColumn{3: {Origins: []inheritanceOrigin{{Parent: table.Address(), Attribute: 1}}}, 8: {Origins: []inheritanceOrigin{{Parent: table.Address(), Attribute: 7}}}}}
+	actions, _, _, err := typedInheritedActions(inheritanceUnitView(e, table, child), child, map[ids.ObjectAddress]map[int32]bool{table.Address(): {1: true}})
 	if err != nil || len(actions) != 1 || actions[0].action.Action != parser.AlterColumnType || actions[0].action.Column.Text != "id" {
 		t.Fatal("same-usage inherited TYPE disappeared", actions, err)
 	}
@@ -117,19 +117,19 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
 	next := *table
-	next.revision++
+	next.ObjectRevision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage[table.address]
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.address)
+	store := e.storage[table.Address()]
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: table.Columns[0].Usage}, origin: ref, scope: 1, frame: 1, slot: 0}
 	mutation := typedRelationMutation{old: table, next: &next, transforms: []columnTransformation{{attribute: 1, expression: node}}}
 	if err := e.stageTypedRows(scope, auth, stage, mutation); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.rowShapes) != 0 || e.storage[table.address] != store {
+	if len(stage.rowShapes) != 0 || e.storage[table.Address()] != store {
 		t.Fatal("binary-identical TYPE copied physical rows")
 	}
 }

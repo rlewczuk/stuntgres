@@ -130,7 +130,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.Relation(source.ref.Address)
 	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
-		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.RelationKind != source.relation.RelationKind ||
+		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ids.ErrCatalogReplaced
 	}

@@ -72,7 +72,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, catalog)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.name != "pg_parameter_acl" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
+	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {
@@ -101,7 +101,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
 	ownedArray, ok := catalog.LookupArray(row.SQLType)
-	if !ok || d.RowType != 10097 || row.Array != 10096 || ownedArray != array.SQLType || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+	if !ok || d.RowType != 10097 || row.Array != 10096 || ownedArray != array.SQLType || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
@@ -287,7 +287,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	pgParameterACLUnitEntries(t, e, current.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}})
 	oldID, _ := captured.anonymous[0][0].OID()
 	newID, _ := current.anonymous[0][0].OID()
-	if oldID != newID || before.Get(address) != old || old.name != "pacl_unit.snapshot" || len(old.ACL.Entries) != 2 {
+	if oldID != newID || before.Get(address) != old || old.Name() != "pacl_unit.snapshot" || len(old.ACL.Entries) != 2 {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &finalRows{}
@@ -381,7 +381,7 @@ func TestPGParameterACLAuthorization(t *testing.T) {
 		base := e.CatalogRead()
 		d, _ := pgParameterACLUnitSource(t, e, base)
 		next := *d
-		next.revision++
+		next.ObjectRevision++
 		next.ACL = authorization.ACLValue{Explicit: true}
 		next.ColumnACL = nil
 		entry := authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}

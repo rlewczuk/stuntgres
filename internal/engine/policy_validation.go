@@ -30,7 +30,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 		return fmt.Errorf("stuntgres: parameter in policy definition")
 	}
 	frozen := expression.presentation
-	if frozen.query == nil || frozen.query.Root == nil || len(frozen.sources) == 0 || frozen.sources[0].ref.Address != owner.address {
+	if frozen.query == nil || frozen.query.Root == nil || len(frozen.sources) == 0 || frozen.sources[0].ref.Address != owner.Address() {
 		return fmt.Errorf("stuntgres: invalid policy owner frame")
 	}
 	if err := validateViewLeaves(view, frozen); err != nil {

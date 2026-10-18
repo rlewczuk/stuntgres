@@ -58,7 +58,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
 	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
-		leaf := queryLeaf{ref: e.catalog.Domain.Ref(view.Epoch(), relation.address), relation: relation, only: only, analysisOnly: analysis}
+		leaf := queryLeaf{ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), relation: relation, only: only, analysisOnly: analysis}
 		auth := peerAuth
 		if token == owner.token {
 			auth = ownerAuth
@@ -81,7 +81,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalog.Epoch(), foreign.address)}, peer.token, queryRowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalog.Epoch(), foreign.Address())}, peer.token, queryRowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {
@@ -92,11 +92,11 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		t.Fatal("metadata-only leaf admitted physical storage", refs, err)
 	}
 	refs, err = collect(catalog, foreign, false, false, owner.token)
-	if err != nil || len(refs) != 1 || refs[0].Address != foreign.address {
+	if err != nil || len(refs) != 1 || refs[0].Address != foreign.Address() {
 		t.Fatal("own TEMP storage denied", refs, err)
 	}
 	refs, err = collect(catalog, persistent, false, false, peer.token)
-	if err != nil || len(refs) != 1 || refs[0].Address != persistent.address {
+	if err != nil || len(refs) != 1 || refs[0].Address != persistent.Address() {
 		t.Fatal("persistent ancestor did not skip foreign TEMP child", refs, err)
 	}
 	refs, err = collect(catalog, persistent, false, false, owner.token)
@@ -104,7 +104,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		t.Fatal("own inherited TEMP child omitted", refs, err)
 	}
 	missing := cloneCatalog(catalog.state)
-	missing.removeDescriptor(foreign.namespace)
+	missing.removeDescriptor(foreign.Namespace())
 	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing captured namespace accepted", err)
@@ -113,12 +113,12 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 
 func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 	e, owner, peer, foreign, chain, _ := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().Get(foreign.namespace).Name()
+	name := e.CatalogRead().Get(foreign.Namespace()).Name()
 	sequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
 	sequenceScalar(t, owner, "SELECT v FROM storage_chain", 99)
 	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
-	sequenceScalar(t, peer, "SELECT '"+name+".storage_foreign'::regclass::oid::bigint", int64(foreign.address.ObjectID))
-	for _, query := range []string{"SELECT v FROM " + name + ".storage_foreign", "SELECT v FROM ONLY " + name + ".storage_foreign", "SELECT v FROM " + name + "." + chain.name} {
+	sequenceScalar(t, peer, "SELECT '"+name+".storage_foreign'::regclass::oid::bigint", int64(foreign.Address().ObjectID))
+	for _, query := range []string{"SELECT v FROM " + name + ".storage_foreign", "SELECT v FROM ONLY " + name + ".storage_foreign", "SELECT v FROM " + name + "." + chain.Name()} {
 		ast, description := sequencePreparedDescription(t, e, peer, query)
 		before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 		for _, prepared := range []bool{false, true} {
@@ -146,8 +146,8 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 
 func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 	e, owner, peer, foreign, _, _ := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().Get(foreign.namespace).Name()
-	store := e.storage[foreign.address]
+	name := e.CatalogRead().Get(foreign.Namespace()).Name()
+	store := e.storage[foreign.Address()]
 	root, ends := store.versions, store.ends
 	queries := []string{
 		"INSERT INTO " + name + ".storage_foreign VALUES(100)",
@@ -178,7 +178,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.address] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.Address()] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
 				t.Fatal("foreign target changed owner state or rejection boundary", query, prepared, err)
 			}
 		}
@@ -200,7 +200,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		op.Done()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.address] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[foreign.Address()] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}

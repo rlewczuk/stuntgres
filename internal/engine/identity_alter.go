@@ -20,11 +20,11 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return old, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
 	}
 	if !ok {
-		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.name))
+		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
 	attribute := old.Attributes[slot]
 	identity, exists := old.Identities[attribute]
-	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.name)
+	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.Name())
 	if action.Action == parser.AddIdentity {
 		// PostgreSQL executes the sequence before-command before table guards.
 		// Stage it privately; a failed guard must not change the old link.
@@ -119,10 +119,10 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	}
 	changed := *sequence
 	changed.Sequence = &options
-	changed.revision = revision
+	changed.ObjectRevision = revision
 	changed.SequencePlanStamp = revision
-	if stage.base.Get(changed.address) == nil {
-		stage.descriptors[changed.address] = &changed
+	if stage.base.Get(changed.Address()) == nil {
+		stage.descriptors[changed.Address()] = &changed
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}

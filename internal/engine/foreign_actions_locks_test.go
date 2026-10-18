@@ -293,7 +293,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			view := e.CatalogRead()
 			next := *view.MustRelation(childRef.Address)
 			next.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
-			next.revision++
+			next.ObjectRevision++
 			stage := e.BeginCatalogStage(view)
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)

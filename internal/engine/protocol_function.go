@@ -58,11 +58,11 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	if d.RoutineKind != functionRoutine || d.returnsSet() {
 		e.mu.Unlock()
-		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
+		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
 	}
-	ns := auth.catalog.Get(d.namespace)
-	nsRef := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.namespace)
-	ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.address)
+	ns := auth.catalog.Get(d.Namespace())
+	nsRef := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Namespace())
+	ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
@@ -103,11 +103,11 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	for i := range args {
 		args[i] = parser.ParameterExpr{Number: i + 1}
 	}
-	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.name}}}, Args: args})
+	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.Name()}}}, Args: args})
 	if err == nil {
 		selected := expr.InfoOf(node).RoutineReference
 		if selected == nil || selected.RoutineOID() != oid {
-			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.name))
+			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.Name()))
 		}
 	}
 	if err != nil {

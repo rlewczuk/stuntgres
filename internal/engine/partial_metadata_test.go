@@ -13,9 +13,9 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	f, _, _, view := partialMaskFixture(t)
 	ctx := context.Background()
 	capture := view.read().catalog
-	rows := view.read().committed[f.parent.address]
-	oldRoot := f.e.indexRoots[f.index.address]
-	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.address)
+	rows := view.read().committed[f.parent.Address()]
+	oldRoot := f.e.indexRoots[f.index.Address()]
+	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -63,10 +63,10 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	definition := *f.index.SQLIndex
 	definition.Predicate = predicate
 	index := *f.index
-	index.revision++
+	index.ObjectRevision++
 	index.SQLIndex = &definition
 	next := cloneCatalog(capture.state)
-	next.setDescriptor(index.address, &index)
+	next.setDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: root}
+	f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
@@ -115,12 +115,12 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	index := *f.index
 	index.SQLIndex = &definition
 	next := cloneCatalog(capture.state)
-	next.setDescriptor(index.address, &index)
+	next.setDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := projectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.address))
+	metadata, _, err := projectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.Address()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 			attributes = append(attributes, dependency)
 		}
 	}
-	wantRef := f.e.catalog.Domain.Ref(candidate.Epoch(), f.parent.address)
+	wantRef := f.e.catalog.Domain.Ref(candidate.Epoch(), f.parent.Address())
 	wantRef.Address.SubID = 20
 	if !reflect.DeepEqual(attributes, []ids.ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)

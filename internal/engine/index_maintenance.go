@@ -41,7 +41,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 		scope.completed = true
 		if reindex {
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].name)})
+			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
 		}
 		for _, notice := range g.notices {
 			scope.op.emitNotice(levelNotice, notice)
@@ -74,11 +74,11 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 				next, definition := *original, *original.SQLIndex
 				definition.Ready, definition.Valid, definition.Live = true, true, true
 				next.SQLIndex = &definition
-				if next.revision == ids.DefinitionRevision(^uint64(0)) {
+				if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 					e.mu.Unlock()
 					return Result{}, fmt.Errorf("stuntgres: index revision exhausted")
 				}
-				next.revision++
+				next.ObjectRevision++
 				if err := stage.Replace(&next); err != nil {
 					e.mu.Unlock()
 					return Result{}, err
@@ -162,7 +162,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
-			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.address != parent || s.base.Get(address) != d) {
+			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.base.Get(address) != d) {
 				return CatalogConflict{}
 			}
 			actual++

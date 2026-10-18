@@ -305,8 +305,8 @@ func TestQuerySubqueryManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, name := range []string{"a", "b", "c"} {
-		if bound.querySources[i].relation.name != name {
-			t.Fatal(i, bound.querySources[i].relation.name)
+		if bound.querySources[i].relation.Name() != name {
+			t.Fatal(i, bound.querySources[i].relation.Name())
 		}
 	}
 	if bound.querySources[0].mark.mode != 0 || bound.querySources[1].mark.mode != 0 || bound.querySources[2].mark.mode == 0 {
@@ -474,7 +474,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			if b.queryNamespace != nil || b.queryFrame != 0 || b.aggregateClause != "RETURNING" || len(b.queryScopes) != 0 {
 				t.Fatal("synthesized ancestor leaked after binding", err)
 			}
-			if b.relation.name != "target" {
+			if b.relation.Name() != "target" {
 				t.Fatal("target relation changed")
 			}
 		})

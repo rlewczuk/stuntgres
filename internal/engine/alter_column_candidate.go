@@ -31,10 +31,10 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	slot, exists := old.Index[a.Column.Text]
 	if !exists {
 		if !a.IfExists {
-			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
+			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
 		}
 		if provider.scope != nil {
-			provider.missingColumnNotice(a.Column.Text, old.name)
+			provider.missingColumnNotice(a.Column.Text, old.Name())
 		}
 		return old, nil
 	}
@@ -62,10 +62,10 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 		if a.Mode == parser.DropRestrict {
 			message := "cannot drop desired object(s) because other objects depend on them"
 			if provider.scope == nil || provider.scope.inheritanceAlter == nil {
-				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.name)
+				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.Name())
 			}
 			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
-			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.Columns[generatedSlot].Name, old.name, a.Column.Text, old.name)
+			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.Columns[generatedSlot].Name, old.Name(), a.Column.Text, old.Name())
 			diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 			return nil, diagnostic
 		}

@@ -55,7 +55,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
-		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.name))
+		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		if err := c.Context.Err(); err != nil {
@@ -65,11 +65,11 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
 			continue
 		}
-		namespace, ok := catalog.Namespace(sequence.namespace)
+		namespace, ok := catalog.Namespace(sequence.Namespace())
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}
-		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.name)+"."+pgIdentifier(sequence.name)), nil
+		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.Name())+"."+pgIdentifier(sequence.Name())), nil
 	}
 	return sqltype.Null(e.Usage.Type), nil
 }

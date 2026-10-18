@@ -75,7 +75,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if er != nil {
 			return Result{}, er
 		}
-		if previous, ok := changes.descriptors[d.address].(*foreignDescriptor); ok {
+		if previous, ok := changes.descriptors[d.Address()].(*foreignDescriptor); ok {
 			d = previous
 		}
 		source, available, er := authorization.ObjectGrantSource(op.Context(), d.Owner, d.ACL, authorization.ACLValue{}, principals, actor.Superuser, authorization.UsagePrivilege)
@@ -83,9 +83,9 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 			return Result{}, er
 		}
 		if available == 0 && authorization.ACLRights(d.ACL, d.Owner, principals, authorization.UsagePrivilege, false) == 0 {
-			return Result{}, sqlError("42501", "permission denied for "+s.Kind+" "+d.name)
+			return Result{}, sqlError("42501", "permission denied for "+s.Kind+" "+d.Name())
 		}
-		grantWarning(op, d.name, "", authorization.UsagePrivilege, available, false, s.Revoke)
+		grantWarning(op, d.Name(), "", authorization.UsagePrivilege, available, false, s.Revoke)
 		if available == 0 {
 			continue
 		}
@@ -103,14 +103,14 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		}
 		next := *d
 		next.ACL = acl
-		next.revision, er = e.catalog.revisionLocked()
+		next.ObjectRevision, er = e.catalog.revisionLocked()
 		if er != nil {
 			return Result{}, er
 		}
 		if er = validateACL(auth.roles, &next); er != nil {
 			return Result{}, er
 		}
-		e.catalogChangeLocked(changes, d.address, &next)
+		e.catalogChangeLocked(changes, d.Address(), &next)
 	}
 	scope.catalog = changes
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)

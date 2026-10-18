@@ -97,7 +97,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		descriptor := e.catalog.state.Get(address)
 		if extension, ok := descriptor.(*extensionDescriptor); ok {
 			if imported, exists := next.LookupName(descriptorNameKey(extension)); exists && next.Get(imported) != extension {
-				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.name)
+				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.Name())
 			}
 		}
 		temporary[address] = descriptor
@@ -351,13 +351,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					break
 				}
 				n := *r
-				n.address = target
+				n.ObjectAddress = target
 				d = &n
 			case *collationDescriptor:
 				n := *r
 				n.OID = target.ObjectID
 				if dest, ok := mapping[n.Namespace()]; ok {
-					n.namespace = dest
+					n.ObjectNamespace = dest
 				}
 				d = &n
 			case *conversionDescriptor:
@@ -375,19 +375,19 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					return fmt.Errorf("stuntgres: pinned conversion identity collision")
 				}
 				n := *r
-				n.OID, n.namespace, n.Handler = target.ObjectID, namespace, handler
+				n.OID, n.ObjectNamespace, n.Handler = target.ObjectID, namespace, handler
 				d = &n
 			case *operatorDescriptor:
 				n := *r
-				n.address = target
+				n.ObjectAddress = target
 				move := func(class, id ids.OID) ids.OID {
 					if mapped, ok := mapping[ids.ObjectAddress{ClassID: class, ObjectID: id}]; ok {
 						return mapped.ObjectID
 					}
 					return id
 				}
-				if mapped, ok := mapping[n.namespace]; ok {
-					n.namespace = mapped
+				if mapped, ok := mapping[n.Namespace()]; ok {
+					n.ObjectNamespace = mapped
 				}
 				n.Left, n.Right, n.Result = move(ids.TypeClassID, n.Left), move(ids.TypeClassID, n.Right), move(ids.TypeClassID, n.Result)
 				n.Function, n.Restriction, n.Join = move(ids.ProcedureClassID, n.Function), move(ids.ProcedureClassID, n.Restriction), move(ids.ProcedureClassID, n.Join)
@@ -397,14 +397,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				}
 			case *relationDescriptor:
 				if target == a && r.RelationKind == catalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
-					if _, moved := mapping[r.namespace]; !moved {
+					if _, moved := mapping[r.Namespace()]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
 						break
 					}
 				}
 				n := *r
-				n.address = target
+				n.ObjectAddress = target
 				if r.Inheritance != nil {
 					n.Inheritance = remapInheritance(r.Inheritance, func(address ids.ObjectAddress) ids.ObjectAddress {
 						if destination, ok := mapping[address]; ok {
@@ -421,8 +421,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 						}
 					}
 				}
-				if dest, ok := mapping[n.namespace]; ok {
-					n.namespace = dest
+				if dest, ok := mapping[n.Namespace()]; ok {
+					n.ObjectNamespace = dest
 				}
 				if len(r.UniqueConstraints) != 0 {
 					n.UniqueConstraints = append([]uniqueConstraint(nil), r.UniqueConstraints...)
@@ -619,7 +619,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 			r, ok := e.catalog.state.Relation(a)
 			keep := false
 			if ok {
-				ns, ok := e.catalog.state.Namespace(r.namespace)
+				ns, ok := e.catalog.state.Namespace(r.Namespace())
 				keep = ok && ns.Temporary == s.token
 			}
 			if !keep {
@@ -761,7 +761,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			if !ok {
 				continue
 			}
-			if temporary[old.namespace] != nil {
+			if temporary[old.Namespace()] != nil {
 				if !storedViewReferenceValid(catalog, consumer, ref) {
 					return ids.ErrCatalogReplaced
 				}
@@ -774,7 +774,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.namespace != old.namespace || candidate.name != old.name || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.HasIndexes != old.HasIndexes || candidate.HasSubclasses != old.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
+			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.HasIndexes != old.HasIndexes || candidate.HasSubclasses != old.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
 				return fail()
 			}
 			for attribute, acl := range old.ColumnACL {
@@ -789,13 +789,13 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 					return fail()
 				}
 			}
-			namespace, ok := e.catalog.state.Namespace(old.namespace)
-			other, candidateOK := next.Namespace(old.namespace)
-			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
+			namespace, ok := e.catalog.state.Namespace(old.Namespace())
+			other, candidateOK := next.Namespace(old.Namespace())
+			if !ok || !candidateOK || !pgDependPinned(catalog, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
 				return fail()
 			}
 			next.setDescriptor(address, old)
-			next.setDescriptor(old.namespace, namespace)
+			next.setDescriptor(old.Namespace(), namespace)
 		}
 	}
 	return nil

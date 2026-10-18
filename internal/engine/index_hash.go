@@ -310,7 +310,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.address]
+		output, produced := row.indexOutputs[index.Address()]
 		produced = produced && output.matches(index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue

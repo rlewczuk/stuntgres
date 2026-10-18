@@ -180,7 +180,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	maximum := *old.(*relationDescriptor)
-	maximum.revision = ids.DefinitionRevision(^uint64(0))
+	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Replace(&maximum); err != nil {
 		t.Fatal(err)

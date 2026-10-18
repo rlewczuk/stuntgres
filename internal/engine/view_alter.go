@@ -28,7 +28,7 @@ func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.Alt
 		}
 	}
 	if d.RelationKind != kind {
-		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.name, label))
+		return sqlError("42809", fmt.Sprintf(`"%s" is not a %s`, d.Name(), label))
 	}
 	if ownerChecked {
 		return nil
@@ -158,7 +158,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}
 	if changed {
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}
@@ -195,7 +195,7 @@ func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 	if ownerErr == nil {
 		return nil
 	}
-	ns := auth.catalog.MustNamespace(d.namespace)
+	ns := auth.catalog.MustNamespace(d.Namespace())
 	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.Owner)
 	if err != nil {
 		return err
@@ -250,7 +250,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.name, label), Hint: hint}
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a %s`, d.Name(), label), Hint: hint}
 		}
 		if err := viewDropOwner(auth, ref, d); err != nil {
 			e.mu.Unlock()

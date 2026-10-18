@@ -48,7 +48,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, source.address)
+			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, source.Address())
 			definition := *viewOf(d)
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.Attributes, reads: source.Attributes}}
 			d.View = &definition
@@ -56,14 +56,14 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			tx := transactionBegin(t, holder)
 			ref := sourceRef
 			if tc.target {
-				ref.Address = d.address
+				ref.Address = d.Address()
 			}
 			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			scope := refreshUnitScope(t, e, ctx)
-			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, NoData: tc.noData}
+			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: tc.noData}
 			done := make(chan error, 1)
 			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
 			joined := false
@@ -114,8 +114,8 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
-			original := e.storage[d.address]
-			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}, NoData: noData}
+			original := e.storage[d.Address()]
+			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
 			second := &parser.RefreshMaterializedView{Name: first.Name}
 			a := refreshUnitScope(t, e, context.Background())
 			if err := a.acquireMaterializedRefresh(first); err != nil {
@@ -153,8 +153,8 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				}
 			}
 			execute(a, first)
-			afterA := e.storage[d.address]
-			descriptorA := e.catalog.state.MustRelation(d.address)
+			afterA := e.storage[d.Address()]
+			descriptorA := e.catalog.state.MustRelation(d.Address())
 			firstCount := 1
 			if noData {
 				firstCount = 0
@@ -174,11 +174,11 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if err := b.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			final := e.catalog.state.MustRelation(d.address)
-			if e.commitSeq != before+2 || e.storage[d.address] == afterA || len(e.storage[d.address].versions) != 1 || len(afterA.versions) != firstCount || !final.Populated || final.address != d.address || final.View != d.View || final.RowType != d.RowType {
+			final := e.catalog.state.MustRelation(d.Address())
+			if e.commitSeq != before+2 || e.storage[d.Address()] == afterA || len(e.storage[d.Address()].versions) != 1 || len(afterA.versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}
-			values := e.storage[d.address].versions[0].values
+			values := e.storage[d.Address()].versions[0].values
 			want := refreshUnitRows(t, d, 1)[0]
 			if len(values) != len(want) || values[0] != want[0] {
 				t.Fatal("queued refresh final typed row differs from defining SELECT1")

@@ -38,10 +38,10 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					src.Owner, sink.Owner = owner, owner
 					src.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
 					input := *src
-					input.address.ObjectID += 2
-					input.name, input.Rules = "input", nil
+					input.ObjectAddress.ObjectID += 2
+					input.ObjectName, input.Rules = "input", nil
 					next := cloneCatalog(e.catalog.state)
-					next.setDescriptor(input.address, &input)
+					next.setDescriptor(input.Address(), &input)
 					e.catalog.state = next
 					auth.catalog = e.catalog.read(next)
 					auth.pairedCatalog = auth.catalog

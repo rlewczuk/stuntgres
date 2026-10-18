@@ -35,7 +35,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *Operation, s *parser.AlterTa
 	}
 	p := auth.catalog.MustRelation(parent.Address)
 	c := auth.catalog.MustRelation(child.Address)
-	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.address {
+	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.Address() {
 		return partitionReplayTeardown{}, nil
 	}
 	store := e.storage[child.Address]
@@ -71,7 +71,7 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent.address && !index.SQLIndex.Valid && index.SQLIndex.Ready && index.SQLIndex.Live {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent.Address() && !index.SQLIndex.Valid && index.SQLIndex.Ready && index.SQLIndex.Live {
 			delete(records, ref.Address)
 			return nil
 		}

@@ -136,7 +136,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.Get(parent.address) != parent {
+	if auth.catalog.Get(parent.Address()) != parent {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -164,7 +164,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 		old := auth.catalog.MustRelation(parent.Partition.DefaultChild)
-		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
+		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.Name(), old.Name()), raw.Bound.Pos)
 	}
 	if !bound.DefaultBound {
 		if err = pending.checkOverlap(scope); err != nil {
@@ -182,18 +182,18 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = partitionAttachValidateRows(scope, auth.catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
-	if parent.revision == ids.DefinitionRevision(^uint64(0)) || next.revision == ids.DefinitionRevision(^uint64(0)) {
+	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) || next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next.Membership = bound
-	next.revision++
+	next.ObjectRevision++
 	changed, definition := *parent, *parent.Partition
-	definition.Children = append(slices.Clone(definition.Children), child.address)
+	definition.Children = append(slices.Clone(definition.Children), child.Address())
 	if bound.DefaultBound {
-		definition.DefaultChild = child.address
+		definition.DefaultChild = child.Address()
 	}
 	changed.Partition = &definition
-	changed.revision++
+	changed.ObjectRevision++
 	if err = stage.Replace(&changed); err != nil {
 		return Result{}, err
 	}
@@ -202,7 +202,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	e.mu.Lock()
 	for _, index := range partitionIndexDeclarationOrder(auth.catalog, parent) {
-		current := e.stageRead(stage).MustRelation(child.address)
+		current := e.stageRead(stage).MustRelation(child.Address())
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break
 		}

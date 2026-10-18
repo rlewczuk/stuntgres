@@ -154,7 +154,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		err = args(n.args)
 	case unnestExpression:
 		if n.procedure != nil {
-			fmt.Fprintf(out, "Intagg %s", n.procedure.name)
+			fmt.Fprintf(out, "Intagg %s", n.procedure.Name())
 		} else {
 			fmt.Fprint(out, "Unnest")
 		}

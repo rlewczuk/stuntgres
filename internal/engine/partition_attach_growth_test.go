@@ -25,7 +25,7 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &partitionMembership{Parent: parent.address, Lower: []partitionDatum{{Value: lo}}, Upper: []partitionDatum{{Value: hi}}}
+	return &partitionMembership{Parent: parent.Address(), Lower: []partitionDatum{{Value: lo}}, Upper: []partitionDatum{{Value: hi}}}
 }
 
 func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
@@ -97,19 +97,19 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
 			old.RelationKind = tableRelation
 			old.Membership = partitionAttachUnitRange(t, parent, 20, 30)
-			parent.Partition.Children = []ids.ObjectAddress{old.address}
+			parent.Partition.Children = []ids.ObjectAddress{old.Address()}
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.catalog.state.MustRelation(parent.address)
-			old = e.catalog.state.MustRelation(old.address)
-			candidate = e.catalog.state.MustRelation(candidate.address)
+			parent = e.catalog.state.MustRelation(parent.Address())
+			old = e.catalog.state.MustRelation(old.Address())
+			candidate = e.catalog.state.MustRelation(candidate.Address())
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, old.address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, old.Address())
 			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
-			parentRef.Address = parent.address
+			parentRef.Address = parent.Address()
 			if err := reader.acquirePartitionLock(parentRef, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
@@ -119,11 +119,11 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			p, c := *parent, *candidate
 			definition := *parent.Partition
-			definition.Children = []ids.ObjectAddress{old.address, candidate.address}
+			definition.Children = []ids.ObjectAddress{old.Address(), candidate.Address()}
 			p.Partition = &definition
-			p.revision++
+			p.ObjectRevision++
 			c.Membership = partitionAttachUnitRange(t, parent, 1, 3)
-			c.revision++
+			c.ObjectRevision++
 			if err := stage.Replace(&p); err != nil {
 				t.Fatal(err)
 			}
@@ -137,21 +137,21 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.catalog.state.MustRelation(parent.address)
+			current := e.catalog.state.MustRelation(parent.Address())
 			if !partitionAppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
 				next := cloneCatalog(e.catalog.state)
 				changed := *old
-				changed.name = "replacement_identity"
-				changed.revision++
+				changed.ObjectName = "replacement_identity"
+				changed.ObjectRevision++
 				next.unbindName(descriptorNameKey(old))
-				next.bindName(descriptorNameKey(&changed), changed.address)
-				next.setDescriptor(old.address, &changed)
+				next.bindName(descriptorNameKey(&changed), changed.Address())
+				next.setDescriptor(old.Address(), &changed)
 				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.
-				reader.partitionRelations[old.address] = old
+				reader.partitionRelations[old.Address()] = old
 			}
 			if err := holder.Finish(nil); err != nil {
 				t.Fatal(err)
@@ -168,17 +168,17 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
 			var admitted, fresh []ids.ObjectAddress
-			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.address), func(d *relationDescriptor) error { admitted = append(admitted, d.address); return nil }); err != nil {
+			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.Address()), func(d *relationDescriptor) error { admitted = append(admitted, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *relationDescriptor) error { fresh = append(fresh, d.address); return nil }); err != nil {
+			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *relationDescriptor) error { fresh = append(fresh, d.Address()); return nil }); err != nil {
 				t.Fatal(err)
 			}
-			if !slices.Equal(admitted, []ids.ObjectAddress{old.address}) || !slices.Equal(fresh, []ids.ObjectAddress{old.address, candidate.address}) {
+			if !slices.Equal(admitted, []ids.ObjectAddress{old.Address()}) || !slices.Equal(fresh, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lock.Resource{ObjectRef: e.catalog.Domain.Ref(ref.Epoch, candidate.address)}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: e.catalog.Domain.Ref(ref.Epoch, candidate.Address())}]
 			newHold := entry != nil && entry.Holders[reader.ticket].Mode != 0
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")
@@ -195,12 +195,12 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target := partitionAttachUnitRoot(t, e, "attach_frontier_target", 46111)
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
 			leaf.RelationKind = tableRelation
-			leaf.Membership = &partitionMembership{Parent: target.address, DefaultBound: true}
-			target.Partition.Children = []ids.ObjectAddress{leaf.address}
-			target.Partition.DefaultChild = leaf.address
+			leaf.Membership = &partitionMembership{Parent: target.Address(), DefaultBound: true}
+			target.Partition.Children = []ids.ObjectAddress{leaf.Address()}
+			target.Partition.DefaultChild = leaf.Address()
 			view := inheritanceUnitView(e, parent, target, leaf)
 			usage, boolean := target.Columns[0].Usage, testUsage(e, sqltype.Bool)
-			ref := e.catalog.Domain.Ref(view.Epoch(), target.address)
+			ref := e.catalog.Domain.Ref(view.Epoch(), target.Address())
 			ref.Address.SubID = 1
 			key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 			cmp := func(op string, n int64) expr.Expr {
@@ -241,13 +241,13 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				target.CheckConstraints = []checkConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
-			parent = e.catalog.state.MustRelation(parent.address)
-			target = e.catalog.state.MustRelation(target.address)
+			parent = e.catalog.state.MustRelation(parent.Address())
+			target = e.catalog.state.MustRelation(target.Address())
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.catalog.Domain.Ref(e.catalog.state.epoch, leaf.address)
+			leafRef := e.catalog.Domain.Ref(e.catalog.state.epoch, leaf.Address())
 			targetRef := leafRef
-			targetRef.Address = target.address
+			targetRef.Address = target.Address()
 			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)
 			if err := scope.acquirePartitionLock(targetRef, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
@@ -280,7 +280,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				}
 			}
 			if mode == "default_unproven" {
-				if len(scans) != 1 || scans[0].leaf.address != leaf.address || !scans[0].exclude {
+				if len(scans) != 1 || scans[0].leaf.Address() != leaf.Address() || !scans[0].exclude {
 					t.Fatal("unproven DEFAULT omitted physical scan", scans)
 				}
 			} else if len(scans) != 0 {

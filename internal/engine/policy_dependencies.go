@@ -29,7 +29,7 @@ func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress,
 		if !ok {
 			continue
 		}
-		if slices.Contains(targets, d.address) {
+		if slices.Contains(targets, d.Address()) {
 			continue
 		}
 		for _, p := range d.Policies {
@@ -80,11 +80,11 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 		}
 		copy := *d
 		copy.Policies = kept
-		revision, err := provider.revision(copy.revision)
+		revision, err := provider.revision(copy.Revision())
 		if err != nil {
 			return err
 		}
-		copy.revision = revision
+		copy.ObjectRevision = revision
 		if err = provider.replace(&copy); err != nil {
 			return err
 		}
@@ -99,10 +99,10 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 		}
 	}
 	slices.SortFunc(owners, func(a, b *relationDescriptor) int {
-		if a.address.ObjectID < b.address.ObjectID {
+		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
-		if a.address.ObjectID > b.address.ObjectID {
+		if a.Address().ObjectID > b.Address().ObjectID {
 			return 1
 		}
 		return 0
@@ -120,7 +120,7 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 					break
 				}
 			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, dependencyIdentifier(p.Name), dependencyIdentifier(owner.name), column)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, dependencyIdentifier(p.Name), dependencyIdentifier(owner.Name()), column)}
 		}
 	}
 	return nil

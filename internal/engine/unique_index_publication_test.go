@@ -118,7 +118,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 		t.Fatal("invalid unique fixture")
 	}
 	if attached {
-		if index.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.address {
+		if index.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.Address() {
 			t.Fatal("attachment must be genuine")
 		}
 	} else if index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 {
@@ -182,7 +182,7 @@ func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	t.Helper()
 	if store == nil {
-		store = f.stores[f.parent.address]
+		store = f.stores[f.parent.Address()]
 	}
 	beforeStore := uniquePublicationStore(store)
 	beforeWrites := uniquePublicationRows(writes)
@@ -191,9 +191,9 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 		beforeDeletes = maps.Clone(deletion.rows)
 	}
 	stores := captureIndexStores(f.e.storage, f.catalog)
-	stores[f.parent.address] = store
-	parents := map[ids.ObjectAddress]bool{f.parent.address: rebuild}
-	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
+	stores[f.parent.Address()] = store
+	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
+	publication := rowPublication{address: f.parent.Address(), relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.Address()], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
 	if materialize {
 		if err := f.e.prepareRowPublication(&publication, f.e.catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
 			t.Fatal(err)
@@ -231,14 +231,14 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 	if len(roots) != len(f.roots) {
 		t.Fatal("completion omitted index roots", len(roots), len(f.roots))
 	}
-	root := roots[f.index.address]
+	root := roots[f.index.Address()]
 	if root == nil {
 		t.Fatal("completion omitted substantive root")
 	}
 	want := make([]logicalIndexEntry, len(rows))
-	nextPosition := len(f.stores[f.parent.address].versions)
+	nextPosition := len(f.stores[f.parent.Address()].versions)
 	for i, row := range rows {
-		_, position, found := rowByID(f.stores[f.parent.address].versions, row.row, -1)
+		_, position, found := rowByID(f.stores[f.parent.Address()].versions, row.row, -1)
 		if !found {
 			position = nextPosition
 			nextPosition++
@@ -249,7 +249,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 		t.Fatal("wrong completion membership", root.entries, want)
 	}
 	for address, old := range f.roots {
-		if address != f.index.address && roots[address] != old {
+		if address != f.index.Address() && roots[address] != old {
 			t.Fatal("unchanged sibling root not retained", address)
 		}
 	}
@@ -277,7 +277,7 @@ func TestUniqueIndexPublicationRebuiltPredecessor(t *testing.T) {
 			for _, delta := range []string{"delete", "replace"} {
 				t.Run(fmt.Sprintf("attached=%t/materialize=%t/%s", attached, materialize, delta), func(t *testing.T) {
 					f := newUniquePublicationFixture(t, attached, true, false, "table", false)
-					store := *f.stores[f.parent.address]
+					store := *f.stores[f.parent.Address()]
 					store.versions = uniquePublicationRows(store.versions)
 					// Real valid definitions, with a deliberately duplicate build
 					// input. The separate delta could hide this if applied first.
@@ -331,7 +331,7 @@ func TestUniqueIndexPublicationStreaming(t *testing.T) {
 								if err != nil {
 									t.Fatal(err)
 								}
-								want := append(uniquePublicationRows(f.stores[f.parent.address].versions), writes...)
+								want := append(uniquePublicationRows(f.stores[f.parent.Address()].versions), writes...)
 								f.membership(t, roots, materialize, want)
 							}
 						})
@@ -357,7 +357,7 @@ func TestUniqueIndexPublicationNullSurvivor(t *testing.T) {
 							if err != nil {
 								t.Fatal(err)
 							}
-							want := append(uniquePublicationRows(f.stores[f.parent.address].versions), writes...)
+							want := append(uniquePublicationRows(f.stores[f.parent.Address()].versions), writes...)
 							f.membership(t, roots, materialize, want)
 						}
 					})
@@ -372,8 +372,8 @@ func TestUniqueIndexPublicationReplacementMembership(t *testing.T) {
 		for _, materialize := range []bool{false, true} {
 			t.Run(fmt.Sprintf("attached=%t/materialize=%t", attached, materialize), func(t *testing.T) {
 				f := newUniquePublicationFixture(t, attached, true, true, "table", false)
-				rows := f.stores[f.parent.address].versions
-				deletion := &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[0].row: {ref: f.ref, storage: f.stores[f.parent.address], row: rows[0].row, version: rows[0].version}}}
+				rows := f.stores[f.parent.Address()].versions
+				deletion := &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[0].row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[0].row, version: rows[0].version}}}
 				replacement := f.row(t, 1, "2001-02-05", "3")
 				replacement.row, replacement.base = rows[1].row, rows[1].version
 				writes := []rowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}
@@ -394,7 +394,7 @@ func TestUniqueIndexPublicationDisclosure(t *testing.T) {
 				for _, building := range []bool{false, true} {
 					t.Run(fmt.Sprintf("attached=%t/materialize=%t/%s/building=%t", attached, materialize, disclosure, building), func(t *testing.T) {
 						f := newUniquePublicationFixture(t, attached, true, false, disclosure, false)
-						store := *f.stores[f.parent.address]
+						store := *f.stores[f.parent.Address()]
 						store.versions = uniquePublicationRows(store.versions)
 						var writes []rowVersion
 						if building {

@@ -45,7 +45,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	}
 	var table *relationDescriptor
 	if err == nil {
-		table, err = e.newTableDescriptorLocked(source.namespace, "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
+		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
 	}
 	if err == nil {
 		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -68,7 +68,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	}
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	return e, view.MustRelation(source.address), view.MustRelation(table.address)
+	return e, view.MustRelation(source.Address()), view.MustRelation(table.Address())
 }
 
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
@@ -94,7 +94,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if len(actions) != 1 || actions[0].action.Column.Text != "note" || actions[0].action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
-	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.address.ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
+	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.Address().ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
 		invalid := *table
 		invalid.OfType = bad
 		if err := validateTypedAttachment(view, &invalid); err == nil {
@@ -148,7 +148,7 @@ func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor
 		if err != nil {
 			t.Fatal(err)
 		}
-		next.revision++
+		next.ObjectRevision++
 		if err := stage.Replace(next); err != nil {
 			t.Fatal(err)
 		}
@@ -186,22 +186,22 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			next.setDescriptor(address, descriptor)
 		}
 		late := *table
-		late.address.ObjectID += 1000
-		late.name = "late"
+		late.ObjectAddress.ObjectID += 1000
+		late.ObjectName = "late"
 		switch kind {
 		case "attach":
-			next.setDescriptor(late.address, &late)
+			next.setDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
-			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.address}}
-			next.setDescriptor(late.address, &late)
+			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
+			next.setDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *table
-			replacement.revision++
-			next.setDescriptor(table.address, &replacement)
+			replacement.ObjectRevision++
+			next.setDescriptor(table.Address(), &replacement)
 		case "unrelated":
 			late.OfType = ids.ObjectAddress{}
-			next.setDescriptor(late.address, &late)
+			next.setDescriptor(late.Address(), &late)
 		}
 		valid := typedObservationValid(stage, e.catalog.read(next))
 		if valid != (kind == "unrelated") {
@@ -214,7 +214,7 @@ func TestTypedEmptyAndBuiltinSourceDumpPredecessor(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		e, source, table := typedUnitCatalog(t, empty)
 		predecessors, err := dumpColumnPredecessors(e.CatalogRead(), table, nil)
-		if err != nil || !reflect.DeepEqual(predecessors, []ids.OID{source.address.ObjectID}) {
+		if err != nil || !reflect.DeepEqual(predecessors, []ids.OID{source.Address().ObjectID}) {
 			t.Fatal("typed source absent from mixed topology", empty, predecessors, err)
 		}
 	}

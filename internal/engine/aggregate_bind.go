@@ -819,7 +819,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedSoundexFunctionExpression:
 		o, ok := other.(installedSoundexFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -830,7 +830,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedMetaphoneFunctionExpression:
 		o, ok := other.(installedMetaphoneFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -841,7 +841,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedLevenshteinFunctionExpression:
 		o, ok := other.(installedLevenshteinFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -855,7 +855,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return ok && e.ref == o.ref && e.procedure == o.procedure && e.Name == o.Name
 	case installedCryptoFunctionExpression:
 		o, ok := other.(installedCryptoFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -866,7 +866,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
-		return ok && e.ref == o.ref && e.procedure.revision == o.procedure.revision && same(e.Arg, o.Arg)
+		return ok && e.ref == o.ref && e.procedure.Revision() == o.procedure.Revision() && same(e.Arg, o.Arg)
 	case functions.SQLJSON:
 		o, ok := other.(functions.SQLJSON)
 		if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Absent != o.Raw.Absent || e.Raw.Unique != o.Raw.Unique || len(e.Args) != len(o.Args) {

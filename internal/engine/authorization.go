@@ -250,7 +250,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	case *databaseDescriptor:
 		return d.Owner, d.ACL, nil
 	case *foreignDescriptor:
-		if d.address.ClassID == ids.ForeignMappingClassID {
+		if d.Address().ClassID == ids.ForeignMappingClassID {
 			return d.MappedRole, authorization.ACLValue{}, nil
 		}
 		return d.Owner, d.ACL, nil
@@ -528,7 +528,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ids.ForeignMappingClassID {
+		if t.Address().ClassID == ids.ForeignMappingClassID {
 			if t.MappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}
@@ -571,7 +571,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
 	case *foreignDescriptor:
-		if t.address.ClassID == ids.ForeignMappingClassID {
+		if t.Address().ClassID == ids.ForeignMappingClassID {
 			if t.MappedRole == (authorization.PrincipalRef{}) {
 				return nil
 			}

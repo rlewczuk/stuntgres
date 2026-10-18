@@ -34,7 +34,7 @@ func foreignActionUnitScope(t *testing.T, e *Engine, session *Session, q string)
 func foreignActionUnitJob(t *testing.T, jobs []foreignKeyJob, name string) *foreignKeyJob {
 	t.Helper()
 	for i := range jobs {
-		if jobs[i].child.name == name {
+		if jobs[i].child.Name() == name {
 			return &jobs[i]
 		}
 	}
@@ -75,11 +75,11 @@ func TestForeignActionsDefinition(t *testing.T) {
 	if !slices.Equal(current.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.ForeignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.ForeignKeys[0])
 	}
-	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.namespace}}).foreignKeyConstraintSQL(current, current.ForeignKeys[0])
+	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.Namespace()}}).foreignKeyConstraintSQL(current, current.ForeignKeys[0])
 	if err != nil || text != "FOREIGN KEY (a, author) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (author)" {
 		t.Fatal(text, err)
 	}
-	oldText, err := (pgRenderer{view: view, relation: child, path: []ids.ObjectAddress{child.namespace}}).foreignKeyConstraintSQL(child, original)
+	oldText, err := (pgRenderer{view: view, relation: child, path: []ids.ObjectAddress{child.Namespace()}}).foreignKeyConstraintSQL(child, original)
 	if err != nil || oldText != "FOREIGN KEY (a, b) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (b)" {
 		t.Fatal("retained deparse changed", oldText, err)
 	}
@@ -136,7 +136,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
 	children, err := scope.captureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)

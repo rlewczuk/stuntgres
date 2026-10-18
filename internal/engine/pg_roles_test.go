@@ -63,7 +63,7 @@ func pgRolesUnitRole(e *Engine, state *roleCatalog, id uint64, name string) auth
 func TestPGRolesDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgRolesUnitSource(t, e)
-	if d.name != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
+	if d.Name() != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolconnlimit", "rolpassword", "rolvaliduntil", "rolbypassrls", "rolconfig", "oid"}
@@ -85,11 +85,11 @@ func TestPGRolesDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001})
-	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12001 || row.SQLType.Concrete() {
+	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12001 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
 	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
-	if views.name != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.Owner != d.Owner || array.Owner != d.Owner {
+	if views.Name() != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
 	if representedSummaryTable(12007) || representedSummaryViewDefinition(12007) == "" {
@@ -136,15 +136,15 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name = name
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName = name
 		view.RelationKind = viewRelation
 		view.VirtualView = false
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.address, &view)
+		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_roles_inner", ref)
@@ -204,13 +204,13 @@ func TestPGRolesCancellation(t *testing.T) {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
-	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.setDescriptor(unknown.address, &unknown)
+	unknown.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
+	e.catalog.state.setDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

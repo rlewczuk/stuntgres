@@ -6,6 +6,6 @@ func rowMaintainsIndex(row rowVersion, index *relationDescriptor) bool {
 	if row.indexAdmission == nil {
 		return true
 	}
-	admitted, ok := row.indexAdmission.Relation(index.address)
+	admitted, ok := row.indexAdmission.Relation(index.Address())
 	return ok && admitted.SQLIndex != nil && admitted.SQLIndex.Ready && admitted.SQLIndex.Live
 }

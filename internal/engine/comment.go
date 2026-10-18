@@ -119,7 +119,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := tableKind(relation, operation); err != nil {
 			return nil, err
 		}
-		if err := auth.CanUse(e.catalog.Domain.Ref(ref.Epoch, relation.namespace)); err != nil {
+		if err := auth.CanUse(e.catalog.Domain.Ref(ref.Epoch, relation.Namespace())); err != nil {
 			return nil, err
 		}
 		if s.Kind == parser.CommentColumn {
@@ -152,11 +152,11 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	case *namespaceDescriptor:
 		n := *d
 		n.Comment = text
-		n.revision = revision
+		n.ObjectRevision = revision
 		updated = &n
 	case *relationDescriptor:
 		n := *d
-		n.revision = revision
+		n.ObjectRevision = revision
 		if ref.Address.SubID == 0 {
 			n.Comment = text
 		} else {

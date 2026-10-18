@@ -43,7 +43,7 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 		}
 		definitions = append(definitions, d)
 	}
-	sort.Slice(definitions, func(i, j int) bool { return definitions[i].address.ObjectID < definitions[j].address.ObjectID })
+	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Address().ObjectID < definitions[j].Address().ObjectID })
 	rows := make([][]sqltype.Value, len(definitions))
 	cells := make([]sqltype.Value, len(rows)*15)
 	for i, identity := range definitions {
@@ -51,7 +51,7 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 			return nil, err
 		}
 		row := cells[i*15 : (i+1)*15 : (i+1)*15]
-		for j, oid := range [15]uint32{uint32(identity.address.ObjectID), 0, uint32(identity.namespace.ObjectID), uint32(identity.Owner.ID()), 0, 0, 0, uint32(identity.Left), uint32(identity.Right), uint32(identity.Result), uint32(identity.Commutator), uint32(identity.Negator), uint32(identity.Function), uint32(identity.Restriction), uint32(identity.Join)} {
+		for j, oid := range [15]uint32{uint32(identity.Address().ObjectID), 0, uint32(identity.Namespace().ObjectID), uint32(identity.Owner.ID()), 0, 0, 0, uint32(identity.Left), uint32(identity.Right), uint32(identity.Result), uint32(identity.Commutator), uint32(identity.Negator), uint32(identity.Function), uint32(identity.Restriction), uint32(identity.Join)} {
 			if j == 1 || j >= 4 && j <= 6 {
 				continue
 			}
@@ -67,7 +67,7 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 			}
 			row[j] = value
 		}
-		row[1] = sqltype.String(source.Columns[1].Usage.Type, identity.name)
+		row[1] = sqltype.String(source.Columns[1].Usage.Type, identity.Name())
 		kind := "b"
 		if identity.Left == 0 {
 			kind = "l"

@@ -21,7 +21,7 @@ func TestExclusionIndexRoots(t *testing.T) {
 			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.isExclusion() || !backingConstraintPresent(parent, index) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
-			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.epoch, index.address))
+			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.epoch, index.Address()))
 			if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || !metadata.IndImmediate || !metadata.IndIsReady || !metadata.IndIsValid || !metadata.IndIsLive || len(metadata.IndKey) != 1 || metadata.IndKey[0] != 0 {
 				t.Fatal("incorrect native exclusion index metadata", metadata, err)
 			}
@@ -97,7 +97,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 		t.Fatal("rename changed constraint identity or the integrity root")
 	}
 	index = e.catalog.state.MustRelation(current.Index)
-	if index.name != "renamed" || !backingConstraintPresent(parent, index) {
+	if index.Name() != "renamed" || !backingConstraintPresent(parent, index) {
 		t.Fatal("rename broke index attachment")
 	}
 	if !renamed.Deferrable || !renamed.InitiallyDeferred {

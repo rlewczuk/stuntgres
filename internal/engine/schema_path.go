@@ -272,9 +272,9 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	}
 	if foreignTemporary && kind != installedFunctionLookup {
 		if kind == relationLookup {
-			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
+			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()))
 		}
-		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
+		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
 	}
 	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
@@ -332,7 +332,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 			if !ok || !ownTemporaryNamespace(auth, ns) {
 				return ids.ObjectRef{}, true, nil
 			}
-			a = ns.address
+			a = ns.Address()
 		} else {
 			var ok bool
 			a, ok = auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n})

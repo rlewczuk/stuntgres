@@ -169,7 +169,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 		for _, policy := range relation.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public && role.Ref == ref {
-					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
+					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.Address(), policyName: policy.Name}) {
 						return true
 					}
 				}
@@ -280,19 +280,19 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 
 func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
-		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.name}); ok {
-			return a == relation.address
+		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.Name()}); ok {
+			return a == relation.Address()
 		}
 	}
 	return false
 }
 
 func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) string {
-	name := dependencyIdentifier(relation.name)
+	name := dependencyIdentifier(relation.Name())
 	if relationVisibleAt(catalog, relation, path) {
 		return name
 	}
-	return dependencyIdentifier(catalog.Get(relation.namespace).Name()) + "." + name
+	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
 }
 
 func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
@@ -328,8 +328,8 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = "text search dictionary "
 	}
 	if foreign, ok := d.(*foreignDescriptor); ok {
-		kind = foreignLabel(foreign.address.ClassID) + " "
-		if foreign.address.ClassID == ids.ForeignMappingClassID {
+		kind = foreignLabel(foreign.Address().ClassID) + " "
+		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.roles.Descriptor(foreign.MappedRole)
 			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.Server).Name())

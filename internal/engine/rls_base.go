@@ -101,7 +101,7 @@ func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) 
 	default:
 		return tableKind(d, rowSecurityActionLabel(action))
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.name), Detail: "This operation is not supported for " + kind + "."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
@@ -254,7 +254,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	default:
 		return nil
 	}
-	scope.rlsProposalTable = b.relation.name
+	scope.rlsProposalTable = b.relation.Name()
 	if !b.relation.RLSEnabled {
 		return nil
 	}

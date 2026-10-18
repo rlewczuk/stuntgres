@@ -35,7 +35,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			continue
 		}
 		for _, f := range child.ForeignKeys {
-			if len(s.stage.rows[child.address]) != 0 || s.stage.deletes[child.address] != nil || len(s.stage.rows[f.Target]) != 0 || s.stage.deletes[f.Target] != nil {
+			if len(s.stage.rows[child.Address()]) != 0 || s.stage.deletes[child.Address()] != nil || len(s.stage.rows[f.Target]) != 0 || s.stage.deletes[f.Target] != nil {
 				relevant = true
 				break
 			}
@@ -74,7 +74,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			}
 			for _, f := range child.ForeignKeys {
 				parentDirections := directions[f.Target]
-				next := directions[child.address]
+				next := directions[child.Address()]
 				if parentDirections&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade {
 					if f.DeleteAction == parser.ForeignKeyCascade {
 						next |= 1
@@ -85,9 +85,9 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 				if parentDirections&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
 					next |= 2
 				}
-				if next != directions[child.address] {
-					directions[child.address] = next
-					changed[child.address] = true
+				if next != directions[child.Address()] {
+					directions[child.Address()] = next
+					changed[child.Address()] = true
 					again = true
 				}
 			}
@@ -101,7 +101,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			continue
 		}
 		for _, f := range child.ForeignKeys {
-			if !changed[child.address] && !changed[f.Target] {
+			if !changed[child.Address()] && !changed[f.Target] {
 				continue
 			}
 			parent, pok := auth.catalog.Relation(f.Target)
@@ -111,7 +111,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 				return nil, auth, ids.ErrCatalogReplaced
 			}
 			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
-			for _, a := range []ids.ObjectAddress{child.address, parent.address} {
+			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
 				ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
 				if modes[ref] == 0 {
 					modes[ref] = lock.RowShare
@@ -119,7 +119,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			}
 			d := directions[f.Target]
 			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[e.catalog.Domain.Ref(auth.catalog.Epoch(), child.address)] = lock.RowExclusive
+				modes[e.catalog.Domain.Ref(auth.catalog.Epoch(), child.Address())] = lock.RowExclusive
 			}
 		}
 	}
@@ -154,9 +154,9 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 }
 
 func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
-	child, cok := view.Relation(job.child.address)
-	parent, pok := view.Relation(job.parent.address)
-	index, iok := view.Relation(job.index.address)
+	child, cok := view.Relation(job.child.Address())
+	parent, pok := view.Relation(job.parent.Address())
+	index, iok := view.Relation(job.index.Address())
 	if !cok || !pok || !iok || index.SQLIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
 		return ids.ErrCatalogReplaced
 	}
@@ -243,7 +243,7 @@ func (s *StatementScope) settleForeignActions() error {
 		}
 		for i := range jobs {
 			job := &jobs[i]
-			if job.parent.address != event.relation {
+			if job.parent.Address() != event.relation {
 				continue
 			}
 			action := job.definition.DeleteAction

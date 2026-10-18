@@ -25,7 +25,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 		return nil
 	}
 	original := scope.statementMutation
-	locked := map[ids.ObjectAddress]bool{state.root.address: true}
+	locked := map[ids.ObjectAddress]bool{state.root.Address(): true}
 	processed := make(map[ids.ObjectAddress]bool)
 	state.definition = inheritanceDefinitionReader{base: auth.catalog}
 	if !preparatory {
@@ -45,7 +45,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 		state.targets = targets
 		progress := false
 		for index, observed := range targets {
-			if processed[observed.address] {
+			if processed[observed.Address()] {
 				continue
 			}
 			incoming := state.actions
@@ -56,16 +56,16 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 				}
 			}
 			ref := original.lockedRef
-			ref.Address = observed.address
-			if !locked[observed.address] {
+			ref.Address = observed.Address()
+			if !locked[observed.Address()] {
 				if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 					return err
 				}
-				locked[observed.address] = true
+				locked[observed.Address()] = true
 			}
 			e.mu.Lock()
 			actualCatalog := e.privateCatalogLocked(scope.owner.catalog)
-			actual, _ := actualCatalog.Relation(observed.address)
+			actual, _ := actualCatalog.Relation(observed.Address())
 			if actualCatalog.Epoch() != auth.catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
@@ -79,7 +79,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 				return err
 			}
 			if preparatory {
-				processed[actual.address] = true
+				processed[actual.Address()] = true
 				progress = true
 				break
 			}
@@ -107,13 +107,13 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 				}
 			}
 			scope.lockedRef, scope.lockedDescriptor = ref, actual
-			state.selected[actual.address] = true
+			state.selected[actual.Address()] = true
 			prepared, err := e.prepareInheritanceNode(scope, op, currentAuth, actual, planned)
 			if err != nil {
 				return err
 			}
-			state.prepared[actual.address] = prepared
-			processed[actual.address] = true
+			state.prepared[actual.Address()] = prepared
+			processed[actual.Address()] = true
 			progress = true
 			break // Capture actual newly admitted descendants before the next provider.
 		}

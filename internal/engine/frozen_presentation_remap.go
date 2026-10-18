@@ -96,7 +96,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 			if !ok {
 				return nil, ids.ErrCatalogReplaced
 			}
-			definition.dependencies[i].Revision = procedure.revision
+			definition.dependencies[i].Revision = procedure.Revision()
 		}
 	}
 	root, err := remapViewQuery(view, original.query.Root, ref, typ, collation)

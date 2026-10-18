@@ -63,8 +63,8 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		for i := range path.count() {
 			for _, descriptor := range v.catalog.Descriptors() {
 				p, ok := descriptor.(*procedureDescriptor)
-				if ok && p.namespace == path.at(i) && p.name == name && p.RoutineKind == procedureRoutine {
-					selected = routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.Signature}
+				if ok && p.Namespace() == path.at(i) && p.Name() == name && p.RoutineKind == procedureRoutine {
+					selected = routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}
 					count++
 				}
 			}

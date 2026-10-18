@@ -39,7 +39,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	collation := func(name string) *collationDescriptor {
 		for _, descriptor := range view.Descriptors() {
-			if d, ok := descriptor.(*collationDescriptor); ok && d.name == name {
+			if d, ok := descriptor.(*collationDescriptor); ok && d.Name() == name {
 				return d
 			}
 		}

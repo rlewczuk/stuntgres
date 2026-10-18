@@ -87,7 +87,7 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if err := appendDescription(relation.address, attribute, descriptorComment(relation, attribute)); err != nil {
+				if err := appendDescription(relation.Address(), attribute, descriptorComment(relation, attribute)); err != nil {
 					return nil, err
 				}
 			}

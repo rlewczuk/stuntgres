@@ -40,7 +40,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.TargetNamespace, Extension: ext.address, revision: revision, name: member.name, Signature: member.signature, RoutineKind: member.kind, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: member.strict, Implementation: p}
+		proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: member.kind, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: member.strict, Implementation: p}
 		if i == 0 {
 			state, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -59,7 +59,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 			}
 		}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -70,13 +70,13 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 
 func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
+	if p != stockIntagg || v.owner == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
 		return invalid()
 	}
 	var seen [len(intaggMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.TargetNamespace || proc.Extension != ext.address || proc.revision == 0 || proc.Volatility != expr.Immutable || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.Volatility != expr.Immutable || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {
@@ -84,7 +84,7 @@ func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescript
 		}
 		found := false
 		for j, member := range intaggMembers {
-			if proc.name == member.name && proc.Signature == member.signature && proc.Result == member.result && proc.Strict == member.strict && proc.RoutineKind == member.kind {
+			if proc.Name() == member.name && proc.Signature == member.signature && proc.Result == member.result && proc.Strict == member.strict && proc.RoutineKind == member.kind {
 				if seen[j] {
 					return invalid()
 				}
@@ -110,11 +110,11 @@ func (p *intaggProvider) validateProcedure(v CatalogRead, proc *procedureDescrip
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.address) != proc || proc.intaggProvider() != p {
+	if v.Get(proc.Address()) != proc || proc.intaggProvider() != p {
 		return fmt.Errorf("stuntgres: foreign intagg procedure")
 	}
 	for _, address := range ext.Members {
-		if address == proc.address {
+		if address == proc.Address() {
 			return nil
 		}
 	}

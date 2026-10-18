@@ -335,7 +335,7 @@ func TestSerializablePublicationCatalogChangeSetVetoWithLiveGraph(t *testing.T) 
 	peer := serializableUnitCycle(t, e, node)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	descriptor := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "unpublished", revision: 1}
+	descriptor := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "unpublished", ObjectRevision: 1}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
 	}

@@ -65,7 +65,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	if calls != 2 || predicates != 3 || len(e.storage[d.address].versions) != 2 {
+	if calls != 2 || predicates != 3 || len(e.storage[d.Address()].versions) != 2 {
 		t.Fatal("publication demanded query again")
 	}
 }

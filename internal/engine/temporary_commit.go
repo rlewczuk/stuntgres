@@ -25,7 +25,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		if !ok || table.RelationKind != tableRelation || table.OnCommit != parser.OnCommitDelete && table.OnCommit != parser.OnCommitDrop {
 			continue
 		}
-		ns := base.MustNamespace(table.namespace)
+		ns := base.MustNamespace(table.Namespace())
 		if ns.Temporary != op.session.token {
 			continue
 		}
@@ -71,8 +71,8 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input, Output: output, catalog: base}
 		project := func(old, replacement *relationDescriptor) error {
 			owner := op.session.transactions
-			snapshot, exists := owner.roots[old.address]
-			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.address], nextDeletes[old.address], snapshot, exists, stableIsolation(owner.isolation))
+			snapshot, exists := owner.roots[old.Address()]
+			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.isolation))
 			if err != nil {
 				return err
 			}
@@ -80,13 +80,13 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 				if nextWrites == nil {
 					nextWrites = make(map[ids.ObjectAddress][]rowVersion)
 				}
-				nextWrites[old.address] = rows
+				nextWrites[old.Address()] = rows
 			}
 			if deleted != nil || nextDeletes != nil {
 				if nextDeletes == nil {
 					nextDeletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
 				}
-				nextDeletes[old.address] = deleted
+				nextDeletes[old.Address()] = deleted
 			}
 			return nil
 		}

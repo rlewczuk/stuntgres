@@ -262,7 +262,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			next := *old
 			next.Wrapper = target
 			var err error
-			next.revision, err = e.catalog.revisionLocked()
+			next.ObjectRevision, err = e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}
@@ -287,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
-			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.address), false)
+			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -389,7 +389,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 		next := *old
 		next.Wrapper = survivor
 		var err error
-		next.revision, err = e.catalog.revisionLocked()
+		next.ObjectRevision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

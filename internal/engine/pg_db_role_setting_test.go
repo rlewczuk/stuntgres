@@ -40,7 +40,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, catalog)
 	owner := e.Roles().LookupRef("postgres")
-	if d.name != "pg_db_role_setting" || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}
@@ -76,7 +76,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
 	ownedRow, ok := catalog.LookupType(10054)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
-	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.address || array.OwningRelation != d.address || row.Owner != owner || array.Owner != owner {
+	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
 	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
@@ -197,7 +197,7 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 		base := e.CatalogRead()
 		d, _ := pgDBRoleSettingUnitSource(t, e, base)
 		next := *d
-		next.revision++
+		next.ObjectRevision++
 		next.ACL = authorization.ACLValue{Explicit: true}
 		next.ColumnACL = nil
 		if table {

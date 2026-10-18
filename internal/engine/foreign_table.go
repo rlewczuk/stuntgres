@@ -70,7 +70,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			}
 			d := auth.catalog.MustRelation(ref.Address)
 			if d.RelationKind != foreignRelation {
-				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.name))
+				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
 			}
 			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 				return nil, nil, err
@@ -78,7 +78,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			if err := stage.removeObjectLocked(ref, false); err != nil {
 				return nil, nil, err
 			}
-			roots = append(roots, d.address)
+			roots = append(roots, d.Address())
 		}
 		return nil, roots, nil
 	}
@@ -115,7 +115,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}
 	d.RelationKind = foreignRelation
-	d.Foreign = &foreignTableDefinition{Server: server.address, Columns: make(map[int32][]ForeignOption)}
+	d.Foreign = &foreignTableDefinition{Server: server.Address(), Columns: make(map[int32][]ForeignOption)}
 	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
@@ -173,7 +173,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	old := auth.catalog.MustRelation(ref.Address)
 	if old.RelationKind != foreignRelation {
 		e.mu.Unlock()
-		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.name))
+		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.Name()))
 	}
 	if ref != scope.lockedRef {
 		e.mu.Unlock()
@@ -248,7 +248,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				if action.Column.Text != "" {
 					slot, ok := next.Index[action.Column.Text]
 					if !ok {
-						return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, next.name))
+						return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, next.Name()))
 					}
 					attribute = next.Attributes[slot]
 					options = next.Foreign.Columns[attribute]
@@ -274,7 +274,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				a := action.Default
 				slot, ok := next.Index[a.Column.Text]
 				if !ok {
-					return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, next.name))
+					return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, next.Name()))
 				}
 				next.Defaults = maps.Clone(next.Defaults)
 				attribute := next.Attributes[slot]
@@ -378,7 +378,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 	}
 	e.mu.Lock()
-	next.revision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err == nil {
 		err = e.assignDefinitionOIDsLocked(&next)
 	}

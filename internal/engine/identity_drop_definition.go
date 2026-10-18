@@ -28,7 +28,7 @@ type identityDropCapture struct {
 
 func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor, attribute int32) (*relationDescriptor, error) {
 	sequence, ok := descriptor.(*relationDescriptor)
-	owned := table.address
+	owned := table.Address()
 	owned.SubID = attribute
 	if !ok || sequence == nil || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
 		return nil, ids.ErrCatalogReplaced
@@ -45,12 +45,12 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	}
 	slot, present := old.Index[action.Column.Text]
 	if !present {
-		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.name))
+		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
 	attribute := old.Attributes[slot]
 	identity, exists := old.Identities[attribute]
 	if !exists {
-		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.name)
+		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.Name())
 		if !action.IfExists {
 			return old, capture, sqlError("55000", message)
 		}
@@ -145,7 +145,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	}
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
 	if old != nil {
-		ref.Address = old.address
+		ref.Address = old.Address()
 	}
 	provider, err := scope.prepareDropDefinitionProvider(auth, old, ref, nil)
 	if err != nil {

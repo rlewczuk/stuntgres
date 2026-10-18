@@ -37,7 +37,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	auth := capture(reader)
 	var owner *relationDescriptor
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == "partition_original" {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Name() == "partition_original" {
 			owner = relation
 		}
 	}
@@ -68,7 +68,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		return EvalContext{Context: context.Background(), Row: sentinel, Scope: 7, Frame: 9, statementScope: scope, catalog: auth.catalog, routineAuthority: &auth}
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
-		if plain, ok := descriptor.(*relationDescriptor); ok && plain.name == "partition_plain" {
+		if plain, ok := descriptor.(*relationDescriptor); ok && plain.Name() == "partition_plain" {
 			local := newEvaluation(auth)
 			var buffer [32]partitionDatum
 			if _, err := partitionRowKey(plain, row, &local, buffer[:]); err != nil {
@@ -162,7 +162,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	state.descriptors = maps.Clone(state.descriptors)
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
-	declaration.revision++
+	declaration.ObjectRevision++
 	state.setDescriptor(address, &declaration)
 	staleAuth.catalog.state = &state
 	staleEvaluation := newEvaluation(staleAuth)

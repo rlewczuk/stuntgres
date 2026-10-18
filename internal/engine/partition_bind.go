@@ -55,12 +55,12 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 				return nil, partitionGeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
-			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
+			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 			columns := make([]queryColumn, len(d.Columns))
 			for j, c := range d.Columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
-			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}}, frame: d.Columns}
+			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace
@@ -125,7 +125,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
 func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBound) (*partitionMembership, error) {
-	bound := &partitionMembership{Parent: parent.address, Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
+	bound := &partitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
 	if parent.Partition.Strategy == parser.PartitionHash {
 		if raw.Default {
 			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")

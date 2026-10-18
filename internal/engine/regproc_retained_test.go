@@ -234,7 +234,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	// neither the operator identity nor the composite value changes.
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	changed := *typ
-	changed.revision++
+	changed.ObjectRevision++
 	if err := stage.Replace(&changed); err != nil {
 		t.Fatal(err)
 	}

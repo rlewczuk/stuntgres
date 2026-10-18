@@ -42,7 +42,7 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 			views = append(views, d)
 		}
 	}
-	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
+	sort.Slice(views, func(i, j int) bool { return views[i].Address().ObjectID < views[j].Address().ObjectID })
 	seen := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, target := range targets {
 		if target.SubID == 0 {
@@ -53,10 +53,10 @@ func (provider *dropProvider) viewClosure(targets []ids.ObjectAddress) []viewDep
 	var visit func(ids.ObjectAddress)
 	visit = func(target ids.ObjectAddress) {
 		for _, view := range views {
-			if !seen[view.address] && viewDepends(view, target) {
-				seen[view.address] = true
+			if !seen[view.Address()] && viewDepends(view, target) {
+				seen[view.Address()] = true
 				edges = append(edges, viewDependencyEdge{view, target})
-				visit(view.address)
+				visit(view.Address())
 			}
 		}
 	}
@@ -119,13 +119,13 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "constraint " + dependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(catalog, parent, path)
 	}
 	if d, ok := catalog.Namespace(base); ok {
-		return "schema " + dependencyIdentifier(d.name)
+		return "schema " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Database(base); ok {
-		return "database " + dependencyIdentifier(d.name)
+		return "database " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Foreign(base); ok {
-		if d.address.ClassID == ids.ForeignMappingClassID {
+		if d.Address().ClassID == ids.ForeignMappingClassID {
 			user := "public"
 			if d.MappedRole != (authorization.PrincipalRef{}) {
 				user = dependencyIdentifier(d.MappedName)
@@ -133,28 +133,28 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 			server := catalog.Get(d.Server)
 			return "user mapping for " + user + " on server " + dependencyIdentifier(server.Name())
 		}
-		return foreignLabel(d.address.ClassID) + " " + dependencyIdentifier(d.name)
+		return foreignLabel(d.Address().ClassID) + " " + dependencyIdentifier(d.Name())
 	}
 	if d, ok := catalog.Extension(base); ok {
-		return "extension " + dependencyIdentifier(d.name)
+		return "extension " + dependencyIdentifier(d.Name())
 	}
 	if _, ok := catalog.Operator(base); ok {
 		return "operator " + operatorSpelling(catalog, path, collectOperatorGroups(catalog), base.ObjectID, sqltype.Regoperator)
 	}
 	if d, ok := catalog.Procedure(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, namespace := range path {
 			if n, ok := catalog.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.name, Signature: string(d.Signature)}); ok {
-				visible = address == d.address
+			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.Name(), Signature: string(d.Signature)}); ok {
+				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.namespace).Name()) + "." + name
+			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
 		}
 		var arguments string
 		switch d.Signature {
@@ -182,19 +182,19 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "function " + name + "(" + arguments + ")"
 	}
 	if d, ok := catalog.TSDictionary(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, ns := range path {
 			if n, ok := catalog.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}); ok {
-				visible = address == d.address
+			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
+				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.namespace).Name()) + "." + name
+			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
 		}
 		return "text search dictionary " + name
 	}
@@ -202,14 +202,14 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "type " + typeDiagnosticNameAt(catalog, t, path)
 	}
 	if d, ok := catalog.Collation(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
 				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.name}); ok {
+				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
@@ -221,14 +221,14 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "collation " + name
 	}
 	if d, ok := catalog.Conversion(base); ok {
-		name := dependencyIdentifier(d.name)
+		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
 				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.name}); ok {
+				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
@@ -259,7 +259,7 @@ func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []i
 	// Internal provider stages have no SQL visibility context. SQL utilities
 	// supply their actual lookup path, including an empty effective path.
 	if path == nil {
-		return dependencyIdentifier(d.name)
+		return dependencyIdentifier(d.Name())
 	}
 	return relationDiagnosticNameAt(catalog, d, path)
 }
@@ -281,7 +281,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, 
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
 		copy(policyTargets, targets)
 		for _, edge := range views {
-			policyTargets = append(policyTargets, edge.view.address)
+			policyTargets = append(policyTargets, edge.view.Address())
 		}
 	}
 	dependents := policyDependentLabels(catalog, policyTargets, path)
@@ -299,10 +299,10 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.Obj
 	}
 	for _, edge := range checks {
 		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.Ordinal})
+		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.Address().ObjectID, checkOrdinal: edge.check.Ordinal})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
+		dependents = append(dependents, supportedDependent{oid: edge.view.Address().ObjectID, target: edge.target, view: edge.view.Address(), label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
 	}
 	for _, edge := range foreign {
 		if !edge.automatic {
@@ -371,7 +371,7 @@ func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdg
 	if !multipleDeletion {
 		target := dependents[0].target
 		for i := len(views) - 1; i >= 0; i-- {
-			if views[i].view.address == target {
+			if views[i].view.Address() == target {
 				target = views[i].target
 			}
 		}
@@ -399,7 +399,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		expanded = make([]ids.ObjectAddress, len(targets), len(targets)+len(edges))
 		copy(expanded, targets)
 		for _, edge := range edges {
-			expanded = append(expanded, edge.view.address)
+			expanded = append(expanded, edge.view.Address())
 		}
 	}
 	policies := provider.policyDependentLabels(expanded)
@@ -433,10 +433,10 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.view
-		if provider.removed(d.address) {
+		if provider.removed(d.Address()) {
 			continue
 		}
-		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)
@@ -497,8 +497,8 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		if !ok || !storedViewReferenceValid(v, d, leaf.ref) || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
-		namespace, ok := v.Namespace(source.namespace)
-		consumerNamespace, consumerOK := v.Namespace(d.namespace)
+		namespace, ok := v.Namespace(source.Namespace())
+		consumerNamespace, consumerOK := v.Namespace(d.Namespace())
 		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}

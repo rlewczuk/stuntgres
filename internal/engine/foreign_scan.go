@@ -98,7 +98,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	request := ForeignRequest{Schema: auth.catalog.Get(relation.namespace).Name(), Table: relation.name, Role: role.Name, TableOID: uint32(relation.address.ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	request := ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
 	for i, column := range relation.Columns {
 		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}

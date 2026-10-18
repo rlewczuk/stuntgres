@@ -71,7 +71,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		b.ruleCTEs[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
 		b.dependencies = append(b.dependencies, program.events...)
 		if command.binding.relation != nil {
-			b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.revision})
+			b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 		}
 		b.dependencies = append(b.dependencies, command.binding.dependencies...)
 		b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)

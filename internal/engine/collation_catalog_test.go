@@ -25,7 +25,7 @@ func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 
 func collationUnitDefinition(e *Engine, id ids.OID, name string) *collationDescriptor {
 	owner, _ := e.Roles().Lookup("postgres")
-	return &collationDescriptor{OID: id, name: name, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, revision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: collationText("C"), CType: collationText("C"), Semantics: 950}
+	return &collationDescriptor{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: collationText("C"), CType: collationText("C"), Semantics: 950}
 }
 
 func TestCollationCatalogAuthority(t *testing.T) {
@@ -61,7 +61,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	}
 	foreignOwner := *d
 	foreignOwner.Owner = New().roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	foreignOwner.revision++
+	foreignOwner.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&foreignOwner); err != nil {
 		t.Fatal(err)
@@ -70,8 +70,8 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		t.Fatal("foreign owner admitted by synchronized stage validation")
 	}
 	next := *d
-	next.name = "renamed"
-	next.revision++
+	next.ObjectName = "renamed"
+	next.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
@@ -167,9 +167,9 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	ns := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, name: "private", revision: 1, Owner: actor.Ref}
+	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "private", ObjectRevision: 1, Owner: actor.Ref}
 	d := collationUnitDefinition(e, 90001, "owned")
-	d.namespace, d.Owner = ns.address, actor.Ref
+	d.ObjectNamespace, d.Owner = ns.Address(), actor.Ref
 	for _, descriptor := range []Descriptor{ns, d} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)

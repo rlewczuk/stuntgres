@@ -23,7 +23,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 	if state == nil {
 		return
 	}
-	events := state.events[before.address]
+	events := state.events[before.Address()]
 	switch a.Action {
 	case parser.AddColumn:
 		if slot, exists := after.Index[a.Definition.Name]; exists {
@@ -46,7 +46,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			}
 			for _, c := range before.CheckConstraints {
 				if !slices.ContainsFunc(after.CheckConstraints, func(next checkConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency expressionDependency) bool {
-					return dependency.Ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.address.ObjectID, SubID: attribute}
+					return dependency.Ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.Address().ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
 				}
@@ -92,7 +92,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			events = append(events, inheritanceAlterEvent{action: action, attribute: next.Attribute, validation: validation})
 		}
 	}
-	state.events[before.address] = events
+	state.events[before.Address()] = events
 }
 
 func (scope *StatementScope) recordInheritanceChecks(before, after *relationDescriptor, raw []*parser.CheckConstraint, start int) {
@@ -110,7 +110,7 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *relationDesc
 		}
 		definition := *raw[index]
 		definition.Name = parser.Identifier{Text: c.Name}
-		state.events[before.address] = append(state.events[before.address], inheritanceAlterEvent{action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, constraint: c.OID})
+		state.events[before.Address()] = append(state.events[before.Address()], inheritanceAlterEvent{action: parser.AlterTableAction{Action: parser.AddCheck, Check: &definition}, constraint: c.OID})
 	}
 }
 

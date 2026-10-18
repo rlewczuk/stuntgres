@@ -40,12 +40,12 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Soundex namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case installedMetaphoneFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Metaphone reference")
@@ -53,12 +53,12 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Metaphone namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case installedLevenshteinFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Levenshtein reference")
@@ -66,12 +66,12 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored Levenshtein namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case functions.SQLJSON:
 		return r.sqlJSON(ctx, view, n, sqltype.Usage{})
 	case functions.JSONPredicate:
@@ -87,12 +87,12 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored uuid-ossp namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), nil)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), nil)
 	case installedCryptoFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
@@ -100,36 +100,36 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored crypto namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case installedFunctionExpression:
 		proc, ok := r.descriptor(view, n.ref.Address).(*procedureDescriptor)
-		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || !n.validProvider() || proc.name != n.procedure.name || proc.Signature != n.procedure.Signature || proc.RoutineKind != n.procedure.RoutineKind || proc.Result != n.procedure.Result || proc.Strict != n.procedure.Strict || proc.Volatility != n.procedure.Volatility || proc.unaccentProvider() != n.procedure.unaccentProvider() || proc.intarrayProvider() != n.procedure.intarrayProvider() || proc.pgcryptoProvider() != n.procedure.pgcryptoProvider() || proc.fuzzystrmatchProvider() != n.procedure.fuzzystrmatchProvider() || proc.Dictionary != n.procedure.Dictionary || proc.Extension != n.procedure.Extension || proc.namespace != n.procedure.namespace {
+		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || !n.validProvider() || proc.Name() != n.procedure.Name() || proc.Signature != n.procedure.Signature || proc.RoutineKind != n.procedure.RoutineKind || proc.Result != n.procedure.Result || proc.Strict != n.procedure.Strict || proc.Volatility != n.procedure.Volatility || proc.unaccentProvider() != n.procedure.unaccentProvider() || proc.intarrayProvider() != n.procedure.intarrayProvider() || proc.pgcryptoProvider() != n.procedure.pgcryptoProvider() || proc.fuzzystrmatchProvider() != n.procedure.fuzzystrmatchProvider() || proc.Dictionary != n.procedure.Dictionary || proc.Extension != n.procedure.Extension || proc.Namespace() != n.procedure.Namespace() {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		if n.dictionary != nil {
 			dictionary, ok := r.descriptor(view, proc.Dictionary).(*tsDictionaryDescriptor)
-			if !ok || dictionary.address != n.dictionary.address || dictionary.Template != n.dictionary.Template || dictionary.unaccentProvider() != n.dictionary.unaccentProvider() {
+			if !ok || dictionary.Address() != n.dictionary.Address() || dictionary.Template != n.dictionary.Template || dictionary.unaccentProvider() != n.dictionary.unaccentProvider() {
 				return "", fmt.Errorf("stuntgres: invalid stored installed dictionary")
 			}
 			template, ok := r.descriptor(view, dictionary.Template).(*tsTemplateDescriptor)
-			if !ok || template.address != n.template.address || template.unaccentProvider() != n.template.unaccentProvider() {
+			if !ok || template.Address() != n.template.Address() || template.unaccentProvider() != n.template.unaccentProvider() {
 				return "", fmt.Errorf("stuntgres: invalid stored installed template")
 			}
 		}
 		if proc.fuzzystrmatchProvider() == nil && n.dictionary == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
-		namespace, ok := r.descriptor(view, proc.namespace).(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, proc.Namespace()).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []expr.Expr{n.Arg})
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
 	case functions.UUIDGeneration:
 		if u.Type.ID() != sqltype.UUID || (n.Name != "uuidv7" && n.Name != "uuidv4" && n.Name != "gen_random_uuid") || len(n.Args) > 1 || len(n.Args) != 0 && n.Name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")

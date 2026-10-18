@@ -210,8 +210,8 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		}
 		unchanged()
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		bad.address.ObjectID = e.catalog.nextOID
-		bad.name = "invalid_stage"
+		bad.ObjectAddress.ObjectID = e.catalog.nextOID
+		bad.ObjectName = "invalid_stage"
 		if err := stage.Create(&bad); err != nil {
 			t.Fatal(err)
 		}

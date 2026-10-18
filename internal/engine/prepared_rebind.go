@@ -88,7 +88,7 @@ func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevis
 	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == sequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {
-			if memory := session.sequences[relation.address]; memory != nil {
+			if memory := session.sequences[relation.Address()]; memory != nil {
 				stamp = max(stamp, memory.analysisStamp)
 			}
 		}
@@ -196,7 +196,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
-	ns := e.catalog.Domain.Ref(ref.Epoch, d.namespace)
+	ns := e.catalog.Domain.Ref(ref.Epoch, d.Namespace())
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) != 0 && name.Parts[0].Pos.Character > 0 {
 			copy := *diagnostic
@@ -206,7 +206,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.Temporary == auth.session.token {
+		if namespace, ok := auth.catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

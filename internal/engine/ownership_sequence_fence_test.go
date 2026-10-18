@@ -42,13 +42,13 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		objectACLUnitEntry(dbRole, reader, authorization.UsagePrivilege, 0),
 		objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 	}}
-	sequence.revision++
+	sequence.ObjectRevision++
 	if err := setup.Replace(&sequence); err != nil {
 		t.Fatal(err)
 	}
 	// The successor genuinely owns the containing namespace. It does not
 	// inherit pg_database_owner, and neither actor nor successor is superuser.
-	if err := stageOwnership(setup, setup.base.Get(sequence.namespace), target); err != nil {
+	if err := stageOwnership(setup, setup.base.Get(sequence.Namespace()), target); err != nil {
 		t.Fatal(err)
 	}
 	sentinel := roleTableRef(t, e, "ownership_fence_sentinel")
@@ -69,7 +69,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		// this is the package overlay seam, not new database SQL admission.
 		changes = newCatalogChanges()
 		database := *committed.(*databaseDescriptor)
-		database.Owner, database.revision = actor, database.revision+1
+		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.descriptors[currentDatabaseAddress] = &database
 		changes.originals[currentDatabaseAddress] = committed
 	}
@@ -127,7 +127,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err := targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.namespace)); err != nil {
+				if err := targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
 					t.Fatal("successor lacks actual namespace CREATE", err)
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.ACL.Entries...)}
@@ -182,7 +182,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					} else {
 						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
-					database.revision++
+					database.ObjectRevision++
 					if err := stage.Replace(&database); err != nil {
 						t.Fatal(err)
 					}

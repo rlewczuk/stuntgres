@@ -43,7 +43,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 		return err
 	}
 	db := catalog.MustDatabase(currentDatabaseAddress)
-	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.name)).(*sqlstate.Error)
+	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.Name())).(*sqlstate.Error)
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic
 }

@@ -14,17 +14,17 @@ var builtinTablespaces = [...]struct {
 }{{1663, "pg_default"}, {1664, "pg_global"}}
 
 type tablespaceDescriptor struct {
-	address  ids.ObjectAddress
-	revision ids.DefinitionRevision
-	name     string
-	Owner    authorization.PrincipalRef
-	ACL      authorization.ACLValue
+	ObjectAddress  ids.ObjectAddress
+	ObjectRevision ids.DefinitionRevision
+	ObjectName     string
+	Owner          authorization.PrincipalRef
+	ACL            authorization.ACLValue
 }
 
-func (d *tablespaceDescriptor) Address() ids.ObjectAddress       { return d.address }
-func (d *tablespaceDescriptor) Revision() ids.DefinitionRevision { return d.revision }
+func (d *tablespaceDescriptor) Address() ids.ObjectAddress       { return d.ObjectAddress }
+func (d *tablespaceDescriptor) Revision() ids.DefinitionRevision { return d.ObjectRevision }
 func (*tablespaceDescriptor) Namespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
-func (d *tablespaceDescriptor) Name() string                     { return d.name }
+func (d *tablespaceDescriptor) Name() string                     { return d.ObjectName }
 func (*tablespaceDescriptor) Kind() ids.ObjectKind               { return ids.TablespaceObject }
 
 type tablespaceProvider struct{}
@@ -32,14 +32,14 @@ type tablespaceProvider struct{}
 func (tablespaceProvider) ClassID() ids.OID { return ids.TablespaceClassID }
 func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*tablespaceDescriptor)
-	if !ok || d == nil || v.state == nil || v.Get(d.address) != d {
+	if !ok || d == nil || v.state == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor authority")
 	}
 	valid := false
 	for _, builtin := range builtinTablespaces {
-		valid = valid || d.address.ObjectID == builtin.oid && d.name == builtin.name
+		valid = valid || d.Address().ObjectID == builtin.oid && d.Name() == builtin.name
 	}
-	if !valid || d.address.ClassID != ids.TablespaceClassID || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
+	if !valid || d.Address().ClassID != ids.TablespaceClassID || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor")
 	}
 	return nil
@@ -48,9 +48,9 @@ func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
-		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, Owner: owner}
-		e.catalog.state.setDescriptor(d.address, d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.address)
+		d := &tablespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, ObjectRevision: 1, ObjectName: builtin.name, Owner: owner}
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 }
 

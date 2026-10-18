@@ -167,8 +167,8 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			temp := target.catalog.state.Get(tempRef.Address)
 			generator := target.sequences[tempRef.Address]
 			memory := b.sequences[tempRef.Address]
-			if !self && tempRef.Address.ObjectID != original.address.ObjectID {
-				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.address)
+			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
+				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
@@ -178,7 +178,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.u")
-			if parent.UniqueConstraints[0].Index != index.address || index.SQLIndex.Parent != parent.address || index.SQLIndex.Constraint.OID != parent.UniqueConstraints[0].OID || len(root.entries) != 1 || root.entries[0].row == 0 || root.entries[0].version == 0 {
+			if parent.UniqueConstraints[0].Index != index.Address() || index.SQLIndex.Parent != parent.Address() || index.SQLIndex.Constraint.OID != parent.UniqueConstraints[0].OID || len(root.entries) != 1 || root.entries[0].row == 0 || root.entries[0].version == 0 {
 				t.Fatal("broken imported closure")
 			}
 			if root == sourceRoot || self && root.entries[0].row == sourceRoot.entries[0].row {

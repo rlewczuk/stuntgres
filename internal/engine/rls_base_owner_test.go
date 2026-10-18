@@ -30,15 +30,15 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	}
 	enabled := *d
 	enabled.RLSEnabled = true
-	enabled.revision++
+	enabled.ObjectRevision++
 	publish(&enabled)
 	retained := e.CatalogRead()
-	retainedDescriptor := retained.MustRelation(d.address)
+	retainedDescriptor := retained.MustRelation(d.Address())
 	decision := func(principal authorization.PrincipalRef, want rlsDisposition) {
 		t.Helper()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
-		current := e.catalog.state.MustRelation(d.address)
+		current := e.catalog.state.MustRelation(d.Address())
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -51,21 +51,21 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	decision(reader, rlsDefaultDeny)
 	owned := enabled
 	owned.Owner = reader
-	owned.revision++
+	owned.ObjectRevision++
 	publish(&owned)
 	decision(reader, rlsUnrestricted)
 	decision(bypass, rlsUnrestricted)
-	if retained.Get(d.address) != retainedDescriptor || retainedDescriptor.Owner != d.Owner || !retainedDescriptor.RLSEnabled || enabled.Owner != d.Owner || d.RLSEnabled {
+	if retained.Get(d.Address()) != retainedDescriptor || retainedDescriptor.Owner != d.Owner || !retainedDescriptor.RLSEnabled || enabled.Owner != d.Owner || d.RLSEnabled {
 		t.Fatal("publication mutated retained root/descriptor")
 	}
 	forced := owned
 	forced.RLSForced = true
-	forced.revision++
+	forced.ObjectRevision++
 	publish(&forced)
 	decision(reader, rlsDefaultDeny)
 	decision(bypass, rlsUnrestricted)
 	decision(d.Owner, rlsUnrestricted)
-	if owned.RLSForced || retained.MustRelation(d.address).RLSForced {
+	if owned.RLSForced || retained.MustRelation(d.Address()).RLSForced {
 		t.Fatal("FORCE mutated older roots")
 	}
 }

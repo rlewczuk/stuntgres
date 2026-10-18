@@ -117,7 +117,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.querySources {
 		stage.querySources = append(stage.querySources, leaf.relation)
-		if descriptor := auth.catalog.Get(leaf.relation.namespace); descriptor != nil {
+		if descriptor := auth.catalog.Get(leaf.relation.Namespace()); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
@@ -151,7 +151,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
-		d = stage.descriptors[d.address].(*relationDescriptor)
+		d = stage.descriptors[d.Address()].(*relationDescriptor)
 	}
 	return stage, d, false, nil
 }
@@ -164,7 +164,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.address] != d || stage.base.Get(d.address) != nil || stage.initialTables != nil {
+	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.Address()] != d || stage.base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
 	if stage.base.Epoch() != e.catalog.state.epoch {
@@ -191,7 +191,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if err != nil {
 		return err
 	}
-	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.address: {versions: versions}}
+	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.Address(): {versions: versions}}
 	stage.initialTx = ref
 	return nil
 }

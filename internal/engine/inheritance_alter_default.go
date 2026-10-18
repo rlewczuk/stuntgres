@@ -21,11 +21,11 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range targets {
 		ref := scope.lockedRef
-		ref.Address = old.address
+		ref.Address = old.Address()
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		fresh, err := e.statementAuthorizationLocked(op, raw)
-		if err == nil && current.Get(old.address) != old {
+		if err == nil && current.Get(old.Address()) != old {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
@@ -43,12 +43,12 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.revision == ids.DefinitionRevision(^uint64(0)) {
+		if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next := *old
-		next.revision++
+		next.ObjectRevision++
 		next.Defaults = maps.Clone(old.Defaults)
 		attribute := old.Attributes[childSlot]
 		if definition.Expression == nil {
@@ -65,7 +65,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			provenance.ExplicitDefault = true
 			next.Inheritance.Columns[attribute] = provenance
 		}
-		store := e.privateStorageLocked(scope.owner.catalog, old.address)
+		store := e.privateStorageLocked(scope.owner.catalog, old.Address())
 		if store == nil {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced

@@ -129,7 +129,7 @@ func checkViewOutputNames(columns []ColumnDescriptor, old *relationDescriptor) e
 	for _, column := range columns {
 		if seen[column.Name] {
 			if old != nil {
-				return sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.name))
+				return sqlError("42701", fmt.Sprintf(`column "%s" of relation "%s" already exists`, column.Name, old.Name()))
 			}
 			return sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, column.Name))
 		}
@@ -201,7 +201,7 @@ func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sour
 		return "temporary"
 	}
 	for _, source := range sources {
-		if namespace, ok := catalog.Namespace(source.relation.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+		if namespace, ok := catalog.Namespace(source.relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 			return "temporary"
 		}
 	}
@@ -252,7 +252,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
 	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
-		auth.stagedTemporary = table.address
+		auth.stagedTemporary = table.Address()
 	}
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
 		return err
@@ -285,7 +285,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
 		auth.recaptureCatalog(auth.catalog)
 		if table, ok := scope.viewChanges.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
-			auth.stagedTemporary = table.address
+			auth.stagedTemporary = table.Address()
 		}
 	}
 	if err == nil {
@@ -406,7 +406,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	var oid, rule ids.OID
 	if old != nil {
-		oid, rule = old.address.ObjectID, viewOf(old).rule
+		oid, rule = old.Address().ObjectID, viewOf(old).rule
 	} else {
 		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {
@@ -430,20 +430,20 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, Owner: auth.state.CurrentUser, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
-		d.revision, d.View = revision, viewPayloadOf(definition)
+		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)
 		d.Columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
 		d.Attributes = make([]int32, len(d.Columns))
 		copy(d.Attributes, old.Attributes)
 		d.Index = make(map[string]int, len(d.Columns))
 	}
 	if old == nil {
-		d.ACL = stage.creationACL(d.Owner, d.namespace, authorization.DefaultTables)
+		d.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
 	if scope.viewPersistence == "temporary" {
-		definition.consumer = d.address
+		definition.consumer = d.Address()
 	}
 	attribute := d.AttributeHighWater
 	for _, id := range d.Attributes {

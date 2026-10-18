@@ -181,7 +181,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		} else {
 			bad.Columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
 		}
-		root.setDescriptor(d.address, &bad)
+		root.setDescriptor(d.Address(), &bad)
 		view := e.catalog.read(root)
 		s, err = e.capturePGType(t.Context(), view, roles, ref, &bad)
 		ordinary(s, err)

@@ -103,7 +103,7 @@ func refreshGenerationChecks(d *relationDescriptor, catalog CatalogRead) error {
 	for i := range d.CheckConstraints {
 		next, changed, err := mapBoundExpression(catalog, d.CheckConstraints[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)
-			if !ok || column.origin.Address.ClassID != d.address.ClassID || column.origin.Address.ObjectID != d.address.ObjectID {
+			if !ok || column.origin.Address.ClassID != d.Address().ClassID || column.origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil
 			}
 			slot := -1

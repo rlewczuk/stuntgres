@@ -223,7 +223,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 	domain := domainUnitType(t, e.CatalogRead(), "relation_name")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
 	regclass, _ := e.CatalogRead().LookupType(sqltype.Regclass)
-	value, err := domain.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(table.address.ObjectID), 10)))
+	value, err := domain.SQLType.Wrap(sqltype.String(regclass, strconv.FormatUint(uint64(table.Address().ObjectID), 10)))
 	if err != nil {
 		t.Fatal(err)
 	}

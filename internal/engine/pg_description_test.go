@@ -56,7 +56,7 @@ func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddre
 func TestPGDescriptionShape(t *testing.T) {
 	e := New()
 	d, _ := pgDescriptionUnitSource(t, e)
-	if d.name != "pg_description" || d.namespace.ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_description" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -85,7 +85,7 @@ func TestPGDescriptionShape(t *testing.T) {
 		name       string
 		invalidate func(*relationDescriptor)
 	}{
-		{"identity", func(r *relationDescriptor) { r.address.ObjectID = 0 }},
+		{"identity", func(r *relationDescriptor) { r.ObjectAddress.ObjectID = 0 }},
 		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
 		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
 		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
@@ -132,8 +132,8 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.descriptors = maps.Clone(e.catalog.state.descriptors)
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	d := &relationDescriptor{address: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.setDescriptor(namespace, &namespaceDescriptor{address: namespace, Comment: "namespace"})
+	d := &relationDescriptor{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
+	oldState.setDescriptor(namespace, &namespaceDescriptor{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.setDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)

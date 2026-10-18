@@ -141,7 +141,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.op.session.Engine()
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			}
 			copy := *diagnostic
 			copy.Code = "23001"
-			copy.Message = fmt.Sprintf(`update or delete on table "%s" violates RESTRICT setting of foreign key constraint "%s" on table "%s"`, job.parent.name, job.definition.Name, job.child.name)
+			copy.Message = fmt.Sprintf(`update or delete on table "%s" violates RESTRICT setting of foreign key constraint "%s" on table "%s"`, job.parent.Name(), job.definition.Name, job.child.Name())
 			copy.Detail = strings.Replace(copy.Detail, " is still referenced", " is referenced", 1)
 			return false, &copy
 		})
@@ -241,7 +241,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
-	schema := auth.catalog.Get(job.child.namespace).Name()
+	schema := auth.catalog.Get(job.child.Namespace()).Name()
 	for _, candidate := range candidates {
 		mode := lock.ForNoKeyUpdate
 		if deletion {
@@ -348,7 +348,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.parent.address)
+		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.parent.Address())
 		parents, err := s.captureForeignKeyRows(parentRef, job.definition.Index)
 		if err != nil {
 			return err
@@ -393,9 +393,9 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 	} else {
 		q.WriteString("UPDATE ONLY ")
 	}
-	q.WriteString(quoteIdentifier(view.Get(job.child.namespace).Name()))
+	q.WriteString(quoteIdentifier(view.Get(job.child.Namespace()).Name()))
 	q.WriteByte('.')
-	q.WriteString(quoteIdentifier(job.child.name))
+	q.WriteString(quoteIdentifier(job.child.Name()))
 	offset := 0
 	if !deletion {
 		q.WriteString(" SET ")

@@ -97,7 +97,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		seen := make(map[ids.ObjectAddress]bool, len(p.Children))
 		for i, a := range p.Children {
 			child, ok := catalog.Relation(a)
-			if !ok || seen[a] || child.Membership == nil || child.Membership.Parent != d.address {
+			if !ok || seen[a] || child.Membership == nil || child.Membership.Parent != d.Address() {
 				return invalid()
 			}
 			seen[a] = true
@@ -155,11 +155,11 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 	}
 	if membership := d.Membership; membership != nil {
 		parent, ok := catalog.Relation(membership.Parent)
-		if !ok || parent.Partition == nil || !slices.Contains(parent.Partition.Children, d.address) || len(parent.Columns) != len(d.Columns) {
+		if !ok || parent.Partition == nil || !slices.Contains(parent.Partition.Children, d.Address()) || len(parent.Columns) != len(d.Columns) {
 			return invalid()
 		}
-		parentNamespace, parentExists := catalog.Namespace(parent.namespace)
-		childNamespace, childExists := catalog.Namespace(d.namespace)
+		parentNamespace, parentExists := catalog.Namespace(parent.Namespace())
+		childNamespace, childExists := catalog.Namespace(d.Namespace())
 		if !parentExists || !childExists || parentNamespace.Temporary != childNamespace.Temporary {
 			return invalid()
 		}
@@ -202,12 +202,12 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		} else if len(membership.Lower) != 0 || len(membership.Upper) != 0 {
 			return invalid()
 		}
-		visited := map[ids.ObjectAddress]bool{d.address: true}
+		visited := map[ids.ObjectAddress]bool{d.Address(): true}
 		for ancestor := parent; ancestor != nil; {
-			if visited[ancestor.address] {
+			if visited[ancestor.Address()] {
 				return invalid()
 			}
-			visited[ancestor.address] = true
+			visited[ancestor.Address()] = true
 			if ancestor.Membership == nil {
 				break
 			}

@@ -36,7 +36,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	for _, dependency := range table.CheckConstraints[0].Dependencies {
 		if dependency.Ref.Address == identity.Sequence {
 			found = true
-			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch || dependency.Revision != provider.revision {
+			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.epoch || dependency.Revision != provider.Revision() {
 				t.Fatal("CHECK did not capture exact candidate provider", dependency)
 			}
 		}
@@ -259,11 +259,11 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	original := read.MustRelation(address)
 	stage := e.BeginCatalogStage(read)
 	candidate := *original
-	candidate.name = "candidate_only"
+	candidate.ObjectName = "candidate_only"
 	candidate.SequencePlanStamp++
 	stage.descriptors[address] = &candidate
-	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.namespace, Name: candidate.name}] = address
-	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.namespace
+	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.Namespace(), Name: candidate.Name()}] = address
+	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.Namespace()
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

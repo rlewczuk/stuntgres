@@ -12,7 +12,7 @@ import (
 )
 
 func conversionSQLName(view CatalogRead, d *conversionDescriptor) string {
-	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.name)
+	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 }
 
 func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string) (string, error) {
@@ -24,7 +24,7 @@ func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string
 	if d.DefaultConversion {
 		prefix = "CREATE DEFAULT CONVERSION "
 	}
-	routine := quoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + quoteIdentifier(procedure.name)
+	routine := quoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + quoteIdentifier(procedure.Name())
 	return prefix + name + " FOR '" + sqltype.EncodingName(d.Source) + "' TO '" + sqltype.EncodingName(d.Destination) + "' FROM " + routine + ";\n", nil
 }
 
@@ -76,7 +76,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 			}
 			occupiedSchemas[helper] = true
 			schemas = append(schemas, "CREATE SCHEMA "+quoteIdentifier(helper)+" AUTHORIZATION "+quoteIdentifier(owner.Name)+";\n")
-			name = quoteIdentifier(helper) + "." + quoteIdentifier(d.name)
+			name = quoteIdentifier(helper) + "." + quoteIdentifier(d.Name())
 		}
 		definition, definitionErr := conversionDefinition(view, d, name)
 		if definitionErr != nil {
@@ -123,8 +123,8 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		if err != nil {
 			return nil, err
 		}
-		change := delta{d: d, fixed: fixed.name, owner: owner.Name}
-		if d.name != fixed.name || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+		change := delta{d: d, fixed: fixed.Name(), owner: owner.Name}
+		if d.Name() != fixed.Name() || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			if occupied == nil {
 				occupied = make(map[string]bool)
 				for _, descriptor := range view.Descriptors() {
@@ -133,7 +133,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 					}
 				}
 				for _, seed := range builtinConversions {
-					occupied[seed.name] = true
+					occupied[seed.Name()] = true
 				}
 			}
 			base := "__stuntgres_conversion_seed_" + strconv.FormatUint(uint64(d.OID), 10)
@@ -163,7 +163,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 			statements = append(statements, "ALTER CONVERSION "+from+" SET SCHEMA "+namespace+";\n")
 			from = namespace + "." + quoteIdentifier(change.temporary)
 		}
-		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
+		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+quoteIdentifier(change.d.Name())+";\n")
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {

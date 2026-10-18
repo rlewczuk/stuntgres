@@ -27,8 +27,8 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			definition := *index.SQLIndex
 			constraint := *definition.Constraint
 			definition.Constraint, backing.SQLIndex = &constraint, &definition
-			state.setDescriptor(next.address, &next)
-			state.setDescriptor(backing.address, &backing)
+			state.setDescriptor(next.Address(), &next)
+			state.setDescriptor(backing.Address(), &backing)
 			switch mode {
 			case "nullable":
 				next.Columns[0].Nullable = true
@@ -45,13 +45,13 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				second := next.UniqueConstraints[0]
 				second.OID, second.Name = second.OID+1000, "second"
 				other := backing
-				other.address.ObjectID += 1000
-				other.name = second.Name
-				second.Index = other.address
+				other.ObjectAddress.ObjectID += 1000
+				other.ObjectName = second.Name
+				second.Index = other.Address()
 				otherDefinition := definition
 				otherDefinition.Constraint = uniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
-				state.setDescriptor(other.address, &other)
+				state.setDescriptor(other.Address(), &other)
 				next.UniqueConstraints = append(next.UniqueConstraints, second)
 			}
 			err := validateUniques(view, &next, map[string]bool{})
@@ -75,9 +75,9 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	e, _, parent, index := primaryKeyUnitFixture(t)
 	view := e.CatalogRead()
-	ref := e.catalog.Domain.Ref(view.Epoch(), index.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), index.Address())
 	metadata, names, err := projectIndexMetadata(context.Background(), view, ref)
-	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.address.ObjectID || metadata.IndexRelID != index.address.ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
+	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.Address().ObjectID || metadata.IndexRelID != index.Address().ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
 		t.Fatal(metadata, err)
 	}
 	if names.SchemaName != "public" || names.TableName != "t" || names.IndexName != "pk" || names.IndexDef != "CREATE UNIQUE INDEX pk ON public.t USING btree (a, b)" {
@@ -91,15 +91,15 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.UniqueConstraints[0].OID}
-	want := []pgDependEdge{{dependent: index.address, referenced: constraint, deptype: 'i'}}
+	want := []pgDependEdge{{dependent: index.Address(), referenced: constraint, deptype: 'i'}}
 	for _, attribute := range []int32{1, 2} {
-		column := parent.address
+		column := parent.Address()
 		column.SubID = attribute
 		want = append(want, pgDependEdge{dependent: constraint, referenced: column, deptype: 'a'})
 	}
 	var got []pgDependEdge
 	for _, edge := range edges {
-		if edge.dependent == index.address || edge.dependent == constraint {
+		if edge.dependent == index.Address() || edge.dependent == constraint {
 			got = append(got, edge)
 		}
 	}

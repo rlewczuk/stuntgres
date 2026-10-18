@@ -27,15 +27,15 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 		var sources []*relationDescriptor
 		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.address && index.SQLIndex.Live {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
 			}
 		}
 		slices.SortFunc(sources, func(a, b *relationDescriptor) int {
-			if a.address.ObjectID < b.address.ObjectID {
+			if a.Address().ObjectID < b.Address().ObjectID {
 				return -1
 			}
-			if a.address.ObjectID > b.address.ObjectID {
+			if a.Address().ObjectID > b.Address().ObjectID {
 				return 1
 			}
 			return 0
@@ -49,7 +49,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			}
 			stage.captureLikeSource(source)
 			definition := *old
-			definition.Parent = destination.address
+			definition.Parent = destination.Address()
 			definition.PartitionParent = ids.ObjectAddress{}
 			definition.Ready, definition.Valid, definition.Live = true, true, true
 			definition.Constraint = nil
@@ -115,10 +115,10 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				if old.isExclusion() {
 					label = "excl"
 				}
-				constraints = constraintNames(read, destination.namespace, destination)
+				constraints = constraintNames(read, destination.Namespace(), destination)
 			}
-			name := generatedRelationName(destination.name, strings.Join(labels, "_"), label, func(name string) bool {
-				return constraints[name] || name == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: name})) != 0
+			name := generatedRelationName(destination.Name(), strings.Join(labels, "_"), label, func(name string) bool {
+				return constraints[name] || name == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: name})) != 0
 			})
 			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -175,7 +175,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &relationDescriptor{address: address, namespace: destination.namespace, name: name, revision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: indexRelation, SQLIndex: &definition}
+			index := &relationDescriptor{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: indexRelation, SQLIndex: &definition}
 			if in.options&likeComments != 0 {
 				index.Comment = source.Comment
 			}

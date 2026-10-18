@@ -61,7 +61,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, err
 		}
 		if len(rulesOf(b.relation)) != 0 {
-			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.name), Detail: "MERGE is not supported for relations with rules."}
+			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.Name()), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:
 		var err error
@@ -89,7 +89,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if s.CurrentOf != nil {
 			b.currentOf = s.CurrentOf.Text
 		}
-		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
+		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.Name(), s.Alias.Text
 		binder.queryAuth = &auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()

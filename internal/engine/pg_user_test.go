@@ -66,7 +66,7 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.name != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
+	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
@@ -88,7 +88,7 @@ func TestPGUserDescriptor(t *testing.T) {
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016})
 	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015})
-	if row.OwningRelation != d.address || array.OwningRelation != d.address || row.Array != 12015 || row.SQLType.Concrete() {
+	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 12015 || row.SQLType.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
 	if representedSummaryTable(12014) || representedSummaryViewDefinition(12014) == "" {
@@ -210,15 +210,15 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	}
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		view := *d
-		view.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		view.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.name = name
+		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+		view.ObjectName = name
 		view.RelationKind = viewRelation
 		view.VirtualView = false
-		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.address, &view)
+		e.catalog.state.setDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_user_inner", ref)
@@ -278,13 +278,13 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
-	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.setDescriptor(unknown.address, &unknown)
+	unknown.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
+	e.catalog.state.setDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

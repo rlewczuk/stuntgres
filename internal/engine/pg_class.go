@@ -44,7 +44,7 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 		}
 		return "i"
 	case catalogRelation:
-		if relation.VirtualView || representedSummaryViewDefinition(relation.address.ObjectID) != "" {
+		if relation.VirtualView || representedSummaryViewDefinition(relation.Address().ObjectID) != "" {
 			return "v"
 		}
 	}
@@ -65,7 +65,7 @@ func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) strin
 			return "u"
 		}
 	}
-	if namespace, ok := catalog.Namespace(relation.namespace); ok && namespace.Temporary != (ids.SessionToken{}) {
+	if namespace, ok := catalog.Namespace(relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 		return "t"
 	}
 	return "p"
@@ -97,7 +97,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 			method = 783
 		}
 	}
-	shared := relation.RelationKind == catalogRelation && (relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2396 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ids.ParameterClassID)
+	shared := relation.RelationKind == catalogRelation && (relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID)
 	tablespace := uint32(0)
 	if shared {
 		tablespace = 1664
@@ -131,7 +131,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		bound = checked(sqltype.Tree(bound.Type(), partitionBoundTree{membership: relation.Membership, keys: parent.Partition.Keys}))
 	}
 	row := []sqltype.Value{
-		oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)),
+		oid(0, uint32(relation.Address().ObjectID)), text(1, relation.Name()), oid(2, uint32(relation.Namespace().ObjectID)),
 		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.HasIndexes), boolean(15, shared),
