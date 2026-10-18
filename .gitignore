@@ -1,3 +1,5 @@
 .cswd
 _*.sh
 .omp
+.claude
+CLAUDE.md
