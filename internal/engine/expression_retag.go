@@ -837,7 +837,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		rebound = n
 	case functions.JSONExtract:
 		var did bool
-		n, did, err = mapJSONExtractChildren(n, mapChild)
+		n, did, err = functions.MapJSONExtractChildren(n, mapChild)
 		if err != nil {
 			return node, false, err
 		}

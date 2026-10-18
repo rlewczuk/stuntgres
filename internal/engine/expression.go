@@ -1389,7 +1389,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
 	case functions.JSONExtract:
-		e, anyChanged, err := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+		e, anyChanged, err := functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
 		if err != nil {

@@ -52,7 +52,23 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_to_json", "array_cat_agg", "array", "lower", "UPPER", "range_agg", "int4range"} {
+	// JSON calls keep each chain predicate's comparison: folded names,
+	// lowercased JSON creation and record names, and the exact text-object
+	// names of the final switch.
+	for _, name := range []string{"to_json", "Row_To_JSON", "JSON_TYPEOF", "jsonb_set", "JSONB_PATH_QUERY_ARRAY", "json_extract_path", "JSON_EXTRACT_PATH", "jsonb_populate_record_valid", "j\u017fon_typeof"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Claims == nil || definition.ExactSpelling || definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"json_object", "jsonb_object"} {
+		definition, ok := Lookup(name)
+		if !ok || !definition.ExactSpelling || !definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "lower", "UPPER", "range_agg", "int4range",
+		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}
@@ -68,6 +84,9 @@ func TestDefinitionsAreWellFormed(t *testing.T) {
 		if definition.OwnsLabels && !definition.SharedGates {
 			t.Fatalf("definition %v owns labels without shared gates", definition.Names)
 		}
+		if definition.Claims != nil && definition.ExactSpelling {
+			t.Fatalf("definition %v sets both Claims and ExactSpelling", definition.Names)
+		}
 		for _, name := range definition.Names {
 			key := strings.ToLower(name)
 			if name == "" || seen[key] {
@@ -76,6 +95,9 @@ func TestDefinitionsAreWellFormed(t *testing.T) {
 			// The parser folds unquoted names, so an exact name is lowercase.
 			if definition.ExactSpelling && name != key {
 				t.Fatalf("exact name %q is not lowercase", name)
+			}
+			if definition.Claims != nil && (name != key || !definition.Claims(name)) {
+				t.Fatalf("name %q is not lowercase or not claimed by its predicate", name)
 			}
 			seen[key] = true
 		}

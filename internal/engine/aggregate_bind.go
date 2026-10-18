@@ -1364,7 +1364,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.Info = info
 		expr = e
 	case functions.JSONExtract:
-		e, _, err = mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+		e, _, err = functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			next := rewrite(arg)
 			return next, !b.sameGroupExpression(arg, next), err
 		})

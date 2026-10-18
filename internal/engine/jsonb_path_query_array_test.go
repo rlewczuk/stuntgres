@@ -20,7 +20,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_path_query_array"}}},
 		Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
 	}
-	node, err := bindJSONBPathQueryArray(b, raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

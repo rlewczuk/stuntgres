@@ -70,16 +70,16 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" {
 		t.Fatal("lost replay presentation", n)
 	}
-	rendered, err := jsonExtractSQL(original, original.Plan.Name(), func(BoundExpr) (string, error) { return "value", nil }, func(s string) string { return s })
+	rendered, err := functions.JSONExtractSQL(original, original.Plan.Name(), func(BoundExpr) (string, error) { return "value", nil }, func(s string) string { return s })
 	if err != nil || !strings.Contains(rendered, "VARIADIC path_elems => value") {
 		t.Fatal(rendered, err)
 	}
 	// Reconstruct and copy-on-change mapping cannot mutate a held source tree.
-	copied, did, err := mapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, false, nil })
+	copied, did, err := functions.MapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, false, nil })
 	if err != nil || did || &copied.Args[0] != &original.Args[0] {
 		t.Fatal("unchanged mapper copied", err)
 	}
-	copied, did, err = mapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, true, nil })
+	copied, did, err = functions.MapJSONExtractChildren(original, func(arg BoundExpr) (BoundExpr, bool, error) { return arg, true, nil })
 	if err != nil || !did || &copied.Args[0] == &original.Args[0] {
 		t.Fatal("changed mapper aliased source", err)
 	}

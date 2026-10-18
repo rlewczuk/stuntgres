@@ -35,6 +35,7 @@ type Definition struct {
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
+	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath},
 	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
@@ -45,6 +46,7 @@ var definitions = [...]Definition{
 	{Names: arrayTransformNames[:], Bind: bindArrayTransform},
 	{Names: arraySearchNames[:], Bind: bindArraySearch},
 	{Names: rangeInspectNames[:], Bind: bindRangeInspect},
+	{Names: textObjectNames[:], ExactSpelling: true, SharedGates: true, Bind: bindTextObject},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

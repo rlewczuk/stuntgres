@@ -671,7 +671,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		expression = e
 	case functions.JSONExtract:
-		next, did, failure := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+		next, did, failure := functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
 		if failure != nil {
