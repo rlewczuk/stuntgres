@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -485,7 +484,8 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	return nil
 }
 
-var ErrCatalogReplaced = errors.New("stuntgres: catalog replaced before publication")
+// ErrCatalogReplaced is the shared provenance error; see ids.ErrCatalogReplaced.
+var ErrCatalogReplaced = ids.ErrCatalogReplaced
 
 type PublicationToken struct{ Epoch ids.CatalogEpoch }
 type ChangeSet struct {

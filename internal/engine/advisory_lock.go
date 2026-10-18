@@ -9,13 +9,16 @@ import (
 
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
 // queues and terminal decisions belong exclusively to relationLockManager.
-type sessionAdvisory struct{ ticket *relationTicket }
+type sessionAdvisory struct {
+	ticket *relationTicket
+	locks  *relationLockManager
+}
 
 func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {
 	if a.ticket.session != token {
 		return errors.New("stuntgres: foreign advisory session")
 	}
-	a.ticket.manager.end(a.ticket)
+	a.locks.end(a.ticket)
 	return nil
 }
 

@@ -113,7 +113,7 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	ticket := s.op.session.advisory.ticket
 	if x.action == advisoryUnlockAll {
-		if err := ticket.manager.unlockAdvisoryAll(ticket); err != nil {
+		if err := s.op.session.Engine().locks.unlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err
 		}
 		return sqltype.VoidValue(x.Usage.Type), nil
@@ -131,7 +131,7 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		ref = lockResource{kind: advisoryPairResource, high: uint32(first), low: uint32(second)}
 	}
 	if x.action == advisoryUnlock {
-		unlocked, err := ticket.manager.unlockAdvisory(ticket, ref, x.mode)
+		unlocked, err := s.op.session.Engine().locks.unlockAdvisory(ticket, ref, x.mode)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

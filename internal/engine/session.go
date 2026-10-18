@@ -228,7 +228,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			err = errors.New("stuntgres: invalid advisory session")
 		}
 		if err == nil {
-			s.advisory.ticket = ticket
+			s.advisory.ticket, s.advisory.locks = ticket, e.locks
 			_, err = op.Attach(AdvisorySession, &s.advisory)
 			if err != nil {
 				e.endLockOwner(ticket)

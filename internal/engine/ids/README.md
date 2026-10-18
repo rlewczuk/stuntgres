@@ -14,7 +14,9 @@ any engine subpackage may import it.
   `CommandID`, `CommitSeq`, `RowID`, `VersionID` and `TxCompletion` (a
   transaction identity's completion state).
 - **Provenance:** `Domain`, plus the owner handles `TxOwner` and
-  `SessionOwner`.
+  `SessionOwner`, and `ErrCatalogReplaced`, the one error value every
+  subsystem returns for a fenced epoch or replaced catalog. The engine
+  re-exports it under the same name.
 
 ## Provenance rules
 
