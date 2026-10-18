@@ -1415,7 +1415,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 					return "", err
 				}
 			}
-			return trimSyntaxSQL(name, source, set, len(e.Args))
+			pieces, err := functions.TrimPieces(name, len(e.Args))
+			if err != nil {
+				return "", err
+			}
+			return templateSQL(pieces, []string{source, set}, rawSyntaxWord)
 		}
 		if e.Syntax == parser.SQLFunctionSyntax && name == "extract" {
 			if len(e.Args) != 2 {
@@ -1441,7 +1445,20 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "EXTRACT(" + field + " FROM " + source + ")", nil
 		}
 		if e.Syntax == parser.SQLFunctionSyntax {
-			return renderBinaryCall(name, e.Syntax, e.Args, "pg_catalog."+name, child)
+			// Render every argument in order before the keyword spelling.
+			parts := make([]string, len(e.Args))
+			for i, arg := range e.Args {
+				text, err := child(arg)
+				if err != nil {
+					return "", err
+				}
+				parts[i] = text
+			}
+			pieces, err := functions.SyntaxPieces(name, len(parts))
+			if err != nil {
+				return "", err
+			}
+			return templateSQL(pieces, parts, rawSyntaxWord)
 		}
 		if name == "position" {
 			text, err := args(e.Args)

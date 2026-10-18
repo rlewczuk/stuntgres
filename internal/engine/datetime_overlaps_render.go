@@ -2,8 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
 
@@ -25,8 +23,4 @@ func renderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary 
 		return "((" + parts[0] + ", " + parts[1] + ") OVERLAPS (" + parts[2] + ", " + parts[3] + "))", nil
 	}
 	return ordinary + "(" + parts[0] + ", " + parts[1] + ", " + parts[2] + ", " + parts[3] + ")", nil
-}
-
-func datetimeOverlapsLogicalSQL(e functions.DatetimeOverlaps, child func(expr.Expr) (string, error)) (string, error) {
-	return renderOverlapsCall(e.Syntax, e.Args[:], "pg_catalog.overlaps", func(_ int, arg expr.Expr) (string, error) { return child(arg) })
 }

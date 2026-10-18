@@ -9,13 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func versionInformationSQL(e functions.VersionInformation) (string, error) {
-	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
-		return "", err
-	}
-	return e.Kind.Name() + "()", nil
-}
-
 func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr.Expr, error) {
 	kind := functions.VersionInformationKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	var names []string

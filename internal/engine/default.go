@@ -252,14 +252,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		}
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.Columns[n.slot].Name), nil
-	case functions.DatetimeSleep:
-		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
-			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
-		}
-		if clock, ok := definitionTypeAt(view, r.definition, sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
-			return "", fmt.Errorf("stuntgres: foreign datetime sleep clock type")
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), []expr.Expr{n.Arg})
 	case advisoryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -268,41 +260,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case functions.DatetimeZoneCalendar:
-		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Arguments())
-	case functions.Binary:
-		if !n.Plan.Immutable() && r.visibilitySnapshot != nil {
-			demand := true
-			for _, arg := range n.Args {
-				if randomLiteralNull(arg) {
-					demand = false
-					break
-				}
-			}
-			*r.visibilitySnapshot = *r.visibilitySnapshot || demand
-		}
-		return r.scalarFunctionSQL(ctx, view, node, u)
-	case functions.SQLJSON, functions.JSONPredicate:
-		return r.scalarFunctionSQL(ctx, view, node, u)
-	case functions.UUIDGeneration, functions.Random,
-		functions.DatetimeJustify, functions.DatetimeExtract, functions.DatetimeOverlaps,
-		functions.JSONRecord,
-		functions.JSONStripNulls,
-		functions.JSONExtract,
-		functions.JSONBPathQueryArray,
-		functions.JSONBPathExists,
-		functions.JSONBPathMatch,
-		functions.JSONBPathQueryFirst,
-		functions.JSONBSet,
-		functions.DatetimeBin, functions.DatetimeTrunc, functions.DatetimeAgeFinite, functions.DatetimeMake,
-		functions.DatetimeFormatting, functions.NumericFormatting, functions.String,
-		catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression,
-		functions.ArrayTransform,
-		functions.NetworkFormat,
-		functions.ArrayRandom, functions.ArrayInspect, functions.RangeInspect, functions.RangeOperator, functions.UUIDExtract,
-		functions.Enum, functions.ArraySearch, functions.Math, functions.NullCount, functions.Format,
-		installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression, functions.StringVariadic, functions.JSONCreate:
-		return r.scalarFunctionSQL(ctx, view, node, u)
+	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
+		return r.scalarFunctionSQL(ctx, view, node)
 	case visibilityInquiryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: visibility inquiries are unsupported in stored defaults")
@@ -472,12 +431,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			return "pg_catalog." + n.kind.spelling() + "()", nil
 		}
 		return n.kind.spelling(), nil
-	case functions.CurrentDateTime:
-		return functions.CurrentDateTimeSQL(n)
-	case functions.VersionInformation:
-		return versionInformationSQL(n)
-	case functions.TransactionTime:
-		return functions.TransactionTimeSQL(n)
 	case literalExpression:
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
 			return "", err
@@ -542,25 +495,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			aclOutput = aclItemContextFormatter(ctx)
 		}
 		return catalogLiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
-	case functions.Timezone:
-		if n.Function {
-			if n.Local {
-				return r.functionSQL(ctx, view, "pg_catalog.timezone", []expr.Expr{n.Value})
-			}
-			return r.functionSQL(ctx, view, "pg_catalog.timezone", []expr.Expr{n.Zone, n.Value})
-		}
-		value, err := r.sql(ctx, view, n.Value)
-		if err != nil {
-			return "", err
-		}
-		if n.Local {
-			return "(" + value + " AT LOCAL)", nil
-		}
-		zone, err := r.sql(ctx, view, n.Zone)
-		if err != nil {
-			return "", err
-		}
-		return "(" + value + " AT TIME ZONE " + zone + ")", nil
 	case collationExpression:
 		text, err := r.sql(ctx, view, n.child)
 		if err != nil {
@@ -762,20 +696,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			return "", err
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
-	case functions.Posix:
-		left, err := r.sql(ctx, view, n.Left)
-		if err != nil {
-			return "", err
-		}
-		right, err := r.sql(ctx, view, n.Right)
-		if err != nil {
-			return "", err
-		}
-		operator := n.Operator
-		if n.Namespace != "" {
-			operator = "OPERATOR(" + pgIdentifier(n.Namespace) + "." + operator + ")"
-		}
-		return "(" + left + " " + operator + " " + right + ")", nil
 	case likeExpression:
 		left, err := r.sql(ctx, view, n.left)
 		if err != nil {
@@ -790,79 +710,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			operator = "OPERATOR(" + pgIdentifier(n.namespace) + "." + operator + ")"
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
-	case functions.LikeEscape:
-		pattern, err := r.sql(ctx, view, n.Pattern)
-		if err != nil {
-			return "", err
-		}
-		escape, err := r.sql(ctx, view, n.Escape)
-		if err != nil {
-			return "", err
-		}
-		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
-	case functions.Similar:
-		left, err := r.sql(ctx, view, n.Left)
-		if err != nil {
-			return "", err
-		}
-		normalizer, ok := n.Right.(functions.SimilarEscape)
-		if !ok {
-			return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer")
-		}
-		// SQL syntax renders the normalizer's inputs rather than a separate
-		// call, but the retained executable recipe still owns that call.
-		if err := r.recordStoredRoutine(view, normalizer); err != nil {
-			return "", err
-		}
-		pattern, err := r.sql(ctx, view, normalizer.Pattern)
-		if err != nil {
-			return "", err
-		}
-		operator := "SIMILAR TO"
-		if n.Operator == "!~" {
-			operator = "NOT SIMILAR TO"
-		}
-		text := "(" + left + " " + operator + " " + pattern
-		if !normalizer.Omitted {
-			escape, err := r.sql(ctx, view, normalizer.Escape)
-			if err != nil {
-				return "", err
-			}
-			text += " ESCAPE " + escape
-		}
-		return text + ")", nil
-	case functions.SimilarEscape:
-		return "", fmt.Errorf("stuntgres: standalone stored SIMILAR normalizer")
-	case functions.PosixSubstring:
-		source, err := r.sql(ctx, view, n.Args[0])
-		if err != nil {
-			return "", err
-		}
-		pattern, err := r.sql(ctx, view, n.Args[1])
-		if err != nil {
-			return "", err
-		}
-		if n.Syntax == parser.SQLFunctionSyntax {
-			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
-		}
-		return `pg_catalog."substring"(` + source + ", " + pattern + ")", nil
-	case functions.SimilarSubstring:
-		source, err := r.sql(ctx, view, n.Args[0])
-		if err != nil {
-			return "", err
-		}
-		pattern, err := r.sql(ctx, view, n.Args[1])
-		if err != nil {
-			return "", err
-		}
-		escape, err := r.sql(ctx, view, n.Args[2])
-		if err != nil {
-			return "", err
-		}
-		if n.Syntax != parser.SQLFunctionSyntax {
-			return `pg_catalog."substring"(` + source + ", " + pattern + ", " + escape + ")", nil
-		}
-		return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
 	case rowComparisonExpression:
 		for _, pair := range n.comparisons {
 			if _, err := r.sql(ctx, view, pair); err != nil {
@@ -870,8 +717,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			}
 		}
 		return renderRowComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
-	case functions.Regexp:
-		return regexpSQL(n.RegexpCall, "pg_catalog."+n.Plan.Name(), func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case scalarArrayComparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || (n.array == nil) == (len(n.items) == 0) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate")
@@ -1012,23 +857,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			return "", fmt.Errorf("stuntgres: invalid default logical operator")
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
+	case expr.Renderable:
+		// Function nodes describe their stored form; engine wrappers that embed
+		// one keep their explicit cases above.
+		return r.scalarFunctionSQL(ctx, view, node)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")
 	}
-}
-
-// A captured NAME literal would otherwise replay as unknown and resolve to TEXT
-// inside a string call. Keep its admitted type without changing general literal
-// serialization or the generation-owned literal slots used for CHECK rebinding.
-func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead, arg expr.Expr) (string, error) {
-	text, err := r.sql(ctx, view, arg)
-	if err != nil {
-		return "", err
-	}
-	if literal, ok := arg.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Name && r.checkLiterals == nil {
-		return "CAST(" + text + " AS NAME)", nil
-	}
-	return text, nil
 }
 
 func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []expr.Expr) (string, error) {

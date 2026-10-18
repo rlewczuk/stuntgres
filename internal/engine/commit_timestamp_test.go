@@ -319,7 +319,7 @@ func TestCommitTimeExpression(t *testing.T) {
 				t.Fatal("strict whole NULL", err)
 			}
 		}
-		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n, n.ResultUsage())
+		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+kind.name()+"(") {
 			t.Fatal(recipe, err)
 		}

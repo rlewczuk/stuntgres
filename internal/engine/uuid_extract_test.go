@@ -106,13 +106,13 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 		if err != nil || v.Type() != b.typ(kind.Result()) {
 			t.Fatal("folded authority", v, err)
 		}
-		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), node, node.ResultUsage())
+		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), node)
 		if err != nil || !strings.Contains(recipe, "pg_catalog."+kind.Name()+"(") {
 			t.Fatal(recipe, err)
 		}
 		bad := node
 		bad.Kind = 0
-		if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), bad, bad.ResultUsage()); err == nil {
+		if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, engine.CatalogRead(), bad); err == nil {
 			t.Fatal("invalid stored provider")
 		}
 	}

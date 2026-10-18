@@ -71,9 +71,9 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" {
 		t.Fatal("lost replay presentation", n)
 	}
-	rendered, err := functions.JSONExtractSQL(original, original.Plan.Name(), func(expr.Expr) (string, error) { return "value", nil }, func(s string) string { return s })
-	if err != nil || !strings.Contains(rendered, "VARIADIC path_elems => value") {
-		t.Fatal(rendered, err)
+	spec, err := original.Render()
+	if err != nil || spec.Form != expr.FormCall || !spec.Variadic || len(spec.Args) == 0 || spec.Args[len(spec.Args)-1].Label != "path_elems" {
+		t.Fatal("replay presentation", spec, err)
 	}
 	// Reconstruct and copy-on-change mapping cannot mutate a held source tree.
 	copied, did, err := functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })

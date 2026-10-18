@@ -91,8 +91,9 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 				t.Error("fixed instant", instant, expected)
 			}
 		}
-		sql, err := functions.TransactionTimeSQL(leaf)
-		if err != nil || sql != kind.Name()+"()" {
+		spec, err := leaf.Render()
+		sql := spec.Text
+		if err != nil || sql != kind.Name()+"()" || spec.Replay.Text != "" {
 			t.Fatal(sql, err)
 		}
 		rendered, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), leaf)

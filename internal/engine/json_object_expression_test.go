@@ -67,7 +67,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if !sameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
-		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original, original.Usage)
+		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original)
 		if err != nil {
 			t.Fatal(err)
 		}
