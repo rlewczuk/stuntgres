@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,7 +54,7 @@ func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundE
 			if typ := arg.descriptor(); typ != nil {
 				names[i] = typ.DiagnosticName()
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 	}
 	if len(raw.Args) > 100 {

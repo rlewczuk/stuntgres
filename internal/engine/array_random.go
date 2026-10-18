@@ -55,7 +55,7 @@ func (b *expressionBinder) bindArrayRandom(raw parser.FunctionExpr) (BoundExpr, 
 			if d := o.descriptor(); d != nil {
 				name = b.arraySearchTypeName(d)
 			}
-			names[i] = functionNamedType(raw, i, name)
+			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

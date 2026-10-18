@@ -8,13 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func functionNamedType(raw parser.FunctionExpr, index int, typ string) string {
-	if len(raw.ArgNames) > index && raw.ArgNames[index].Text != "" {
-		return raw.ArgNames[index].Text + " => " + typ
-	}
-	return typ
-}
-
 func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels, types, count, result := functions.DatetimeMakeSignature(name)
@@ -40,7 +33,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functionNamedType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -43,13 +44,13 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 			if typ := arg.descriptor(); typ != nil {
 				name = b.diagnosticTypeName(typ)
 			}
-			names[i] = functionNamedType(raw, i, name)
+			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -83,7 +84,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 	if raw.Star {
 		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if scalar {

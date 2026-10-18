@@ -136,9 +136,9 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 		if arg.Usage.Type != nil {
 			names[i] = b.diagnosticTypeName(arg.Usage.Type)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -163,7 +163,7 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 	if !valid {
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if raw.Star {

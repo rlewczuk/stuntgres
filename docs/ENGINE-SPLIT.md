@@ -169,9 +169,9 @@ combine several subsystems stay in the engine as orchestration.
 - **Binding stays in the engine.** About 123 engine files (~19k lines) are
   function glue, compared with ~11.6k lines in `functions`. Bind code calls
   private binder methods directly. There is no binder interface.
-- **Dispatch is a name if-chain.** `bindFunctionProvider` (`function.go`) and
-  `bindFunction` (`composite_expression.go`) test names one by one. There is
-  no registry.
+- **Dispatch is a name if-chain.** `bindFunctionProvider` (`function.go`)
+  tests names one by one; `bindFunction` (`composite_expression.go`) only
+  wraps it for the composite projection fallback. There is no registry.
 - **Node operations are central type switches.** Walk, retag, remap, deparse,
   node-tree output, volatility, generated-column admission and join legality
   each enumerate every node type. Examples: `aggregate_bind.go` (159
@@ -446,6 +446,12 @@ are `info`, `typ`, `builtinRoutineInfo`, `AnalyzeArgument`,
 methods in total. The long tail is mostly aggregate, grouping and query
 analysis, which keeps an engine-side seam.
 
+F3 landed the interface; the `functions` README lists its methods and why.
+It differs from the sketch: `Type` returns a descriptor, `comparisonOperand`
+and `coerceConditional` are argument intents rather than methods, routine
+identity takes a `functions.RoutineProvider`, and `Consumer` is not needed
+yet.
+
 **Sub-steps.**
 
 - **F1 — Remove generics.** Mechanical; needs step 2. Each `X[E, C, P]`
@@ -691,7 +697,7 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2b done; 2c next |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1 done; F3 next (F2 needs 2c) |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3 done; F4/F5 next (F2 needs 2c) |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |

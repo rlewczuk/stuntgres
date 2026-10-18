@@ -54,7 +54,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 			if d := o.Usage.Type; d != nil {
 				names[i] = b.diagnosticTypeName(d)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

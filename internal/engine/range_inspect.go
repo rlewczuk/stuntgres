@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"strings"
 
 	"stuntgres/internal/engine/expr"
@@ -33,7 +32,7 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 			operands[i] = operand
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	// Visibility follows ordinary/FILTER children and label/count validation.
@@ -66,11 +65,11 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 			if typ := operand.Usage.Type; typ != nil {
 				names[i] = b.diagnosticTypeName(typ)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	args, err := functions.CoerceRangeInspectArguments(b, operands, selected.Usage(), name)
@@ -94,43 +93,4 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 		return nil, err
 	}
 	return functions.NewRangeInspect(info, operation, args)
-}
-
-// The selected text/range overloads share diagnostic ordering, not coercion
-// rules. This envelope is reached only after ordinary children are analyzed.
-func (b *expressionBinder) validateRangeInspectSyntax(raw parser.FunctionExpr) error {
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
-		return err
-	}
-	if len(raw.Args) > 100 {
-		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	return nil
-}
-
-func rangeInspectDecorationError(raw parser.FunctionExpr) error {
-	decoration, kind := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, kind = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+kind, raw.Pos)
-	}
-	return nil
 }

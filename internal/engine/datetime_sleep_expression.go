@@ -35,7 +35,7 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 	signature := func() error {
 		names := make([]string, len(operands))
 		for i, operand := range operands {
-			names[i] = functionNamedType(raw, i, datetimeFormattingTypeName(operand.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(operand.Usage.Type))
 		}
 		return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

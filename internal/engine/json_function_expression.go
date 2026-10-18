@@ -29,7 +29,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			if d := o.Usage.Type; d != nil {
 				names[i] = b.diagnosticTypeName(d)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		if i == 0 {
 			operand = o

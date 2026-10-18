@@ -46,7 +46,7 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 			if typ := operand.descriptor(); typ != nil {
 				names[i] = typ.DiagnosticName()
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 	}
 	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {

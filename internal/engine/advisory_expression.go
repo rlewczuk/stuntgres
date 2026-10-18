@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -199,7 +200,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	signatureError := func() error {
 		names := make([]string, len(args))
 		for i, arg := range args {
-			names[i] = functionNamedType(raw, i, functionArgumentTypeName(raw.Args[i], arg))
+			names[i] = functions.NamedArgumentType(raw, i, functionArgumentTypeName(raw.Args[i], arg))
 		}
 		return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

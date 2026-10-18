@@ -32,7 +32,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functionNamedType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
+			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
@@ -64,10 +64,10 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		if raw.ResolutionOnly {
 			return signature()
 		}
-		if err := b.validateRangeInspectSyntax(raw); err != nil {
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
-		if err := rangeInspectDecorationError(raw); err != nil {
+		if err := functions.CallDecorationError(raw); err != nil {
 			return nil, err
 		}
 		arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.typ(sqltype.Xid).Usage()})

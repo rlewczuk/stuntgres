@@ -51,7 +51,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 			if !unknown[i] && arg.ResultUsage().Type != nil {
 				typ = arg.ResultUsage().Type.DiagnosticName()
 			}
-			types[i] = functionNamedType(raw, i, typ)
+			types[i] = functions.NamedArgumentType(raw, i, typ)
 		}
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, false)
 	}

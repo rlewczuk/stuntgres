@@ -11,9 +11,9 @@ import (
 
 type unnestExpression struct {
 	expressionInfo
-	args []BoundExpr
+	args      []BoundExpr
 	procedure *procedureDescriptor
-	ref ids.ObjectRef
+	ref       ids.ObjectRef
 }
 
 func (e unnestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
@@ -50,7 +50,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 			operands[i] = arg
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -78,12 +78,12 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 			if arg.Usage.Type != nil {
 				names[i] = b.arraySearchTypeName(arg.Usage.Type)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		ambiguous := visible && name == "unnest" && len(raw.ArgNames) == 0 && len(raw.Args) == 1 && operand.Usage.Type == nil
 		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	target := input.Usage()

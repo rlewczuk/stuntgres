@@ -56,7 +56,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 			if !unknown && arg != nil && arg.ResultUsage().Type != nil {
 				result[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
-			result[i] = functionNamedType(raw, i, result[i])
+			result[i] = functions.NamedArgumentType(raw, i, result[i])
 		}
 		return result
 	}

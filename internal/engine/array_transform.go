@@ -44,7 +44,7 @@ func (b *expressionBinder) bindArrayTransform(raw parser.FunctionExpr) (BoundExp
 			if d := o.descriptor(); d != nil {
 				names[i] = b.arraySearchTypeName(d)
 			}
-			names[i] = functionNamedType(raw, i, names[i])
+			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}

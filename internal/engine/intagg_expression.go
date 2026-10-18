@@ -56,7 +56,7 @@ func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []fun
 		if o.Usage.Type != nil {
 			names[i] = b.diagnosticTypeName(o.Usage.Type)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	failure := func() (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
 		return nil, nil, ids.ObjectRef{}, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
@@ -154,7 +154,7 @@ func (b *expressionBinder) bindIntaggFunction(raw parser.FunctionExpr) (BoundExp
 	if proc.name != "int_array_enum" {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, []string{b.diagnosticTypeName(arg.ResultUsage().Type)})
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if b.executeParameters {

@@ -24,7 +24,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 		if d := o.Usage.Type; d != nil {
 			names[i] = b.arraySearchTypeName(d)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
 		return nil, err

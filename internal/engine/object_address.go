@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -90,10 +91,10 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 			if typ := operand.descriptor(); typ != nil {
 				name = typ.DiagnosticName()
 			}
-			names[i] = functionNamedType(raw, i, name)
+			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -154,7 +155,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 		n.args[i] = arg
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	if err := rangeInspectDecorationError(raw); err != nil {
+	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	usage := b.typ(sqltype.Text).Usage()

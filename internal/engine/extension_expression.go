@@ -84,7 +84,7 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 		if typ := o.descriptor(); typ != nil {
 			names[i] = b.diagnosticTypeName(typ)
 		}
-		names[i] = functionNamedType(raw, i, names[i])
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
