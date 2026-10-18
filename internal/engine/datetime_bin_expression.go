@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeBin(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
@@ -29,7 +29,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		for i, o := range operands {
 			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	prepared := functions.PrepareDatetimeBin(visible, raw.Variadic, operands)
 	selection := functions.ResolveDatetimeBin(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
@@ -47,7 +47,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		if i == 0 {
 			id = sqltype.Interval
 		}
-		target := b.typ(id)
+		target := b.Type(id)
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
@@ -61,14 +61,14 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(selected).Usage(), raw.Pos, properties)
 	e.Info = info
-	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.Usage.Type)
+	plan, err := sqltype.BindDatetimeBin(b.Type(sqltype.Interval), b.Type(selected), e.Usage.Type)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, "date_bin", sqltype.Interval, selected, selected)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, "date_bin", sqltype.Interval, selected, selected)
 	if err != nil {
 		return nil, err
 	}

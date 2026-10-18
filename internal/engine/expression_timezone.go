@@ -11,7 +11,7 @@ func (b *expressionBinder) bindTimeZone(raw parser.TimeZoneExpr) (BoundExpr, err
 	if raw.Local {
 		args, pos = []parser.Expr{raw.Value}, parser.Position{}
 	}
-	node, err := b.bindDatetimeZone(parser.FunctionExpr{Name: name, Args: args, Pos: pos}, true)
+	node, err := bindDatetimeZone(b, parser.FunctionExpr{Name: name, Args: args, Pos: pos}, true)
 	if err != nil {
 		return nil, err
 	}

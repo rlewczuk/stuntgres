@@ -161,25 +161,34 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":
-		return b.bindDatetimeExtract(raw, visible)
+		return bindDatetimeExtract(b, raw, visible)
 	case "date_trunc":
-		return b.bindDatetimeTrunc(raw, visible)
+		return bindDatetimeTrunc(b, raw, visible)
 	case "date_bin":
-		return b.bindDatetimeBin(raw, visible)
+		return bindDatetimeBin(b, raw, visible)
 	case "timezone", "date_add", "date_subtract":
-		return b.bindDatetimeZone(raw, visible)
+		return bindDatetimeZone(b, raw, visible)
 	case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
 		return b.bindDatetimeSleep(raw, visible)
 	case "age", "isfinite":
-		return b.bindDatetimeAgeFinite(raw, visible)
+		return bindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
+			return b.identityExpression(raw, identityAge, arg)
+		})
 	case "overlaps":
-		return b.bindDatetimeOverlaps(raw, visible)
+		node, err := bindDatetimeOverlaps(b, raw, visible)
+		if err != nil {
+			return nil, err
+		}
+		// Inline safety walks engine nodes; the node protocol replaces it (F2).
+		e := node.(functions.DatetimeOverlaps)
+		e.WrapperContext = !overlapsInlineSafe(e)
+		return e, nil
 	case "justify_days", "justify_hours", "justify_interval":
-		return b.bindDatetimeJustify(raw, visible)
+		return bindDatetimeJustify(b, raw, visible)
 	case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-		return b.bindDatetimeMake(raw, visible)
+		return bindDatetimeMake(b, raw, visible)
 	case "to_char", "to_date", "to_timestamp":
-		return b.bindDatetimeFormatting(raw, visible)
+		return bindDatetimeFormatting(b, raw, visible)
 	case "to_number":
 		return b.bindNumericFormatting(raw, visible)
 	case "string_to_table":

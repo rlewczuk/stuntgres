@@ -24,7 +24,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		{"int4", sqltype.Int4}, {"int8", sqltype.Int8}, {"numeric", sqltype.Numeric}, {"float4", sqltype.Float4}, {"float8", sqltype.Float8}, {"int2", sqltype.Float8},
 	} {
 		input := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: c.source}, Text: "1"}
-		bound, err := b.bindDatetimeFormatting(raw("to_char", input, text("FM9.000000000000000000")), true)
+		bound, err := b.bindFunctionProvider(raw("to_char", input, text("FM9.000000000000000000")))
 		if err != nil {
 			t.Fatal(c, err)
 		}
@@ -41,7 +41,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		t.Fatal(bound)
 	}
 	// An invalid constant mask belongs to demanded execution, not binding.
-	if _, err := b.bindDatetimeFormatting(raw("to_char", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "12"}, text("9.9.9")), true); err != nil {
+	if _, err := b.bindFunctionProvider(raw("to_char", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "12"}, text("9.9.9"))); err != nil {
 		t.Fatal(err)
 	}
 }

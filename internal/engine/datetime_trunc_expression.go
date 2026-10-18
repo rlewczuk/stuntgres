@@ -1,16 +1,12 @@
 package engine
 
 import (
-	"fmt"
-	"strings"
-
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeTrunc(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
@@ -35,17 +31,14 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		}
 		return result
 	}
-	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names()) }
+	signature := func() (BoundExpr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names()) }
 	prepared := functions.PrepareDatetimeTrunc(visible, raw.Variadic, operands)
 	selection := functions.ResolveDatetimeTrunc(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
 	if selection.Resolution == functions.Missing {
 		return signature()
 	}
 	if selection.Resolution == functions.Ambiguous {
-		names := names()
-		err := expressionError("42725", fmt.Sprintf("function %s(%s) is not unique", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
-		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-		return nil, err
+		return nil, functions.ResolutionError(raw.Name, raw.Pos, names(), true)
 	}
 	if selection.Unsupported != "" {
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
@@ -62,7 +55,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		if i == 1 {
 			id = input
 		}
-		target := b.typ(id)
+		target := b.Type(id)
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
@@ -76,19 +69,19 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(selected).Usage(), raw.Pos, properties)
 	e.Info = info
 	var zone *sqltype.Descriptor
 	if e.Count == 3 {
-		zone = b.typ(sqltype.Text)
+		zone = b.Type(sqltype.Text)
 	}
-	plan, err := sqltype.BindDatetimeTrunc(b.typ(sqltype.Text), b.typ(input), e.Usage.Type, zone)
+	plan, err := sqltype.BindDatetimeTrunc(b.Type(sqltype.Text), b.Type(input), e.Usage.Type, zone)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
 	formal := [3]sqltype.ID{sqltype.Text, selected, sqltype.Text}
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, "date_trunc", formal[:e.Count]...)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, "date_trunc", formal[:e.Count]...)
 	if err != nil {
 		return nil, err
 	}

@@ -42,7 +42,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			if mask&2 != 0 {
 				args[3] = ageFiniteTyped("interval", "1 hour")
 			}
-			node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", args[:]...), true)
+			node, err := b.bindFunctionProvider(datetimeMakeRaw("overlaps", args[:]...))
 			if err != nil {
 				t.Fatal(typ, mask, err)
 			}
@@ -90,7 +90,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 		{datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2001-01-01"), datetimeMakeString("2001-01-03"), ageFiniteTyped("timestamp", "2001-01-02"), datetimeMakeString("2001-01-04")), sqltype.Timestamp, false},
 		{datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2001-01-01"), ageFiniteTyped("time", "24:00"), ageFiniteTyped("timestamp", "2001-01-01 12:00"), ageFiniteTyped("timestamp", "2001-01-01 12:00")), sqltype.Timestamp, true},
 	} {
-		node, err := b.bindDatetimeOverlaps(tc.raw, true)
+		node, err := b.bindFunctionProvider(tc.raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,7 +107,7 @@ func TestDatetimeOverlapsUnknownAndParameterOccurrences(t *testing.T) {
 		datetimeMakeRaw("overlaps", ageFiniteTyped("time", "01:00"), datetimeMakeString("03:00"), ageFiniteTyped("time", "02:00"), datetimeMakeString("04:00")),
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindDatetimeOverlaps(raw, true)
+		_, err := b.bindFunctionProvider(raw)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42725" {
 			t.Fatal(err)
@@ -115,13 +115,13 @@ func TestDatetimeOverlapsUnknownAndParameterOccurrences(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("overlaps", parser.ParameterExpr{Number: 1}, ageFiniteTyped("timestamp", "2001-01-03"), parser.ParameterExpr{Number: 2}, ageFiniteTyped("timestamp", "2001-01-04"))
-	node, err := b.bindDatetimeOverlaps(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil || !node.Properties().ParameterDependent || b.parameters[1].Type.ID() != sqltype.Timestamp || b.parameters[2].Type.ID() != sqltype.Timestamp {
 		t.Fatal(node, err, b.parameters)
 	}
 	b = newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw = datetimeMakeRaw("overlaps", parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 9}}, parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "interval"}}, ageFiniteTyped("timestamp", "2001-01-02"), ageFiniteTyped("interval", "1 day"))
-	_, err = b.bindDatetimeOverlaps(raw, true)
+	_, err = b.bindFunctionProvider(raw)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42P08" || d.Detail != "interval versus timestamp without time zone" || d.Position != "9" {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestDatetimeOverlapsUnknownAndParameterOccurrences(t *testing.T) {
 
 func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "294276-12-31"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-02")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "294276-12-31"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-02")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 	raw := datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("interval", "1 day"),
 		parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "timestamp"}},
 		parser.CastExpr{Child: parser.ParameterExpr{Number: 2}, TypeName: parser.TypeName{Name: "timestamp"}})
-	node, err := b.bindDatetimeOverlaps(raw, true)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,8 +226,8 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("interval", "1 day"),
-		ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-03")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("interval", "1 day"),
+		ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-03")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,8 +302,8 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 func TestDatetimeOverlapsTypedNullFoldedEndpoint(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("interval", "1 day"),
-		ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-04")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2000-01-02"), ageFiniteTyped("interval", "1 day"),
+		ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-04")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestDatetimeOverlapsStoredRenderProvenance(t *testing.T) {
 func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "294276-12-31"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-01")), true)
+	node, err := b.bindFunctionProvider(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "294276-12-31"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-01")))
 	if err != nil {
 		t.Fatal(err)
 	}

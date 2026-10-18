@@ -6,10 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	previous := b.datetimeZoneOperands
-	b.datetimeZoneOperands = true
-	defer func() { b.datetimeZoneOperands = previous }()
+func bindDatetimeZone(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
@@ -17,7 +14,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
-		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ZoneArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +30,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		for i, o := range operands {
 			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
+		return nil, functions.NotedResolutionError(b, raw.Name, raw.Pos, names, ambiguous)
 	}
 	prepared := functions.PrepareDatetimeZone(name, visible, raw.Variadic, operands)
 	signature := functions.ResolveDatetimeZone(prepared, name, operands, functions.TemporalTypesFor(b, prepared.Demand))
@@ -46,7 +43,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		properties.Volatility = Stable
 	}
 	for i, o := range operands {
-		target := b.typ(signature.Args[i])
+		target := b.Type(signature.Args[i])
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
@@ -54,9 +51,9 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		args[i] = arg
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	info := b.info(b.typ(signature.Result).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(signature.Result).Usage(), raw.Pos, properties)
 	var err error
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, signature.Args[:signature.Count]...)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, signature.Args[:signature.Count]...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +70,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 	if name == "date_subtract" {
 		op = sqltype.ArithmeticSubtract
 	}
-	provider, err := sqltype.BindArithmetic(op, b.typ(sqltype.Timestamptz), b.typ(sqltype.Interval), b.typ(sqltype.Timestamptz))
+	provider, err := sqltype.BindArithmetic(op, b.Type(sqltype.Timestamptz), b.Type(sqltype.Interval), b.Type(sqltype.Timestamptz))
 	if err != nil {
 		return nil, err
 	}

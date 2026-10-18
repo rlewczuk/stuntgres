@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeMake(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels, types, count, result := functions.DatetimeMakeSignature(name)
 	var small [7]functions.Argument
@@ -35,7 +35,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 		for i, o := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(o.Usage.Type))
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")
@@ -60,7 +60,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	// Finalize in written order to retain unknown/parameter/coercion locations.
 	for i, o := range operands {
 		slot := int(e.WrittenSlots[i])
-		target := b.typ(types[slot])
+		target := b.Type(types[slot])
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
@@ -76,7 +76,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	}
 	for i := range e.Count {
 		if e.Args[i] == nil {
-			typ := b.typ(types[i])
+			typ := b.Type(types[i])
 			var value sqltype.Value
 			var err error
 			if types[i] == sqltype.Float8 {
@@ -87,17 +87,17 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 			if err != nil {
 				return nil, err
 			}
-			e.Args[i] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), value}
+			e.Args[i] = b.Literal(value, raw.Pos)
 		}
 	}
-	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	e.Info = info
 	plan, err := sqltype.BindDatetimeMake(name, e.Usage.Type, e.Count)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, types[:e.Count]...)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, types[:e.Count]...)
 	if err != nil {
 		return nil, err
 	}

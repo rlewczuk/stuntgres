@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeOverlaps(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	var stack [4]functions.Argument
 	operands := stack[:min(len(raw.Args), 4)]
 	if len(raw.Args) > 4 && len(raw.Args) <= 100 {
@@ -29,7 +29,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		for i, o := range operands {
 			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, ambiguous)
+		return nil, functions.NotedResolutionError(b, raw.Name, raw.Pos, names, ambiguous)
 	}
 	prepared := functions.PrepareDatetimeOverlaps(visible, raw.Variadic, operands)
 	selection := functions.ResolveDatetimeOverlaps(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
@@ -41,9 +41,9 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 	properties := ExprProperties{Volatility: Immutable}
 	var local [4]bool
 	for i, o := range operands {
-		target := b.typ(signature[i])
+		target := b.Type(signature[i])
 		if d := o.Usage.Type; d != nil && d.BaseType().ID() == sqltype.Time && signature[i] == sqltype.Interval {
-			target = b.typ(sqltype.Time)
+			target = b.Type(sqltype.Time)
 			local[i] = true
 		}
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
@@ -59,7 +59,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	plan, err := sqltype.BindDatetimeOverlaps(b.typ(signature[0]), b.typ(sqltype.Interval), b.typ(sqltype.Bool), b.typ(sqltype.Time), [2]bool{signature[1] == sqltype.Interval, signature[3] == sqltype.Interval}, local)
+	plan, err := sqltype.BindDatetimeOverlaps(b.Type(signature[0]), b.Type(sqltype.Interval), b.Type(sqltype.Bool), b.Type(sqltype.Time), [2]bool{signature[1] == sqltype.Interval, signature[3] == sqltype.Interval}, local)
 	if err != nil {
 		return nil, err
 	}
@@ -67,11 +67,10 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 	if plan.SessionDependent() {
 		properties.Volatility = max(properties.Volatility, Stable)
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(functions.DatetimeOverlapsResult()).Usage(), raw.Pos, properties), datetimeRoutineProvider, "overlaps", signature[:]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(functions.DatetimeOverlapsResult()).Usage(), raw.Pos, properties), datetimeRoutineProvider, "overlaps", signature[:]...)
 	if err != nil {
 		return nil, err
 	}
 	e.Info = info
-	e.WrapperContext = !overlapsInlineSafe(e)
 	return e, nil
 }

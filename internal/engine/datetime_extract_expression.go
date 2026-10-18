@@ -2,15 +2,13 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [2]functions.Argument
 	operands := small[:min(len(raw.Args), 2)]
@@ -41,7 +39,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return result
 	}
 	signature := func() (BoundExpr, error) {
-		return nil, b.functionSignatureErrorForTypes(diagnosticName, raw.Pos, names())
+		return nil, b.SignatureError(diagnosticName, raw.Pos, names())
 	}
 	prepared := functions.PrepareDatetimeExtract(visible, raw.Variadic, operands)
 	selection := functions.ResolveDatetimeExtract(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
@@ -49,10 +47,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return signature()
 	}
 	if selection.Resolution == functions.Ambiguous {
-		names := names()
-		err := expressionError("42725", fmt.Sprintf("function %s(%s) is not unique", objectNameText(diagnosticName), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
-		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-		return nil, err
+		return nil, functions.ResolutionError(diagnosticName, raw.Pos, names(), true)
 	}
 	if selection.Unsupported != "" {
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
@@ -75,7 +70,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		if i == 1 {
 			id = selected
 		}
-		target := b.typ(id)
+		target := b.Type(id)
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
@@ -94,14 +89,14 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 	// that distinction applies to both arguments, not only the DATE source.
 	e.DateWrapperContext = functions.DatetimeExtractWrapperContext(name, selected, properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent)
 	result := functions.DatetimeExtractResult(name)
-	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	e.Info = info
-	plan, err := sqltype.BindDatetimeExtract(name, b.typ(sqltype.Text), b.typ(selected), e.Usage.Type, b.typ(sqltype.Timestamp))
+	plan, err := sqltype.BindDatetimeExtract(name, b.Type(sqltype.Text), b.Type(selected), e.Usage.Type, b.Type(sqltype.Timestamp))
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, sqltype.Text, selected)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, sqltype.Text, selected)
 	if err != nil {
 		return nil, err
 	}

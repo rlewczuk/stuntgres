@@ -93,7 +93,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 			}
 			input = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: signature.source}, Text: value}
 		}
-		bound, err := b.bindDatetimeFormatting(raw(signature.name, input, text("YYYY")), true)
+		bound, err := b.bindFunctionProvider(raw(signature.name, input, text("YYYY")))
 		if err != nil {
 			t.Fatal(signature, err)
 		}
@@ -103,7 +103,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		}
 	}
 	integer := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
-	bound, err := b.bindDatetimeFormatting(raw("to_char", integer, text("FM9")), true)
+	bound, err := b.bindFunctionProvider(raw("to_char", integer, text("FM9")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,12 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		{raw("to_date", text("2006"), text("YYYY")), false, "42883"},
 		{raw("to_date", text("2006"), text("YYYY"), text("extra")), true, "42883"},
 	} {
-		_, err := b.bindDatetimeFormatting(c.call, c.visible)
+		call := c.call
+		if !c.visible {
+			// A schema-qualified name outside pg_catalog hides the builtin.
+			call.Name.Parts = append([]parser.Identifier{{Text: "public"}}, call.Name.Parts...)
+		}
+		_, err := b.bindFunctionProvider(call)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != c.code || diagnostic.Position != "8" {
 			t.Fatal("binder diagnostic/ownership", c, err)

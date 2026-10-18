@@ -231,7 +231,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		var err error
 		if tc.kind == identityAge {
 			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
-			bound, err = b.bindDatetimeAgeFinite(raw, true)
+			bound, err = b.bindFunctionProvider(raw)
 		} else {
 			bound, err = b.bindTransactionIdentity(raw)
 		}

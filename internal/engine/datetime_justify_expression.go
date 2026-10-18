@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeJustify(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	var small [1]functions.Argument
 	operands := small[:min(len(raw.Args), 1)]
 	if len(raw.Args) > 1 && len(raw.Args) <= 100 {
@@ -29,9 +29,9 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 		for i, o := range operands {
 			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	target := b.typ(sqltype.Interval)
+	target := b.Type(sqltype.Interval)
 	selection := functions.ResolveDatetimeJustify(visible, raw.Variadic, operands, target.Usage())
 	if selection.Resolution == functions.Missing {
 		return signature()
@@ -48,7 +48,7 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.builtinRoutineInfo(b.info(target.Usage(), raw.Pos, arg.Properties()), datetimeRoutineProvider, raw.Name.Parts[len(raw.Name.Parts)-1].Text, sqltype.Interval)
+	info, err := b.BuiltinRoutineInfo(b.Info(target.Usage(), raw.Pos, arg.Properties()), datetimeRoutineProvider, raw.Name.Parts[len(raw.Name.Parts)-1].Text, sqltype.Interval)
 	if err != nil {
 		return nil, err
 	}

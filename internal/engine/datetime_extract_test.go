@@ -41,7 +41,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 		}
 		for _, api := range []string{"extract", "date_part"} {
 			raw := datetimeMakeRaw(api, datetimeMakeString("epoch"), ageFiniteTyped(source, value))
-			node, err := b.bindDatetimeExtract(raw, true)
+			node, err := b.bindFunctionProvider(raw)
 			if err != nil {
 				t.Fatal(source, api, err)
 			}
@@ -108,7 +108,7 @@ func TestDatetimeExtractResolutionFailures(t *testing.T) {
 		{"date_part", ageFiniteTyped("text", "2000-01-01"), "42883", "function date_part(unknown, text) does not exist"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindDatetimeExtract(datetimeMakeRaw(tc.api, datetimeMakeString("year"), tc.source), true)
+		_, err := b.bindFunctionProvider(datetimeMakeRaw(tc.api, datetimeMakeString("year"), tc.source))
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message || d.Position != "8" || d.Hint == "" {
 			t.Fatal(tc, err)
@@ -146,7 +146,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), engine, input, nil)
 			field := parser.CaseExpr{Arms: []parser.CaseArm{{Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: tc.condition}, Result: datetimeMakeString("timezone")}}, Else: datetimeMakeString("year")}
-			node, err := b.bindDatetimeExtract(datetimeMakeRaw("date_part", field, ageFiniteTyped("date", "2000-01-01")), true)
+			node, err := b.bindFunctionProvider(datetimeMakeRaw("date_part", field, ageFiniteTyped("date", "2000-01-01")))
 			if err != nil {
 				t.Fatal(err)
 			}

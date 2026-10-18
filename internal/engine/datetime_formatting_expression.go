@@ -1,15 +1,13 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [4]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
@@ -36,28 +34,26 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 				names[i] = d.DiagnosticName()
 			}
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	selection := functions.ResolveDatetimeFormatting(name, visible, raw.Variadic, operands)
 	if selection.Resolution == functions.Missing {
 		return signature()
 	}
 	if selection.Resolution == functions.Ambiguous {
-		err := expressionError("42725", fmt.Sprintf("function %s(unknown, %s) is not unique", objectNameText(raw.Name), functions.DiagnosticNameOrUnknown(operands[1].Usage.Type)), raw.Pos).(*sqlstate.Error)
-		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-		return nil, err
+		return nil, functions.ResolutionError(raw.Name, raw.Pos, []string{"unknown", functions.DiagnosticNameOrUnknown(operands[1].Usage.Type)}, true)
 	}
 	if selection.Unsupported != "" {
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
-	source := b.typ(selection.Source)
+	source := b.Type(selection.Source)
 	if selection.Numeric {
 		return functions.NumericFormattingOperands(b, raw, operands, source)
 	}
 	var args [2]BoundExpr
 	properties := expr.IntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
 	for i, o := range operands {
-		target := b.typ(sqltype.Text)
+		target := b.Type(sqltype.Text)
 		if i == 0 {
 			target = source
 		}
@@ -74,9 +70,9 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := b.typ(functions.DatetimeFormattingResult(name)).Usage()
-	info := b.info(result, raw.Pos, properties)
-	collated, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
+	result := b.Type(functions.DatetimeFormattingResult(name)).Usage()
+	info := b.Info(result, raw.Pos, properties)
+	collated, err := b.CollatedInfo(b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,19 +80,19 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		info = collated
 	}
 	var constant *string
-	if literal, ok := args[1].(literalExpression); ok && !literal.value.IsNull() {
-		text, err := literal.value.Text()
+	if value, ok := b.ConstantValue(args[1]); ok && !value.IsNull() {
+		text, err := value.Text()
 		if err != nil {
 			return nil, err
 		}
 		constant = &text
 	}
-	plan, err := sqltype.BindDatetimeFormat(b.ctx, name, info.Usage, args[0].ResultUsage(), constant)
+	plan, err := sqltype.BindDatetimeFormat(b.Context(), name, info.Usage, args[0].ResultUsage(), constant)
 	if err != nil {
 		return nil, err
 	}
 	plan = plan.WithCollationConflict(collated.CollationConflict)
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
+	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
 	if err != nil {
 		return nil, err
 	}
