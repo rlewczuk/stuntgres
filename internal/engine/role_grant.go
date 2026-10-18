@@ -88,7 +88,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if addr == (ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Text))
 		}
-		ref := ObjectRef{owner: e.owner, Epoch: v.catalog.Epoch(), Address: addr}
+		ref := ObjectRef{owner: e.domain, Epoch: v.catalog.Epoch(), Address: addr}
 		if err := v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
 			return nil, err
 		}

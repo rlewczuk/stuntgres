@@ -61,7 +61,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	boolean, _ := view.LookupType(sqltype.Bool)
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.columns[1].Usage = oid.Usage()
-	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch() + 1, Address: d.address}
+	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch() + 1, Address: d.address}
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale

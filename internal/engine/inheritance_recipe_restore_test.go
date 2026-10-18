@@ -53,7 +53,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*restoredGenerationRecipe){
 		"epoch":     func(r *restoredGenerationRecipe) { r.ref.Epoch++ },
-		"owner":     func(r *restoredGenerationRecipe) { r.ref.owner = New().owner },
+		"owner":     func(r *restoredGenerationRecipe) { r.ref.owner = New().domain },
 		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
 		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
 		"kind":      func(r *restoredGenerationRecipe) { r.kind = generationStored },

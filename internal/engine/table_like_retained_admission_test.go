@@ -24,8 +24,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")
-			current := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: provider.address}
-			old := ObjectRef{owner: e.owner, Epoch: manifest[0].Epoch, Address: provider.address}
+			current := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: provider.address}
+			old := ObjectRef{owner: e.domain, Epoch: manifest[0].Epoch, Address: provider.address}
 			for _, ref := range manifest {
 				if ref.Address == provider.address {
 					old = ref
@@ -131,7 +131,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			if outcome == "delete" || outcome == "recreate" {
 				change := e.BeginCatalogStage(e.CatalogRead())
-				if err := change.Remove(ObjectRef{owner: e.owner, Epoch: current.Epoch, Address: source.address}); err != nil {
+				if err := change.Remove(ObjectRef{owner: e.domain, Epoch: current.Epoch, Address: source.address}); err != nil {
 					t.Fatal(err)
 				}
 				if err := change.Remove(current); err != nil {

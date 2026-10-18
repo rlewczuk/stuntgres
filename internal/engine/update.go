@@ -205,7 +205,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode rel
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.owner != e.owner || ref.Epoch != e.state.epoch {
+	if ref.owner != e.domain || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	return nil

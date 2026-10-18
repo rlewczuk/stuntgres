@@ -71,7 +71,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
 	source := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
-	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: source.address}
+	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: source.address}
 	rows, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)

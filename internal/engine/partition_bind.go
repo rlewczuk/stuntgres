@@ -53,7 +53,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 				return nil, partitionGeneratedError(diagnostic, r.Pos, key.label)
 			}
 		} else {
-			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
+			ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.address}
 			columns := make([]queryColumn, len(d.columns))
 			for j, c := range d.columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}

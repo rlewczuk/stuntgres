@@ -27,7 +27,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.attributes, p.attributeHighWater, p.index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
-					ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: provider.Address()}
+					ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: provider.Address()}
 					switch definition {
 					case "column":
 						p.columns[0].Usage = domain.Usage()
@@ -48,7 +48,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
 					remove := func(address ObjectAddress) {
-						if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}); err != nil {
+						if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: address}); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -163,7 +163,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			p.attributes, p.attributeHighWater, p.index = []int32{1}, 1, map[string]int{"a": 0}
 			c.columns = []ColumnDescriptor{{Name: "a", Usage: u}}
 			c.attributes, c.attributeHighWater, c.index = []int32{1}, 1, map[string]int{"a": 0}
-			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: q.address}
+			ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: q.address}
 			if definition == "default" {
 				p.defaults = map[int32]columnDefault{1: {OID: 29103, dependencies: []ObjectRef{ref}}}
 				c.defaults = map[int32]columnDefault{1: {OID: 29104, dependencies: []ObjectRef{ref}}}

@@ -103,7 +103,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
-		ref = ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}
+		ref = ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: a}
 	case parser.CommentTable, parser.CommentColumn:
 		ref = scope.lockedRef
 		if ref.owner == nil {
@@ -117,7 +117,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := tableKind(relation, operation); err != nil {
 			return nil, err
 		}
-		if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: relation.namespace}); err != nil {
+		if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: relation.namespace}); err != nil {
 			return nil, err
 		}
 		if s.Kind == parser.CommentColumn {

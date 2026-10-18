@@ -99,7 +99,7 @@ func (b *expressionBinder) bindInstalledLevenshtein(raw parser.FunctionExpr) (Bo
 	if err != nil {
 		return nil, err
 	}
-	ref := ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: proc.address}
+	ref := ObjectRef{owner: b.engine.domain, Epoch: auth.catalog.Epoch(), Address: proc.address}
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
 	return installedLevenshteinFunctionExpression{Levenshtein: call, procedure: proc, ref: ref}, nil
 }

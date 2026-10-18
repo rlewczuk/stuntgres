@@ -437,7 +437,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return err
 	}
 	replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
-	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address}
+	ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: old.address}
 	return stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends)
 }
 
@@ -506,7 +506,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.epoch || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e || ref.owner != e.domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.epoch || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ErrCatalogReplaced
 	}
 	if _, present := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); !present {
@@ -546,7 +546,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
-	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.owner != catalog.owner.owner || prepared.ref.Epoch != catalog.Epoch() {
+	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.owner != catalog.owner.domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {

@@ -14,7 +14,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	capture := view.read().catalog
 	rows := view.read().committed[f.parent.address]
 	oldRoot := f.e.indexRoots[f.index.address]
-	ref := ObjectRef{owner: f.e.owner, Epoch: capture.Epoch(), Address: f.index.address}
+	ref := ObjectRef{owner: f.e.domain, Epoch: capture.Epoch(), Address: f.index.address}
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := projectIndexMetadata(ctx, candidate, ObjectRef{owner: f.e.owner, Epoch: candidate.Epoch(), Address: index.address})
+	metadata, _, err := projectIndexMetadata(ctx, candidate, ObjectRef{owner: f.e.domain, Epoch: candidate.Epoch(), Address: index.address})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 			attributes = append(attributes, dependency)
 		}
 	}
-	wantRef := ObjectRef{owner: f.e.owner, Epoch: candidate.Epoch(), Address: f.parent.address}
+	wantRef := ObjectRef{owner: f.e.domain, Epoch: candidate.Epoch(), Address: f.parent.address}
 	wantRef.Address.SubID = 20
 	if !reflect.DeepEqual(attributes, []ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)

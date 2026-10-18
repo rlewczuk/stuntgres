@@ -134,7 +134,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: job.child.address}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: job.child.address}
 	children, err := scope.captureForeignKeyRows(ref, ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)

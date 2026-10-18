@@ -31,14 +31,14 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	if len(namespaces) != 1 {
 		t.Fatal(namespaces)
 	}
-	namespace := ObjectRef{e.owner, view.Epoch(), namespaces[0]}
+	namespace := ObjectRef{e.domain, view.Epoch(), namespaces[0]}
 	typeRefs := make([]ObjectRef, 2)
 	for i, name := range []string{"state", "quantity"} {
 		addresses := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: namespaces[0], Name: name})
 		if len(addresses) != 1 {
 			t.Fatal(addresses)
 		}
-		typeRefs[i] = ObjectRef{e.owner, view.Epoch(), addresses[0]}
+		typeRefs[i] = ObjectRef{e.domain, view.Epoch(), addresses[0]}
 	}
 	setACL := func(ref ObjectRef, acl authorization.ACLValue) error {
 		catalog := e.CatalogRead()

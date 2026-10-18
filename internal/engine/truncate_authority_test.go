@@ -166,7 +166,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	if ownAddress == (ObjectAddress{}) || peerAddress == (ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
-	peerRef := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: peerAddress}
+	peerRef := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: peerAddress}
 	oldPeer := e.storage[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.versions, oldPeer.ends, oldPeer.generation
 	scope := truncateUnitStage(t, e, owner, "p")
@@ -177,7 +177,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	excluded = excluded && !journaledPeer && e.locks.entries[lockResource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ObjectAddress{parent.Address, ownAddress, persistent.Address} {
-		ref := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: address}
+		ref := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
 		entry := e.locks.entries[lockResource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false

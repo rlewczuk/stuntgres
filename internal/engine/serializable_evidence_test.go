@@ -25,7 +25,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}
+	return ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
 	return &StatementScope{owner: node.ref.attachment, txRef: node.ref}
@@ -96,7 +96,7 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 		s := *scope
 		switch kind {
 		case "foreign":
-			bad.owner = &catalogOwner{}
+			bad.owner = &Domain{}
 		case "stale":
 			bad.Epoch++
 		case "subobject":
@@ -226,7 +226,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}
-	relation := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: matches[0]}
+	relation := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: matches[0]}
 	sessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	for _, query := range []string{
 		"SELECT last_value,is_called FROM persistent_s",

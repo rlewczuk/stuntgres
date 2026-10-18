@@ -16,7 +16,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			f := partitionDetachUnitTree(t, false)
 			owner := sessionStart(t, f.e, nil)
-			ref := ObjectRef{owner: f.e.owner, Epoch: f.e.state.epoch, Address: f.child.address}
+			ref := ObjectRef{owner: f.e.domain, Epoch: f.e.state.epoch, Address: f.child.address}
 			parentRef := ref
 			parentRef.Address = f.parent.address
 			partitionAttachUnitWrite(t, f.e, owner, ref, 1)
@@ -137,7 +137,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "descendant":
 					victim = f.leaf
 				}
-				ref := ObjectRef{owner: f.e.owner, Epoch: f.e.state.epoch, Address: victim.address}
+				ref := ObjectRef{owner: f.e.domain, Epoch: f.e.state.epoch, Address: victim.address}
 				// A real explicit holder retains relation locks without retaining
 				// implicit row-work replacement admission.
 				holderSession := sessionStart(t, f.e, nil)

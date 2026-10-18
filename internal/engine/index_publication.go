@@ -249,7 +249,7 @@ func (provider dropProvider) evolveIndex(address ObjectAddress, index, parent *r
 		return err
 	}
 	if next == nil {
-		if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: address}, false); err != nil {
+		if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: address}, false); err != nil {
 			return err
 		}
 	} else if next != index {

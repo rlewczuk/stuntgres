@@ -133,7 +133,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ObjectAddress{a.Address()}
-	if err = drop.removeObject(ObjectRef{owner: e.owner, Epoch: drop.base.Epoch(), Address: a.Address()}, false); err != nil {
+	if err = drop.removeObject(ObjectRef{owner: e.domain, Epoch: drop.base.Epoch(), Address: a.Address()}, false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -184,7 +184,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.state.CurrentUser = reader
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a.Address()}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: a.Address()}
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}

@@ -135,7 +135,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next := *old
 			next.acl, next.revision = nextACL, revision
 			if !next.acl.Explicit || authorization.MatchesDefaultBaseline(next.acl, next.owner, authorization.DefaultParameters, false) {
-				err = stage.Remove(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: address})
+				err = stage.Remove(ObjectRef{owner: stage.owner.domain, Epoch: stage.base.Epoch(), Address: address})
 			} else {
 				err = stage.Replace(&next)
 			}

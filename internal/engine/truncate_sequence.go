@@ -36,7 +36,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 				continue
 			}
 			s.truncateSequences = append(s.truncateSequences, truncateSequence{
-				ref:      ObjectRef{owner: e.owner, Epoch: s.txRef.epoch, Address: a},
+				ref:      ObjectRef{owner: e.domain, Epoch: s.txRef.epoch, Address: a},
 				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.sequences[a],
 			})
 		}

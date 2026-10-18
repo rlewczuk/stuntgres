@@ -315,7 +315,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.owner != v.engine.domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -785,7 +785,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.owner != e.owner || ref.Epoch != e.state.epoch {
+	if ref.owner != e.domain || ref.Epoch != e.state.epoch {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address

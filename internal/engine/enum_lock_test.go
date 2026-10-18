@@ -12,7 +12,7 @@ func TestEnumTypeLockLifecycle(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('old')"))
 	done()
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: mood.Address()}
+	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: mood.Address()}
 	a := sessionStart(t, e, nil)
 	b := sessionStart(t, e, nil)
 	ra := transactionBegin(t, a)

@@ -10,7 +10,7 @@ import (
 
 func materializedRefreshAccess(auth AuthorizationView, ref ObjectRef) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != auth.engine.owner || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.owner != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != materializedViewRelation {

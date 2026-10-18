@@ -25,7 +25,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, childStage)
 	ref := func(d *relationDescriptor) ObjectRef {
-		return ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: d.address}
+		return ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: d.address}
 	}
 	originalRef := ref(c)
 	originalStorage := e.storage[c.address]

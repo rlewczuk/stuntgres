@@ -13,7 +13,7 @@ type derivedIndexKey struct {
 }
 
 func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: parent.address}
 	columns := make([]queryColumn, len(parent.columns))
 	for i, c := range parent.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}

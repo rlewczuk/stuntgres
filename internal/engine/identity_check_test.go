@@ -34,7 +34,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	for _, dependency := range table.checkConstraints[0].dependencies {
 		if dependency.ref.Address == identity.sequence {
 			found = true
-			if dependency.ref.owner != e.owner || dependency.ref.Epoch != e.state.epoch || dependency.revision != provider.revision {
+			if dependency.ref.owner != e.domain || dependency.ref.Epoch != e.state.epoch || dependency.revision != provider.revision {
 				t.Fatal("CHECK did not capture exact candidate provider", dependency)
 			}
 		}
@@ -283,7 +283,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(binder.sequenceConstants)
 	}
 	constant := binder.sequenceConstants[0]
-	if constant.ref.Address != address || constant.ref.owner != e.owner || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.sequencePlanStamp {
+	if constant.ref.Address != address || constant.ref.owner != e.domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.sequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)

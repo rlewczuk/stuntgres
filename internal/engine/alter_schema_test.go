@@ -29,7 +29,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	for _, subID := range []int32{0, table.attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}, acl); err != nil {
+		if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}, acl); err != nil {
 			t.Fatal(err)
 		}
 	}

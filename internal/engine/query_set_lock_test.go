@@ -73,7 +73,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	refs := make(map[string]ObjectRef)
 	next := OID(1000001)
 	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ObjectRef {
-		ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: next}}
+		ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: next}}
 		next++
 		d := *original
 		d.address, d.name, d.owner, d.relationKind = ref.Address, name, owner, viewRelation
@@ -175,7 +175,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.state = cloneCatalog(e.state)
 	next := OID(1000100)
 	add := func(name string, definition *viewDefinition, kind relationKind) ObjectRef {
-		ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: next}}
+		ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: next}}
 		next++
 		d := *e.state.descriptors[base.Address].(*relationDescriptor)
 		d.address, d.name, d.view, d.relationKind = ref.Address, name, definition, kind

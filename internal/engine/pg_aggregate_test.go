@@ -12,7 +12,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}
 	source := catalog.state.descriptors[address].(*relationDescriptor)
-	ref := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: address}
+	ref := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
 	if source.rowType != 10027 || source.virtualView || !source.hasIndexes || len(source.columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
@@ -97,7 +97,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if got, err := capturePGAggregate(context.Background(), fresh, ref, source); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
-	newRef := ObjectRef{owner: e.owner, Epoch: fresh.Epoch(), Address: address}
+	newRef := ObjectRef{owner: e.domain, Epoch: fresh.Epoch(), Address: address}
 	if got, err := capturePGAggregate(context.Background(), fresh, newRef, newSource); err != nil || len(got.anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
@@ -136,7 +136,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 2600}].(*relationDescriptor)
-	ref := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: source.address}
+	ref := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: source.address}
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

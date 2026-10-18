@@ -93,7 +93,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
 		t.Fatal("nonowner authority")
 	}
-	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: ObjectRef{owner: New().owner, Epoch: ref.Epoch, Address: ref.Address}, Privileges: authorization.SelectPrivilege}} {
+	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: ObjectRef{owner: New().domain, Epoch: ref.Epoch, Address: ref.Address}, Privileges: authorization.SelectPrivilege}} {
 		if err := view.Check(req); err == nil {
 			t.Fatal("invalid requirement", req)
 		}
@@ -114,7 +114,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
-	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := ObjectRef{e.domain, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
@@ -442,7 +442,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := ObjectRef{e.domain, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	original := e.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{

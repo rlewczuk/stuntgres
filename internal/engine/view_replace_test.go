@@ -110,7 +110,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			}
 			// Namespace rights isolate view ownership, not inherited schema ACLs.
 			nsAddress := e.CatalogRead().Lookup(NameKey{ClassID: NamespaceClassID, Name: "s"})[0]
-			ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: nsAddress}
+			ns := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: nsAddress}
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}

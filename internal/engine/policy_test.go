@@ -213,7 +213,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if p.using == expression || expression.presentation.sources[0].ref.owner != e.owner {
+	if p.using == expression || expression.presentation.sources[0].ref.owner != e.domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)

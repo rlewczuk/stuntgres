@@ -15,7 +15,7 @@ import (
 func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
 	source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tablePrivilegesOID}].(*relationDescriptor)
-	ref := ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: source.address}
+	ref := ObjectRef{owner: catalog.owner.domain, Epoch: catalog.Epoch(), Address: source.address}
 	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	ref := ObjectRef{owner: f.e.owner, Epoch: catalog.Epoch(), Address: source.address}
+	ref := ObjectRef{owner: f.e.domain, Epoch: catalog.Epoch(), Address: source.address}
 	rows, err := captureTablePrivileges(canceled, catalog, AuthorizationView{}, "unit_database", ref, source)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)

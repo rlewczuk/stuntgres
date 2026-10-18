@@ -114,7 +114,7 @@ func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, r
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.owner != e.owner || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
+	if ref.owner != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
 		return ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -405,7 +405,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err = targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.namespace}); err != nil {
+				if err = targetAuth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: d.namespace}); err != nil {
 					return Result{}, err
 				}
 			}

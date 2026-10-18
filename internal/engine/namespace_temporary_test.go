@@ -67,7 +67,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	}
 	for _, a := range []ObjectAddress{table, toast} {
 		ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
-		rights, err := auth.Effective(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}, false)
+		rights, err := auth.Effective(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: a}, false)
 		want := authorization.Privileges(0)
 		if a == table {
 			want = authorization.UsagePrivilege | authorization.CreatePrivilege

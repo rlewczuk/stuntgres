@@ -18,7 +18,7 @@ func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 	if !ok {
 		t.Fatal("missing pg_attribute")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: address}
+	return d, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
 }
 
 func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
@@ -241,7 +241,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	ref := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: old.address}
+	ref := ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: old.address}
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
 	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, newCatalogChanges(), nil)
 	if err != nil {

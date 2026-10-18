@@ -92,7 +92,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 							case "missing":
 								continue
 							case "foreign":
-								dependency.ref.owner = foreign.owner
+								dependency.ref.owner = foreign.domain
 							case "stale":
 								dependency.revision++
 							}

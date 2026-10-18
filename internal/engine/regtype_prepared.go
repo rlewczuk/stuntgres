@@ -84,7 +84,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	for _, constant := range cell.constants {
 		for _, operand := range constant.operands {
 			d := auth.catalog.state.descriptors[operand.ref.Address]
-			if d == nil || operand.ref.owner != e.owner || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
+			if d == nil || operand.ref.owner != e.domain || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
 				return false, nil
 			}
 		}
@@ -98,7 +98,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
 				}
-				if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: reference.namespace}); err != nil {
+				if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: reference.namespace}); err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 						return false, nil
 					}
@@ -110,7 +110,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			if auth.catalog.state.descriptors[namespace] == nil {
 				return false, nil
 			}
-			if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: namespace}); err != nil {
+			if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: namespace}); err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 					return false, nil
 				}

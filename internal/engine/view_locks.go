@@ -38,7 +38,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
 		d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
-		if ref.owner != e.owner || ref.Epoch != e.state.epoch || !ok {
+		if ref.owner != e.domain || ref.Epoch != e.state.epoch || !ok {
 			return ErrCatalogReplaced
 		}
 		if s.materializedRefresh && !visited {
@@ -197,7 +197,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes m
 		}
 		e.mu.Lock()
 		current, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address]
-		valid := ref.owner == e.owner && ref.Epoch == e.state.epoch && exists
+		valid := ref.owner == e.domain && ref.Epoch == e.state.epoch && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
 			s.preparedChangedDuringAdmission = true
 		}

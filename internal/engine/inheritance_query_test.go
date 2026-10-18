@@ -104,7 +104,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
 	ref := func(d *relationDescriptor) ObjectRef {
-		return ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: d.address}
+		return ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: d.address}
 	}
 	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := rowVersion{row: 1, version: 2, values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
@@ -155,7 +155,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: p.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: p.address}
 	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
@@ -256,7 +256,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
 	inheritanceLifecycleInstall(e, p, c)
-	ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: p.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: p.address}
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++

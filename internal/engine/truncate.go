@@ -67,7 +67,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.owner != e.owner || ref.Epoch != e.state.epoch || s.txRef.epoch != ref.Epoch {
+			if ref.owner != e.domain || ref.Epoch != e.state.epoch || s.txRef.epoch != ref.Epoch {
 				err = ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -228,7 +228,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
 		}
 		for _, candidate := range inbound {
-			ref := ObjectRef{owner: e.owner, Epoch: s.txRef.epoch, Address: candidate.relation.address}
+			ref := ObjectRef{owner: e.domain, Epoch: s.txRef.epoch, Address: candidate.relation.address}
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}

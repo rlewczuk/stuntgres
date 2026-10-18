@@ -36,7 +36,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if len(addresses) != 1 {
 			t.Fatal(tc, addresses)
 		}
-		ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: addresses[0]}
+		ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: addresses[0]}
 		refs = append(refs, ref)
 	}
 	// Namespace/relation ACLs use their existing internal publication seam.

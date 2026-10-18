@@ -91,7 +91,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.ref.Address == address {
 					selected++
-					if dependency.ref.owner != e.owner || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.ref.owner != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
 						t.Fatal("original selected lifetime", dependency)
 					}
 				} else {
@@ -122,7 +122,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					if checks[i].ref.Address == address {
 						switch mode {
 						case "foreign":
-							checks[i].ref.owner = other.owner
+							checks[i].ref.owner = other.domain
 						case "epoch":
 							checks[i].ref.Epoch++
 						case "revision":

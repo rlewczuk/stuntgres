@@ -15,7 +15,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	d = e.state.descriptors[d.address].(*relationDescriptor)
 	original := e.storage[d.address]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage[d.address]
@@ -96,7 +96,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.address].storage != e.storage[unrelated.address] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+			ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -132,7 +132,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			originalEpoch := e.state.epoch
 			defer func() { e.state.epoch = originalEpoch }()
-			ref := ObjectRef{owner: e.owner, Epoch: originalEpoch, Address: d.address}
+			ref := ObjectRef{owner: e.domain, Epoch: originalEpoch, Address: d.address}
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
 			case "plain_data":

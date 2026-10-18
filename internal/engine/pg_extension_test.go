@@ -17,7 +17,7 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, Object
 	if !ok {
 		t.Fatal("missing pg_extension")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
 }
 
 func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {

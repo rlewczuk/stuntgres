@@ -18,7 +18,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectR
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
 }
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()

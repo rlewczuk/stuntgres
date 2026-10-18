@@ -308,7 +308,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		if ref.Address == ext.members[0] {
 			ref.Address = imported.members[0]
 		}
-		ref.owner = target.owner
+		ref.owner = target.domain
 		ref.Epoch = target.CatalogRead().Epoch()
 		return ref
 	}, nil)
@@ -340,7 +340,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.state.descriptors[sourceRef.Address] != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.owner != target.owner || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.owner != target.domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

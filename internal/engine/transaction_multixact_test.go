@@ -238,7 +238,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	if err := e.locks.physicalEvents(b, []multiEvent{{tuple: third, mode: multiShare}, {tuple: bad, mode: multiShare}}); err == nil || e.locks.nextMultiXact() != before || e.locks.multiRows[third].id != 0 {
 		t.Fatal("batch preflight published a prefix", err)
 	}
-	for _, change := range []func(*multiTuple){func(k *multiTuple) { k.row = 0 }, func(k *multiTuple) { k.kind = advisoryBigintResource }, func(k *multiTuple) { k.Epoch++ }, func(k *multiTuple) { k.ObjectRef.owner = New().owner }} {
+	for _, change := range []func(*multiTuple){func(k *multiTuple) { k.row = 0 }, func(k *multiTuple) { k.kind = advisoryBigintResource }, func(k *multiTuple) { k.Epoch++ }, func(k *multiTuple) { k.ObjectRef.owner = New().domain }} {
 		bad := third
 		change(&bad)
 		if err := e.locks.physicalEvents(b, []multiEvent{{tuple: bad, mode: multiShare}}); err == nil || e.locks.nextMultiXact() != before {

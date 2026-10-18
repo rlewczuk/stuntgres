@@ -21,7 +21,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	ns := ObjectRef{e.domain, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := ObjectRef{e.domain, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege

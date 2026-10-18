@@ -19,7 +19,7 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if address == (ObjectAddress{}) {
 		return false, nil
 	}
-	ref := ObjectRef{owner: view.engine.owner, Epoch: view.catalog.Epoch(), Address: address}
+	ref := ObjectRef{owner: view.engine.domain, Epoch: view.catalog.Epoch(), Address: address}
 	rights, err := view.Effective(ref, false)
 	return rights&authorization.SetPrivilege != 0, err
 }

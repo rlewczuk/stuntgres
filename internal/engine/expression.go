@@ -2268,11 +2268,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProp
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, revision)
+	b.dependency(ObjectRef{owner: b.engine.domain, Epoch: view.Epoch(), Address: address}, revision)
 	if u.Collation.ID != 0 {
 		address := ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, d.Revision())
+			b.dependency(ObjectRef{owner: b.engine.domain, Epoch: view.Epoch(), Address: address}, d.Revision())
 		}
 	}
 	return expressionInfo{usage: u, pos: pos, properties: p}
@@ -2943,7 +2943,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
 				if descriptor, exists := auth.catalog.Descriptor(address); exists {
-					b.dependency(ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: address}, descriptor.Revision())
+					b.dependency(ObjectRef{owner: b.engine.domain, Epoch: auth.catalog.Epoch(), Address: address}, descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:

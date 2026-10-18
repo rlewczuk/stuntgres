@@ -79,7 +79,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ObjectAdd
 			}
 			cause := *proof.cause
 			cause.self = &cause
-			cause.ref = ObjectRef{owner: e.owner, Epoch: next.epoch, Address: table.address}
+			cause.ref = ObjectRef{owner: e.domain, Epoch: next.epoch, Address: table.address}
 			proof.cause = &cause
 			proof.usage = table.columns[slot].Usage
 			if support := proof.support; support != nil {

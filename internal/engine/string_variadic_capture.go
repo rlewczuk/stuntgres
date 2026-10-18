@@ -84,7 +84,7 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		if origin.owner == (ObjectRef{}) {
 			return true
 		}
-		if view.owner == nil || origin.owner.owner != view.owner.owner || origin.owner.Epoch != view.Epoch() {
+		if view.owner == nil || origin.owner.owner != view.owner.domain || origin.owner.Epoch != view.Epoch() {
 			return false
 		}
 		d, ok := view.state.descriptors[origin.owner.Address].(*relationDescriptor)

@@ -20,7 +20,7 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 					original[address] = e.state.descriptors[address]
 				}
 				address := NameAddressForTempMove(t, e, source, target)
-				ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}
+				ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
 				tx := transactionBegin(t, a)
 				if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 					t.Fatal(err)

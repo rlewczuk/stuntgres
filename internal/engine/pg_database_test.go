@@ -18,7 +18,7 @@ func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relati
 	if !ok {
 		t.Fatal("missing pg_database")
 	}
-	return source, ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: address}
+	return source, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: address}
 }
 
 func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
@@ -117,7 +117,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		catalog CatalogRead
 		roles   authorization.Read
 		ref     ObjectRef
-	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), ObjectRef{owner: foreign.owner, Epoch: ref.Epoch, Address: ref.Address}}} {
+	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), ObjectRef{owner: foreign.domain, Epoch: ref.Epoch, Address: ref.Address}}} {
 		if got, err := e.capturePGDatabase(context.Background(), tc.catalog, tc.roles, tc.ref, d); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}

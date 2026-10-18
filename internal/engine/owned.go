@@ -210,7 +210,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}
+		ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}
 		if err = scope.acquireSequence(ref, accessExclusive, true); err != nil {
 			return Result{}, err
 		}
@@ -234,7 +234,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[foreign.wrapper])
 				}
 			case *namespaceDescriptor:
-				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
 				}
@@ -242,7 +242,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					err = ownershipDatabaseCreate(auth)
 				}
 			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
-				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
 				}
@@ -278,7 +278,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, a.ClassID == NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, a.ClassID == NamespaceClassID); err != nil {
 				break
 			}
 		}

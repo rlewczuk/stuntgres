@@ -57,7 +57,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	e := New()
 	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12005}].(*relationDescriptor)
-	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 	boundary := time.Date(2024, 3, 10, 7, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		instant time.Time
@@ -134,7 +134,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			{12004, "IST", 7200000000},
 		} {
 			d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
-			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+			ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 			e.mu.Lock()
 			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil, nil)
 			if err != nil {

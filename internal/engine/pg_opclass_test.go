@@ -17,7 +17,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRe
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
@@ -188,7 +188,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("real root", tc, root, err)
 		}
 		catalog := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), catalog, ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: index.address})
+		m, _, err := projectIndexMetadata(context.Background(), catalog, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: index.address})
 		if err != nil || !reflect.DeepEqual(m.IndClass, []OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}

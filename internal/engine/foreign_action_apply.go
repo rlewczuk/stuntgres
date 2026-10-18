@@ -138,7 +138,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.op.session.Engine()
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: job.child.address}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: job.child.address}
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
@@ -345,7 +345,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		parentRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: job.parent.address}
+		parentRef := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: job.parent.address}
 		parents, err := s.captureForeignKeyRows(parentRef, job.definition.Index)
 		if err != nil {
 			return err

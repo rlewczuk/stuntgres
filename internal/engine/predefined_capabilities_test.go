@@ -40,7 +40,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	}
 	v := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, state}, roleRecord: e.roles, catalog: CatalogRead{e, state}, roles: e.roleRead(CatalogRead{e, state}, e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
-		ref := ObjectRef{e.owner, state.epoch, tc.d.Address()}
+		ref := ObjectRef{e.domain, state.epoch, tc.d.Address()}
 		got, err := v.Effective(ref, false)
 		if err != nil || got != tc.want {
 			t.Fatal(tc.d.Name(), got, tc.want, err)
@@ -57,7 +57,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
-	column := ObjectRef{e.owner, state.epoch, descriptors[1].d.Address()}
+	column := ObjectRef{e.domain, state.epoch, descriptors[1].d.Address()}
 	column.Address.SubID = 1
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege {
 		t.Fatal("column mask", got, err)
@@ -85,26 +85,26 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	fresh := v
 	fresh.roleRecord = e.roles
 	fresh.roles = e.roleRead(fresh.catalog, e.roles)
-	if got, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err != nil || got != 0 {
+	if got, err := fresh.Effective(ObjectRef{e.domain, state.epoch, table.address}, false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
-	if got, err := v.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err != nil || got != descriptors[1].want {
+	if got, err := v.Effective(ObjectRef{e.domain, state.epoch, table.address}, false); err != nil || got != descriptors[1].want {
 		t.Fatal("retained authority changed", got, err)
 	}
-	for _, ref := range []ObjectRef{{New().owner, state.epoch, table.address}, {e.owner, state.epoch + 1, table.address}, {e.owner, state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: 999999}}} {
+	for _, ref := range []ObjectRef{{New().domain, state.epoch, table.address}, {e.domain, state.epoch + 1, table.address}, {e.domain, state.epoch, ObjectAddress{ClassID: RelationClassID, ObjectID: 999999}}} {
 		if _, err := v.Effective(ref, false); err == nil {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
 	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
-	if _, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err == nil {
+	if _, err := fresh.Effective(ObjectRef{e.domain, state.epoch, table.address}, false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
 	fresh.roleRecord = e.roles
 	fresh.state.CurrentUser = reader.Ref
-	if _, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err == nil {
+	if _, err := fresh.Effective(ObjectRef{e.domain, state.epoch, table.address}, false); err == nil {
 		t.Fatal("capability accepted retired actor")
 	}
 }
@@ -248,7 +248,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 		}
 	}
 	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "grant_target"}]
-	ref := ObjectRef{e.owner, e.state.epoch, address}
+	ref := ObjectRef{e.domain, e.state.epoch, address}
 	view, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)

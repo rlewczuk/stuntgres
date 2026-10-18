@@ -67,7 +67,7 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 
 func (r scalarRenderer) recordRoutineReferences(view CatalogRead, value sqltype.Value) error {
 	return walkRoutineReferencesAt(view, r.definition, value, func(address ObjectAddress) error {
-		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
+		r.record(ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: address})
 		return nil
 	})
 }

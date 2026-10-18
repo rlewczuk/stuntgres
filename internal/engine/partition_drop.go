@@ -12,7 +12,7 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationDescriptor) error {
 	if relation.partition != nil {
 		for _, address := range relation.partition.children {
-			ref := ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: address}
+			ref := ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: address}
 			if err := provider.removeObjectLocked(ref, false); err != nil {
 				return err
 			}

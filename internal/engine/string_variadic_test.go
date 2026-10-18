@@ -103,8 +103,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	table := primaryKeyUnitRelation(t, e, "sv_quote_origins")
 	view := primaryKeyUnitRelation(t, e, "sv_quote_origin_view")
 	catalog := e.CatalogRead()
-	tableRef := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: table.address}
-	viewRef := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: view.address}
+	tableRef := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: table.address}
+	viewRef := ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: view.address}
 	origins := []quoteOrigin{
 		{owner: tableRef, attribute: table.attributes[0], definition: table.defaults[table.attributes[0]].OID},
 		{owner: tableRef, attribute: table.attributes[1], definition: table.defaults[table.attributes[1]].OID},
@@ -347,7 +347,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("retry did not preserve a and replace b DEFAULT identity")
 		}
 		catalog := engine.CatalogRead()
-		ref := ObjectRef{owner: engine.owner, Epoch: catalog.Epoch(), Address: relation.address}
+		ref := ObjectRef{owner: engine.domain, Epoch: catalog.Epoch(), Address: relation.address}
 		seen := map[string]bool{}
 		for _, capture := range description.quotes {
 			value, err := capture.value.Text()
@@ -394,7 +394,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		relation := primaryKeyUnitRelation(t, engine, "sv_merge_origin")
 		catalog := engine.CatalogRead()
-		ref := ObjectRef{owner: engine.owner, Epoch: catalog.Epoch(), Address: relation.address}
+		ref := ObjectRef{owner: engine.domain, Epoch: catalog.Epoch(), Address: relation.address}
 		seen := map[string]bool{}
 		for _, capture := range description.quotes {
 			value, err := capture.value.Text()
@@ -495,7 +495,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				}
 				relation := primaryKeyUnitRelation(t, engine, "sv_local_merge")
 				catalog := engine.CatalogRead()
-				ref := ObjectRef{owner: engine.owner, Epoch: catalog.Epoch(), Address: relation.address}
+				ref := ObjectRef{owner: engine.domain, Epoch: catalog.Epoch(), Address: relation.address}
 				seen := map[string]bool{}
 				for _, capture := range group.entries {
 					want := "root"
@@ -545,7 +545,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		stamp := description.quoteGeneration
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
-		origin := quoteOrigin{owner: ObjectRef{owner: engine.owner, Epoch: catalog.Epoch(), Address: view.address}, definition: view.view.rule, revision: view.view.quoteRevision}
+		origin := quoteOrigin{owner: ObjectRef{owner: engine.domain, Epoch: catalog.Epoch(), Address: view.address}, definition: view.view.rule, revision: view.view.quoteRevision}
 		var previous []quoteConstant
 		for id := int64(1); id <= 2; id++ {
 			setting, root, blocked := "off", "root", "blocked"

@@ -153,7 +153,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
 			address := NameAddressForTempMove(t, e, source, "q2")
-			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}
+			ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: address}
 			tx := transactionBegin(t, a)
 			if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 				t.Fatal(err)

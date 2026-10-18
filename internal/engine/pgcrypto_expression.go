@@ -154,7 +154,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	if err != nil {
 		return nil, err
 	}
-	ref := ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: proc.address}
+	ref := ObjectRef{owner: b.engine.domain, Epoch: auth.catalog.Epoch(), Address: proc.address}
 	b.dependency(ref, proc.revision)
 	return installedCryptoFunctionExpression{Pgcrypto: call, procedure: proc, ref: ref}, nil
 }

@@ -238,7 +238,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}}); err != nil {
+		if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}}); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}

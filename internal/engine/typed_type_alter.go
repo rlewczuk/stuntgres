@@ -30,13 +30,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: source.address}, OwnerOnly: true})
+		err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: source.address}, OwnerOnly: true})
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: source.address}, accessExclusive, true); err != nil {
+	if err := scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: source.address}, accessExclusive, true); err != nil {
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -61,7 +61,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	// independently parent-before-child for multiple-parent inheritance.
 	addresses := typedSortedAddresses(targets)
 	for _, address := range addresses {
-		if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}, accessExclusive, true); err != nil {
+		if err := scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: address}, accessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
@@ -113,7 +113,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			continue
 		}
 		usage := sourceMutation.next.columns[slot].Usage
-		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
+		ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}

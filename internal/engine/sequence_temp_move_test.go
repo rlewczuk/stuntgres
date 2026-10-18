@@ -183,7 +183,7 @@ func TestSequenceTemporaryMoveCreatePermissionPrecedence(t *testing.T) {
 			sessionSQL(t, s, "CREATE USER mover")
 			sessionSQL(t, s, "CREATE SCHEMA denied")
 			ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "denied"}]
-			if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns}, authorization.ACLValue{Explicit: true}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ns}, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}
 			sessionSQL(t, s, "SET SESSION AUTHORIZATION mover")

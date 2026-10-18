@@ -48,7 +48,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if !exists {
 		return old, sqlError("55000", message+" is not an identity column")
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: identity.sequence}
+	ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: identity.sequence}
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -137,7 +137,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress, usage sqltype.Usage) error {
-	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: address}
+	ref := ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: address}
 	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
 		return err
 	}

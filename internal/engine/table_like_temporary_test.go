@@ -40,7 +40,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 					calls++
 				}
 			})
-			if calls != 1 || call.temporary != owner.token || call.ref.Address != seed.address || call.ref.owner != e.owner {
+			if calls != 1 || call.temporary != owner.token || call.ref.Address != seed.address || call.ref.owner != e.domain {
 				t.Fatal("fixture lacks exact temporary sequence authority", call, calls)
 			}
 			op, err := owner.Acquire(context.Background())
@@ -207,7 +207,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	if err := e.ValidateObjectRef(view, call.ref); err == nil {
 		t.Fatal("generic stale ObjectRef admitted")
 	}
-	for _, bad := range []ObjectRef{{owner: New().owner, Epoch: call.ref.Epoch, Address: call.ref.Address}, {owner: e.owner, Epoch: view.Epoch() + 1, Address: call.ref.Address}} {
+	for _, bad := range []ObjectRef{{owner: New().domain, Epoch: call.ref.Epoch, Address: call.ref.Address}, {owner: e.domain, Epoch: view.Epoch() + 1, Address: call.ref.Address}} {
 		if storedSequenceEpochValid(view, destination, bad, call.temporary) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
@@ -221,17 +221,17 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
-	row := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}}, scope: 1, frame: 1, slot: 0}
+	row := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}}, scope: 1, frame: 1, slot: 0}
 	if _, err := (scalarRenderer{provenance: destination}).sql(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
 	// Admission must prove the original SubID before whole-object lock dedup.
-	attribute := ObjectRef{owner: e.owner, Epoch: call.ref.Epoch, Address: source.address}
+	attribute := ObjectRef{owner: e.domain, Epoch: call.ref.Epoch, Address: source.address}
 	attribute.Address.SubID = 1
 	removed := attribute
 	removed.Address.SubID = 2
 	foreign := call.ref
-	foreign.owner = New().owner
+	foreign.owner = New().domain
 	future := call.ref
 	future.Epoch = stage.base.Epoch() + 1
 	for _, tc := range []struct {

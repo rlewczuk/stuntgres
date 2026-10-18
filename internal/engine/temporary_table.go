@@ -114,7 +114,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return Result{}, err
 	}
-	created := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: stage.names[key]}
+	created := ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: stage.names[key]}
 	if temporary {
 		scope.owner.accessedTemporary = true
 		if len(stage.domainBases) != 0 {

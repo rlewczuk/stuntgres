@@ -100,7 +100,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 	if !grantRoutineKindMatches(kind, p.routineKind) {
 		return ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
 	}
-	return ObjectRef{owner: e.owner, Epoch: v.catalog.Epoch(), Address: address}, nil
+	return ObjectRef{owner: e.domain, Epoch: v.catalog.Epoch(), Address: address}, nil
 }
 
 func grantRoutineArgumentDisplay(v AuthorizationView, inputs []OID) string {

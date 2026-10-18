@@ -57,7 +57,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
 	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token SessionToken) ([]ObjectRef, error) {
 		t.Helper()
-		leaf := queryLeaf{ref: ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: relation.address}, relation: relation, only: only, analysisOnly: analysis}
+		leaf := queryLeaf{ref: ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: relation.address}, relation: relation, only: only, analysisOnly: analysis}
 		auth := peerAuth
 		if token == owner.token {
 			auth = ownerAuth
@@ -80,7 +80,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ObjectRef{{owner: e.owner, Epoch: catalog.Epoch(), Address: foreign.address}}, peer.token, queryRowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.state.CurrentUser, nil, []ObjectRef{{owner: e.domain, Epoch: catalog.Epoch(), Address: foreign.address}}, peer.token, queryRowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {

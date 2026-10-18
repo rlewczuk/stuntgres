@@ -172,7 +172,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}}, u.Collation)
+		r.recordStoredCollation(view, ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}}, u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -180,7 +180,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
+	r.recordStoredType(view, ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.usage {
@@ -501,7 +501,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
-				r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
+				r.record(ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: address})
 			}
 		}
 		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {

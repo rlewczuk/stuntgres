@@ -19,7 +19,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 	return nil
 }
 func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(ObjectRef{owner: auth.engine.owner, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress})
+	return auth.CheckCreate(ObjectRef{owner: auth.engine.domain, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress})
 }
 func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -37,7 +37,7 @@ func ownershipEligibility(auth AuthorizationView, target authorization.Principal
 	if namespace == (ObjectAddress{}) {
 		return nil
 	}
-	return targetAuth.CheckCreate(ObjectRef{owner: auth.engine.owner, Epoch: auth.catalog.Epoch(), Address: namespace})
+	return targetAuth.CheckCreate(ObjectRef{owner: auth.engine.domain, Epoch: auth.catalog.Epoch(), Address: namespace})
 }
 func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	switch spec.Identity {
@@ -296,7 +296,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			if a == old.address {
 				continue
 			}
-			if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
+			if err = scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -371,7 +371,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: old.Address()}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: old.Address()}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return fail(err)
 	}
@@ -383,7 +383,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	e.mu.Unlock()
 	if err == nil {
 		for _, a := range ownershipRelationLocks(stage.base, []ObjectAddress{old.Address()}) {
-			if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
+			if err = scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -421,7 +421,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: database.address}, OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: database.address}, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	if err = ownershipSuccessor(auth, target); err != nil {

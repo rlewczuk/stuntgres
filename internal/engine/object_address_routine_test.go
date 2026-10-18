@@ -53,7 +53,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.ref.Address == address {
 					found = true
-					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.owner != e.owner {
+					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.owner != e.domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}

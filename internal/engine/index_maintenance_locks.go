@@ -30,7 +30,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 		}
 	}
 	for _, ref := range g.targets {
-		if ref.owner != auth.engine.owner || ref.Epoch != auth.catalog.Epoch() {
+		if ref.owner != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
 		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)

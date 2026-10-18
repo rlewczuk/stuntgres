@@ -72,7 +72,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			return fail(err)
 		}
 	} else {
-		if err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
+		if err = auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
 			return fail(err)
 		}
 		if _, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: old.namespace, Name: destination}]; exists {

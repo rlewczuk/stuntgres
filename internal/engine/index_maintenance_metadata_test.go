@@ -86,7 +86,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	run(t, e, "ALTER INDEX ni RENAME TO renamed_ni")
 	run(t, e, "ALTER TABLE t RENAME COLUMN n TO renamed_n")
 	run(t, e, "ALTER TABLE t RENAME TO renamed_t")
-	old, oldNames, err := projectIndexMetadata(context.Background(), capture, ObjectRef{owner: e.owner, Epoch: capture.Epoch(), Address: ni.address})
+	old, oldNames, err := projectIndexMetadata(context.Background(), capture, ObjectRef{owner: e.domain, Epoch: capture.Epoch(), Address: ni.address})
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames.IndexName != "ni" || oldNames.TableName != "t" {
 		t.Fatal("historical capture consulted current catalog", old, oldNames, err)
 	}
@@ -104,7 +104,7 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 			t.Fatal("dropped metadata remained published")
 		}
 	}
-	old, _, err = projectIndexMetadata(context.Background(), capture, ObjectRef{owner: e.owner, Epoch: capture.Epoch(), Address: ni.address})
+	old, _, err = projectIndexMetadata(context.Background(), capture, ObjectRef{owner: e.domain, Epoch: capture.Epoch(), Address: ni.address})
 	if err != nil || !reflect.DeepEqual(old, want) {
 		t.Fatal("drop mutated old capture", old, err)
 	}
@@ -219,7 +219,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("domain/enum metadata substituted declared type OIDs", got, want)
 	}
 	// An explicit empty table ACL cannot hide a structural metadata record.
-	parent := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: index.sqlIndex.parent}
+	parent := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: index.sqlIndex.parent}
 	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -245,13 +245,13 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("metadata ignored cancellation", err)
 	}
 	foreign := New()
-	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: foreign.owner, Epoch: old.Epoch(), Address: index.address}); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: foreign.domain, Epoch: old.Epoch(), Address: index.address}); err == nil {
 		t.Fatal("foreign ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: e.owner, Epoch: old.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123456}}); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: e.domain, Epoch: old.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123456}}); err == nil {
 		t.Fatal("missing ref accepted by capture")
 	}
-	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: e.owner, Epoch: old.Epoch(), Address: parent.Address}); err == nil {
+	if _, _, err := projectIndexMetadata(context.Background(), old, ObjectRef{owner: e.domain, Epoch: old.Epoch(), Address: parent.Address}); err == nil {
 		t.Fatal("non-index ref accepted by capture")
 	}
 	if p, err := sqltype.BindOrdering(index.columns[2].Usage); err != nil || p.DefaultBtreeOpclass() != 10069 {

@@ -62,7 +62,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	data := scope.view.read()
 	var relation ObjectRef
 	for a := range data.committed {
-		relation = ObjectRef{owner: e.owner, Epoch: data.catalog.Epoch(), Address: a}
+		relation = ObjectRef{owner: e.domain, Epoch: data.catalog.Epoch(), Address: a}
 	}
 	stage := *scope.Writes()
 	before := e.nextRow

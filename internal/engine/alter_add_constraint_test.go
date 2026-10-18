@@ -144,7 +144,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 	if len(candidate.foreignKeys) != 1 || candidate.foreignKeys[0].Index != candidate.uniqueConstraints[0].Index {
 		t.Fatal("FK did not bind completed real key", candidate)
 	}
-	foreignKeyHeldMode(t, e, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: original.address}, 0, scope.ticket, accessExclusive)
+	foreignKeyHeldMode(t, e, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: original.address}, 0, scope.ticket, accessExclusive)
 	if len(original.foreignKeys) != 0 || len(original.uniqueConstraints) != 0 {
 		t.Fatal("published before Finish")
 	}
@@ -186,7 +186,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		t.Fatal("ordinary UPDATE acquired historical provenance")
 	}
 	current := scope.stage.rows[child.address][0]
-	rows, err := scope.captureForeignKeyRows(ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: child.address}, ObjectAddress{})
+	rows, err := scope.captureForeignKeyRows(ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: child.address}, ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}

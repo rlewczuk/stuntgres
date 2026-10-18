@@ -85,7 +85,7 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 	stage.terminalCleanup = true
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	for _, target := range targets {
-		if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: target}); err != nil {
+		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: target}); err != nil {
 			t.Fatal(err)
 		}
 	}

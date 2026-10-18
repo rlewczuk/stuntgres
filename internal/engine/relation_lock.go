@@ -150,7 +150,7 @@ type relationEntry struct {
 type relationLockManager struct {
 	mu           sync.Mutex
 	engine       *Engine
-	catalog      *catalogOwner
+	catalog      *Domain
 	epoch        CatalogEpoch
 	owners       map[TxRef]*relationTicket
 	sessions     map[SessionToken]*relationTicket
@@ -162,7 +162,7 @@ type relationLockManager struct {
 }
 
 func newRelationLockManager(e *Engine) *relationLockManager {
-	return &relationLockManager{engine: e, catalog: e.owner, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
+	return &relationLockManager{engine: e, catalog: e.domain, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	m.mu.Lock()

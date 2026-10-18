@@ -28,7 +28,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		return v
 	}
 	makeCheck := func(oid OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
-		ref := ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: leaf.address}
+		ref := ObjectRef{owner: catalog.owner.domain, Epoch: catalog.Epoch(), Address: leaf.address}
 		ref.Address.SubID = leaf.attributes[slot]
 		column := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: integer(n)}
@@ -176,7 +176,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{expressionInfo: expressionInfo{usage: oidType.Usage()}, owner: ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: leaf.address}}
+	ownerValue := tableOIDExpression{expressionInfo: expressionInfo{usage: oidType.Usage()}, owner: ObjectRef{owner: catalog.owner.domain, Epoch: catalog.Epoch(), Address: leaf.address}}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}

@@ -63,7 +63,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	innerEnds, gateEnds := innerStorage.ends, gateStorage.ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: gate.address}
+	gateRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: gate.address}
 	defer e.locks.end(holder.transactions.ticket)
 	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: gateRef}, accessExclusive); err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		waiting := entry != nil && len(entry.pending) == 1 &&
 			entry.pending[0].ticket == scope.ticket && entry.pending[0].mode == accessShare &&
 			entry.holders[holder.transactions.ticket].mode&accessExclusive != 0
-		innerRef := ObjectRef{owner: e.owner, Epoch: gateRef.Epoch, Address: inner.address}
+		innerRef := ObjectRef{owner: e.domain, Epoch: gateRef.Epoch, Address: inner.address}
 		innerEntry := e.locks.entries[lockResource{ObjectRef: innerRef}]
 		granted := innerEntry != nil && innerEntry.holders[scope.ticket].mode&accessShare != 0
 		e.locks.mu.Unlock()

@@ -37,7 +37,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 	if err := ctx.Err(); err != nil {
 		return m, names, err
 	}
-	if catalog.owner == nil || catalog.state == nil || ref.owner != catalog.owner.owner || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
+	if catalog.owner == nil || catalog.state == nil || ref.owner != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	index, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -139,7 +139,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: index.address})
+		records[i], names[i], err = projectIndexMetadata(ctx, catalog, ObjectRef{owner: catalog.owner.domain, Epoch: catalog.Epoch(), Address: index.address})
 		if err != nil {
 			return nil, nil, err
 		}

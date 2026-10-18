@@ -19,7 +19,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	old := e.state.descriptors[ref.Address].(*relationDescriptor)
 	storage := e.storage[ref.Address]
 	epoch := e.CatalogRead().Epoch()
-	owner := e.owner
+	owner := e.domain
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old
 	next.revision++
@@ -37,7 +37,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}
-		if e.owner != owner || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
+		if e.domain != owner || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed identity/storage")
 		}
 		var after bytes.Buffer

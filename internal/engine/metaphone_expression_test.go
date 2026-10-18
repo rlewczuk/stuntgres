@@ -108,7 +108,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		stale := n
 		if foreign {
-			stale.ref.owner = New().owner
+			stale.ref.owner = New().domain
 		} else {
 			stale.ref.Epoch = e.CatalogRead().Epoch() + 1
 		}

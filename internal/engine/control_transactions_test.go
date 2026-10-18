@@ -112,7 +112,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
-			owner, storage, frontier := target.owner, target.storage[ref.Address], target.commitSeq
+			owner, storage, frontier := target.domain, target.storage[ref.Address], target.commitSeq
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -165,7 +165,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			if err == nil {
 				target.locks.fence(target.CatalogRead().Epoch())
 			}
-			if ctx.Err() != context.Canceled || !boundary.observed || target.owner != owner {
+			if ctx.Err() != context.Canceled || !boundary.observed || target.domain != owner {
 				t.Fatal("boundary not exercised", boundary.observed, err)
 			}
 			if late {

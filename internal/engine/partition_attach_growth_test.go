@@ -104,7 +104,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate = e.state.descriptors[candidate.address].(*relationDescriptor)
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: old.address}
+			ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: old.address}
 			partitionAttachUnitGrant(t, holder, ref, accessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.address
@@ -176,7 +176,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			e.locks.mu.Lock()
-			entry := e.locks.entries[lockResource{ObjectRef: ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: candidate.address}}]
+			entry := e.locks.entries[lockResource{ObjectRef: ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: candidate.address}}]
 			newHold := entry != nil && entry.holders[reader.ticket].mode != 0
 			e.locks.mu.Unlock()
 			if newHold {
@@ -199,7 +199,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target.partition.defaultChild = leaf.address
 			view := inheritanceUnitView(e, parent, target, leaf)
 			usage, boolean := target.columns[0].Usage, testUsage(e, sqltype.Bool)
-			ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: target.address}
+			ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: target.address}
 			ref.Address.SubID = 1
 			key := columnExpression{expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 			cmp := func(op string, n int64) BoundExpr {
@@ -244,7 +244,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target = e.state.descriptors[target.address].(*relationDescriptor)
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: leaf.address}
+			leafRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: leaf.address}
 			targetRef := leafRef
 			targetRef.Address = target.address
 			partitionAttachUnitGrant(t, holder, leafRef, accessShare)

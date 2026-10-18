@@ -20,7 +20,7 @@ func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectR
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
 }
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {

@@ -12,7 +12,7 @@ func (e *Engine) serializableEligibleLocked(ref ObjectRef, catalog *catalogChang
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error {
-	if ref.owner != e.owner || ref.Address.SubID != 0 {
+	if ref.owner != e.domain || ref.Address.SubID != 0 {
 		return errors.New("stuntgres: foreign SSI relation")
 	}
 	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {
@@ -52,7 +52,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ObjectRef) error 
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ObjectRef, events []serializableWrite) error {
-	if ref.owner != e.owner || ref.Address.SubID != 0 || s.txRef.owner != e || s.txRef.attachment != s.owner || s.txRef != s.owner.ref {
+	if ref.owner != e.domain || ref.Address.SubID != 0 || s.txRef.owner != e || s.txRef.attachment != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
 	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.epoch {

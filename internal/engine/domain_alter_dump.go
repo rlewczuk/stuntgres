@@ -107,7 +107,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ObjectRef, ow
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || created.owner != e.owner || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != TypeClassID || created.Address.SubID != 0 {
+	if !partitionConstraintReplayImport(e, op, auth) || created.owner != e.domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
 	if _, captured := e.importTargets[owner]; !captured {

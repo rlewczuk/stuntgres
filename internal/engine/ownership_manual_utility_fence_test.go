@@ -197,12 +197,12 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 						t.Fatal("dishonest selected/committed DB pair")
 					}
-					if err := auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ns}); err != nil {
+					if err := auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ns}); err != nil {
 						t.Fatal("canonical DB owner cannot CREATE in strict namespace", err)
 					}
 					withoutDB := auth
 					withoutDB.state.CurrentUser = auth.roles.LookupRef("ownership_reader")
-					if err := withoutDB.CheckCreate(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ns}); err == nil {
+					if err := withoutDB.CheckCreate(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ns}); err == nil {
 						t.Fatal("namespace PUBLIC/direct rights bypass DB-derived CREATE")
 					}
 					retainedACL := authorization.ACLValue{Explicit: old.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), old.acl.Entries...)}
@@ -361,7 +361,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 					t.Fatal("OWNED fixture lacks honest selected/predecessor pair")
 				}
-				if err := auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ns}); err != nil || auth.catalog.state.descriptors[table.Address].(*relationDescriptor).owner != auth.state.CurrentUser {
+				if err := auth.CheckCreate(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ns}); err != nil || auth.catalog.state.descriptors[table.Address].(*relationDescriptor).owner != auth.state.CurrentUser {
 					t.Fatal("OWNED fixture lacks DB-derived CREATE and directly owned table", err)
 				}
 				blockerSession := sessionStart(t, e, nil)
@@ -432,7 +432,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if replace && !private && fresh.CheckCreate(ObjectRef{owner: e.owner, Epoch: fresh.catalog.Epoch(), Address: ns}) == nil {
+				if replace && !private && fresh.CheckCreate(ObjectRef{owner: e.domain, Epoch: fresh.catalog.Epoch(), Address: ns}) == nil {
 					t.Fatal("DB-only replacement did not remove earlier schema CREATE authority")
 				}
 				candidate := message.scope.catalog

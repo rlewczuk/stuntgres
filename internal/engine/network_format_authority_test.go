@@ -69,7 +69,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 						case "missing":
 							continue
 						case "foreign":
-							dep.ref.owner = foreign.owner
+							dep.ref.owner = foreign.domain
 						case "stale":
 							dep.revision++
 						}

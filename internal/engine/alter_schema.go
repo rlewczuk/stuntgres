@@ -91,7 +91,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		if r.sqlIndex != nil {
 			continue
 		}
-		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false); err != nil {
+		if err = scope.acquireSequence(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false); err != nil {
 			return Result{}, err
 		}
 	}

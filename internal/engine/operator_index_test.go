@@ -247,7 +247,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 		t.Fatal("private metadata replacement froze descriptor or copied membership")
 	}
 	stage = e.BeginCatalogStage(current)
-	if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: current.Epoch(), Address: moved.address}); err != nil {
+	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: current.Epoch(), Address: moved.address}); err != nil {
 		t.Fatal(err)
 	}
 	assertOperatorIndex(t, e.stageRead(stage).state)

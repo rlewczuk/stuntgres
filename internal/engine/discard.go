@@ -227,7 +227,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	// Exclude every owned target before projecting surviving dependents, exactly
 	// as physical collation cleanup does, but retain the namespace descriptor.
 	for _, address := range children {
-		if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}, false); err != nil {
+		if err = stage.removeObjectLocked(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: address}, false); err != nil {
 			break
 		}
 	}
@@ -271,7 +271,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		if i != 0 && address == relations[i-1] {
 			continue
 		}
-		if err = s.acquireSequence(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: address}, accessExclusive, true); err != nil {
+		if err = s.acquireSequence(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: address}, accessExclusive, true); err != nil {
 			return err
 		}
 	}
@@ -298,7 +298,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address Ob
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.owner != catalog.owner.owner || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.owner != catalog.owner.domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.state.descriptors[address].(*relationDescriptor)

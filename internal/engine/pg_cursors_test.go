@@ -13,7 +13,7 @@ func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
 	d := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
-	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 	empty, err := capturePGCursors(context.Background(), ref, d, s.cursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
 		t.Fatal(empty, err)
@@ -49,7 +49,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
 	currentDescriptor := current.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
-	currentRef := ObjectRef{owner: current.owner, Epoch: current.state.epoch, Address: currentDescriptor.address}
+	currentRef := ObjectRef{owner: current.domain, Epoch: current.state.epoch, Address: currentDescriptor.address}
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := capturePGCursors(context.Background(), currentRef, currentDescriptor, s.cursors)
 	if err != nil {

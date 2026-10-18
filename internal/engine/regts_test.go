@@ -311,7 +311,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ns.address}, acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()
@@ -335,7 +335,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	if dictionary == nil {
 		t.Fatal("real dictionary provider missing")
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: dictionary.address}
+	ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: dictionary.address}
 	consumer := func(ref ObjectRef) *relationDescriptor {
 		return &relationDescriptor{
 			address:          ObjectAddress{ClassID: RelationClassID, ObjectID: 95000},

@@ -152,7 +152,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress,
 			if edge.automatic {
 				continue
 			}
-			ref := ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: edge.relation.address}
+			ref := ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: edge.relation.address}
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -302,7 +302,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 				continue
 			}
 			for _, a := range []ObjectAddress{child.address, f.Target} {
-				ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}
+				ref := ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: a}
 				if !slices.Contains(refs, ref) {
 					refs = append(refs, ref)
 				}
@@ -349,11 +349,11 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address Obje
 			if err != nil {
 				return err
 			}
-			children, err := s.captureForeignKeyRows(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: child.address}, ObjectAddress{})
+			children, err := s.captureForeignKeyRows(ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: child.address}, ObjectAddress{})
 			if err != nil {
 				return err
 			}
-			parents, err := s.captureForeignKeyRows(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: parent.address}, f.Index)
+			parents, err := s.captureForeignKeyRows(ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: parent.address}, f.Index)
 			if err != nil {
 				return err
 			}
@@ -384,7 +384,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if _, external := stage.base.state.descriptors[f.Target]; !external {
 				continue
 			}
-			ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: f.Target}
+			ref := ObjectRef{owner: stage.owner.domain, Epoch: stage.base.Epoch(), Address: f.Target}
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
 			}

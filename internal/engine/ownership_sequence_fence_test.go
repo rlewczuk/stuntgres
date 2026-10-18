@@ -126,7 +126,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err := targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
+				if err := targetAuth.CheckCreate(ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
 					t.Fatal("successor lacks actual namespace CREATE", err)
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), old.acl.Entries...)}

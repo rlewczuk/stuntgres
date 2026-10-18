@@ -28,7 +28,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)
-			sourceRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: sourceDescriptor.address}
+			sourceRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: sourceDescriptor.address}
 			session := sessionStart(t, e, nil)
 			op := transactionOperation(t, session)
 			isolation := "serializable"

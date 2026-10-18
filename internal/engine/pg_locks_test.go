@@ -303,7 +303,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 	store := e.storage[d.address]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID

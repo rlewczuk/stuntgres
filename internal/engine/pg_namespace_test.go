@@ -18,7 +18,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescr
 	if !ok {
 		t.Fatal("missing namespace source")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: c.Epoch(), Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: c.Epoch(), Address: a}
 }
 func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
 	t.Helper()
@@ -240,7 +240,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(foreign.CatalogRead(), e.Roles(), ref, d)
 	reject(c, foreign.Roles(), ref, d)
 	forged := ref
-	forged.owner = foreign.owner
+	forged.owner = foreign.domain
 	reject(c, e.Roles(), forged, d)
 	forged = ref
 	forged.Epoch++

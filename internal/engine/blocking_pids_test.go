@@ -18,7 +18,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *relationTicket) {
 }
 
 func blockingUnitResource(e *Engine) lockResource {
-	return lockResource{ObjectRef: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 999999}}}
+	return lockResource{ObjectRef: ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 999999}}}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {

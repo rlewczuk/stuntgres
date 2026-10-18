@@ -95,7 +95,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor
 	if err := scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: table.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: table.address}
 	if err := e.locks.acquire(op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func inheritanceAlterJoin(t *testing.T, result <-chan error, joined func()) erro
 func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *relationDescriptor) *inheritanceAlterState {
 	t.Helper()
 	lockPending(t, c.e, 1)
-	ref := ObjectRef{owner: c.e.owner, Epoch: c.e.CatalogRead().Epoch(), Address: table.address}
+	ref := ObjectRef{owner: c.e.domain, Epoch: c.e.CatalogRead().Epoch(), Address: table.address}
 	c.e.locks.mu.Lock()
 	entry := c.e.locks.entries[lockResource{ObjectRef: ref}]
 	correct := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == c.scope.ticket && entry.pending[0].mode == accessExclusive
@@ -240,7 +240,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 		t.Fatal("controller published before statement Finish")
 	}
 	for _, old := range []*relationDescriptor{p, currentChild, g} {
-		ref := ObjectRef{owner: e.owner, Epoch: grown.Epoch(), Address: old.address}
+		ref := ObjectRef{owner: e.domain, Epoch: grown.Epoch(), Address: old.address}
 		if !command.scope.holdsColumnDropGrant(ref) {
 			t.Fatal("expanded graph lacks real AX admission", old.name)
 		}
@@ -320,7 +320,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("valid root fact reached held/foreign-owner child", err)
 		}
-		if command.scope.holdsColumnDropGrant(ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: c.address}) || command.scope.catalog.descriptors[c.address] != nil || command.scope.catalog.storage[c.address].replacement != nil {
+		if command.scope.holdsColumnDropGrant(ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: c.address}) || command.scope.catalog.descriptors[c.address] != nil || command.scope.catalog.storage[c.address].replacement != nil {
 			t.Fatal("valid NN no-op acquired or changed child")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -345,7 +345,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("plain ADD crossed existing-column merge stop", err)
 		}
-		ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: leaf.address}
+		ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: leaf.address}
 		if command.scope.holdsColumnDropGrant(ref) || command.scope.catalog.descriptors[leaf.address] != nil {
 			t.Fatal("plain ADD locked/owned below actual merge stop")
 		}

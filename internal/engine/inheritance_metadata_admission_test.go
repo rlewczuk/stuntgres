@@ -169,7 +169,7 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 		}
 	})
 	lockPending(t, command.e, 1)
-	ref := ObjectRef{owner: command.e.owner, Epoch: command.auth.catalog.Epoch(), Address: child.address}
+	ref := ObjectRef{owner: command.e.domain, Epoch: command.auth.catalog.Epoch(), Address: child.address}
 	command.e.locks.mu.Lock()
 	entry := command.e.locks.entries[lockResource{ObjectRef: ref}]
 	queued := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == command.scope.ticket && entry.pending[0].mode == accessExclusive
@@ -285,7 +285,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					t.Fatal("completed metadata utility changed physical row values")
 				}
 				for _, old := range originals {
-					ref := ObjectRef{owner: e.owner, Epoch: grown.Epoch(), Address: old.address}
+					ref := ObjectRef{owner: e.domain, Epoch: grown.Epoch(), Address: old.address}
 					if !command.scope.holdsColumnDropGrant(ref) {
 						t.Fatal("actual reconciled target lacks AX admission", old.name)
 					}

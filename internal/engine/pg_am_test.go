@@ -17,7 +17,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef) {
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}
+	return d, ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}
 }
 
 func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {

@@ -31,7 +31,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "b", "a")
 	parent.attributes = []int32{2, 7}
 	child := inheritanceUnitRelation(e, "c", 22001, "a", "b", "local")
-	ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: parent.address}
+	ref := ObjectRef{owner: e.domain, Epoch: e.CatalogRead().Epoch(), Address: parent.address}
 	ref.Address.SubID = 7
 	node := columnExpression{expressionInfo: expressionInfo{usage: testUsage(e, sqltype.Int4)}, origin: ref, scope: 1, frame: 1, slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
@@ -246,7 +246,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	e := New()
 	d := inheritanceUnitRelation(e, "retained", 22000, "a")
 	v := e.CatalogRead()
-	oldRef := ObjectRef{owner: e.owner, Epoch: v.Epoch(), Address: d.address}
+	oldRef := ObjectRef{owner: e.domain, Epoch: v.Epoch(), Address: d.address}
 	oldRef.Address.SubID = 1
 	old := columnExpression{expressionInfo: expressionInfo{usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
 	state := cloneCatalog(v.state)

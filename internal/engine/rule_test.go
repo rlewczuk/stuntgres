@@ -32,7 +32,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ObjectRef {
-	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
+	return ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: d.address}
 }
 func ruleUnitInt(d *relationDescriptor, n int64) BoundExpr {
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
@@ -523,7 +523,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			a.SubID = old.Address.SubID
 			old.Address = a
 		}
-		old.owner = e.owner
+		old.owner = e.domain
 		old.Epoch = next.epoch
 		return old
 	}

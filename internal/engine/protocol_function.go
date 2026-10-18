@@ -59,8 +59,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
 	}
 	ns := auth.catalog.state.descriptors[d.namespace]
-	nsRef := ObjectRef{owner: auth.catalog.owner.owner, Epoch: auth.catalog.Epoch(), Address: d.namespace}
-	ref := ObjectRef{owner: auth.catalog.owner.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
+	nsRef := ObjectRef{owner: auth.catalog.owner.domain, Epoch: auth.catalog.Epoch(), Address: d.namespace}
+	ref := ObjectRef{owner: auth.catalog.owner.domain, Epoch: auth.catalog.Epoch(), Address: d.address}
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}

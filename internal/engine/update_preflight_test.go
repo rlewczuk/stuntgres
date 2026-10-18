@@ -161,7 +161,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				if scope.view != nil {
 					t.Error("UPDATE captured source before preflight/current ACL")
 				}
-				if scope.lockedRef.owner != e.owner || scope.lockedDescriptor == nil {
+				if scope.lockedRef.owner != e.domain || scope.lockedDescriptor == nil {
 					t.Error("lost exact locked relation")
 				}
 				switch mode {

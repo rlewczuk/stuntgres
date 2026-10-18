@@ -10,7 +10,7 @@ import (
 // Only immutable analysis identities and definition stamps survive a statement.
 // Engine.mu and physical-session admission own this cell; no data or grants do.
 type preparedAnalysis struct {
-	owner           *catalogOwner
+	domain           *Domain
 	epoch           CatalogEpoch
 	session         SessionToken
 	private         *catalogChanges
@@ -68,12 +68,12 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequenceEnvironment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.owner != e.owner || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
 		d := auth.catalog.state.descriptors[dep.ref.Address]
-		if d == nil || dep.ref.owner != e.owner || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
+		if d == nil || dep.ref.owner != e.domain || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
 			return false
 		}
 	}
@@ -104,7 +104,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.viewWrite != nil {
 		target = b.viewWrite.logical.ref
 	}
-	cell := &preparedAnalysis{owner: e.owner, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
+	cell := &preparedAnalysis{domain: e.domain, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
 	seen := make(map[ObjectRef]bool)
 	var visit func(ObjectRef) error
 	visit = func(ref ObjectRef) error {
@@ -117,7 +117,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 		seen[ref] = true
 		d := auth.catalog.state.descriptors[ref.Address]
-		if d == nil || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() {
+		if d == nil || ref.owner != e.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
@@ -192,10 +192,10 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return e.resolveReference(auth, name)
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.owner != e.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ObjectRef{}, ErrCatalogReplaced
 	}
-	ns := ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.namespace}
+	ns := ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: d.namespace}
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) != 0 && name.Parts[0].Pos.Character > 0 {
 			copy := *diagnostic

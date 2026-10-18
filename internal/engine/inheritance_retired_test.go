@@ -166,7 +166,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	provenance := current.inheritance.notNull[1]
 	for name, mutate := range map[string]func(*retiredInheritanceOrigin){
 		"own": func(h *retiredInheritanceOrigin) { h.own++ }, "kind": func(h *retiredInheritanceOrigin) { h.check = true },
-		"epoch": func(h *retiredInheritanceOrigin) { h.parent.Epoch++ }, "foreign_owner": func(h *retiredInheritanceOrigin) { h.parent.owner = New().owner },
+		"epoch": func(h *retiredInheritanceOrigin) { h.parent.Epoch++ }, "foreign_owner": func(h *retiredInheritanceOrigin) { h.parent.owner = New().domain },
 		"rank": func(h *retiredInheritanceOrigin) { h.attribute = 2 }, "zero_lifetime": func(h *retiredInheritanceOrigin) { h.lifetime = 0 },
 		"namespace": func(h *retiredInheritanceOrigin) { h.archive = 1 }, "column": func(h *retiredInheritanceOrigin) { h.column = "" },
 	} {

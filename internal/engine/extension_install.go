@@ -157,7 +157,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		if !registration.trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress}, false)
+		rights, err := auth.Effective(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress}, false)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +238,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	auth.catalog = e.stageRead(stage)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = owner
-	if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ext.targetNamespace}); err != nil {
+	if err := auth.CanUse(ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ext.targetNamespace}); err != nil {
 		return err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The

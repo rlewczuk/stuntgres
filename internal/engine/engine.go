@@ -19,7 +19,7 @@ type Engine struct {
 	notifications map[SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
-	owner                *catalogOwner
+	domain                *Domain
 	state                *catalogState
 	providers            map[OID]CatalogProvider
 	extensions           map[string]registeredExtension
@@ -174,7 +174,7 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
+	e := &Engine{domain: &Domain{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = newRelationLockManager(e)
@@ -698,7 +698,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.relationKind == compositeRelation {
-					typeRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}}
+					typeRef := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}}
 					var ok bool
 					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
@@ -908,7 +908,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 
 // Resolution helpers run under e.mu, using the supplied coherent view.
 func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
-	if e.owner == nil || view.owner != e || view.state == nil {
+	if e.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if view.Epoch() != e.state.epoch {
@@ -987,7 +987,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
-	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}, nil
+	return ObjectRef{owner: e.domain, Epoch: view.Epoch(), Address: a}, nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

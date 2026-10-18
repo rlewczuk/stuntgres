@@ -49,7 +49,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			}
 			childView := view
 			if lockChildren {
-				ref := ObjectRef{owner: s.op.session.Engine().owner, Epoch: view.Epoch(), Address: address}
+				ref := ObjectRef{owner: s.op.session.Engine().domain, Epoch: view.Epoch(), Address: address}
 				if err := s.acquirePartitionLock(ref, accessExclusive); err != nil {
 					return err
 				}
@@ -100,7 +100,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 				return err
 			}
 		}
-		refs = append(refs, ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: job.leaf.address})
+		refs = append(refs, ObjectRef{owner: e.domain, Epoch: catalog.Epoch(), Address: job.leaf.address})
 	}
 	if len(refs) == 0 {
 		return nil
@@ -145,7 +145,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				child = ancestor
 			}
 		}
-		ref := ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: job.leaf.address}
+		ref := ObjectRef{owner: catalog.owner.domain, Epoch: catalog.Epoch(), Address: job.leaf.address}
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err

@@ -181,7 +181,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: 23}}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: 23}}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

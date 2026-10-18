@@ -157,7 +157,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			_, await := indexMaintenanceAsync(t, e, utility, "REINDEX INDEX ix")
 			lockPending(t, e, 1)
 			e.locks.mu.Lock()
-			parent := ObjectRef{owner: e.owner, Epoch: tx.epoch, Address: index.sqlIndex.parent}
+			parent := ObjectRef{owner: e.domain, Epoch: tx.epoch, Address: index.sqlIndex.parent}
 			request := e.locks.entries[lockResource{ObjectRef: parent}].pending[0]
 			share := request.mode == relationShare
 			e.locks.mu.Unlock()
@@ -197,7 +197,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if remove {
-		if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: old.address}); err != nil {
+		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: old.address}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -321,7 +321,7 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := ObjectRef{e.domain, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

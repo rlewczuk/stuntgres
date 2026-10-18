@@ -32,7 +32,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 	address := ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
 	indexAddress := ObjectAddress{ClassID: RelationClassID, ObjectID: mint()}
 	primary := uniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
-	history := retiredInheritanceOrigin{parent: ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: parent.address}, attribute: 1, column: "a", name: "nn", constraint: 20001, lifetime: uint64(base.Epoch()), own: 20002}
+	history := retiredInheritanceOrigin{parent: ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: parent.address}, attribute: 1, column: "a", name: "nn", constraint: 20001, lifetime: uint64(base.Epoch()), own: 20002}
 	old := &relationDescriptor{address: address, namespace: namespace, name: "c", owner: owner, revision: 1, relationKind: tableRelation, hasIndexes: true, columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, attributes: []int32{1, 2}, index: map[string]int{"a": 0, "b": 1}, attributeHighWater: 2, notNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, uniqueConstraints: []uniqueConstraint{primary}, inheritance: &tableInheritance{parents: []ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{1: {local: true}, 2: {local: true}}, notNull: map[int32]inheritedConstraint{1: {retired: []retiredInheritanceOrigin{history}}, 2: {local: true}}}}
 	index := &relationDescriptor{address: indexAddress, namespace: namespace, name: "c_key", owner: owner, revision: 1, relationKind: indexRelation, columns: slices.Clone(old.columns), attributes: []int32{1, 2}, index: map[string]int{"a": 0, "b": 1}, attributeHighWater: 2, sqlIndex: &indexDefinition{parent: address, keys: []indexKey{{attribute: 1}, {attribute: 2}}, unique: true, ready: true, valid: true, live: true, constraint: uniqueBacking(&primary)}}
 	parent.hasSubclasses = true
@@ -189,7 +189,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	definition := *oldIndex.sqlIndex
 	definition.constraint = uniqueBacking(&next.uniqueConstraints[0])
 	index.sqlIndex = &definition
-	if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: oldIndex.address}); err != nil {
+	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: oldIndex.address}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Create(&index); err != nil {

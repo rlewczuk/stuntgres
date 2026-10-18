@@ -81,7 +81,7 @@ func TestSequenceRegclassParameterNamespaceInput(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "private.s")
-	namespace := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: e.state.descriptors[ref.Address].Namespace()}
+	namespace := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: e.state.descriptors[ref.Address].Namespace()}
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

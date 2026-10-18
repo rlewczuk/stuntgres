@@ -41,7 +41,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: p.address}); err != nil {
+	if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: p.address}); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := domainDependencyClosure(context.Background(), stage, []ObjectAddress{p.address})
@@ -93,7 +93,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, table := range []*relationDescriptor{p, c} {
-		if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: table.address}); err != nil {
+		if err := stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: table.address}); err != nil {
 			t.Fatal(err)
 		}
 	}

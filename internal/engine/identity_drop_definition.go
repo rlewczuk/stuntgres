@@ -60,7 +60,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 		}
 		return old, capture, nil
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: identity.sequence}
+	ref := ObjectRef{owner: e.domain, Epoch: provider.base.Epoch(), Address: identity.sequence}
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
 	if err := provider.scope.acquireSequence(ref, accessExclusive, false); err != nil {
@@ -141,7 +141,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch()}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch()}
 	if old != nil {
 		ref.Address = old.address
 	}

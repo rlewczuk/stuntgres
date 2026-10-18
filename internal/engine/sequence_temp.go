@@ -64,7 +64,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
-		return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, nil
+		return ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: a}, nil
 	}
 	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
 	if err != nil {
@@ -100,7 +100,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	e.catalogChangeLocked(c, ns.address, ns)
 	e.catalogChangeLocked(c, toast.address, toast)
-	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, nil
+	return ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: ns.address}, nil
 }
 
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
@@ -177,7 +177,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
 		for _, a := range targets {
-			if err = stage.Remove(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: a}); err != nil {
+			if err = stage.Remove(ObjectRef{owner: e.domain, Epoch: base.Epoch(), Address: a}); err != nil {
 				break
 			}
 		}

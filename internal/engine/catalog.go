@@ -22,11 +22,11 @@ type ObjectAddress struct {
 	SubID    int32
 }
 
-// catalogOwner has nonzero size so distinct live engines have distinct tokens.
-type catalogOwner struct{ marker byte }
+// Domain has nonzero size so distinct live engines have distinct tokens.
+type Domain struct{ identity byte }
 
 type ObjectRef struct {
-	owner   *catalogOwner
+	owner   *Domain
 	Epoch   CatalogEpoch
 	Address ObjectAddress
 }
@@ -906,7 +906,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.relationKind == compositeRelation {
-			if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: backing.address}, false); err != nil {
+			if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: backing.address}, false); err != nil {
 				return err
 			}
 		}
@@ -924,7 +924,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
+				if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.domain, Epoch: provider.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
 					return err
 				}
 			}
@@ -1212,7 +1212,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			observed := removal.descriptor
 			d := current.descriptors[a]
-			if removal.ref.owner != e.owner || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
+			if removal.ref.owner != e.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1533,7 +1533,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.state}, roles: e.roleRead(CatalogRead{e, e.state}, e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1647,10 +1647,10 @@ func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
 // validateObjectRefLocked preserves live epoch and provenance checks without
 // reacquiring synchronization when called from catalog mutation preflight.
 func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error {
-	if e.owner == nil || view.owner != e || view.state == nil {
+	if e.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if ref.owner == nil || ref.owner != e.owner {
+	if ref.owner == nil || ref.owner != e.domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
 	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {

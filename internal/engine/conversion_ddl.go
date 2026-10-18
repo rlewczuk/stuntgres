@@ -74,7 +74,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if procedure.result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: procedure.address}, Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: procedure.address}, Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
@@ -150,14 +150,14 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
-	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}
+	ref := ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.Address()}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
 	switch s.Action {
 	case "rename":
-		if err = e.conversionCheckCreate(op, auth, ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.Namespace()}); err != nil {
+		if err = e.conversionCheckCreate(op, auth, ObjectRef{owner: e.domain, Epoch: ref.Epoch, Address: d.Namespace()}); err != nil {
 			return err
 		}
 		next.name = s.Target.Text
@@ -201,7 +201,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 			}
 			return err
 		}
-		if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}, OwnerOnly: true}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.domain, Epoch: auth.catalog.Epoch(), Address: d.Address()}, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+objectNameText(name))
 			}

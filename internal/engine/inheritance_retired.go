@@ -70,7 +70,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relati
 			if event.action.Action != parser.DropColumn {
 				continue
 			}
-			parentRef := ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: parent}
+			parentRef := ObjectRef{owner: view.owner.domain, Epoch: view.Epoch(), Address: parent}
 			for _, source := range event.retiredNotNull {
 				for _, own := range child.notNullConstraints {
 					if own.Attribute != attribute {
@@ -168,7 +168,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[Object
 					record.archive = runtimeArchive
 				}
 				record.own = newOID
-				record.parent.owner = e.owner
+				record.parent.owner = e.domain
 				record.parent.Epoch = next.epoch
 				record.replayed = true
 			}
