@@ -1,25 +1,26 @@
-package engine
+package functions
 
 import (
 	"fmt"
 	"strings"
 
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
+var pgcryptoNames = [...]string{"digest", "hmac", "crypt", "gen_salt", "encrypt", "decrypt", "encrypt_iv", "decrypt_iv", "gen_random_bytes", "gen_random_uuid", "fips_mode"}
+
 // bindPgcrypto binds installed pgcrypto calls. They sat before the shared
 // gates and own labels; every decoration fails resolution. gen_random_uuid
 // binds as the core builtin when pg_catalog precedes the installed wrapper.
-func bindPgcrypto(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	var operands []functions.Argument
+func bindPgcrypto(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	var operands []Argument
 	if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: StringOtherArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -30,29 +31,29 @@ func bindPgcrypto(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error
 	if len(raw.Args) > 100 {
 		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if err := functions.CallLabelError(raw); err != nil {
+	if err := CallLabelError(raw); err != nil {
 		return nil, err
 	}
 	names := installedArgumentNames(b, raw, operands)
 	canonical := strings.ToLower(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	text, bytea, integer := b.Type(sqltype.Text).Usage(), b.Type(sqltype.Bytea).Usage(), b.Type(sqltype.Int4).Usage()
-	input, resolution := functions.PgcryptoInput(canonical, operands, text, bytea, integer)
+	input, resolution := PgcryptoInput(canonical, operands, text, bytea, integer)
 	signature := pgcryptoSignature(canonical, len(operands), input.Type != nil && input.Type.ID() == sqltype.Bytea)
-	routine, err := b.InstalledRoutine(raw.Name, functions.PgcryptoExtension, signature)
+	routine, err := b.InstalledRoutine(raw.Name, PgcryptoExtension, signature)
 	if err != nil {
 		return nil, err
 	}
-	if resolution != functions.Resolved || raw.Variadic || len(raw.ArgNames) != 0 || raw.Distinct || raw.All || raw.Star || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0 {
+	if resolution != Resolved || raw.Variadic || len(raw.ArgNames) != 0 || raw.Distinct || raw.All || raw.Star || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0 {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	if _, ok := routine.(functions.CatalogBuiltin); ok {
-		return functions.BindUUIDGeneration(b, raw, true)
+	if _, ok := routine.(CatalogBuiltin); ok {
+		return BindUUIDGeneration(b, raw, true)
 	}
-	member, ok := functions.PgcryptoLookup(raw.Name.Parts[len(raw.Name.Parts)-1].Text, signature)
+	member, ok := PgcryptoLookup(raw.Name.Parts[len(raw.Name.Parts)-1].Text, signature)
 	if routine == nil || !ok {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	args, err := functions.CoercePgcryptoArguments(b, canonical, operands, input, text, integer)
+	args, err := CoercePgcryptoArguments(b, canonical, operands, input, text, integer)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func bindPgcrypto(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid pgcrypto result")
 	}
-	call, err := functions.NewPgcrypto(b.Info(result, raw.Pos, properties), canonical, args)
+	call, err := NewPgcrypto(b.Info(result, raw.Pos, properties), canonical, args)
 	if err != nil {
 		return nil, err
 	}

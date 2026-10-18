@@ -58,6 +58,9 @@ var definitions = [...]Definition{
 	{Names: []string{"parse_ident"}, Bind: bindParseIdent},
 	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper},
 	{Names: binaryNames[:], ExactSpelling: true, SharedGates: true, Bind: bindBinary},
+	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
+	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
+	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

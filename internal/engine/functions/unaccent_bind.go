@@ -1,10 +1,9 @@
-package engine
+package functions
 
 import (
 	"strings"
 
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,10 +14,10 @@ import (
 // wrong-signature inputs. unaccent rejects decorations as a missing
 // signature; daitch_mokotoff reports them after coercion, like the other
 // fuzzystrmatch calls.
-func bindInstalledText(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	operands := make([]functions.Argument, len(raw.Args))
+func bindInstalledText(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	operands := make([]Argument, len(raw.Args))
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringTextArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: StringTextArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -30,10 +29,10 @@ func bindInstalledText(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, 
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	daitch := strings.EqualFold(name, "daitch_mokotoff")
-	extension, function := functions.UnaccentExtension, "unaccent"
+	extension, function := UnaccentExtension, "unaccent"
 	result, volatility := sqltype.Text, expr.Stable
 	if daitch {
-		extension, function = functions.FuzzystrmatchExtension, "daitch_mokotoff"
+		extension, function = FuzzystrmatchExtension, "daitch_mokotoff"
 		result, volatility = sqltype.ID(1009), expr.Immutable
 	}
 	routine, err := b.InstalledRoutine(raw.Name, extension, "25")
@@ -48,7 +47,7 @@ func bindInstalledText(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, 
 		return failure()
 	}
 	text := b.Type(sqltype.Text)
-	arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: text.Usage()})
+	arg, err := b.CoerceArgument(operands[0], CoercionRequest{Intent: FinalizeArgument, Target: text.Usage()})
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +56,14 @@ func bindInstalledText(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, 
 		return failure()
 	}
 	if daitch {
-		if err := functions.CallDecorationError(raw); err != nil {
+		if err := CallDecorationError(raw); err != nil {
 			return nil, err
 		}
 	}
 	if arg.ResultUsage().Type != text {
 		// No implicit coercion to TEXT has a cast routine, so the coercion
 		// node carries no routine identity.
-		arg, err = b.CoerceArgument(functions.Argument{Expression: arg, Usage: arg.ResultUsage()}, functions.CoercionRequest{Intent: functions.DirectFormalArgument, Target: text.Usage(), Plan: plan, Planned: true})
+		arg, err = b.CoerceArgument(Argument{Expression: arg, Usage: arg.ResultUsage()}, CoercionRequest{Intent: DirectFormalArgument, Target: text.Usage(), Plan: plan, Planned: true})
 		if err != nil {
 			return nil, err
 		}
@@ -75,5 +74,5 @@ func bindInstalledText(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, 
 	if err != nil {
 		return nil, err
 	}
-	return routine.Attach(functions.InstalledText{Info: info, Arg: arg, Function: function})
+	return routine.Attach(InstalledText{Info: info, Arg: arg, Function: function})
 }

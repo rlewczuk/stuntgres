@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
 )
 
 // Extension names an extension whose installed routines bind here. The engine
@@ -38,4 +39,17 @@ func (CatalogBuiltin) Validate() error { return nil }
 
 func (CatalogBuiltin) Attach(expr.Expr) (expr.Expr, error) {
 	return nil, fmt.Errorf("stuntgres: a catalog builtin has no installed identity")
+}
+
+// installedArgumentNames spells analyzed arguments for 42883 diagnostics.
+func installedArgumentNames(b Binder, raw parser.FunctionExpr, operands []Argument) []string {
+	names := make([]string, len(operands))
+	for i, o := range operands {
+		names[i] = "unknown"
+		if o.Usage.Type != nil {
+			names[i] = b.DiagnosticTypeName(o.Usage.Type)
+		}
+		names[i] = NamedArgumentType(raw, i, names[i])
+	}
+	return names
 }

@@ -44,21 +44,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.AccessInquiryFunctionName(name) {
 		return b.bindAccessInquiry(raw)
 	}
-	if strings.EqualFold(name, "unaccent") || strings.EqualFold(name, "daitch_mokotoff") {
-		return bindInstalledText(b, raw)
-	}
-	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") || strings.EqualFold(name, "crypt") || strings.EqualFold(name, "gen_salt") || strings.EqualFold(name, "encrypt") || strings.EqualFold(name, "decrypt") || strings.EqualFold(name, "encrypt_iv") || strings.EqualFold(name, "decrypt_iv") || strings.EqualFold(name, "gen_random_bytes") || strings.EqualFold(name, "gen_random_uuid") || strings.EqualFold(name, "fips_mode") {
-		return bindPgcrypto(b, raw)
-	}
-	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
-		return bindFuzzystrmatch(b, raw)
-	}
-	if strings.EqualFold(name, "metaphone") || strings.EqualFold(name, "dmetaphone") || strings.EqualFold(name, "dmetaphone_alt") {
-		return bindFuzzystrmatch(b, raw)
-	}
-	if strings.EqualFold(name, "soundex") || strings.EqualFold(name, "difference") {
-		return bindFuzzystrmatch(b, raw)
-	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return functions.BindSimilarEscape(b, raw)
 	}
