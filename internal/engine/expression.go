@@ -83,6 +83,13 @@ func (c *EvalContext) FunctionContext() context.Context {
 	}
 	return c.Context
 }
+func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
+	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
+		return nil, fmt.Errorf("stuntgres: missing array random session scope")
+	}
+	return &c.liveScope().op.session.arrayRandom, nil
+}
+
 func (c *EvalContext) FunctionInput() sqltype.InputEnvironment   { return c.Input }
 func (c *EvalContext) FunctionOutput() sqltype.OutputEnvironment { return c.Output }
 func (c *EvalContext) FunctionOverlapsConstant(node BoundExpr) bool {
@@ -1556,12 +1563,12 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
 	case functions.ArrayRandom:
-		next, changed, err := mapArrayRandomChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := functions.MapArrayRandomChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		return next, changed, err
 	case functions.ArrayTransform:
-		next, changed, err := mapArrayTransformChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := functions.MapArrayTransformChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		if err != nil {
@@ -1570,7 +1577,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
 	case functions.ArrayInspect:
-		next, changed, err := mapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := functions.MapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		if err != nil {
@@ -1579,7 +1586,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
 	case functions.ArraySearch:
-		next, changed, err := mapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+		next, changed, err := functions.MapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		if err != nil {

@@ -1,25 +1,17 @@
-package engine
+package functions
 
 import (
-	"fmt"
-	"strings"
-
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
-	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
-		return nil, fmt.Errorf("stuntgres: missing array random session scope")
-	}
-	return &c.liveScope().op.session.arrayRandom, nil
-}
+// arrayRandomNames are the array sampling functions.
+var arrayRandomNames = [...]string{"array_sample", "array_shuffle"}
 
 // bindArrayRandom binds array_sample and array_shuffle after the shared call
 // envelope; the result keeps the input array's collation.
-func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+func bindArrayRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	operands, err := analyzeArrayArguments(b, raw)
 	if err != nil {
 		return nil, err
@@ -30,7 +22,7 @@ func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, er
 	}
 	signature := func() (expr.Expr, error) { return nil, arraySignatureError(b, raw, operands) }
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	kind := functions.ArrayRandomFunction(name)
+	kind := ArrayRandomFunction(name)
 	if !visible || kind == 0 || len(raw.ArgNames) != 0 || len(operands) != kind.Arity() {
 		return signature()
 	}
@@ -51,7 +43,7 @@ func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, er
 			}
 		}
 	}
-	if err := functions.CallDecorationError(raw); err != nil {
+	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if targets[0].Type == nil {
@@ -60,7 +52,7 @@ func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, er
 	args := make([]expr.Expr, len(operands))
 	properties := expr.Properties{Volatility: expr.Volatile}
 	for i, o := range operands {
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: targets[i], Label: name})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ConditionalArgument, Target: targets[i], Label: name})
 		if err != nil {
 			return nil, err
 		}
@@ -74,50 +66,15 @@ func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, er
 			return nil, err
 		}
 	}
-	e := functions.ArrayRandom{Info: info, Kind: kind, Args: args, Namespace: arrayNamespace(raw.Name)}
+	e := ArrayRandom{Info: info, Kind: kind, Args: args, Namespace: arrayNamespace(raw.Name)}
 	if err := e.Validate(); err != nil {
 		return nil, err
 	}
 	formal := [2]sqltype.ID{2277, sqltype.Int4}
-	info, err = b.BuiltinRoutineInfo(info, functions.ArrayRoutineProvider, name, formal[:len(args)]...)
+	info, err = b.BuiltinRoutineInfo(info, ArrayRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}
 	e.Info = info
 	return e, nil
-}
-
-func mapArrayRandomChildren(e functions.ArrayRandom, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayRandom, bool, error) {
-	var args []BoundExpr
-	for i, old := range e.Args {
-		next, changed, err := child(old)
-		if err != nil {
-			return e, false, err
-		}
-		if changed {
-			if args == nil {
-				args = append([]BoundExpr(nil), e.Args...)
-			}
-			args[i] = next
-		}
-	}
-	if args == nil {
-		return e, false, nil
-	}
-	e.Args = args
-	return e, true, nil
-}
-func arrayRandomSQL(e functions.ArrayRandom, child func(BoundExpr) (string, error)) (string, error) {
-	if err := e.Validate(); err != nil {
-		return "", err
-	}
-	parts := make([]string, len(e.Args))
-	for i, arg := range e.Args {
-		text, err := child(arg)
-		if err != nil {
-			return "", err
-		}
-		parts[i] = text
-	}
-	return "pg_catalog." + e.Kind.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 }

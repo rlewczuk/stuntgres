@@ -825,7 +825,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case functions.ArrayRandom:
 		var did bool
-		e, did, err = mapArrayRandomChildren(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = functions.MapArrayRandomChildren(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -833,7 +833,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case functions.ArrayTransform:
 		var did bool
-		e, did, err = mapArrayTransformChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+		e, did, err = functions.MapArrayTransformChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		if err != nil {
@@ -843,7 +843,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case functions.ArrayInspect:
 		var did bool
-		e, did, err = mapArrayInspectChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+		e, did, err = functions.MapArrayInspectChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		if err != nil {
@@ -853,7 +853,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		expression = e
 	case functions.ArraySearch:
 		var did bool
-		e, did, err = mapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+		e, did, err = functions.MapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		if err != nil {

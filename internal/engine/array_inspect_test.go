@@ -27,7 +27,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		if kind.Arity() == 2 {
 			args = append(args, one)
 		}
-		node, err := bindArrayInspect(b, arrayInspectUnitRaw(name, args...))
+		node, err := b.bindFunctionProvider(arrayInspectUnitRaw(name, args...))
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -59,7 +59,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		{arrayInspectUnitRaw("cardinality", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}), "42804"},
 		{arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), parser.CastExpr{Child: one, TypeName: parser.TypeName{Name: "bigint"}}), "42883"},
 	} {
-		_, err := bindArrayInspect(b, tc.raw)
+		_, err := b.bindFunctionProvider(tc.raw)
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != tc.code {
 			t.Fatalf("error=%v want%s", err, tc.code)
@@ -73,7 +73,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	tb := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_length", arrayInspectUnitArray("[-2:-1][3:5]={{1,NULL,3},{4,5,6}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
-	node, err := bindArrayInspect(b, raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,11 +119,11 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if !sameGroupExpression(old, qualified) || !sameGroupExpression(qualified, old) || old.Namespace != "" {
 		t.Fatal("lexical qualification changed resolved grouping identity")
 	}
-	unchanged, did, err := mapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
+	unchanged, did, err := functions.MapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
 	if err != nil || did || &unchanged.Args[0] != &old.Args[0] {
 		t.Fatal("copied unchanged children")
 	}
-	changedCall, did, err := mapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) {
+	changedCall, did, err := functions.MapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) {
 		if child == old.Args[1] {
 			return next.Args[1], true, nil
 		}
@@ -138,7 +138,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, producer := range []string{"clock_timestamp", "uuidv4"} {
 		dimension := arrayInspectUnitRaw("num_nonnulls", arrayInspectUnitRaw(producer))
-		node, err := bindArrayInspect(b, arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
+		node, err := b.bindFunctionProvider(arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
 		if err != nil {
 			t.Fatal(producer, err)
 		}

@@ -43,7 +43,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err := restoreScalar(withParameter, false); err == nil {
 			t.Fatal(tc.name, "restore admitted nested parameter")
 		}
-		node, err := bindArrayTransform(b, raw)
+		node, err := b.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -108,7 +108,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if render(old, source.CatalogRead()) != originalSQL || render(next, target.CatalogRead()) != originalSQL {
 			t.Fatal("remap changed symbolic recipe")
 		}
-		unchanged, did, err := mapArrayTransformChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
+		unchanged, did, err := functions.MapArrayTransformChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
 		if err != nil || did || &unchanged.Args[0] != &old.Args[0] {
 			t.Fatal("no-op copied children")
 		}
@@ -122,7 +122,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	flag := parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}
 	raw := arrayInspectUnitRaw("array_sort", flag, arrayInspectUnitArray("{2,NULL,1}"))
 	raw.ArgNames = []parser.Identifier{{Text: "descending"}, {Text: "array"}}
-	node, err := bindArrayTransform(b, raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 		t.Fatal(s, err)
 	}
 	var order []sqltype.ID
-	_, changed, err := mapArrayTransformChildren(call, func(child BoundExpr) (BoundExpr, bool, error) {
+	_, changed, err := functions.MapArrayTransformChildren(call, func(child BoundExpr) (BoundExpr, bool, error) {
 		order = append(order, child.ResultUsage().Type.ID())
 		return child, false, nil
 	})
