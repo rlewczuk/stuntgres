@@ -1,24 +1,83 @@
 # Builtin function implementations
 
-This package owns builtin-specific signatures and argument rules, immutable scalar
-call carriers, evaluation semantics and aggregate provider/state algorithms. It
-reuses `internal/sqltype` selected plans, coercion, values and input/output codecs;
-it does not import the engine or public adapters. It imports the expression
-contract [`internal/engine/expr`](../expr/README.md), which owns
+This package is the home of builtin functions: signatures and argument rules,
+immutable call nodes, evaluation semantics, aggregate provider/state
+algorithms and, family by family, the bind code and its registry entry. It is
+a leaf library: it imports [`expr`](../expr/README.md), `ids`, `sqltype`,
+`parser` and `sqlstate`, never the root engine or the engine's catalog,
+storage, lock or visibility state. It reaches the engine only through
+`Binder` at bind time and `expr.Context` at evaluation time. `expr` owns
 `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
 `IntrinsicPropertyRule`; this package keeps aliases for them until step 2d.
 
 Function nodes are plain types over the `expr` contract: they embed
 `expr.Info`, hold children as `expr.Expr` and evaluate with `Eval(expr.Context)`,
-using only the `expr.Context` capabilities they need. Bind helpers take
-`Argument` values and the plain `ArgumentAnalyzer`/`ArgumentCoercer`
-interfaces that the engine binder implements. `StringVariadic.Origin` is an
-opaque `any` that the engine stores and reads; this package never interprets
-it. The only remaining type parameter is the private `randomInteger` sampler
-source, a numeric kernel detail rather than part of the expression contract.
+using only the `expr.Context` capabilities they need. `StringVariadic.Origin`
+is an opaque `any` that the engine stores and reads; this package never
+interprets it. The only remaining type parameter is the private
+`randomInteger` sampler source, a numeric kernel detail rather than part of the
+expression contract.
 
-The engine owns expression metadata and binding, name/catalog/ACL and
-dependency resolution, parameter/result contracts, descriptor generations,
+## Binder
+
+`Binder` (`binder.go`) is what bind code may ask of the engine's analyzer; the
+engine's `expressionBinder` implements it with thin adapters
+(`internal/engine/function_binder.go`). Each method is a reviewed decision:
+
+- `AnalyzeArgument` / `CoerceArgument`: occurrence-owned argument analysis and
+  formal coercion, selected by intent. Comparison operands and conditional
+  coercion are intents, not separate methods.
+- `Type`: the binding catalog's builtin descriptor (identity comparisons and
+  `Usage()` need the descriptor, not a usage).
+- `Info`: node metadata; records type and collation dependencies.
+- `BuiltinVisible`: whether function lookup reaches `pg_catalog` under the
+  current `search_path`.
+- `BuiltinRoutineInfo` / `BuiltinRoutineReference`: the selected builtin
+  routine identity, keyed by `RoutineProvider`, name and declared formals.
+  `RoutineProvider` (`routine_provider.go`) is the family vocabulary of the
+  engine's routine declarations.
+- `DiagnosticTypeName`: PostgreSQL's diagnostic spelling, including qualified
+  user-defined types.
+- `SignatureError`: the 42883 missing-function error. The engine also notes it
+  to decide whether `f(x)` may fall back to composite field selection, so bind
+  code must report missing signatures through it.
+- `AnalyzeFilter` (added beyond the initial set for the UUID pilot; 27 glue
+  files analyze FILTER this way): analyzes and discards a scalar call's FILTER
+  so its errors precede the decoration rejection.
+
+Prefer passing values to adding methods. A new method needs a reason here:
+either a genuine analyzer capability or a leak that a later step removes.
+
+## Registry
+
+`registry.go` holds a static `definitions` table; there is no `init()`
+registration. `Lookup(name)` claims a call by its unqualified name, compared
+case-insensitively; the definition's `Bind` owns exact-spelling resolution,
+visibility, argument analysis and every diagnostic. The engine's
+`bindFunctionProvider` consults `Lookup` before its remaining name chain, so a
+registered name must not overlap any family the chain still dispatches.
+
+Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
+(FILTER analysis, the 100-argument limit, labels), `CallDecorationError`
+(DISTINCT/ORDER BY/FILTER/OVER on a scalar) and `NamedArgumentType`.
+
+To add or port a builtin family:
+
+1. In the engine, turn `func (b *expressionBinder) bindX(...)` into
+   `func bindX(b functions.Binder, ...)` (F4). The compiler then proves the
+   interface is enough; record any new `Binder` method above.
+2. Move it here, add its `Definition`, and delete its engine branch and glue
+   file (F5). Its unit tests move with it unless they exercise engine
+   switches.
+3. The chain applies shared gates after some branches: argument labels are
+   rejected for most names, and `ResolutionOnly` calls get format diagnostics.
+   A family whose engine branch sat after those gates must reproduce them in
+   `Bind`, because `Lookup` runs first.
+
+## What stays in the engine
+
+The engine owns the analyzer behind `Binder`, the bind code of families not
+yet registered, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context.
 
@@ -28,7 +87,10 @@ NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
 grouping, windows and state lifetime. Query/set expansion and physical regex
 executor ownership remain engine responsibilities. There is no alternate binder,
-plugin registry, compatibility forwarding carrier or duplicated type algorithm.
+dynamic plugin registration, compatibility forwarding carrier or duplicated
+type algorithm.
+
+## Family notes
 
 `DaitchMokotoff` owns the complete PostgreSQL REL_18_0 phoneme chart, narrow
 UTF8/Latin1 scanner and correlated digit-prefix state machine. Codes retain
@@ -115,7 +177,13 @@ There is no input-length limit, Unicode normalization or transliteration.
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
-cohesive selections. Focused private state/demand examples:
+cohesive selections. Registry shape and claims:
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed)$'
+```
+
+Focused private state/demand examples:
 
 ```sh
 make check RUN='^(TestSumProviders|TestSumIntegralTransitions|TestSumFloatingTransitions|TestSumProviderCancellation)$'
@@ -151,9 +219,10 @@ UUID extraction uses one strict unary `UUIDExtract` carrier with exact immutable
 intrinsic properties. It classifies the two variant bits before reading the
 version nibble; only v1/v7 produce timestamps. Unsigned integer arithmetic
 preserves PostgreSQL 18.0 truncation without clock, entropy, formatting or
-per-evaluation allocation. The binder supplies catalog-owned UUID and
-TIMESTAMPTZ/INT2 usages; retag/remap reconstructs the same carrier with fresh
-usages rather than retaining source descriptors.
+per-evaluation allocation. It is the first registered family:
+`uuid_extract_bind.go` binds both names through `Binder`, which supplies
+catalog-owned UUID and TIMESTAMPTZ/INT2 usages. Engine retag/remap reconstructs
+the same carrier with fresh usages rather than retaining source descriptors.
 
 ```sh
 make check RUN='^TestUUIDExtract(Vectors|VariantMatrix|VersionMatrix|StrictDemand|Cancellation|Properties|Identity|Remap|ScalarLifecycle|ParserAdmission)$'

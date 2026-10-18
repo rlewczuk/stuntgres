@@ -139,8 +139,9 @@ Tier C has a refined plan.
 - [ ] F2 — Switches converted: [ ] retag [ ] remap [ ] volatility
   [ ] deparse [ ] node tree [ ] generated admission [ ] conditional plan
   [ ] join legality
-- [ ] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
-  (name)
+- [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
+  UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
+  docs `DOCS`)
 - [ ] F4/F5 Tier A: [ ] math [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
   [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [ ] UUID [ ] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
@@ -150,10 +151,18 @@ Tier C has a refined plan.
 - [ ] F4/F5 aggregates and windows
 - [ ] Tier C refined (after steps 4, 5 and 7)
 
-`Binder` methods added beyond the F3 set: none yet.
+`Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
+pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
+is a genuine analyzer capability). Reasons for every method are in the
+`functions` README.
 
-Outstanding aliases: none yet. F1 added none; the step 2b aliases in
-`functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for 2d.
+Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
+`functions/routine_provider.go`; the engine keeps `routineProvider` and
+`<family>RoutineProvider` aliases in `routine_declaration.go` (1,373
+references in 91 files, mostly declaration tables). Remove them in a later
+alias-removal pass, which counts as a broad rewrite (§8). The step 2b aliases
+in `functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for
+2d.
 
 F1 record, measured at its start on `b12c7ee57`:
 
@@ -193,7 +202,64 @@ was already above the 1 ms target on master). Function-family
 passed except three failures that reproduce on unmodified master, listed
 below. Racecheck skipped at the user's request.
 
+F3 record, measured at its start on `1c0f87518`:
+
+- 115 engine files import `functions`. Files using each binder method:
+  `info` 78, `typ` 74, `builtinRoutineInfo` 47, `AnalyzeArgument` 45,
+  `functionSignatureErrorForTypes` 41, `builtinVisible` 41, `CoerceArgument`
+  32, `diagnosticTypeName` 30, `bindAggregateFilter` 27, `comparisonOperand`
+  20, `coerceConditional` 20, `collatedInfo` 17,
+  `functionResolutionErrorForTypes` 13, `builtinRoutineReference` 12.
+- `Binder` methods: `AnalyzeArgument`, `CoerceArgument`, `Type`, `Info`,
+  `BuiltinVisible`, `BuiltinRoutineInfo`, `BuiltinRoutineReference`,
+  `DiagnosticTypeName`, `SignatureError`, `AnalyzeFilter`. The engine
+  implements them as thin adapters in `function_binder.go` over its private
+  methods; the private names stay (`typ` alone has 690 call sites), and
+  ported code uses the interface names.
+- Corrections to the plan: `comparisonOperand` and `coerceConditional` need no
+  methods, because `AnalyzeArgument(ComparisonArgument)` and
+  `CoerceArgument(ConditionalArgument)` already cover them. `Type` returns
+  `*sqltype.Descriptor`, not a usage, because glue compares descriptors.
+  `bindFunction` in `composite_expression.go` has no name chain: it wraps
+  `bindFunctionProvider` for the composite projection fallback, so only
+  `function.go` dispatches by name.
+- `Lookup` scans a static table with `strings.EqualFold`, matching the
+  replaced `parser.UUIDExtractFunctionName`; `Bind` owns exact spelling.
+  `bindFunctionProvider` consults it first. Precedence is unchanged because
+  chain branches test disjoint names and the UUID branch already sat before
+  the shared label and `ResolutionOnly` gates.
+- Pilot: `uuid_extract_version` and `uuid_extract_timestamp`. The shared
+  envelope moved with it as `functions.ValidateCallSyntax` (was
+  `validateRangeInspectSyntax`), `CallDecorationError` (was
+  `rangeInspectDecorationError`) and `NamedArgumentType` (was
+  `functionNamedType`); 45 engine files now call them. The UUID checkbox
+  stays open: `uuidv4`/`uuidv7` generation remains in the engine.
+
+Tests in F3: added `TestLookupClaimsRegisteredNames` and
+`TestDefinitionsAreWellFormed` in `functions`. The engine's
+`uuid_extract_test.go` stays: its tests exercise engine switches (group
+identity, retag, preflight, renderer, DEFAULT admission) that F2 converts.
+`TestUUIDExtractScalarLifecycle` now binds through `bindFunctionProvider`.
+No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. `REFERENCE=1` and
+quick mode passed for `^TestReference(UUIDExtract|RangeInspect)`, and
+`REFERENCE=1` passed for the diagnostics, resolution and smoke tests of the
+other families that share the moved call-syntax helpers (ACL values, catalog
+relations, datetime age/isfinite, object address, transaction identity).
+Bench median 1.73 ms/op with 7,753 allocs/op (allocations unchanged; startup
+code untouched, time within run-to-run noise and still above the 1 ms target
+as on master). Racecheck skipped at the user's request.
+
 Notes for later steps:
+
+- Families whose engine branch sits after the shared label and
+  `ResolutionOnly` gates in `bindFunctionProvider` must reproduce those gates
+  in `Bind` when they register, because `Lookup` runs first.
+- `functions.qualifiedName` duplicates the engine's `objectNameText` (a
+  dotted join used for the 42809 message). Consolidate them when the engine's
+  name helpers get an owner.
 
 - Oracle drift on the pinned PostgreSQL 18.6 image, failing on master too,
   in the `/postgres` subtests only: `TestReferenceJSONStripNullsFeatureSmoke`
