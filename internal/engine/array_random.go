@@ -17,114 +17,69 @@ func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 	return &c.liveScope().op.session.arrayRandom, nil
 }
 
-func (b *expressionBinder) bindArrayRandom(raw parser.FunctionExpr) (BoundExpr, error) {
-	var storage [100]comparisonOperand
-	for i, arg := range raw.Args {
-		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		if i < len(storage) {
-			storage[i] = o
-		}
-	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
-		return nil, err
-	}
-	if len(raw.Args) > len(storage) {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return nil, fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+// bindArrayRandom binds array_sample and array_shuffle after the shared call
+// envelope; the result keeps the input array's collation.
+func bindArrayRandom(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	operands, err := analyzeArrayArguments(b, raw)
 	if err != nil {
 		return nil, err
 	}
-	operands := storage[:len(raw.Args)]
-	signature := func() (BoundExpr, error) {
-		names := make([]string, len(operands))
-		for i, o := range operands {
-			name := "unknown"
-			if d := o.descriptor(); d != nil {
-				name = functions.ArrayTypeName(b, d)
-			}
-			names[i] = functions.NamedArgumentType(raw, i, name)
-		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
 	}
+	signature := func() (expr.Expr, error) { return nil, arraySignatureError(b, raw, operands) }
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := functions.ArrayRandomFunction(name)
 	if !visible || kind == 0 || len(raw.ArgNames) != 0 || len(operands) != kind.Arity() {
 		return signature()
 	}
 	var targets [2]sqltype.Usage
-	if d := operands[0].descriptor(); d != nil {
+	if d := operands[0].Usage.Type; d != nil {
 		base := d.BaseType()
 		if !base.IsArray() {
 			return signature()
 		}
 		targets[0] = base.Usage()
-		targets[0].Collation = operands[0].node.ResultUsage().Collation
+		targets[0].Collation = operands[0].Usage.Collation
 	}
-	targets[1] = b.typ(sqltype.Int4).Usage()
+	targets[1] = b.Type(sqltype.Int4).Usage()
 	for i, o := range operands {
-		if o.descriptor() != nil {
-			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
+		if o.Usage.Type != nil {
+			if _, err := sqltype.PlanCoercion(o.Usage, targets[i], sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if targets[0].Type == nil {
-		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+		return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 	}
-	args := make([]BoundExpr, len(operands))
-	properties := ExprProperties{Volatility: Volatile}
+	args := make([]expr.Expr, len(operands))
+	properties := expr.Properties{Volatility: expr.Volatile}
 	for i, o := range operands {
-		arg, err := b.coerceConditional(o, targets[i], name)
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: targets[i], Label: name})
 		if err != nil {
 			return nil, err
 		}
 		args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	namespace := ""
-	if len(raw.Name.Parts) == 2 {
-		namespace = raw.Name.Parts[0].Text
-	}
-	info := b.info(targets[0], raw.Pos, properties)
+	info := b.Info(targets[0], raw.Pos, properties)
 	if targets[0].Collation.ID != 0 {
-		info, err = b.collatedInfo(info, args...)
+		info, err = b.CollatedInfo(info, args...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	e := functions.ArrayRandom{Info: info, Kind: kind, Args: args, Namespace: namespace}
+	e := functions.ArrayRandom{Info: info, Kind: kind, Args: args, Namespace: arrayNamespace(raw.Name)}
 	if err := e.Validate(); err != nil {
 		return nil, err
 	}
 	formal := [2]sqltype.ID{2277, sqltype.Int4}
-	info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, name, formal[:len(args)]...)
+	info, err = b.BuiltinRoutineInfo(info, functions.ArrayRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

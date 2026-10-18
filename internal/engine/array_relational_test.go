@@ -23,7 +23,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	raw := arrayInspectUnitRaw(name, args...)
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindArrayRandom(raw)
+	node, err := bindArrayRandom(b, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +420,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 				if name == "unnest" {
 					node, err = b.bindUnnest(raw)
 				} else {
-					node, err = b.bindArrayRandom(raw)
+					node, err = bindArrayRandom(b, raw)
 				}
 				if err != nil {
 					t.Fatal(name, err)
@@ -482,7 +482,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_sample", arrayInspectUnitArray("[-2:0][5:6]={{1,NULL},{2,20},{3,30}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	raw.Pos = parser.Position{Offset: 7, Character: 8}
-	node, err := b.bindArrayRandom(raw)
+	node, err := bindArrayRandom(b, raw)
 	if err != nil {
 		t.Fatal(err)
 	}

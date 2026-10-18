@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,13 @@ import (
 
 func arrayMembershipName(name string) bool { return name == "@>" || name == "<@" || name == "&&" }
 
-func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+// bindArraySearch binds the anycompatible array search functions. Visibility
+// is resolved before argument analysis.
+func bindArraySearch(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
+	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operands, err := functions.AnalyzeArraySearch(b, raw.Args)
 	if err != nil {
@@ -26,48 +33,42 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
 		return nil, err
 	}
-	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	signature := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
 	arity, valid := functions.ArraySearchArity(name, visible, len(raw.ArgNames) != 0, len(operands))
 	if !valid {
 		return signature()
 	}
-	views := make([]comparisonOperand, arity)
-	for i, argument := range operands[:arity] {
-		views[i] = comparisonOperand{node: argument.Expression, raw: argument.Raw}
-	}
-	if operands[0].Usage.Type != nil {
-		u, valid := functions.ArraySearchLeafUsage(operands[0].Usage)
-		if !valid {
-			return signature()
-		}
-		views[0].node = literalExpression{expressionInfo: expressionInfo{Usage: u}}
-	}
 	// anycompatible resolution collects known leaf OIDs before selecting a
 	// common type; UNKNOWN arguments must not erase an agreed domain identity.
-	known := views[:0]
-	for _, view := range views {
-		if view.descriptor() != nil {
-			known = append(known, view)
+	var known [3]sqltype.Usage
+	count := 0
+	for i, argument := range operands[:arity] {
+		u := argument.Usage
+		if i == 0 && u.Type != nil {
+			u, valid = functions.ArraySearchLeafUsage(u)
+			if !valid {
+				return signature()
+			}
+		}
+		if u.Type != nil {
+			known[count] = u
+			count++
 		}
 	}
-	views = known
-	common, err := selectCommonUsage(len(views), func(i int) comparisonOperand { return views[i] }, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
-	if err != nil {
-		return nil, err
-	}
+	common := b.CommonUsage(known[:count])
 	if common.Type == nil {
 		return signature()
 	}
-	array, ok := b.definitionArray(common.Type)
+	array, ok := b.ArrayType(common.Type)
 	if !ok || !array.Concrete() {
 		return signature()
 	}
 	var integer sqltype.Usage
 	if name == "array_position" && len(operands) == 3 {
-		integer = b.typ(sqltype.Int4).Usage()
+		integer = b.Type(sqltype.Int4).Usage()
 	}
 	targets, valid := functions.SelectArraySearch(name, operands, array.Usage(), common, integer)
 	if !valid {
@@ -75,15 +76,15 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	}
 	switch {
 	case raw.Star:
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
 	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
 	args, err := functions.FinishArraySearch(b, name, operands, targets)
 	if err != nil {
@@ -91,16 +92,16 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	}
 	result := array.Usage()
 	if name == "array_position" {
-		result = b.typ(sqltype.Int4).Usage()
+		result = b.Type(sqltype.Int4).Usage()
 	}
 	if name == "array_positions" {
-		positions, ok := b.definitionArray(b.typ(sqltype.Int4))
+		positions, ok := b.ArrayType(b.Type(sqltype.Int4))
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing integer array association")
 		}
 		result = positions.Usage()
 	}
-	return b.newArraySearch(name, raw.Name, raw.Pos, result, args)
+	return arraySearchNode(b, name, raw.Name, raw.Pos, result, args)
 }
 
 func (b *expressionBinder) arrayMembershipError(left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
@@ -188,46 +189,48 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 			return nil, err
 		}
 	}
-	return b.newArraySearch(raw.Name.Parts[len(raw.Name.Parts)-1].Text, raw.Name, raw.Pos, b.typ(sqltype.Bool).Usage(), args)
+	return arraySearchNode(b, raw.Name.Parts[len(raw.Name.Parts)-1].Text, raw.Name, raw.Pos, b.typ(sqltype.Bool).Usage(), args)
 }
 
-func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName, pos parser.Position, result sqltype.Usage, args []BoundExpr) (BoundExpr, error) {
-	input, err := b.comparisonInfo(args[0], args[1])
+// arraySearchNode builds an array search or membership node over coerced
+// arguments, capturing the selected routine identity.
+func arraySearchNode(b functions.Binder, name string, rawName parser.ObjectName, pos parser.Position, result sqltype.Usage, args []expr.Expr) (expr.Expr, error) {
+	input, err := b.ComparisonInfo(args[0], args[1])
 	if err != nil {
 		return nil, err
 	}
 	if name == "array_replace" {
-		input, err = b.collatedInfo(input, args[2])
+		input, err = b.CollatedInfo(input, args[2])
 		if err != nil {
 			return nil, err
 		}
 	}
-	plan, err := sqltype.BindArraySearch(name, args[0].ResultUsage().Type.BaseType(), result.Type, b.typ(sqltype.Int4), input.Usage.Collation, input.CollationConflict)
+	plan, err := sqltype.BindArraySearch(name, args[0].ResultUsage().Type.BaseType(), result.Type, b.Type(sqltype.Int4), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
-	properties := ExprProperties{}
+	properties := expr.Properties{}
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if plan.SessionDependent() {
-		properties.Volatility = max(properties.Volatility, Stable)
+		properties.Volatility = max(properties.Volatility, expr.Stable)
 	}
-	info := b.info(result, pos, properties)
+	info := b.Info(result, pos, properties)
 	if result.Collation.ID != 0 {
-		info, err = b.collatedInfo(info, args...)
+		info, err = b.CollatedInfo(info, args...)
 		if err != nil {
 			return nil, err
 		}
 	}
-	routineName, provider := name, arrayRoutineProvider
+	routineName, provider := name, functions.ArrayRoutineProvider
 	formal := [3]sqltype.ID{sqltype.ID(5078), sqltype.ID(5077)}
 	if name == "array_position" && len(args) == 3 {
 		formal[2] = sqltype.Int4
 	} else if name == "array_replace" {
 		formal[2] = sqltype.ID(5077)
 	} else if plan.Membership() {
-		provider = operatorRoutineProvider
+		provider = functions.OperatorRoutineProvider
 		formal[0], formal[1] = sqltype.ID(2277), sqltype.ID(2277)
 		switch name {
 		case "&&":
@@ -238,15 +241,11 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 			routineName = "arraycontained"
 		}
 	}
-	info, err = b.builtinRoutineInfo(info, provider, routineName, formal[:len(args)]...)
+	info, err = b.BuiltinRoutineInfo(info, provider, routineName, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}
-	namespace := ""
-	if len(rawName.Parts) == 2 {
-		namespace = rawName.Parts[0].Text
-	}
-	return functions.NewArraySearch(info, plan, args, namespace), nil
+	return functions.NewArraySearch(info, plan, args, arrayNamespace(rawName)), nil
 }
 
 func arraySearchSQL(e functions.ArraySearch, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {

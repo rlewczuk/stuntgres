@@ -162,20 +162,16 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return functions.Regexp{RegexpCall: call}, nil
 	}
 	if parser.ArrayTransformFunctionName(name) {
-		return b.bindArrayTransform(raw)
+		return bindArrayTransform(b, raw)
 	}
 	if parser.ArrayRandomFunctionName(name) {
-		return b.bindArrayRandom(raw)
+		return bindArrayRandom(b, raw)
 	}
 	if parser.ArrayInspectFunctionName(name) {
-		return b.bindArrayInspect(raw)
+		return bindArrayInspect(b, raw)
 	}
 	if parser.ArraySearchFunctionName(name) {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		return b.bindArraySearch(raw, visible)
+		return bindArraySearch(b, raw)
 	}
 	if strings.EqualFold(name, "unnest") {
 		return b.bindUnnest(raw)

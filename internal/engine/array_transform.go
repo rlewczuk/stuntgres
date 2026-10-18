@@ -4,55 +4,29 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindArrayTransform(raw parser.FunctionExpr) (BoundExpr, error) {
-	operands := make([]comparisonOperand, len(raw.Args))
-	for i, arg := range raw.Args {
-		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		operands[i] = o
-	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
-		return nil, err
-	}
-	if len(operands) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return nil, fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+// bindArrayTransform binds the array transform functions. Named arguments
+// are admitted only for array_sort's three formals.
+func bindArrayTransform(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	operands, err := analyzeArrayArguments(b, raw)
 	if err != nil {
 		return nil, err
 	}
-	signature := func() (BoundExpr, error) {
-		names := make([]string, len(operands))
-		for i, o := range operands {
-			names[i] = "unknown"
-			if d := o.descriptor(); d != nil {
-				names[i] = functions.ArrayTypeName(b, d)
-			}
-			names[i] = functions.NamedArgumentType(raw, i, names[i])
-		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
 	}
+	signature := func() (expr.Expr, error) { return nil, arraySignatureError(b, raw, operands) }
 	if raw.Within {
 		// Ordered-set lookup includes the ORDER BY inputs in the signature.
 		// No selected transform has an ordered-set overload.
 		for _, key := range raw.Order {
-			o, err := b.comparisonOperandPolicy(key.Expr, expressionPolicy{context: projectionContext})
+			o, err := b.AnalyzeArgument(key.Expr, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 			if err != nil {
 				return nil, err
 			}
@@ -90,11 +64,13 @@ func (b *expressionBinder) bindArrayTransform(raw parser.FunctionExpr) (BoundExp
 			seen[slot] = true
 		}
 	}
-	return b.finishArrayTransform(raw, kind, operands, slots, labels, false, signature)
+	return finishArrayTransform(b, raw, kind, operands, slots, labels, false, signature)
 }
 
-func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind functions.ArrayTransformKind, operands []comparisonOperand, slots [3]uint8, labels [3]string, operator bool, signature func() (BoundExpr, error)) (BoundExpr, error) {
-	var formal [3]comparisonOperand
+// finishArrayTransform selects and coerces a transform's formals. The ||
+// operator reaches it in operator mode with already analyzed operands.
+func finishArrayTransform(b functions.Binder, raw parser.FunctionExpr, kind functions.ArrayTransformKind, operands []functions.Argument, slots [3]uint8, labels [3]string, operator bool, signature func() (expr.Expr, error)) (expr.Expr, error) {
+	var formal [3]functions.Argument
 	for i, o := range operands {
 		formal[slots[i]] = o
 	}
@@ -104,11 +80,10 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 	if compatible {
 		// Collect known logical leaves first: an UNKNOWN argument must not erase
 		// the domain shared by all known inputs.
-		var views [2]comparisonOperand
+		var views [2]sqltype.Usage
 		count := 0
 		for i := range operands {
-			o := formal[i]
-			u := operandUsage(o)
+			u := formal[i].Usage
 			arrayArg := kind == functions.ArrayConcatenate || kind == functions.ArrayAppend && i == 0 || kind == functions.ArrayPrepend && i == 1
 			if arrayArg {
 				var ok bool
@@ -118,18 +93,15 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 				}
 			}
 			if u.Type != nil {
-				views[count] = comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{Usage: u}}}
+				views[count] = u
 				count++
 			}
 		}
-		common, err := selectCommonUsage(count, func(i int) comparisonOperand { return views[i] }, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
-		if err != nil {
-			return nil, err
-		}
+		common := b.CommonUsage(views[:count])
 		if common.Type == nil {
 			return signature()
 		}
-		array, ok := b.definitionArray(common.Type)
+		array, ok := b.ArrayType(common.Type)
 		if !ok || !array.Concrete() {
 			return signature()
 		}
@@ -142,12 +114,12 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 			}
 		}
 	} else {
-		u := operandUsage(formal[0])
+		u := formal[0].Usage
 		if kind == functions.ArrayFill {
 			if u.Type != nil {
-				array, ok := b.definitionArray(u.Type)
+				array, ok := b.ArrayType(u.Type)
 				if !ok {
-					return nil, sqlError("42704", "could not find array type for data type "+functions.ArrayTypeName(b, u.Type))
+					return nil, expr.ErrorAt("42704", "could not find array type for data type "+functions.ArrayTypeName(b, u.Type), parser.Position{})
 				}
 				if !array.Concrete() {
 					return signature()
@@ -155,7 +127,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 				result = array.Usage()
 				targets[0] = u
 			}
-			integer, ok := b.definitionArray(b.typ(sqltype.Int4))
+			integer, ok := b.ArrayType(b.Type(sqltype.Int4))
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing integer array association")
 			}
@@ -174,18 +146,18 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 			}
 			switch kind {
 			case functions.ArraySort:
-				targets[1], targets[2] = b.typ(sqltype.Bool).Usage(), b.typ(sqltype.Bool).Usage()
+				targets[1], targets[2] = b.Type(sqltype.Bool).Usage(), b.Type(sqltype.Bool).Usage()
 			case functions.ArrayTrim:
-				targets[1] = b.typ(sqltype.Int4).Usage()
+				targets[1] = b.Type(sqltype.Int4).Usage()
 			case functions.ArrayToString:
-				result = b.typ(sqltype.Text).Usage()
+				result = b.Type(sqltype.Text).Usage()
 				targets[1], targets[2] = result, result
 			}
 		}
 	}
 	// Probe every known edge before importing any unknown literal or parameter.
 	for i := range operands {
-		u := operandUsage(formal[i])
+		u := formal[i].Usage
 		if u.Type != nil && !u.CatalogNullUsage() {
 			if targets[i].Type == nil {
 				return signature()
@@ -197,51 +169,41 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 	}
 	name := kind.Name()
 	if !operator {
-		decoration, message := "", "not an aggregate function"
-		switch {
-		case raw.Star:
-			decoration = name + "(*)"
-		case raw.Distinct:
-			decoration = "DISTINCT"
-		case len(raw.Order) != 0:
-			decoration = "ORDER BY"
-		case raw.Filter != nil:
-			decoration = "FILTER"
-		case raw.Window != nil:
-			decoration, message = "OVER", "not a window function nor an aggregate function"
+		if raw.Star {
+			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 		}
-		if decoration != "" {
-			return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
 		}
 	}
 	if targets[0].Type == nil {
-		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+		return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 	}
-	args := make([]BoundExpr, len(operands))
-	properties := ExprProperties{}
+	args := make([]expr.Expr, len(operands))
+	properties := expr.Properties{}
 	for i, o := range operands {
 		target := targets[slots[i]]
-		arg := o.node
+		arg := o.Expression
 		if !target.CatalogNullUsage() {
 			var err error
-			arg, err = b.coerceConditional(o, target, name)
+			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: target, Label: name})
 			if err != nil {
 				return nil, err
 			}
 		}
 		args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if kind == functions.ArrayToString {
-		properties.Volatility = max(properties.Volatility, Stable)
+		properties.Volatility = max(properties.Volatility, expr.Stable)
 		if targets[0].Type.ContainsCatalogIdentifier() {
-			b.regclassConcat = true
+			b.NoteCatalogText()
 		}
 	}
-	info := b.info(result, raw.Pos, properties)
+	info := b.Info(result, raw.Pos, properties)
 	if result.Collation.ID != 0 {
 		var err error
-		info, err = b.collatedInfo(info, args...)
+		info, err = b.CollatedInfo(info, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -269,28 +231,24 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 	}
 	var err error
 	if operator {
-		info, err = b.builtinOperatorRoutineInfo(info, "||", inputs[0], inputs[1])
+		info, err = b.BuiltinOperatorRoutineInfo(info, "||", inputs[0], inputs[1])
 	} else {
-		info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, name, inputs[:len(args)]...)
+		info, err = b.BuiltinRoutineInfo(info, functions.ArrayRoutineProvider, name, inputs[:len(args)]...)
 	}
 	if err != nil {
 		return nil, err
 	}
-	namespace := ""
-	if len(raw.Name.Parts) == 2 {
-		namespace = raw.Name.Parts[0].Text
-	}
 	e := functions.ArrayTransform{
-		Info: info, Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
+		Info: info, Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: arrayNamespace(raw.Name), Operator: operator,
 	}
 	if kind == functions.ArraySort && !targets[0].CatalogNullUsage() {
-		if err := b.captureComparisonDiagnosticInput(targets[0].Type); err != nil {
+		if err := b.CaptureComparisonInput(targets[0].Type); err != nil {
 			return nil, err
 		}
 		first := e.Formal(0)
-		input := b.info(first.ResultUsage(), raw.Pos, properties)
+		input := b.Info(first.ResultUsage(), raw.Pos, properties)
 		var err error
-		input, err = b.collatedInfo(input, first)
+		input, err = b.CollatedInfo(input, first)
 		if err != nil {
 			return nil, err
 		}
@@ -299,17 +257,10 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 			return nil, err
 		}
 		if e.Sort.SessionDependent() {
-			e.Property.Volatility = max(e.Property.Volatility, Stable)
+			e.Property.Volatility = max(e.Property.Volatility, expr.Stable)
 		}
 	}
 	return e, e.Validate()
-}
-
-func operandUsage(o comparisonOperand) sqltype.Usage {
-	if o.node == nil {
-		return sqltype.Usage{}
-	}
-	return o.node.ResultUsage()
 }
 
 // This is the array branch of the existing || selector. Its children have
@@ -339,12 +290,8 @@ func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [
 			kind = functions.ArrayAppend
 		}
 	}
-	views := []comparisonOperand{
-		{node: operands[0].Expression, raw: operands[0].Raw},
-		{node: operands[1].Expression, raw: operands[1].Raw},
-	}
 	call := parser.FunctionExpr{Name: raw.Name, Pos: raw.Pos}
-	e, err := b.finishArrayTransform(call, kind, views, [3]uint8{0, 1, 2}, [3]string{}, true, signature)
+	e, err := finishArrayTransform(b, call, kind, operands[:], [3]uint8{0, 1, 2}, [3]string{}, true, signature)
 	return e, true, err
 }
 

@@ -27,7 +27,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		if kind.Arity() == 2 {
 			args = append(args, one)
 		}
-		node, err := b.bindArrayInspect(arrayInspectUnitRaw(name, args...))
+		node, err := bindArrayInspect(b, arrayInspectUnitRaw(name, args...))
 		if err != nil {
 			t.Fatal(name, err)
 		}
@@ -59,7 +59,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		{arrayInspectUnitRaw("cardinality", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}), "42804"},
 		{arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), parser.CastExpr{Child: one, TypeName: parser.TypeName{Name: "bigint"}}), "42883"},
 	} {
-		_, err := b.bindArrayInspect(tc.raw)
+		_, err := bindArrayInspect(b, tc.raw)
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != tc.code {
 			t.Fatalf("error=%v want%s", err, tc.code)
@@ -73,7 +73,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	tb := newTestExpressionBinder(t, ctx, target, sqltype.InputEnvironment{}, nil)
 	raw := arrayInspectUnitRaw("array_length", arrayInspectUnitArray("[-2:-1][3:5]={{1,NULL,3},{4,5,6}}"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
-	node, err := b.bindArrayInspect(raw)
+	node, err := bindArrayInspect(b, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, producer := range []string{"clock_timestamp", "uuidv4"} {
 		dimension := arrayInspectUnitRaw("num_nonnulls", arrayInspectUnitRaw(producer))
-		node, err := b.bindArrayInspect(arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
+		node, err := bindArrayInspect(b, arrayInspectUnitRaw("array_length", arrayInspectUnitArray("{1}"), dimension))
 		if err != nil {
 			t.Fatal(producer, err)
 		}

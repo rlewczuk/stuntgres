@@ -43,7 +43,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if err := restoreScalar(withParameter, false); err == nil {
 			t.Fatal(tc.name, "restore admitted nested parameter")
 		}
-		node, err := b.bindArrayTransform(raw)
+		node, err := bindArrayTransform(b, raw)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -122,7 +122,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	flag := parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}
 	raw := arrayInspectUnitRaw("array_sort", flag, arrayInspectUnitArray("{2,NULL,1}"))
 	raw.ArgNames = []parser.Identifier{{Text: "descending"}, {Text: "array"}}
-	node, err := b.bindArrayTransform(raw)
+	node, err := bindArrayTransform(b, raw)
 	if err != nil {
 		t.Fatal(err)
 	}

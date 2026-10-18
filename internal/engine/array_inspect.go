@@ -1,58 +1,27 @@
 package engine
 
 import (
-	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr, error) {
-	var storage [100]comparisonOperand
-	for i, arg := range raw.Args {
-		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		if i < len(storage) {
-			storage[i] = o
-		}
-	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
-		return nil, err
-	}
-	if len(raw.Args) > len(storage) {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return nil, fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	// Resolve visibility only after child/FILTER analysis and label validation.
-	// The already analyzed operands are retained; no child is rebound.
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+// bindArrayInspect binds the array dimension inquiries. The shared call
+// envelope precedes visibility; the analyzed operands are retained and no
+// child is rebound.
+func bindArrayInspect(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	operands, err := analyzeArrayArguments(b, raw)
 	if err != nil {
 		return nil, err
 	}
-	operands := storage[:len(raw.Args)]
-	signature := func() (BoundExpr, error) {
-		names := make([]string, len(operands))
-		for i, o := range operands {
-			name := "unknown"
-			if d := o.descriptor(); d != nil {
-				name = functions.ArrayTypeName(b, d)
-			}
-			names[i] = functions.NamedArgumentType(raw, i, name)
-		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
 	}
+	signature := func() (expr.Expr, error) { return nil, arraySignatureError(b, raw, operands) }
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := functions.ArrayInspectFunction(name)
 	if !visible || kind == 0 || len(raw.ArgNames) != 0 || len(operands) != kind.Arity() {
@@ -60,8 +29,8 @@ func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr,
 	}
 	var targets [2]sqltype.Usage
 	catalogNull := false
-	if d := operands[0].descriptor(); d != nil {
-		u := operands[0].node.ResultUsage()
+	if d := operands[0].Usage.Type; d != nil {
+		u := operands[0].Usage
 		catalogNull = u.CatalogNullUsage()
 		if catalogNull {
 			targets[0] = u
@@ -73,58 +42,88 @@ func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr,
 			targets[0] = base.Usage()
 		}
 	}
-	targets[1] = b.typ(sqltype.Int4).Usage()
+	targets[1] = b.Type(sqltype.Int4).Usage()
 	for i, o := range operands {
-		if o.descriptor() != nil && !(i == 0 && catalogNull) {
-			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
+		if o.Usage.Type != nil && !(i == 0 && catalogNull) {
+			if _, err := sqltype.PlanCoercion(o.Usage, targets[i], sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if targets[0].Type == nil {
-		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+		return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 	}
-	args := make([]BoundExpr, len(operands))
-	properties := ExprProperties{}
+	args := make([]expr.Expr, len(operands))
+	properties := expr.Properties{}
 	for i, o := range operands {
-		arg := o.node
+		arg := o.Expression
 		if !(i == 0 && catalogNull) {
 			var err error
-			arg, err = b.coerceConditional(o, targets[i], name)
+			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: targets[i], Label: name})
 			if err != nil {
 				return nil, err
 			}
 		}
 		args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	namespace := ""
-	if len(raw.Name.Parts) == 2 {
-		namespace = raw.Name.Parts[0].Text
-	}
-	info := b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)
-	var formal [2]sqltype.ID
-	formal[0], formal[1] = 2277, sqltype.Int4
-	info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, kind.Name(), formal[:len(args)]...)
+	info := b.Info(b.Type(kind.Result()).Usage(), raw.Pos, properties)
+	formal := [2]sqltype.ID{2277, sqltype.Int4}
+	info, err = b.BuiltinRoutineInfo(info, functions.ArrayRoutineProvider, kind.Name(), formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}
-	e := functions.ArrayInspect{Info: info, Kind: kind, Args: args, Namespace: namespace}
+	e := functions.ArrayInspect{Info: info, Kind: kind, Args: args, Namespace: arrayNamespace(raw.Name)}
 	return e, e.Validate()
+}
+
+// analyzeArrayArguments analyzes ordinary arguments as comparison operands,
+// then applies the shared FILTER/count/label envelope.
+func analyzeArrayArguments(b functions.Binder, raw parser.FunctionExpr) ([]functions.Argument, error) {
+	var small [3]functions.Argument
+	var operands []functions.Argument
+	if len(raw.Args) <= len(small) {
+		operands = small[:len(raw.Args)]
+	} else if len(raw.Args) <= 100 {
+		operands = make([]functions.Argument, len(raw.Args))
+	}
+	for i, child := range raw.Args {
+		arg, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		if err != nil {
+			return nil, err
+		}
+		if operands != nil {
+			operands[i] = arg
+		}
+	}
+	if err := functions.ValidateCallSyntax(b, raw); err != nil {
+		return nil, err
+	}
+	return operands, nil
+}
+
+// arraySignatureError reports the missing signature with array-aware,
+// labelled argument type names.
+func arraySignatureError(b functions.Binder, raw parser.FunctionExpr, operands []functions.Argument) error {
+	names := make([]string, len(operands))
+	for i, o := range operands {
+		names[i] = "unknown"
+		if d := o.Usage.Type; d != nil {
+			names[i] = functions.ArrayTypeName(b, d)
+		}
+		names[i] = functions.NamedArgumentType(raw, i, names[i])
+	}
+	return b.SignatureError(raw.Name, raw.Pos, names)
+}
+
+func arrayNamespace(name parser.ObjectName) string {
+	if len(name.Parts) == 2 {
+		return name.Parts[0].Text
+	}
+	return ""
 }
 
 func mapArrayInspectChildren(e functions.ArrayInspect, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayInspect, bool, error) {
