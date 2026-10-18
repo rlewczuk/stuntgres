@@ -35,7 +35,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	return stage.Create(proc)
 }
 
-func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
+func (p *uuidOsspProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid uuid-ossp manifest") }
 	if p != stockUUIDOssp || ext.Name() != "uuid-ossp" || ext.Version != p.control.Version || len(ext.Members) != 1 {
 		return invalid()
@@ -48,7 +48,7 @@ func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *catalog.Extensi
 	return nil
 }
 
-func (p *uuidOsspProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
+func (p *uuidOsspProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	if v.Get(proc.Address()) != proc || uuidOsspProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid uuid-ossp procedure identity")
 	}

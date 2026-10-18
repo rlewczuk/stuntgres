@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync/atomic"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -22,7 +23,7 @@ type visibilityData struct {
 	command                ids.CommandID
 	frontier               ids.CommitSeq
 	rewrittenFrontiers     map[ids.ObjectAddress]ids.CommitSeq
-	catalog                CatalogRead
+	catalog                catalog.Read
 	committed              map[ids.ObjectAddress][]rowVersion
 	generations            map[ids.ObjectAddress]visibilityGeneration
 	singleGeneration       *relationStorage
@@ -292,4 +293,4 @@ func (v *VisibilityView) read() *visibilityData {
 func (v *VisibilityView) Tx() ids.TxRef           { return v.read().tx }
 func (v *VisibilityView) Command() ids.CommandID  { return v.read().command }
 func (v *VisibilityView) Frontier() ids.CommitSeq { return v.read().frontier }
-func (v *VisibilityView) Catalog() CatalogRead    { return v.read().catalog }
+func (v *VisibilityView) Catalog() catalog.Read   { return v.read().catalog }

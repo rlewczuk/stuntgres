@@ -75,7 +75,7 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	}
 	replacement := *parent
 	replacement.ObjectRevision++
-	for _, current := range []CatalogRead{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
+	for _, current := range []catalog.Read{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
 		if err := stage.validateLikeSources(current); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("stale parent capture accepted", err)
 		}

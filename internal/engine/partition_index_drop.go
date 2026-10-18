@@ -158,7 +158,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 	return nil
 }
 
-func partitionIndexDropDependency(view CatalogRead, index *catalog.Relation) error {
+func partitionIndexDropDependency(view catalog.Read, index *catalog.Relation) error {
 	if index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}

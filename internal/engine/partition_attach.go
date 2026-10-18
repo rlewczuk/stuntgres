@@ -232,13 +232,13 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 	return nil
 }
 
-func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (CatalogRead, *catalog.Relation, error) {
+func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (catalog.Read, *catalog.Relation, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := view.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Epoch != scope.txRef.Epoch() {
-		return CatalogRead{}, nil, ids.ErrCatalogReplaced
+		return catalog.Read{}, nil, ids.ErrCatalogReplaced
 	}
 	return view, d, nil
 }

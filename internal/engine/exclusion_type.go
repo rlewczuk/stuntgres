@@ -103,7 +103,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 
 // Imported values and definitions must capture the destination type descriptors.
 // The catalog replacement path invokes this after its existing expression remap.
-func rebindImportedExclusions(next *catalogState) error {
+func rebindImportedExclusions(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
 		parent, ok := descriptor.(*catalog.Relation)
 		if !ok || len(parent.ExclusionConstraints) == 0 {

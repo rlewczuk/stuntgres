@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-func validateUniques(view CatalogRead, parent *catalog.Relation, names map[string]bool) error {
+func validateUniques(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	primary := false
 	var physicalSupport *catalog.PhysicalPrimarySupport
 	for _, c := range parent.UniqueConstraints {
@@ -321,7 +321,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []ca
 // A domain's index attribute uses the physical oid_ops descriptor for output.
 // Produced keys retain their logical alias type for identity remapping; only
 // diagnostic formatting normalizes that datum, without checking it again.
-func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog CatalogRead, output sqltype.OutputEnvironment) (string, error) {
+func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog catalog.Read, output sqltype.OutputEnvironment) (string, error) {
 	if value.Type().IsDomain() && class.Name == "oid_ops" {
 		oid, ok := catalog.LookupType(sqltype.Oid)
 		if !ok {
@@ -337,7 +337,7 @@ func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.Ind
 }
 
 // Formatting uses typed provider output, never SQL literals or Go formatting.
-func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
+func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog catalog.Read) error {
 	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create unique index "%s"`, index.Name())
@@ -434,7 +434,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 			// normalized equality value. Validation reports the candidate.
 			key = previous.keys
 		}
-		var catalog CatalogRead
+		var catalog catalog.Read
 		if auth != nil {
 			catalog = auth.catalog
 		}

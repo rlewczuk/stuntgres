@@ -157,7 +157,7 @@ func New() *Engine {
 
 // NewWithCatalogProviders registers feature-owned catalog providers before
 // installing the builtin namespace descriptors.
-func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
+func NewWithCatalogProviders(providers ...catalog.Provider) (*Engine, error) {
 	return newEngine(providers, nil, "", false)
 }
 
@@ -170,9 +170,9 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 	return e
 }
 
-func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
+func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{Domain: &ids.Domain{}, Providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
@@ -300,7 +300,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	return e, nil
 }
-func (e *Engine) CatalogRead() CatalogRead {
+func (e *Engine) CatalogRead() catalog.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.catalog.read(e.catalog.state)
@@ -935,7 +935,7 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw parser.Expr, sourceType *sqltype.Descriptor) error {
+func insertValueError(view catalog.Read, err error, column ColumnDescriptor, raw parser.Expr, sourceType *sqltype.Descriptor) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err

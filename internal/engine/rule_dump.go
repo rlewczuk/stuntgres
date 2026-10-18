@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
+func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 	d, ok := view.Relation(ref.Address)
 	if !ok {
 		return "", ids.ErrCatalogReplaced
@@ -25,7 +25,7 @@ func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	return quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name()), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
+func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
 	r := pgRenderer{view: view, showImplicit: true}
 	r.columnSQL = func(column columnExpression) (string, error) {
 		if column.scope == 1 && column.frame == 1 && len(sourceRoots) != 0 {
@@ -130,7 +130,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, a
 	return r.sql(ctx, node, pgRenderParent{})
 }
 
-func ruleFromSQL(ctx context.Context, view CatalogRead, root LogicalNode, action ruleAction) (string, error) {
+func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, action ruleAction) (string, error) {
 	if root == nil {
 		return "", nil
 	}
@@ -226,7 +226,7 @@ func ruleFromSQL(ctx context.Context, view CatalogRead, root LogicalNode, action
 	return "", fmt.Errorf("stuntgres: missing rule FROM presentation for %T", root)
 }
 
-func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (string, error) {
+func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (string, error) {
 	b := action.binding
 	if _, selecting := action.syntax.(*parser.Select); selecting {
 		return action.presentation.selectSQL(ctx, view, viewPresentation{})
@@ -453,7 +453,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 	return sql.String(), nil
 }
 
-func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
+func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
@@ -479,7 +479,7 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 			}
 			for _, address := range r.references {
 				address.SubID = 0
-				var provider Descriptor
+				var provider catalog.Descriptor
 				if address.ClassID == 2606 {
 					parent := constraintParent(view, address)
 					if parent == nil {

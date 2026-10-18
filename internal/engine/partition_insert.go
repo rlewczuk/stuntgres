@@ -14,7 +14,7 @@ import (
 )
 
 type partitionInsertState struct {
-	catalog     CatalogRead
+	catalog     catalog.Read
 	auth        AuthorizationView
 	target      *catalog.Relation
 	destination *catalog.Relation

@@ -67,7 +67,7 @@ func builtinOperatorSpelling(name string) bool {
 }
 
 type operatorCandidateSet struct {
-	catalog     CatalogRead
+	catalog     catalog.Read
 	descriptors []*catalog.Operator
 	hasCustom   bool
 	// Presence is independent of materialization for seed-only binary comparisons.

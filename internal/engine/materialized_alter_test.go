@@ -201,7 +201,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		e.mu.Lock()
 		err = e.catalogPreflightLocked(changes)
 		e.mu.Unlock()
-		if _, conflict := err.(CatalogConflict); !conflict {
+		if _, conflict := err.(catalog.Conflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
@@ -302,7 +302,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			next.AutoExtensions = []ids.ObjectAddress{ext.Address()}
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			stage.querySources = []Descriptor{ext}
+			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.session
 			stage.authRevision = op.session.authorization.revision
 			stage.roleRevision = e.roles.revision

@@ -61,7 +61,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if len(expected) != 0 {
 		t.Fatal("missing selected members", expected)
 	}
-	for _, d := range []Descriptor{ext, proc} {
+	for _, d := range []catalog.Descriptor{ext, proc} {
 		if err := (extensionCatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}

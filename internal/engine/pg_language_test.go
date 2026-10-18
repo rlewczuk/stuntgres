@@ -14,7 +14,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLanguageOID}
 	source := view.MustRelation(address)
-	checkTypeLinks := func(catalog CatalogRead, relation *catalog.Relation) {
+	checkTypeLinks := func(catalog catalog.Read, relation *catalog.Relation) {
 		t.Helper()
 		if relation.RowType != 10021 {
 			t.Fatal("native row type identity", relation.RowType)

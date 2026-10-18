@@ -71,11 +71,11 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	badRef := ref
 	badRef.Epoch++
 	for _, tc := range []struct {
-		catalog CatalogRead
+		catalog catalog.Read
 		ref     ids.ObjectRef
 		source  *catalog.Relation
 	}{
-		{CatalogRead{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
+		{catalog.Read{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
 	} {
 		if got, err := capturePGAggregate(context.Background(), tc.catalog, tc.ref, tc.source); got != nil || err == nil {
 			t.Fatal("foreign/stale source admitted", got, err)

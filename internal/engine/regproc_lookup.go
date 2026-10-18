@@ -24,7 +24,7 @@ func indexBuiltinRoutines() (map[ids.OID]catalog.RoutineIdentity, map[string][]c
 	return byOID, byName, bySignature
 }
 
-func routineIdentityByOID(view CatalogRead, id ids.OID) (catalog.RoutineIdentity, bool) {
+func routineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
@@ -41,14 +41,14 @@ func routineIdentityByOID(view CatalogRead, id ids.OID) (catalog.RoutineIdentity
 	return catalog.RoutineIdentity{}, false
 }
 
-func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool {
+func routineNamespaceVisible(view catalog.Read, namespace ids.ObjectAddress) bool {
 	ns, ok := view.Namespace(namespace)
 	return ok && ns.Temporary == (ids.SessionToken{})
 }
 
 // Exact signatures use both existing catalog NameKeys and the immutable release
 // signature index. The first candidate masks all later identical signatures.
-func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func selectExactRoutine(view catalog.Read, path namespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	for i := range path.count() {
 		namespace := path.at(i)
 		if !routineNamespaceVisible(view, namespace) {
@@ -77,7 +77,7 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 
 // Earlier schemas mask only identical signatures, not every same-named routine.
 // Bare-name selection stops after two candidates, the regproc ambiguity boundary.
-func selectRoutine(view CatalogRead, path namespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func selectRoutine(view catalog.Read, path namespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	if signature != nil {
 		return selectExactRoutine(view, path, name, *signature)
 	}

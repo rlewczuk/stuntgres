@@ -94,7 +94,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	for a, descriptor := range auth.catalog.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateSelected) {
 			if _, captured := observed[a]; !captured {
-				return nil, CatalogConflict{}
+				return nil, catalog.Conflict{}
 			}
 		}
 	}

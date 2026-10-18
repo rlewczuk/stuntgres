@@ -18,15 +18,15 @@ import (
 // the destination overlays its exact current live TEMP objects after capture.
 // Keep the supplied published view immutable and use this private candidate for
 // provider validation and generator/storage capture as well as installation.
-func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
+func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	for _, descriptor := range view.Descriptors() {
 		if extension, ok := descriptor.(*catalog.Extension); ok {
 			namespace, ok := view.Namespace(extension.TargetNamespace)
 			if !ok {
-				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
+				return catalog.Read{}, fmt.Errorf("stuntgres: extension namespace is missing")
 			}
 			if namespace.Temporary != (ids.SessionToken{}) {
-				return CatalogRead{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
+				return catalog.Read{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
 			}
 		}
 	}
@@ -53,7 +53,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 
 // Called under source synchronization; generator scalars are detached from the
 // source, unlike immutable relation descriptors.
-func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]*sequenceGenerator, error) {
+func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress]*sequenceGenerator, error) {
 	result := make(map[ids.ObjectAddress]*sequenceGenerator)
 	for a, d := range view.Descriptors() {
 		r, ok := d.(*catalog.Relation)
@@ -72,7 +72,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
 	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
@@ -80,7 +80,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
 		return err
 	}
-	temporary := make(map[ids.ObjectAddress]Descriptor)
+	temporary := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for a, d := range e.catalog.state.Descriptors() {
 		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			temporary[a] = d
@@ -569,7 +569,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		next.SetDescriptor(address, relation)
 	}
-	previous := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	previous := make(map[ids.ObjectAddress]catalog.Descriptor, next.DescriptorCount())
 	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
@@ -723,7 +723,7 @@ func arrayDomainDependency(typ *sqltype.Descriptor) bool {
 	}
 	return typ.IsArray() && arrayDomainDependency(typ.Element())
 }
-func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
+func retainedArrayDependencies(source, target *catalog.State, typ *sqltype.Descriptor) bool {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 	old, ok := source.Type(address)
 	if !ok {
@@ -745,7 +745,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Only immutable bootstrap catalog sources have a persistent survivor route.
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
-func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
+func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
 	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range temporary {
 		consumer, ok := descriptor.(*catalog.Relation)

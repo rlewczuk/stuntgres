@@ -58,7 +58,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 
 // Nonrelation classes share the same source selection, ACL mutation and final
 // catalog publication as relation grants, without materializing table defaults.
-func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (Descriptor, error) {
+func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (catalog.Descriptor, error) {
 	if err := validateACL(v.roles, d); err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 	if !changed && (old.Explicit || d.Kind() == ids.ParameterObject) {
 		return nil, nil
 	}
-	var next Descriptor
+	var next catalog.Descriptor
 	switch d := d.(type) {
 	case *catalog.Namespace:
 		n := *d

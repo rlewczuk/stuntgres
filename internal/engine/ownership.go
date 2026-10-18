@@ -54,7 +54,7 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 
 // Root classification follows canonical reciprocal identities, never object
 // names. Protected catalog namespaces and immutable providers are not bulk roots.
-func ownershipRoot(view CatalogRead, d Descriptor) bool {
+func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
 		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
@@ -88,7 +88,7 @@ func ownershipRoot(view CatalogRead, d Descriptor) bool {
 // Ownership changes retain immutable type, row, index and sequence generator
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
-func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.PrincipalRef) error {
+func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorization.PrincipalRef) error {
 	if next := stage.Descriptors[d.Address()]; next != nil {
 		d = next
 	}
@@ -154,7 +154,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		if old.Array != 0 {
 			array, ok := stage.Base.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
 			if !ok || !array.SQLType.IsArray() || array.SQLType.Element().ID() != old.SQLType.ID() {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			if err = stageOwnership(stage, array, target); err != nil {
 				return err
@@ -163,7 +163,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		if old.OwningRelation != (ids.ObjectAddress{}) && !old.SQLType.IsArray() {
 			r, ok := stage.Base.Relation(old.OwningRelation)
 			if !ok || r.RowType != old.SQLType.ID() {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			return stageOwnership(stage, r, target)
 		}

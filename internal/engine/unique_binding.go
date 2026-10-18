@@ -16,7 +16,7 @@ type createUniqueConstraint struct {
 	copyComments bool
 }
 
-func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []createLikeInput, view CatalogRead) ([]createUniqueConstraint, error) {
+func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []createLikeInput, view catalog.Read) ([]createUniqueConstraint, error) {
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	var declarations []createUniqueConstraint
 	primary := -1

@@ -20,7 +20,7 @@ func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, root
 
 // admitInheritanceDropClosure reconciles actual captures without a stage. The
 // incumbent execution wrapper alone installs its returned catalog as stage base.
-func admitInheritanceDropClosure(scope *StatementScope, view CatalogRead, roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, Descriptor]) (CatalogRead, error) {
+func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots []ids.ObjectAddress, removals iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) (catalog.Read, error) {
 	if scope == nil {
 		return view, nil
 	}
@@ -101,12 +101,12 @@ func admitInheritanceDropClosure(scope *StatementScope, view CatalogRead, roots 
 		}
 		for address := range locked {
 			if current.Get(address) != view.Get(address) {
-				return view, CatalogConflict{}
+				return view, catalog.Conflict{}
 			}
 		}
 		for address, descriptor := range removals {
 			if current.Get(address) != descriptor {
-				return view, CatalogConflict{}
+				return view, catalog.Conflict{}
 			}
 		}
 		view = current

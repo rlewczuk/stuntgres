@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
@@ -65,7 +66,7 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 	return visit(node)
 }
 
-func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, source *parser.ValuesQuery, occurrence int) (string, error) {
+func (v *viewRenderer) valuesSQL(ctx context.Context, catalog catalog.Read, source *parser.ValuesQuery, occurrence int) (string, error) {
 	root := viewValuesAt(v.query.Root, occurrence)
 	if root == nil {
 		return "", fmt.Errorf("stuntgres: missing view VALUES occurrence")
@@ -139,7 +140,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, sourc
 	return text, nil
 }
 
-func (v *viewDefinition) validateValuesLiterals(catalog CatalogRead, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites, intaggCount *int) error {
+func (v *viewDefinition) validateValuesLiterals(catalog catalog.Read, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites, intaggCount *int) error {
 	validate := func(raw parser.Expr, clause viewLiteralClause, row, column int) error {
 		ordinal := 0
 		return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns, composites, intaggCount)

@@ -180,7 +180,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		return err
 	}
 	if stage.identityOriginals == nil {
-		stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
+		stage.identityOriginals = make(map[ids.ObjectAddress]catalog.Descriptor)
 	}
 	if _, captured := stage.identityOriginals[address]; !captured {
 		stage.identityOriginals[address] = e.catalog.state.Get(address)

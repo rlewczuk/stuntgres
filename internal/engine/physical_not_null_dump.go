@@ -11,7 +11,7 @@ func physicalPrimaryDeferred(table *catalog.Relation, primary *catalog.UniqueCon
 	return primary.Primary && len(table.PhysicalNotNull) != 0
 }
 
-func emitPhysicalPrimaryCleanup(view CatalogRead, table *catalog.Relation, primary *catalog.UniqueConstraint, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalPrimaryCleanup(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, emit func(string) error, setOwner func(string) error) error {
 	hasPhysicalKey := false
 	for _, attribute := range primary.Attributes {
 		if _, present := table.PhysicalNotNull[attribute]; present {
@@ -44,7 +44,7 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *catalog.Relation, prima
 
 // Run at declaration time, before descendants or rows. The constructor creates
 // its real NN record; the CTE selects that record by key, never an assumed name.
-func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) error, setOwner func(string) error) error {
+func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) error, setOwner func(string) error) error {
 	if len(t.descriptor.PhysicalNotNull) == 0 {
 		return nil
 	}
@@ -98,7 +98,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 
 // Track only actual moved providers in the existing event graph. Consumers do
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
-func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) error {
+func physicalNotNullDumpDependencies(view catalog.Read, graph map[dumpEventKey][]dumpEventKey) error {
 	var deferred map[ids.ObjectAddress]*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)

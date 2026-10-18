@@ -15,7 +15,7 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 		return err
 	}
 	allowed := auth == nil || auth.engine == nil
-	var catalog CatalogRead
+	var catalog catalog.Read
 	if auth != nil {
 		catalog = auth.catalog
 		if auth.engine != nil {

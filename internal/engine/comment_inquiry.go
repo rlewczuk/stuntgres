@@ -103,7 +103,7 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 	return commentInquiryExpression{info, kind, args}, nil
 }
 
-func descriptorComment(d Descriptor, sub int32) string {
+func descriptorComment(d catalog.Descriptor, sub int32) string {
 	switch d := d.(type) {
 	case *catalog.Namespace:
 		if sub == 0 {

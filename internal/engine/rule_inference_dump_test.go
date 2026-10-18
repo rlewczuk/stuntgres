@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -87,7 +88,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					return b.conflict
 				}
 				original := conflict(stored)
-				assertKey := func(c *boundInsertConflict, catalog CatalogRead) {
+				assertKey := func(c *boundInsertConflict, catalog catalog.Read) {
 					t.Helper()
 					k := c.keys[0]
 					if k.collation != 950 || k.class.Name != "text_pattern_ops" {

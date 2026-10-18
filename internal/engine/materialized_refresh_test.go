@@ -151,7 +151,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "frontier":
 				e.commitSeq = ids.CommitSeq(math.MaxUint64)
 			case "source":
-				stage.querySources = []Descriptor{&catalog.Relation{ObjectAddress: d.Address()}}
+				stage.querySources = []catalog.Descriptor{&catalog.Relation{ObjectAddress: d.Address()}}
 			case "role", "authorization":
 				op, done := roleOperation(t, e, "postgres")
 				defer done()
@@ -220,7 +220,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("materialized provider rejected")
-			e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error {
+			e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error {
 				switch phase {
 				case "reject":
 					return sentinel

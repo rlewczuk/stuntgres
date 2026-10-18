@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionIndexCoverageComplete(view CatalogRead, index *catalog.Relation) bool {
+func partitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
 	return (&dropProvider{base: view}).partitionIndexCoverageComplete(index)
 }
 
@@ -87,7 +87,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
 }
 
-func partitionIndexPromotionPath(view CatalogRead, start, target ids.ObjectAddress) bool {
+func partitionIndexPromotionPath(view catalog.Read, start, target ids.ObjectAddress) bool {
 	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
 }
 
@@ -105,7 +105,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 	return false
 }
 
-func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *catalog.Relation) error {
+func partitionIndexAttachCheck(op *Operation, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -188,7 +188,7 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 	return e.stagePartitionIndexValidity(stage, parent.Address())
 }
 
-func validatePartitionIndex(view CatalogRead, index, table *catalog.Relation) error {
+func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) error {
 	d := index.SQLIndex
 	if table.Partition != nil && d.Valid && !partitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")

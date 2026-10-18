@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func validateRetiredInheritance(view CatalogRead, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
+func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
 		parent, ok := view.Relation(history.Parent.Address)
 		if !ok || parent.RelationKind != catalog.TableRelation || !storedReferenceEpochValid(view, table, history.Parent) || history.Parent.Address.SubID != 0 || history.Attribute <= 0 || history.Attribute > 1600 || history.Column == "" || history.Name == "" || history.Constraint == 0 || history.Lifetime == 0 || history.Own != own || history.Check != check || !slices.Contains(table.Inheritance.Parents, parent.Address()) {
@@ -94,7 +94,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *catalo
 	}
 }
 
-func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
+func (e *Engine) remapRetiredConstraints(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	// Runtime certificates share the source catalog's namespace. On replacement,
 	// archive that namespace once above every already imported namespace.
 	var runtimeArchive uint64

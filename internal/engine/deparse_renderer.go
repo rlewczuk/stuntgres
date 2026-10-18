@@ -14,7 +14,7 @@ import (
 )
 
 type pgRenderer struct {
-	view               CatalogRead
+	view               catalog.Read
 	relation           *catalog.Relation
 	pretty             bool
 	path               []ids.ObjectAddress

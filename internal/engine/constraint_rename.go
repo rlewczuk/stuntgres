@@ -127,12 +127,12 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	// remain intact across repeated renames and savepoint rollback.
 	for a := range stage.Descriptors {
 		if e.catalog.state.Get(a) != grantCatalog.Get(a) {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for k := range stage.Touched {
 		if e.catalog.state.NameAddress(k) != grantCatalog.NameAddress(k) {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for a, d := range stage.Descriptors {

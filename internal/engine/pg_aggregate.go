@@ -17,7 +17,7 @@ var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Int4, sqltype.Text, sqltype.Text,
 }
 
-func capturePGAggregate(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGAggregate(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

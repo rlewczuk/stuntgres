@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -184,7 +185,7 @@ func (v *viewRenderer) freshLabel(ns viewNamespace, attribute int32, physical bo
 	return v.allocateAlias(key, base)
 }
 
-func (v *viewRenderer) slotSQL(ctx context.Context, catalog CatalogRead, root LogicalNode, slot int) (string, error) {
+func (v *viewRenderer) slotSQL(ctx context.Context, catalog catalog.Read, root LogicalNode, slot int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -353,7 +354,7 @@ func (v *viewRenderer) functionSourceAlias(from viewRenderFrom, name string, col
 	return from
 }
 
-func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (viewRenderFrom, error) {
+func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item parser.FromItem) (viewRenderFrom, error) {
 	from, err := v.renderFromSQL(ctx, catalog, item)
 	if err == nil && v.rowTargets != nil && from.rowSource {
 		// Publish only the finalized visible target of this occurrence. An
@@ -387,7 +388,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 	return from, err
 }
 
-func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (result viewRenderFrom, failure error) {
+func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, item parser.FromItem) (result viewRenderFrom, failure error) {
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}

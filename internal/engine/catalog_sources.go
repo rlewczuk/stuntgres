@@ -392,7 +392,7 @@ func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if source.Address().ObjectID == pgTypeOID {
 		return e.capturePGType(ctx, view, roles, ref, source)
 	}
@@ -542,7 +542,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRea
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func nonuniqueConstraintProvenance(catalog CatalogRead, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
+func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
 	if graph := table.Inheritance; graph != nil {
 		provenance, exists := graph.NotNull[attribute]
 		if check {

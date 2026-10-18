@@ -54,7 +54,7 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 	return nil
 }
 
-func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *catalog.Relation, programme *routineAdmissionProgram) error {
+func (b *uniqueWriteBinding) inheritIndexProgram(original *catalog.State, index *catalog.Relation, programme *routineAdmissionProgram) error {
 	if len(programme.calls) == 0 {
 		return nil
 	}

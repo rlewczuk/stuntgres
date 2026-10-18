@@ -16,7 +16,7 @@ import (
 
 // Algorithm snapshots clone real installed descriptors. The extra names/IDs
 // are private unit inputs, never published providers or public dictionary DDL.
-func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, AuthorizationView, []ids.ObjectAddress) {
+func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, catalog.Read, AuthorizationView, []ids.ObjectAddress) {
 	t.Helper()
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
@@ -347,7 +347,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 			Generations:      map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
-	for name, validate := range map[string]func(CatalogRead, *catalog.Relation) error{
+	for name, validate := range map[string]func(catalog.Read, *catalog.Relation) error{
 		"check":      validateCheckProviders,
 		"default":    validateDefaultProviders,
 		"generation": validateGenerationProviders,

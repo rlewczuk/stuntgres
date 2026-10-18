@@ -9,7 +9,7 @@ import (
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func capturePartitionQueryPrefix(catalogView CatalogRead, view *VisibilityView, ref ids.ObjectRef, parent *catalog.Relation) (*querySource, error) {
+func capturePartitionQueryPrefix(catalogView catalog.Read, view *VisibilityView, ref ids.ObjectRef, parent *catalog.Relation) (*querySource, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
 	if captured, ok := catalogView.Relation(ref.Address); ok {

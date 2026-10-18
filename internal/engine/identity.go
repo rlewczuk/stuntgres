@@ -16,7 +16,7 @@ import (
 func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
-func identitySequenceDropError(read CatalogRead, sequence *catalog.Relation) error {
+func identitySequenceDropError(read catalog.Read, sequence *catalog.Relation) error {
 	address := sequence.Sequence.Owned
 	address.SubID = 0
 	table := read.MustRelation(address)
@@ -190,7 +190,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
+func evaluateIdentityValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {

@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
+func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
 	view := e.catalog.read(next)
 	collation := remappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {

@@ -12,7 +12,7 @@ import (
 
 type dumpPolicyGroup struct{ owner, table, sql string }
 
-func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *policyExpression) (string, error) {
+func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
 	r := newViewRenderer(expression.presentation)
 	r.frame = 1
 	source := viewFromRoot(r.frames[1])
@@ -35,7 +35,7 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{clause: viewTargetLiteral})
 }
 
-func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
+func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)

@@ -88,7 +88,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	return nil
 }
 
-func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
+func (p *intarrayProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
 	if p != stockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()
@@ -123,7 +123,7 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *catalog.Extensi
 	return nil
 }
 
-func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
+func (p *intarrayProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intarray codec installation")

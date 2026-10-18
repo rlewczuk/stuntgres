@@ -13,7 +13,7 @@ import (
 type parameterProvider struct{ definitions map[string]SettingDefinition }
 
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
-func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
+func (p parameterProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Parameter)
 	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
@@ -72,7 +72,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 // installParameterGrant changes only the detached central catalog candidate.
 // Both the descriptor and name entry disappear when the ACL returns to sA for
 // the owner alone. Explicit empty ACLs are not the default baseline.
-func installParameterGrant(candidate *catalogState, d *catalog.Parameter) {
+func installParameterGrant(candidate *catalog.State, d *catalog.Parameter) {
 	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
 		candidate.RemoveDescriptor(d.Address())
 		candidate.UnbindName(catalog.DescriptorNameKey(d))

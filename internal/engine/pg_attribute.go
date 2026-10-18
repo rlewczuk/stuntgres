@@ -56,7 +56,7 @@ func relationAttributeMetadata(relation *catalog.Relation, slot int) catalog.Att
 	return metadata
 }
 
-func hasSystemAttributes(catalog CatalogRead, relation *catalog.Relation) bool {
+func hasSystemAttributes(catalog catalog.Read, relation *catalog.Relation) bool {
 	switch pgClassKind(catalog, relation) {
 	case "r", "p", "m", "S", "f":
 		return true
@@ -66,7 +66,7 @@ func hasSystemAttributes(catalog CatalogRead, relation *catalog.Relation) bool {
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and
 // paired role roots, not the live catalog, source origins or stored row data.
-func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -63,7 +63,7 @@ func sameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Proce
 	return a == nil || a.Address() == b.Address() && a.Revision() == b.Revision()
 }
 
-func validateIntaggIdentity(v CatalogRead, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
+func validateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
 	if proc == nil {
 		if ref != (ids.ObjectRef{}) {
 			return fmt.Errorf("stuntgres: missing installed intagg identity")

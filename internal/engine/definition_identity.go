@@ -88,7 +88,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
 	return nil
 }
 
-func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
+func definitionOIDUsed(descriptor catalog.Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
 		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
@@ -160,7 +160,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 
 // Descriptor and owned-definition OIDs share one identity space. Replacement
 // must reserve both before allocating any collision replacement.
-func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
+func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor catalog.Descriptor) {
 	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
 		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
@@ -207,7 +207,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	}
 }
 
-func validateDefinitionOIDs(view CatalogRead) error {
+func validateDefinitionOIDs(view catalog.Read) error {
 	used := make(map[ids.OID]bool)
 	for address := range view.Descriptors() {
 		used[address.ObjectID] = true
@@ -294,7 +294,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 
 // Replacement retains temporary objects and imports persistent definitions.
 // Reserve the entire candidate before allocating collision replacements.
-func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
+func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 	reserved := make(map[ids.OID]bool)
 	var relations []*catalog.Relation
 	var domains []*catalog.Type

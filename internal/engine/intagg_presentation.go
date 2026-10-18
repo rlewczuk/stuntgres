@@ -39,7 +39,7 @@ func intaggRecipeFunction(raw parser.Expr) string {
 	return ""
 }
 
-func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLiteralPath, name string) (*catalog.Procedure, error) {
+func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLiteralPath, name string) (*catalog.Procedure, error) {
 	ref, exists := v.intaggRefs[path]
 	consumer, _ := catalog.Relation(v.consumer)
 	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || viewOf(consumer) != v) {
@@ -55,7 +55,7 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLit
 	return proc, nil
 }
 
-func (v *viewRenderer) intaggRecipeName(catalog CatalogRead, path viewLiteralPath, name string) (string, error) {
+func (v *viewRenderer) intaggRecipeName(catalog catalog.Read, path viewLiteralPath, name string) (string, error) {
 	proc, err := v.intaggRecipeProcedure(catalog, path, name)
 	if err != nil {
 		return "", err

@@ -11,7 +11,7 @@ import (
 )
 
 // The common sql entry validates provenance and records dependencies once.
-func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
 	case installedSoundexFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {

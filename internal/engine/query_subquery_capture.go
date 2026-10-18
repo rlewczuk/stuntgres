@@ -35,7 +35,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // Preserve the prepared source manifest. Only frozen presentation loses a
 // constructor's erased outer identity, and only when no executable occurrence
 // still needs that identity. The ordinary pg_depend expression owner decides.
-func frozenQueryDependencies(view CatalogRead, b binding) ([]catalog.ExpressionDependency, error) {
+func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
 	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
@@ -113,7 +113,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 	return nil
 }
 
-func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog CatalogRead, path viewLiteralPath, fields []string) (string, error) {
+func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
 	for i, text := range fields {
 		key := path
 		key.argument = i + 1

@@ -115,7 +115,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 
 // dropColumnMetadata cooks the stable-slot migration once. Dependency effects
 // supply the actual surviving provider descriptor and index identities.
-func dropColumnMetadata(ctx context.Context, view CatalogRead, descriptor func(ids.ObjectAddress) Descriptor, old *catalog.Relation, target ids.ObjectAddress, history catalog.AttributeMetadata) (*catalog.Relation, error) {
+func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(ids.ObjectAddress) catalog.Descriptor, old *catalog.Relation, target ids.ObjectAddress, history catalog.AttributeMetadata) (*catalog.Relation, error) {
 	slot := old.IndexForAttribute(target.SubID)
 	next := *old
 	if old.Foreign != nil {

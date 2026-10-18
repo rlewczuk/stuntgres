@@ -167,7 +167,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				if veto == "authorization" || veto == "storage" {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.As(err, &conflict) {
 						t.Fatal("wrong fence diagnostic", err)
 					}

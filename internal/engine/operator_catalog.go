@@ -22,7 +22,7 @@ func operatorSeeded(d *catalog.Operator) bool {
 type operatorProvider struct{}
 
 func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
-func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
+func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Operator)
 	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")

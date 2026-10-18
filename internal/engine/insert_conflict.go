@@ -25,7 +25,7 @@ type boundInsertConflict struct {
 	namedIndex    ids.ObjectAddress
 	reads         []int
 	selected      []ids.ObjectAddress
-	catalog       *catalogState
+	catalog       *catalog.State
 	checkpoint    lock.Checkpoint
 	statementKeys lock.Checkpoint
 	affected      int
@@ -192,7 +192,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	return nil
 }
 
-func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *catalog.Relation, view CatalogRead) error {
+func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *catalog.Relation, view catalog.Read) error {
 	c.selected = c.selected[:0]
 	if c.constraint != (ids.ObjectAddress{}) && c.namedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")

@@ -167,7 +167,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	if extension != nil {
-		stage.querySources = []Descriptor{extension}
+		stage.querySources = []catalog.Descriptor{extension}
 	}
 	e.mu.Unlock()
 	if scope.replacementRead {

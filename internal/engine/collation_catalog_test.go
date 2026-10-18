@@ -171,7 +171,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "private", ObjectRevision: 1, Owner: actor.Ref}
 	d := collationUnitDefinition(e, 90001, "owned")
 	d.ObjectNamespace, d.Owner = ns.Address(), actor.Ref
-	for _, descriptor := range []Descriptor{ns, d} {
+	for _, descriptor := range []catalog.Descriptor{ns, d} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
 		}

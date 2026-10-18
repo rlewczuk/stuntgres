@@ -113,7 +113,7 @@ func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusio
 	e.exclusionPending[s.ticket] = p
 	e.exclusionGeneration++
 }
-func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWriteCandidate, excluded []rowVersion, catalog *catalogState) (rowVersion, error) {
+func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWriteCandidate, excluded []rowVersion, catalog *catalog.State) (rowVersion, error) {
 	if proposal.exclusion != nil {
 		row := *proposal.exclusion
 		row.indexAdmission = catalog
@@ -263,7 +263,7 @@ type exclusionScan struct {
 	root            *logicalIndexRoot
 	pending         map[*lock.Ticket]*exclusionProjection
 	auth            AuthorizationView
-	view            CatalogRead
+	view            catalog.Read
 	schema          string
 	parent          ids.ObjectAddress
 	store           *relationStorage

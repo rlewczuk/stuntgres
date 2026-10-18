@@ -102,7 +102,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	}
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*catalog.Namespace, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base catalog.Read, namespaces []*catalog.Namespace, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
 	var stage *CatalogStage
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.

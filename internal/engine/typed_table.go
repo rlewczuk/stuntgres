@@ -26,7 +26,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(view CatalogRead, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
+func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
 		name = typeDiagnosticNameAt(view, typ, path)
@@ -118,7 +118,7 @@ func typedShape(table, source *catalog.Relation) error {
 	return nil
 }
 
-func validateTypedAttachment(view CatalogRead, table *catalog.Relation) error {
+func validateTypedAttachment(view catalog.Read, table *catalog.Relation) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -293,7 +293,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.Base.Get(typ.OwningRelation)
 		e.mu.Unlock()
 		if !valid {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil

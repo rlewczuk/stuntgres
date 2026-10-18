@@ -10,7 +10,7 @@ import (
 // Reuse the persisted recipe's actual reference when validating it. COW ACL and
 // owner changes do not replace lifetime identity; native retagging remaps both
 // the descriptor carrier and existing manifest before this renderer runs.
-func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) error {
+func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) error {
 	if selected, ok := node.(selectedOperatorExpression); ok {
 		// The wrapper owns operator identity, not a second invocation. Its
 		// actual provider owns the selected routine and immutable body.
@@ -43,7 +43,7 @@ func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) er
 	})
 }
 
-func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured *catalog.Procedure) error {
+func (r scalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, captured *catalog.Procedure) error {
 	current, err := validateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return err

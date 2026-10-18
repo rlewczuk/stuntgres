@@ -38,7 +38,7 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	first := &catalog.Collation{OID: 1, ObjectName: "same", Encoding: -1}
 	second := &catalog.Collation{OID: 2, ObjectName: "same", Encoding: 6}
-	state := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
+	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
 	})

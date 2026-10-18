@@ -28,7 +28,7 @@ func (e *Engine) nextRolePrincipalLocked() (authorization.PrincipalRef, error) {
 	return ref, nil
 }
 
-func predefinedPrivileges(d Descriptor, principals []authorization.PrincipalRef) authorization.Privileges {
+func predefinedPrivileges(d catalog.Descriptor, principals []authorization.PrincipalRef) authorization.Privileges {
 	rights := authorization.PredefinedPrivileges(principals)
 	if d.Kind() == ids.NamespaceObject {
 		if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege) != 0 {

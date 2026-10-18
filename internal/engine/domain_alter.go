@@ -176,7 +176,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 				}
 				e.mu.Unlock()
 				if !stable {
-					return Result{}, CatalogConflict{}
+					return Result{}, catalog.Conflict{}
 				}
 			}
 			return Result{}, discoveryErr
@@ -190,7 +190,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		view := e.catalog.read(e.stageCatalogBaseLocked(stage))
 		currentUses, graphErr := domainUsesAt(view, ref.Address, diagnosticPath)
 		if graphErr == nil && !domainGraphEqual(fence, currentUses) {
-			graphErr = CatalogConflict{}
+			graphErr = catalog.Conflict{}
 		}
 		frontier := e.commitSeq
 		if graphErr == nil {
@@ -198,7 +198,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 				use := &fence.uses[i]
 				use.storage = e.stageStorageLocked(stage, use.relation.Address())
 				if use.storage == nil {
-					graphErr = CatalogConflict{}
+					graphErr = catalog.Conflict{}
 					break
 				}
 				use.versions = use.storage.versions[:len(use.storage.versions):len(use.storage.versions)]
@@ -229,7 +229,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	return Result{}, err
 }
 
-func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *catalog.Type, value sqltype.Value, violation error) error {
+func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *catalog.Type, value sqltype.Value, violation error) error {
 	oldValue, oldUsage, oldActive, oldChecks := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
 	c.Input.DomainChecks = c
 	defer func() {
@@ -238,7 +238,7 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *ca
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
 	violations := make([]error, len(use.columns))
 	for i, column := range use.columns {
 		violations[i] = domainHistoricalViolation(view, use.relation, column)

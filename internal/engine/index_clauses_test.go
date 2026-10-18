@@ -23,14 +23,14 @@ func indexClausesTypes() map[sqltype.ID]*sqltype.Descriptor {
 	return types
 }
 
-func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *catalogState, map[sqltype.ID]*sqltype.Descriptor) {
+func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *catalog.State, map[sqltype.ID]*sqltype.Descriptor) {
 	t.Helper()
 	types := indexClausesTypes()
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, AttributeHighWater: 30, Columns: []ColumnDescriptor{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]ColumnDescriptor(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{parent.Address(): parent, index.Address(): index}, nil)
+	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): index}, nil)
 	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +377,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	definition.Keys = append([]catalog.IndexKey(nil), index.SQLIndex.Keys...)
 	definition.Keys[0].Attribute = 999
 	broken.SQLIndex = &definition
-	invalid := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
+	invalid := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
 	for _, materialize := range []bool{false, true} {
 		if _, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, snapshot, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)

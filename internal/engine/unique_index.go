@@ -10,7 +10,7 @@ import (
 
 // Membership and identity come from the existing immutable catalog. The caller
 // caches this enumeration by catalog identity, never by the parent alone.
-func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*catalog.Relation {
+func enforcingIndexes(view catalog.Read, parent ids.ObjectAddress) []*catalog.Relation {
 	var indexes []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)

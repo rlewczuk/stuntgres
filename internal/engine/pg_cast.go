@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCast(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGCast(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

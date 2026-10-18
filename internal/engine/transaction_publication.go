@@ -133,7 +133,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 	}
 	for {
 		notifications := e.prepareNotificationPublication(op.session, actions, events)
-		var nextCatalog *catalogState
+		var nextCatalog *catalog.State
 		var err error
 		if c != nil {
 			nextCatalog, err = e.preparePrivateCatalog(op.Context(), c, ref.Epoch())

@@ -220,7 +220,7 @@ func TestNotNullSameStorageLengthFence(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL)")
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal(changes, err)
 	}

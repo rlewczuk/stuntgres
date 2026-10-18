@@ -16,7 +16,7 @@ import (
 // A preparation records real ordered effects; it is not a catalog or stage.
 // Only the execution adapter can publish metadata or project physical rows.
 type dropProvider struct {
-	base           CatalogRead
+	base           catalog.Read
 	owner          *Engine
 	path           []ids.ObjectAddress
 	stage          *CatalogStage
@@ -29,14 +29,14 @@ type dropProvider struct {
 }
 
 type dropEffect struct {
-	descriptor    Descriptor
+	descriptor    catalog.Descriptor
 	remove        ids.ObjectRef
 	before, after *catalog.Relation
 	notice        string
 	missing       *sqlstate.Error
 	rowType       ids.ObjectAddress
 	identityRoots []ids.ObjectAddress
-	identityState *catalogState
+	identityState *catalog.State
 	index         ids.ObjectAddress
 	layout        *indexLayoutLineage
 }
@@ -54,13 +54,13 @@ type preparedDrop struct {
 	next     *catalog.Relation
 	prior    *preparedDrop
 	effects  []dropEffect
-	observed map[ids.ObjectAddress]Descriptor
+	observed map[ids.ObjectAddress]catalog.Descriptor
 	slots    map[ids.ObjectAddress]dropEffectSlot
 	scope    *StatementScope
 	txRef    ids.TxRef
-	base     CatalogRead
+	base     catalog.Read
 	// Authentic read returned by admission; never replaces original base proofs.
-	discovery CatalogRead
+	discovery catalog.Read
 	input     definitionReader
 	grants    []ids.ObjectRef
 }
@@ -81,7 +81,7 @@ func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *Statemen
 	return &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: ctx, scope: scope, changes: changes, project: project}
 }
 
-func (p *dropProvider) replacement(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) replacement(address ids.ObjectAddress) catalog.Descriptor {
 	if p.stage != nil {
 		return p.stage.Descriptors[address]
 	}
@@ -109,7 +109,7 @@ func (p *dropProvider) replacement(address ids.ObjectAddress) Descriptor {
 	return nil
 }
 
-func (p *dropProvider) descriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) descriptor(address ids.ObjectAddress) catalog.Descriptor {
 	p.observe(address)
 	return p.projectedDescriptor(address)
 }
@@ -131,8 +131,8 @@ func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 	return false
 }
 
-func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range p.base.Descriptors() {
 			if p.prepared != nil && p.prepared.input != nil {
 				if projected, present := p.prepared.input.descriptor(address); present {
@@ -160,7 +160,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	}
 }
 
-func (p *dropProvider) replace(d Descriptor) error {
+func (p *dropProvider) replace(d catalog.Descriptor) error {
 	p.observe(d.Address())
 	if err := p.ctx.Err(); err != nil {
 		return err
@@ -193,7 +193,7 @@ func (p *dropProvider) observe(address ids.ObjectAddress) {
 		return
 	}
 	if p.prepared.observed == nil {
-		p.prepared.observed = make(map[ids.ObjectAddress]Descriptor)
+		p.prepared.observed = make(map[ids.ObjectAddress]catalog.Descriptor)
 	}
 	if _, captured := p.prepared.observed[address]; captured {
 		return
@@ -224,8 +224,8 @@ func (p *dropProvider) descriptorCount() int {
 	return count
 }
 
-func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		if p.stage != nil {
 			for address, removal := range p.stage.Removals {
 				if !yield(address, removal.Descriptor) {
@@ -358,7 +358,7 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	d := p.base.Get(ref.Address)
 	key := catalog.DescriptorNameKey(d)
 	if p.base.NameAddress(key) != ref.Address {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	p.observe(ref.Address)
 	if p.stage == nil {
@@ -421,7 +421,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 	storageOwner := stage.Base.MustRelation(old.Address())
 	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || storage == nil {
 		e.mu.Unlock()
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	rows, ends, generation := storage.versions, storage.ends, storage.generation
 	e.mu.Unlock()
@@ -541,7 +541,7 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
-func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog CatalogRead) error {
+func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *preparedDrop, catalog catalog.Read) error {
 	if prepared == nil || prepared.scope != scope || prepared.txRef != scope.txRef || scope.finished || prepared.ref.Domain() != catalog.Owner().Domain || prepared.ref.Epoch != catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -636,7 +636,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 // preparation's actual input and ordered effects. Consumers retain their normal
 // resolution/dependency observations; these methods do not recertify or mutate
 // them and do not construct a catalog generation.
-func (prepared *preparedDrop) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
+func (prepared *preparedDrop) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	provider := &dropProvider{base: prepared.discovery, prepared: prepared}
 	if provider.removed(address) {
 		return nil, false
@@ -662,8 +662,8 @@ func (prepared *preparedDrop) lookup(key ids.NameKey) ids.ObjectAddress {
 	return ids.ObjectAddress{}
 }
 
-func (prepared *preparedDrop) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (prepared *preparedDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		provider := &dropProvider{base: prepared.discovery, prepared: prepared}
 		for address := range provider.descriptors() {
 			if descriptor, present := prepared.descriptor(address); present && !yield(address, descriptor) {
@@ -684,7 +684,7 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 
 // Some dependency passes retain retired providers for AUTO-edge discovery;
 // partition validity instead reads only the actual surviving projection.
-func (p *dropProvider) liveDescriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) liveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if p.removed(address) {
 		return nil
 	}
@@ -771,12 +771,12 @@ func (prepared *preparedDrop) indexEffect(index int, effect dropEffect) {
 
 // inputDescriptor reads the actual metadata entering this preparation. It never
 // substitutes that candidate for the captured predecessor used by observe.
-func (p *dropProvider) inputDescriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) inputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	p.observe(address)
 	return p.readInputDescriptor(address)
 }
 
-func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if p.identitySource != nil && p.identitySource.Address() == address {
 		return p.identitySource
 	}
@@ -791,18 +791,18 @@ func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) Descriptor
 
 // Retirement discovery retains the original identity of an already removed
 // provider so its AUTO closure remains traversable, just like the stage path.
-func (p *dropProvider) retirementDescriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) retirementDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if descriptor := p.inputDescriptor(address); descriptor != nil {
 		return descriptor
 	}
 	return p.base.Get(address)
 }
 
-func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
+func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	if p.prepared != nil {
 		return p.descriptors()
 	}
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range p.base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
@@ -811,8 +811,8 @@ func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, Descripto
 	}
 }
 
-func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range p.descriptors() {
 			if descriptor := p.liveDescriptor(address); descriptor != nil && !yield(address, descriptor) {
 				return
@@ -830,7 +830,7 @@ func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []supp
 
 // Catalog enumeration is discovery, not an observation of every unrelated
 // descriptor. Selected providers are captured by descriptor/effect/grant paths.
-func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) Descriptor {
+func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if descriptor := p.replacement(address); descriptor != nil {
 		return descriptor
 	}

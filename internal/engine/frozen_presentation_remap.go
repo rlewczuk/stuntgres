@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
+func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
 	typ = recordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {

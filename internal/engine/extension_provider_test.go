@@ -202,7 +202,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			source := extensionUnitStage(t, e, op)
 			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*catalog.Extension)
 			loose := e.BeginCatalogStage(e.CatalogRead())
-			var conflict Descriptor
+			var conflict catalog.Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
 				n := *source.Descriptors[ext.Members[index]].(*catalog.Procedure)

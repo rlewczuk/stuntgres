@@ -46,7 +46,7 @@ func captureUsingIndexDefinitions(reader definitionReader, parent *catalog.Relat
 // This is the incumbent USING INDEX NN constructor, shared by admission and
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
+func usingIndexNotNullCandidate(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
 	if !captured.syntax.Primary {
 		return parent, nil
 	}
@@ -78,7 +78,7 @@ type usingIndexPreparation struct {
 
 // Capture the actual physical attachment metadata once; only the stage adapter
 // installs its index name/backing link. No tuple/index build runs here.
-func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
+func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
 	prepared := &usingIndexPreparation{parent: parent}
 	if !captured.notNullPrepared {
 		candidate, err := usingIndexNotNullCandidate(op, view, reader, parent, captured)

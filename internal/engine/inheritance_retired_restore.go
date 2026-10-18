@@ -90,7 +90,7 @@ func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []in
 	return keys
 }
 
-func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
+func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	table, ok := view.Relation(ref.Address)
 	if !ok || table.Inheritance == nil {
 		return
@@ -128,7 +128,7 @@ func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef
 	}
 }
 
-func retiredDeclarationNeeded(view CatalogRead, table *catalog.Relation, p catalog.InheritedConstraint, check, notValid bool) bool {
+func retiredDeclarationNeeded(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, check, notValid bool) bool {
 	if p.Local {
 		return true
 	}
@@ -162,7 +162,7 @@ func retiredDeclarationNeeded(view CatalogRead, table *catalog.Relation, p catal
 	return true
 }
 
-func dumpNotNullDeclaration(view CatalogRead, table *catalog.Relation, attribute int32) bool {
+func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribute int32) bool {
 	if table.Inheritance == nil {
 		return true
 	}
@@ -174,11 +174,11 @@ func dumpNotNullDeclaration(view CatalogRead, table *catalog.Relation, attribute
 	return false
 }
 
-func dumpCheckDeclaration(view CatalogRead, table *catalog.Relation, c catalog.CheckConstraint) bool {
+func dumpCheckDeclaration(view catalog.Read, table *catalog.Relation, c catalog.CheckConstraint) bool {
 	return table.Inheritance == nil || retiredDeclarationNeeded(view, table, table.Inheritance.Checks[c.Name], true, c.NotValid)
 }
 
-func (t *dumpRelation) emitRetiredConstraints(view CatalogRead, checks bool, emit func(string) error, setOwner func(string) error) error {
+func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, emit func(string) error, setOwner func(string) error) error {
 	graph := t.descriptor.Inheritance
 	if graph == nil {
 		return nil
@@ -389,7 +389,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 	return nil
 }
 
-func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEventKey, tables []dumpRelation) {
+func retiredConstraintEvents(view catalog.Read, events map[dumpEventKey][]dumpEventKey, tables []dumpRelation) {
 	for i := range tables {
 		table := tables[i].descriptor
 		graph := table.Inheritance

@@ -221,7 +221,7 @@ func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) 
 }
 
 // Each frozen consumer supplies its own coherent catalog and input owners.
-func captureRetainedDefinitionInput(view CatalogRead, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func captureRetainedDefinitionInput(view catalog.Read, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	seen := make(map[*viewDefinition]bool)
 	var capture func(*viewDefinition) error
 	capture = func(definition *viewDefinition) error {

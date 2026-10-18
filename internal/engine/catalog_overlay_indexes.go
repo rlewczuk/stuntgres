@@ -39,7 +39,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			e.mu.Unlock()
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		old, existed := stage.Base.Relation(parent.Address())
 		shape, replaced := c.storage[parent.Address()]
@@ -65,13 +65,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		store := e.privateStorageLocked(c, parent.Address())
 		if store == nil {
 			e.mu.Unlock()
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		if _, produced := stage.indexCandidates[a]; produced {
 			candidate, exists := c.indexCandidates[a]
 			if !exists || !candidate.matchesIndex(index, store) {
 				e.mu.Unlock()
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			continue
 		}

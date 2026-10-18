@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,13 +28,13 @@ func (p viewPresentation) identifier(name string) string {
 	return (pgRenderer{output: p.output}).identifier(name)
 }
 
-func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, presentation viewPresentation) (string, error) {
+func (v *viewDefinition) selectSQL(ctx context.Context, catalog catalog.Read, presentation viewPresentation) (string, error) {
 	renderer := newViewRenderer(v)
 	renderer.presentation = presentation
 	return renderer.selectQuerySQL(ctx, catalog, v.syntax, v.queries[v.syntax])
 }
 
-func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view CatalogRead, s *parser.Select, project *projectNode) (string, error) {
+func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view catalog.Read, s *parser.Select, project *projectNode) (string, error) {
 	var columns []ColumnDescriptor
 	if s == renderer.viewDefinition.syntax {
 		columns = renderer.presentation.columns
@@ -41,7 +42,7 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view CatalogRe
 	return renderer.selectQueryColumnsSQL(ctx, view, s, project, columns, false)
 }
 
-func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
@@ -377,7 +378,7 @@ func viewSetOperandParentheses(s *parser.Select) bool {
 		s.Values != nil && (s.Values.Order != nil || s.Values.Bounds != nil)
 }
 
-func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, text string, presentation viewPresentation, setOperand bool) (string, error) {
+func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, text string, presentation viewPresentation, setOperand bool) (string, error) {
 	clause := " "
 	if presentation.deparse {
 		clause = "\n  "
@@ -462,7 +463,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog Ca
 	return text, nil
 }
 
-func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog CatalogRead, slot int) (string, error) {
+func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catalog.Read, slot int) (string, error) {
 	project, ok := renderer.query.Root.(*projectNode)
 	if !ok || project.syntax == nil || slot < 0 || slot >= len(project.Schema()) {
 		return "", fmt.Errorf("stuntgres: missing view ORDER output occurrence")
@@ -535,7 +536,7 @@ func viewTargetsSQL(targets []string, presentation viewPresentation, distinct bo
 	return layout.String()
 }
 
-func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
+func (v *viewRenderer) expressionSQL(ctx context.Context, catalog catalog.Read, raw parser.Expr, path viewLiteralPath) (string, error) {
 	path.query = v.frame
 	ordinal := 0
 	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal, pgRenderParent{})
@@ -543,7 +544,7 @@ func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, r
 
 // Scalar alias names and non-expanding scalar stars retain the same analyzed
 // frame/slot authority as ordinary columns.
-func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path viewLiteralPath) (string, error) {
+func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath) (string, error) {
 	column, ok := v.columns[path]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
@@ -600,7 +601,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 	return v.slotSQL(ctx, catalog, root, column.slot)
 }
 
-func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
+func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog catalog.Read, raw parser.Expr, path viewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}

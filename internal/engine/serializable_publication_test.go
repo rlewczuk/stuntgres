@@ -30,8 +30,8 @@ type serializableIndexSnapshot struct {
 	entries []logicalIndexEntry
 }
 type serializablePublicationSnapshot struct {
-	catalog             *catalogState
-	descriptors         map[ids.ObjectAddress]Descriptor
+	catalog             *catalog.State
+	descriptors         map[ids.ObjectAddress]catalog.Descriptor
 	names               map[ids.NameKey]ids.ObjectAddress
 	namespaceGeneration uint64
 	revision            ids.DefinitionRevision

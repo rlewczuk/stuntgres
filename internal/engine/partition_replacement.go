@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hasHashPartition(snapshot *catalogState) bool {
+func hasHashPartition(snapshot *catalog.State) bool {
 	for _, d := range snapshot.Descriptors() {
 		if relation, ok := d.(*catalog.Relation); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true

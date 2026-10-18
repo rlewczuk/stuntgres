@@ -160,7 +160,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	before.roots = indexMaintenanceCapture(e)
 }
 
-func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
+func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
 	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
@@ -291,7 +291,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					}
 					err := message.end(finishErr)
 					if phase != "healthy" {
-						var conflict CatalogConflict
+						var conflict catalog.Conflict
 						if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 							t.Fatal("missing manual utility DB predecessor veto", err)
 						}
@@ -453,7 +453,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				finishErr := message.scope.Finish(nil)
 				err = message.end(finishErr)
 				if replace {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}

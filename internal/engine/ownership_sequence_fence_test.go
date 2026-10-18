@@ -16,7 +16,7 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, Descriptor, *catalogChanges) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *catalogChanges) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
 	roles := cloneRoleFixture(e.roles)
@@ -247,7 +247,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("healthy private authority did not retain its own DB candidate")
 					}
 				} else {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing sequence OWNER DB predecessor veto", err)
 					}

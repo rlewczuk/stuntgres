@@ -11,7 +11,7 @@ import (
 // Declarations use compatible typed NULL recipes only inside the dump/import
 // dependency stage. Every actual physical recipe is restored before CHECK/data.
 // This permits nonlocal children of parents whose captured recipes now differ.
-func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
+func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 	hasSeed := false
 	for i := range tables {
 		if tables[i].needsGenerationPlaceholders() {
@@ -79,7 +79,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 
 // The actual dependency graph, not rows-first reconstruction, orders physical
 // recipes and local CHECK definers. Recursive ADD rebuilds real diamond merges.
-func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	selected := false
 	for i := range tables {
 		if tables[i].recipePlaceholders {
@@ -181,7 +181,7 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 	return ctx.Err()
 }
 
-func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view catalog.Read, emit func(string) error) error {
 	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
 		if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists {
@@ -197,7 +197,7 @@ func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view Catalo
 	return nil
 }
 
-func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view catalog.Read, emit func(string) error) error {
 	for _, check := range orderedChecks(t.descriptor) {
 		if !t.deferredChecks[check.Name] || !dumpCheckDeclaration(view, t.descriptor, check) {
 			continue
@@ -417,7 +417,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	return reject()
 }
 
-func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress) bool {
+func inheritedRecipeConnected(view catalog.Read, target, start ids.ObjectAddress) bool {
 	if target == start {
 		return true
 	}
@@ -456,7 +456,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 	return false
 }
 
-func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
+func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil && len(table.Generations) != 0 {

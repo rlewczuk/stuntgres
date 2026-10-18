@@ -19,15 +19,15 @@ type preparedIdentityDrop struct {
 	next     *catalog.Relation
 	drop     *preparedDrop
 	sequence ids.ObjectRef
-	original Descriptor
+	original catalog.Descriptor
 }
 
 type identityDropCapture struct {
 	sequence ids.ObjectRef
-	original Descriptor
+	original catalog.Descriptor
 }
 
-func identitySequenceDefinition(descriptor Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
+func identitySequenceDefinition(descriptor catalog.Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
 	sequence, ok := descriptor.(*catalog.Relation)
 	owned := table.Address()
 	owned.SubID = attribute
@@ -188,7 +188,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	}
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		if stage.identityOriginals == nil {
-			stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
+			stage.identityOriginals = make(map[ids.ObjectAddress]catalog.Descriptor)
 		}
 		if _, captured := stage.identityOriginals[prepared.sequence.Address]; !captured {
 			stage.identityOriginals[prepared.sequence.Address] = prepared.original
@@ -200,7 +200,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 
 // delta reports only real effects. The caller's linked reader owns authentic
 // fallback and resolution observations, never this preparation's input reader.
-func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (Descriptor, bool, bool) {
+func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
 	if address == prepared.ref.Address {
 		return prepared.next, true, true
 	}
@@ -217,7 +217,7 @@ func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (Descript
 	return nil, false, false
 }
 
-func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
+func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if descriptor, present, handled := prepared.delta(address); handled {
 		return descriptor, present
 	}
@@ -226,8 +226,8 @@ func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (Des
 func (prepared *preparedIdentityDrop) lookup(key ids.NameKey) ids.ObjectAddress {
 	return prepared.drop.lookup(key)
 }
-func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range prepared.drop.descriptors() {
 			if descriptor, present := prepared.descriptor(address); present && !yield(address, descriptor) {
 				return

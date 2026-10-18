@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []rowVersion, deletes *privateDeletionRoot) error {
 	if len(original.ExclusionConstraints)+len(parent.ExclusionConstraints) == 0 {
 		return nil
 	}

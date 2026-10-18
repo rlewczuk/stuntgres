@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 	"testing"
 )
 
-func regexpSetUnitTypes(t *testing.T) (CatalogRead, *sqltype.Descriptor) {
+func regexpSetUnitTypes(t *testing.T) (catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	_, view, text := regexpSetUnitEngineTypes(t)
 	return view, text
@@ -19,7 +20,7 @@ func regexpSetUnitTypes(t *testing.T) (CatalogRead, *sqltype.Descriptor) {
 
 // regexpSetUnitEngineTypes is regexpSetUnitTypes with the engine that owns the
 // returned view.
-func regexpSetUnitEngineTypes(t *testing.T) (*Engine, CatalogRead, *sqltype.Descriptor) {
+func regexpSetUnitEngineTypes(t *testing.T) (*Engine, catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	engine := New()
 	view := engine.CatalogRead()

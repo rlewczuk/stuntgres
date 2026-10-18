@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -370,7 +371,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 
 // Context describes the real internally executed plan; it is not parsed SQL or
 // a second dispatcher. AFTER-event diagnostics deliberately have no SPI frame.
-func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view CatalogRead) error {
+func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) error {
 	err = s.op.CommandError(err)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code == "23503" || d.Code == "23001" || d.Code == "23P01" {
@@ -385,7 +386,7 @@ func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event
 	return &copy
 }
 
-func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view CatalogRead) string {
+func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
 	var q strings.Builder
 	deletion := action == parser.ForeignKeyCascade && event.next.row == 0
 	if deletion {

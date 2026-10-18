@@ -170,7 +170,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	if indexStoresUnchanged(nil, captured, e.catalog.state, e.catalog.state, e.indexRoots, nil) {
 		t.Fatal("existing parent disappearance passed its storage fence")
 	}
-	absent := &catalogState{}
+	absent := &catalog.State{}
 	if !indexStoresUnchanged(nil, nil, absent, e.catalog.state, e.indexRoots, nil) {
 		t.Fatal("new parent must fence committed absence, not its candidate store")
 	}

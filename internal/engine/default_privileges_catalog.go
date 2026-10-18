@@ -39,7 +39,7 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key catalog.DefaultAC
 	}
 	c.defaultACLs[key] = record
 	c.cachedBase = nil
-	c.cached = CatalogRead{}
+	c.cached = catalog.Read{}
 }
 func cloneDefaultChanges(source *catalogChanges, next *catalogChanges) {
 	if len(source.defaultACLs) != 0 {
@@ -67,16 +67,16 @@ func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
 	}
 }
 
-func (s *CatalogStage) defaultPreflight(current *catalogState) error {
+func (s *CatalogStage) defaultPreflight(current *catalog.State) error {
 	if !catalog.DefaultRecordsUnchanged(current, s.DefaultReads) {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	for key := range current.DefaultACLs() {
 		if _, removed := s.Removals[key.Schema]; !removed {
 			continue
 		}
 		if _, observed := s.DefaultReads[key]; !observed {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil
@@ -96,7 +96,7 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 		s.DefaultACLs[key] = nil
 	}
 }
-func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func defaultRoleDependencies(view catalog.Read, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	for key, record := range view.State().DefaultACLs() {
 		kind := byte('a')
 		dependent := key.Creator == ref
@@ -130,7 +130,7 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 	}
 	return false
 }
-func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+func (e *Engine) creationACLChangesLocked(c *catalogChanges, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}
 		if _, private := c.defaultACLs[key]; !private {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 func indexMaintenanceMetadataFlags(index, parent ids.OID, n int16) indexMetadata {
 	return indexMetadata{IndexRelID: index, IndRelID: parent, IndNatts: n, IndNKeyAtts: n, IndImmediate: true, IndIsValid: true, IndIsReady: true, IndIsLive: true}
 }
-func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog CatalogRead, name string) (indexMetadata, indexesMetadata) {
+func indexMaintenanceMetadata(t *testing.T, e *Engine, catalog catalog.Read, name string) (indexMetadata, indexesMetadata) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
 	m, n, err := projectIndexMetadata(context.Background(), catalog, ref)

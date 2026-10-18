@@ -128,7 +128,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	}
 	return 0, nil
 }
-func viewHasStoredRowMarks(d *catalog.Relation, view CatalogRead) bool {
+func viewHasStoredRowMarks(d *catalog.Relation, view catalog.Read) bool {
 	seen := make(map[ids.ObjectAddress]bool)
 	var visit func(*catalog.Relation) bool
 	visit = func(d *catalog.Relation) bool {

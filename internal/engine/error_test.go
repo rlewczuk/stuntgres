@@ -39,12 +39,12 @@ func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
 }
 
 type publicationConflictProvider struct {
-	CatalogProvider
-	publishWinner func(Descriptor)
+	catalog.Provider
+	publishWinner func(catalog.Descriptor)
 }
 
-func (p *publicationConflictProvider) Validate(view CatalogRead, d Descriptor) error {
-	if err := p.CatalogProvider.Validate(view, d); err != nil {
+func (p *publicationConflictProvider) Validate(view catalog.Read, d catalog.Descriptor) error {
+	if err := p.Provider.Validate(view, d); err != nil {
 		return err
 	}
 	if publish := p.publishWinner; publish != nil {
@@ -57,10 +57,10 @@ func (p *publicationConflictProvider) Validate(view CatalogRead, d Descriptor) e
 func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	e := New()
 	var loser ids.ObjectAddress
-	var winnerView CatalogRead
+	var winnerView catalog.Read
 	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-		publishWinner: func(d Descriptor) {
+		Provider: e.catalog.Providers[ids.RelationClassID],
+		publishWinner: func(d catalog.Descriptor) {
 			loser = d.Address()
 			// Validation runs outside the engine lock. Publish a competing real
 			// CREATE and INSERT before the outer Execute attempts publication.

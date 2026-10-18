@@ -563,7 +563,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for address := range checkStage.Removals {
@@ -572,7 +572,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for address, descriptor := range checkStage.Descriptors {

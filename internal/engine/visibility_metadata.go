@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -27,7 +28,7 @@ type collationCandidate struct {
 
 // Native fixed names are unique. Keep the encoding-bearing lookup inline,
 // avoiding an index copy, catalog scan or allocation during row evaluation.
-func visibleCollation(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
+func visibleCollation(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor) bool {
 	for _, namespace := range path {
 		a := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: namespace, Name: d.Name()})
 		candidate, ok := view.Collation(a)

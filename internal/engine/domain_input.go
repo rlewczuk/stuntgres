@@ -51,7 +51,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	}
 	for _, provider := range providers {
 		if current.catalog.Get(provider.Address()) != provider {
-			return sqltype.Value{}, CatalogConflict{}
+			return sqltype.Value{}, catalog.Conflict{}
 		}
 	}
 	return value, nil
@@ -60,8 +60,8 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 // Input order is lexical (parameter/member order), not a later value-tree walk.
 // This capture concerns only providers of the demanded input recipe, before
 // leaving the binder's lock, and is discarded with that synchronous occurrence.
-func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[ids.ObjectAddress]Descriptor {
-	providers := make(map[ids.ObjectAddress]Descriptor)
+func captureDomainInputProviders(view catalog.Read, typ *sqltype.Descriptor) map[ids.ObjectAddress]catalog.Descriptor {
+	providers := make(map[ids.ObjectAddress]catalog.Descriptor)
 	var visit func(*sqltype.Descriptor)
 	visit = func(typ *sqltype.Descriptor) {
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
@@ -102,7 +102,7 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 	return providers
 }
 
-func validateCapturedInputBinding(captured, current CatalogRead, dependencies []catalog.ExpressionDependency) error {
+func validateCapturedInputBinding(captured, current catalog.Read, dependencies []catalog.ExpressionDependency) error {
 	if captured.Owner() != current.Owner() || captured.Epoch() != current.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -114,7 +114,7 @@ func validateCapturedInputBinding(captured, current CatalogRead, dependencies []
 			continue
 		} // Anonymous expression shapes are not catalog objects.
 		if current.Get(address) != provider {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil

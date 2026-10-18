@@ -1,10 +1,13 @@
 package engine
 
-import "stuntgres/internal/engine/expr"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+)
 
 // Transplanted queries retain lexical identity, including expression-owned
 // subqueries and CTE producers. This shares the existing copy-on-change walkers.
-func rewriteRuleFrames(view CatalogRead, root LogicalNode, expr expr.Expr, frame func(uint32) uint32, retainedCTEs ...[]*cteDefinition) (LogicalNode, expr.Expr, error) {
+func rewriteRuleFrames(view catalog.Read, root LogicalNode, expr expr.Expr, frame func(uint32) uint32, retainedCTEs ...[]*cteDefinition) (LogicalNode, expr.Expr, error) {
 	var retained []*cteDefinition
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
@@ -81,7 +84,7 @@ func ruleBindingMaxFrame(b binding) uint32 {
 	return max
 }
 
-func rewriteRuleOccurrences(view CatalogRead, root LogicalNode, expr expr.Expr, offset int) (LogicalNode, expr.Expr, error) {
+func rewriteRuleOccurrences(view catalog.Read, root LogicalNode, expr expr.Expr, offset int) (LogicalNode, expr.Expr, error) {
 	if offset == 0 {
 		return root, expr, nil
 	}
@@ -94,7 +97,7 @@ func rewriteRuleOccurrences(view CatalogRead, root LogicalNode, expr expr.Expr, 
 	return mapped, mappedExpr, err
 }
 
-func offsetRuleSources(view CatalogRead, b binding, offset int, retainedCTEs ...[]*cteDefinition) (binding, error) {
+func offsetRuleSources(view catalog.Read, b binding, offset int, retainedCTEs ...[]*cteDefinition) (binding, error) {
 	if offset == 0 {
 		return b, nil
 	}

@@ -54,7 +54,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			select {
 			case err := <-finished:
 				joined = true
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.As(err, &conflict) {
 					t.Fatal("waited CREATE adopted a different source generation", err)
 				}

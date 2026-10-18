@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ type regTSOutputKey struct {
 	alias sqltype.ID
 }
 
-func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
+func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias sqltype.ID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -77,7 +78,7 @@ func (r *finalRows) FormatRegconfig(id uint32) (string, error) {
 func (r *finalRows) FormatRegdictionary(id uint32) (string, error) {
 	return r.formatRegTS(id, sqltype.Regdictionary)
 }
-func captureRegTSOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}

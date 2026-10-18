@@ -10,7 +10,7 @@ import (
 
 // Comment reads immutable metadata from r, a view e owns, without applying an
 // ACL to its text.
-func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error) {
+func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error) {
 	if r.Owner() == nil {
 		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -148,7 +148,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	if err != nil {
 		return nil, err
 	}
-	var updated Descriptor
+	var updated catalog.Descriptor
 	switch d := auth.catalog.Get(a).(type) {
 	case *catalog.Namespace:
 		n := *d

@@ -16,7 +16,7 @@ var pgTypeColumnIDs = [...]sqltype.ID{26, 19, 26, 26, 21, 16, 18, 18, 16, 16, 18
 
 // Inventory evidence is separate from REGTYPE lookup and codec admission.
 // Every companion must be the captured element's canonical array generation.
-func pgTypeAdmitted(catalog CatalogRead, d *catalog.Type) bool {
+func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 	if d == nil || d.SQLType == nil {
 		return false
 	}
@@ -32,7 +32,7 @@ func pgTypeAdmitted(catalog CatalogRead, d *catalog.Type) bool {
 	return ok
 }
 
-func pgTypeFacts(catalog CatalogRead, d *catalog.Type) (sqltype.PGTypeMetadata, error) {
+func pgTypeFacts(catalog catalog.Read, d *catalog.Type) (sqltype.PGTypeMetadata, error) {
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {
@@ -89,7 +89,7 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

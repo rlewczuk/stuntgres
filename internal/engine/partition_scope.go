@@ -293,7 +293,7 @@ func partitionAppendCompatible(old, current *catalog.Relation) bool {
 
 // One existing visibility capture owns the admitted descriptors. Copy metadata
 // only when actual concurrent append growth occurred, never on the normal path.
-func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRead {
+func (s *StatementScope) partitionCaptureCatalog(catalog catalog.Read) catalog.Read {
 	changed := false
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)

@@ -459,7 +459,7 @@ func generationHasTableOID(node expr.Expr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -571,7 +571,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 	return ctx.Err()
 }
 
-func validateGenerationProviders(view CatalogRead, d *catalog.Relation) error {
+func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.Generations {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
@@ -619,7 +619,7 @@ func validateGenerationProviders(view CatalogRead, d *catalog.Relation) error {
 
 // The analyzed tree supplies provider-signature validation. The physical tree
 // independently validates its concrete usages and row/owner identities.
-func validateGenerationPlan(view CatalogRead, d *catalog.Relation, node expr.Expr) error {
+func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Expr) error {
 	if node == nil {
 		return nil
 	}

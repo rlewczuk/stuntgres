@@ -29,7 +29,7 @@ type sequencePathKey struct {
 	epoch                ids.CatalogEpoch
 	temp, prefix         ids.ObjectAddress
 	private              *catalogChanges
-	database             Descriptor
+	database             catalog.Descriptor
 }
 type sequencePathCache struct {
 	valid       bool

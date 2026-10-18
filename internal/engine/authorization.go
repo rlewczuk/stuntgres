@@ -101,14 +101,14 @@ type AuthorizationStamp struct {
 }
 type AuthorizationView struct {
 	engine        *Engine
-	catalog       CatalogRead
+	catalog       catalog.Read
 	definition    definitionReader // Cooking-only sparse effects; never SQL execution authority.
-	pairedCatalog CatalogRead
+	pairedCatalog catalog.Read
 	roleRecord    *roleCatalog
 	roles         authorization.Read
 	// Committed predecessor captured under Engine.mu, distinct from private
 	// database authority retained by catalog/roles.
-	databasePredecessor Descriptor
+	databasePredecessor catalog.Descriptor
 	state               authorization.RoleState
 	// Actual session identities remain distinct from trusted import authority.
 	sessionRoleState authorization.RoleState
@@ -246,7 +246,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	}
 	return authorization, nil
 }
-func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
+func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
 	switch d := d.(type) {
 	case *catalog.Database:
 		return d.Owner, d.ACL, nil
@@ -280,7 +280,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
-func classPrivileges(d Descriptor) authorization.Privileges {
+func classPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.ForeignWrapperObject || d.Kind() == ids.ForeignServerObject {
 		return authorization.UsagePrivilege
 	}
@@ -316,7 +316,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	}
 	return authorization.TableGrantPrivileges
 }
-func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
+func (v AuthorizationView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
 	if v.engine == nil || v.catalog.Owner() != v.engine.catalog.owner() || v.catalog.State() == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
@@ -525,7 +525,7 @@ func (v AuthorizationView) CanUse(ref ids.ObjectRef) error {
 func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
 	return v.Check(AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege})
 }
-func validateACL(r authorization.Read, d Descriptor) error {
+func validateACL(r authorization.Read, d catalog.Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
@@ -569,7 +569,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	}
 	return nil
 }
-func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
+func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
 		if t.Address().ClassID == ids.ForeignMappingClassID {
@@ -800,7 +800,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return fmt.Errorf("stuntgres: entries in absent ACL")
 	}
 	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
-	var next Descriptor
+	var next catalog.Descriptor
 	switch d := d.(type) {
 	case *catalog.Database:
 		if ref.Address.SubID != 0 {
@@ -900,7 +900,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	return nil
 }
 
-func (e *Engine) roleRead(view CatalogRead, root *roleCatalog) authorization.Read {
+func (e *Engine) roleRead(view catalog.Read, root *roleCatalog) authorization.Read {
 	if view.Owner() != e.catalog.owner() || view.State() == nil || root == nil {
 		return authorization.Read{}
 	}
@@ -916,7 +916,7 @@ func (e *Engine) roleRead(view CatalogRead, root *roleCatalog) authorization.Rea
 }
 
 // recaptureCatalog binds a substituted catalog to the same immutable role root.
-func (v *AuthorizationView) recaptureCatalog(catalog CatalogRead) {
+func (v *AuthorizationView) recaptureCatalog(catalog catalog.Read) {
 	v.catalog = catalog
 	v.pairedCatalog = catalog
 	v.roles = v.engine.roleRead(catalog, v.roleRecord)

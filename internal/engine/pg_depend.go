@@ -15,7 +15,7 @@ type pgDependEdge struct {
 }
 
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
-func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
+func pgDependPinned(view catalog.Read, address ids.ObjectAddress) bool {
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
@@ -48,7 +48,7 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 	return false
 }
 
-func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, error) {
+func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 	return edges, nil
 }
 
-func capturePGDepend(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGDepend(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	edges, err := collectPGDepend(ctx, catalog)
 	if err != nil {
 		return nil, err

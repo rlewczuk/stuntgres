@@ -50,7 +50,7 @@ func foreignKeyAttributes(d *catalog.Relation, columns []parser.Identifier) ([]i
 	return attributes, nil
 }
 
-func foreignKeyIndex(view CatalogRead, parent *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
+func foreignKeyIndex(view catalog.Read, parent *catalog.Relation, attributes []int32) (*catalog.Relation, error) {
 	var found *catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -97,7 +97,7 @@ func foreignKeyIndexEligible(parent, index *catalog.Relation, attributes []int32
 	return true, nil
 }
 
-func bindForeignKeyComparison(view CatalogRead, child, parent, index *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
+func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.Relation, f catalog.ForeignKeyConstraint) ([]foreignKeyComparison, error) {
 	comparisons := make([]foreignKeyComparison, len(f.Attributes))
 	for i, attribute := range f.Attributes {
 		c, p := slices.Index(child.Attributes, attribute), slices.Index(parent.Attributes, f.Referenced[i])
@@ -320,7 +320,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 	return nil
 }
 
-func validateForeignKeys(view CatalogRead, child *catalog.Relation, names map[string]bool) error {
+func validateForeignKeys(view catalog.Read, child *catalog.Relation, names map[string]bool) error {
 	for _, f := range child.ForeignKeys {
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")

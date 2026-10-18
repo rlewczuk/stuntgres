@@ -25,7 +25,7 @@ func (e installedLevenshteinFunctionExpression) Rebuild(info expr.Info, children
 	return e, nil
 }
 
-func (n installedLevenshteinFunctionExpression) validate(v CatalogRead) error {
+func (n installedLevenshteinFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Levenshtein argument")

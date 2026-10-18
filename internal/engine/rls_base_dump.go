@@ -11,7 +11,7 @@ import (
 
 // Replay rows before these groups: an ordinary forced owner otherwise cannot
 // insert exported data. Disabled+forced is a distinct nondefault state.
-func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
+func rowSecurityDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)

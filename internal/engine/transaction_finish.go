@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -230,7 +231,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ownWrites = nil
 	s.existingIndexOutputs = nil
 	s.inheritanceRelations = nil
-	s.inheritanceCatalog = CatalogRead{}
+	s.inheritanceCatalog = catalog.Read{}
 	s.ticket = nil
 	s.indexMaintenance = nil
 	s.viewCreationNamespace = ids.ObjectRef{}

@@ -17,7 +17,7 @@ type partitionRowHistory struct {
 	frontier ids.CommitSeq
 }
 
-func partitionNeedsRowHistory(catalog CatalogRead, d *catalog.Relation) bool {
+func partitionNeedsRowHistory(catalog catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil || d.Partition != nil {
 		return false
 	}

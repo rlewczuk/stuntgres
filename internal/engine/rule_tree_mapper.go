@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 )
 
@@ -22,7 +23,7 @@ type ruleTreeMapping struct {
 
 // One memo owns the entire binding: every action-local provider and its scans
 // share one mapped definition/project. Protected statement providers stay exact.
-func newRuleTreeMapper(view CatalogRead, frame func(uint32) uint32, offset int, retained []*cteDefinition, options ...ruleTreeMapping) ruleTreeMapper {
+func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int, retained []*cteDefinition, options ...ruleTreeMapping) ruleTreeMapper {
 	if frame == nil {
 		frame = func(value uint32) uint32 { return value }
 	}

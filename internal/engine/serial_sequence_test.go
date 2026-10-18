@@ -16,7 +16,7 @@ import (
 
 type serialSequenceUnit struct {
 	engine   *Engine
-	view     CatalogRead
+	view     catalog.Read
 	context  *EvalContext
 	table    *catalog.Relation
 	sequence *catalog.Relation
@@ -43,7 +43,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: owner},
 	}
-	for _, descriptor := range []Descriptor{ns, table, sequence} {
+	for _, descriptor := range []catalog.Descriptor{ns, table, sequence} {
 		view.State().SetDescriptor(descriptor.Address(), descriptor)
 		view.State().BindName(catalog.DescriptorNameKey(descriptor), descriptor.Address())
 	}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -18,7 +19,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			original := e.catalog.Providers[ids.RelationClassID]
 			defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 			calls := 0
-			e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate CatalogRead) {
+			e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate catalog.Read) {
 				calls++
 				if !e.mu.TryLock() {
 					t.Error("catalog provider under Engine.mu")

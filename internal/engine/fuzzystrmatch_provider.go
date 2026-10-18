@@ -67,7 +67,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *catal
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
+func (p *fuzzystrmatchProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
 	if v.Owner() == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
 		return invalid()
@@ -100,7 +100,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *catalog.Ex
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
+func (p *fuzzystrmatchProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")

@@ -10,7 +10,7 @@ import (
 // Engine.mu and statement admission are held. Reuse the catalog's established
 // copy-on-change datum remapper for private writes and retained owner snapshots.
 // Logical row identities, end roots and commit frontiers are not rewritten.
-func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion, error) {
+func enumReownVersions(next *catalog.State, versions []rowVersion) ([]rowVersion, error) {
 	if len(versions) == 0 {
 		return versions, nil
 	}

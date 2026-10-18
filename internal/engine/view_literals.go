@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -952,7 +953,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	return fmt.Errorf("stuntgres: mismatched view literal expression %T / %T", raw, bound)
 }
 
-func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
+func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 	count, columnCount, starCount, compositeCount, intaggCount := 0, 0, 0, 0, 0
 	for frame, project := range v.frames {
 		s := project.syntax
@@ -1150,7 +1151,7 @@ func (v *viewDefinition) validateColumnOccurrence(path viewLiteralPath) error {
 	return nil
 }
 
-func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount, compositeCount, intaggCount *int) error {
+func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount, compositeCount, intaggCount *int) error {
 	if raw == nil {
 		return nil
 	}

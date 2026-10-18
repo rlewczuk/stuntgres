@@ -157,7 +157,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			}
 		}
 		e.DiscardCatalogStage(stage)
-		if _, conflict := err.(CatalogConflict); conflict {
+		if _, conflict := err.(catalog.Conflict); conflict {
 			if err := scope.op.Context().Err(); err != nil {
 				return 0, err
 			}
@@ -212,7 +212,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			}
 		}
 		e.DiscardCatalogStage(stage)
-		if _, conflict := err.(CatalogConflict); conflict {
+		if _, conflict := err.(catalog.Conflict); conflict {
 			if err := scope.op.Context().Err(); err != nil {
 				return err
 			}

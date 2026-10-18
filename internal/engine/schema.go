@@ -43,7 +43,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (authorizat
 }
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
-func checkPersistentCreationNamespace(catalog CatalogRead, namespace ids.ObjectAddress) error {
+func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.ObjectAddress) error {
 	if catalog.MustNamespace(namespace).Temporary != (ids.SessionToken{}) {
 		return sqlError("0A000", "temporary schema creation is unsupported")
 	}
@@ -581,7 +581,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			schemas = append(schemas, d)
 		}
 		var dependent []*catalog.Relation
-		var domains []Descriptor
+		var domains []catalog.Descriptor
 		children, err := namespaceChildren(auth.catalog, seen)
 		if err != nil {
 			return nil, err

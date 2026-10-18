@@ -81,7 +81,7 @@ func remapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAd
 // Definition identities can collide independently of relation addresses. Use
 // each parent's captured identity, never a global old-OID map (TEMP and imported
 // constraints can have the same old number).
-func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
+func remapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
 		if !ok || table.Inheritance == nil {

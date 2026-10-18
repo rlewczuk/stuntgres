@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgIndexesUnitSource(t *testing.T, c catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12002}
 	d, ok := c.Relation(a)
@@ -20,7 +20,7 @@ func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*catalog.Relation, ids.Ob
 	}
 	return d, c.Owner().Domain.Ref(c.Epoch(), a)
 }
-func pgIndexesUnitCapture(t *testing.T, c CatalogRead, auth AuthorizationView) *querySource {
+func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) *querySource {
 	t.Helper()
 	d, ref := pgIndexesUnitSource(t, c)
 	s, err := capturePGIndexes(context.Background(), c, auth, ref, d)
@@ -195,7 +195,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	capture := func() (CatalogRead, AuthorizationView) {
+	capture := func() (catalog.Read, AuthorizationView) {
 		c := e.CatalogRead()
 		auth := catalogAuthorization(e, c)
 		auth.state.CurrentUser = reader.Ref

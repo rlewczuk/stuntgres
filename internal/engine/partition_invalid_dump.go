@@ -18,19 +18,19 @@ type partitionInvalidReplay struct {
 	scratch string
 }
 
-func partitionIndexPreservedInvalid(view CatalogRead, index *catalog.Relation) bool {
+func partitionIndexPreservedInvalid(view catalog.Read, index *catalog.Relation) bool {
 	table, ok := view.Relation(index.SQLIndex.Parent)
 	return ok && table.Partition != nil && !index.SQLIndex.Valid && partitionIndexCoverageComplete(view, index)
 }
 
-func partitionReplayNameCompare(view CatalogRead, a, b *catalog.Relation) int {
+func partitionReplayNameCompare(view catalog.Read, a, b *catalog.Relation) int {
 	if order := strings.Compare(view.Get(a.Namespace()).Name(), view.Get(b.Namespace()).Name()); order != 0 {
 		return order
 	}
 	return strings.Compare(a.Name(), b.Name())
 }
 
-func partitionPreservedReplayChild(view CatalogRead, table *catalog.Relation) *catalog.Relation {
+func partitionPreservedReplayChild(view catalog.Read, table *catalog.Relation) *catalog.Relation {
 	var chosen *catalog.Relation
 	for _, address := range table.Partition.Children {
 		child := view.MustRelation(address)
@@ -41,7 +41,7 @@ func partitionPreservedReplayChild(view CatalogRead, table *catalog.Relation) *c
 	return chosen
 }
 
-func partitionPreservedReplayBacking(view CatalogRead, index *catalog.Relation) bool {
+func partitionPreservedReplayBacking(view catalog.Read, index *catalog.Relation) bool {
 	if index.SQLIndex.Constraint != nil || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return false
 	}
@@ -56,7 +56,7 @@ func partitionPreservedReplayBacking(view CatalogRead, index *catalog.Relation) 
 
 // Unattached local unique providers must not steal a saved attached backing
 // during the one table reattachment that preserves complete-invalid validity.
-func partitionPreservedReplayLocal(view CatalogRead, index *catalog.Relation) bool {
+func partitionPreservedReplayLocal(view catalog.Read, index *catalog.Relation) bool {
 	if !index.SQLIndex.Unique || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		return false
 	}
@@ -82,14 +82,14 @@ func partitionPreservedReplayLocal(view CatalogRead, index *catalog.Relation) bo
 	return false
 }
 
-func partitionReplayUsingIndex(view CatalogRead, index *catalog.Relation) bool {
+func partitionReplayUsingIndex(view catalog.Read, index *catalog.Relation) bool {
 	table := view.MustRelation(index.SQLIndex.Parent)
 	return usingIndexDump(index) && partitionReplayVirtualUniqueRoot(view, index) == nil || table.Partition == nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == catalog.UniqueBackingKind && partitionPreservedReplayLocal(view, index)
 }
 
 // An index subtree, not all table-local providers/rows, is required before the
 // reattachment. Deferred local origins and their data consumers follow it.
-func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, event dumpEventKey, index *catalog.Relation) {
+func partitionReplayIndexReady(view catalog.Read, graph map[dumpEventKey][]dumpEventKey, event dumpEventKey, index *catalog.Relation) {
 	table := view.MustRelation(index.SQLIndex.Parent)
 	if index.SQLIndex.Constraint != nil && !partitionReplayUsingIndex(view, index) {
 		addDumpDependency(graph, event, dumpEventKey{oid: table.Address().ObjectID})
@@ -118,7 +118,7 @@ func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEv
 // Existing declaration/data/attachment events remain the single replay scheduler.
 // Manual complete-invalid trees use one real valid child. ONLY exclusions use
 // a scratch gap even with saved children, avoiding non-adoptable EXCLUDE clones.
-func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, indexIndices map[ids.OID]int) map[ids.OID]partitionInvalidReplay {
+func partitionInvalidDumpEvents(view catalog.Read, graph map[dumpEventKey][]dumpEventKey, indexIndices map[ids.OID]int) map[ids.OID]partitionInvalidReplay {
 	groups := make(map[ids.ObjectAddress][]*catalog.Relation)
 	for oid := range indexIndices {
 		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
@@ -240,7 +240,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 	return result
 }
 
-func (r partitionInvalidReplay) sql(ctx context.Context, view CatalogRead, phase dumpPhase) (string, error) {
+func (r partitionInvalidReplay) sql(ctx context.Context, view catalog.Read, phase dumpPhase) (string, error) {
 	qualified := func(d *catalog.Relation) string {
 		return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 	}

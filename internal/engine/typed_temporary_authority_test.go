@@ -34,7 +34,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					original := e.catalog.Providers[ids.RelationClassID]
 					defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 					called := false
-					var winner *catalogState
+					var winner *catalog.State
 					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						if called {
 							return
@@ -66,7 +66,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 							t.Fatal("persistent CREATE admitted changed consulted ACL", executeErr, finishErr)
 						}
 					} else {
-						var conflict CatalogConflict
+						var conflict catalog.Conflict
 						if executeErr != nil || !errors.As(finishErr, &conflict) {
 							t.Error("TEMP Finish admitted changed consulted ACL", executeErr, finishErr)
 						}

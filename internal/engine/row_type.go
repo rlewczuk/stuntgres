@@ -161,7 +161,7 @@ func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) err
 // synchronizeRowTypeMetadata is the shared metadata-only cooking core. replace
 // records each actual effect before the next lookup, preserving row/array name
 // occupancy and provider order without constructing a catalog or stage.
-func synchronizeRowTypeMetadata(relation *catalog.Relation, row *catalog.Type, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
+func synchronizeRowTypeMetadata(relation *catalog.Relation, row *catalog.Type, descriptor func(ids.ObjectAddress) catalog.Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(catalog.Descriptor) error) error {
 	same := row.Namespace() == relation.Namespace() && row.Name() == relation.Name()
 	if row.SQLType.IsComposite() {
 		same = same && row.SQLType.CompositeLen() == len(relation.Columns)

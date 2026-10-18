@@ -273,7 +273,7 @@ func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
 	}
 	return current.root.ValidateDeletionCandidate(&next.root)
 }
-func (s *CatalogStage) roleRead(current *roleCatalog, catalog CatalogRead) authorization.Read {
+func (s *CatalogStage) roleRead(current *roleCatalog, catalog catalog.Read) authorization.Read {
 	if s.roleCandidate != nil {
 		return s.owner.roleRead(catalog, s.roleCandidate)
 	}

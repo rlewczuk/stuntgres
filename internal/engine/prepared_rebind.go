@@ -85,7 +85,7 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // Caller holds Engine.mu. Sequence source events are independent of generator
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
-func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevision {
+func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.DefinitionRevision {
 	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {

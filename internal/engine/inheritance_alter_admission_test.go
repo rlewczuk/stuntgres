@@ -478,7 +478,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 					}
 				}
 			}
-			assertPhase := func(effects []Descriptor, names []string) {
+			assertPhase := func(effects []catalog.Descriptor, names []string) {
 				t.Helper()
 				row, array := false, false
 				for _, effect := range effects {
@@ -501,7 +501,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			// DROP itself owns its actual rowtype synchronization effects; the
 			// subsequent metadata helper correctly has nothing to cook again.
-			var dropTypes []Descriptor
+			var dropTypes []catalog.Descriptor
 			for _, effect := range prepared.steps[0].drop.effects {
 				if effect.descriptor != nil {
 					dropTypes = append(dropTypes, effect.descriptor)

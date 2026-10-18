@@ -114,7 +114,7 @@ func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefini
 	}
 	return o, nil
 }
-func validateIndexDefinition(view CatalogRead, index *catalog.Relation) error {
+func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	d := index.SQLIndex
 	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
@@ -660,7 +660,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
-		if _, conflict := err.(CatalogConflict); conflict {
+		if _, conflict := err.(catalog.Conflict); conflict {
 			if contextErr := scope.op.Context().Err(); contextErr != nil {
 				return Result{}, contextErr
 			}

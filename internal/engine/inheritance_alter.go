@@ -44,7 +44,7 @@ func cloneInheritance(graph *catalog.TableInheritance) *catalog.TableInheritance
 }
 
 // Unlike the OF-type entry, ordinary propagation includes its named root.
-func inheritanceAlterOrder(view CatalogRead, root *catalog.Relation) []*catalog.Relation {
+func inheritanceAlterOrder(view catalog.Read, root *catalog.Relation) []*catalog.Relation {
 	selected := map[ids.ObjectAddress]*catalog.Relation{}
 	var collect func(*catalog.Relation)
 	collect = func(d *catalog.Relation) {
@@ -512,7 +512,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *catalo
 	return actions, graph, nil
 }
 
-func inheritedNotNull(view CatalogRead, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
+func inheritedNotNull(view catalog.Read, parents []ids.ObjectAddress, name string) *catalog.NotNullConstraint {
 	for _, address := range parents {
 		parent := view.MustRelation(address)
 		if slot, exists := parent.Index[name]; exists {

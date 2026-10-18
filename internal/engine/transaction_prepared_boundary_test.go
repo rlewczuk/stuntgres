@@ -140,8 +140,8 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 }
 
 type preparedBoundarySnapshot struct {
-	catalog         *catalogState
-	descriptors     map[ids.ObjectAddress]Descriptor
+	catalog         *catalog.State
+	descriptors     map[ids.ObjectAddress]catalog.Descriptor
 	names           map[ids.NameKey]ids.ObjectAddress
 	counters        [10]uint64
 	storagePointers map[ids.ObjectAddress]*relationStorage

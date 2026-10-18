@@ -89,7 +89,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	}
 	if temporaryConsumer {
 		definition.temporary = auth.session.token
-		definition.references = make(map[ids.ObjectRef]Descriptor, len(definition.sources)+len(definition.dependencies))
+		definition.references = make(map[ids.ObjectRef]catalog.Descriptor, len(definition.sources)+len(definition.dependencies))
 		capture := func(ref ids.ObjectRef) {
 			address := ref.Address
 			address.SubID = 0

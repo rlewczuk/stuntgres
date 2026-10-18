@@ -130,7 +130,7 @@ func partitionDetachMembership(parent, child *catalog.Relation) error {
 	return nil
 }
 
-func partitionDetachKindError(view CatalogRead, d *catalog.Relation, opening bool) error {
+func partitionDetachKindError(view catalog.Read, d *catalog.Relation, opening bool) error {
 	kind := "relations"
 	switch d.RelationKind {
 	case catalog.TableRelation:

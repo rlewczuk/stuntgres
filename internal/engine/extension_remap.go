@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) Descriptor {
+func remapExtensionDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
 	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
 			return next

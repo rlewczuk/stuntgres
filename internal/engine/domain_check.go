@@ -251,7 +251,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	return nil
 }
 
-func (c *EvalContext) domainCatalog() CatalogRead {
+func (c *EvalContext) domainCatalog() catalog.Read {
 	if c.catalog.State() != nil {
 		return c.catalog
 	}
@@ -261,10 +261,10 @@ func (c *EvalContext) domainCatalog() CatalogRead {
 		}
 		return scope.ResolutionCatalog()
 	}
-	return CatalogRead{}
+	return catalog.Read{}
 }
 
-func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *catalog.Type, candidate sqltype.Value) error {
+func (c *EvalContext) evaluateDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value) error {
 	base := d.SQLType.DomainBase()
 	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
 		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
@@ -275,7 +275,7 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *catalog.
 	return c.evaluateOwnDomainChecks(view, target, d, candidate, nil)
 }
 
-func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *catalog.Type, candidate sqltype.Value, violation error) error {
+func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value, violation error) error {
 	base := d.SQLType.DomainBase()
 	if len(d.DomainChecks) == 0 {
 		return nil
@@ -351,7 +351,7 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
 }
 
-func validateDomainCheckDefinitions(view CatalogRead, domain *catalog.Type) error {
+func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {
 	base := domain.SQLType.DomainBase()
 	if domain.SQLType.HasDomainChecks() != (len(domain.DomainChecks) != 0 || base.Type.HasDomainChecks()) {
 		return fmt.Errorf("stuntgres: inconsistent domain CHECK ancestry")

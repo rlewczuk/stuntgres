@@ -21,8 +21,8 @@ type uniquePublicationFixture struct {
 	ref            ids.ObjectRef
 	auth           AuthorizationView
 	keys           int
-	catalog        *catalogState
-	descriptors    map[ids.ObjectAddress]Descriptor
+	catalog        *catalog.State
+	descriptors    map[ids.ObjectAddress]catalog.Descriptor
 	names          map[ids.NameKey]ids.ObjectAddress
 	roles          *roleCatalog
 	stores         map[ids.ObjectAddress]*relationStorage

@@ -20,7 +20,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	e.mu.Lock()
 	err := e.catalogPreflightLocked(changes)
 	e.mu.Unlock()
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("late ordinary default failed to fence DROP", err)
 	}

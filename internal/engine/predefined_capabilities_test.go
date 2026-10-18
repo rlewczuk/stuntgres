@@ -24,7 +24,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	// Private immutable descriptors isolate class masks from public SQL syntax.
 	descriptors := []struct {
-		d    Descriptor
+		d    catalog.Descriptor
 		want authorization.Privileges
 	}{
 		{&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},

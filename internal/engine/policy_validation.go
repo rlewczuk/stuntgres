@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validatePolicyExpression(view CatalogRead, owner *catalog.Relation, expression *policyExpression) error {
+func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expression *policyExpression) error {
 	if expression.syntax == nil || expression.expression == nil || expression.expression.ResultUsage().Type == nil || expression.expression.ResultUsage().Type.ID() != sqltype.Bool || expression.presentation == nil {
 		return fmt.Errorf("stuntgres: invalid policy condition")
 	}

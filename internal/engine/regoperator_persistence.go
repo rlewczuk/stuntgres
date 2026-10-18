@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -16,11 +17,11 @@ func (dumpOperatorOutput) FormatRegoper(id uint32) (string, error) {
 func (dumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
-func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkOperatorReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkOperatorReferencesAt(view, nil, value, record)
 }
 
-func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkOperatorReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
@@ -52,7 +53,7 @@ func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value s
 }
 
 // Custom allocated identities replay by exact qualified signature, never OID.
-func operatorLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
+func operatorLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) {
 	id, err := value.OperatorOID()
 	if err != nil {
 		return "", err

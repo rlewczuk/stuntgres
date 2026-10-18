@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *catalog.Type {
+func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog.Type {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
 	d, ok := view.Type(address)
@@ -65,7 +65,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *catalog.
 	return d
 }
 
-func infoYesOrNoUnitEvaluate(t *testing.T, view CatalogRead, d *catalog.Type) {
+func infoYesOrNoUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.Type) {
 	t.Helper()
 	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()

@@ -24,7 +24,7 @@ func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization
 	return e, op, reader
 }
 
-func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ParameterClassID}
 	d, ok := catalog.Relation(address)
@@ -34,7 +34,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*ca
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog CatalogRead, roles authorization.Read) *querySource {
+func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, roles authorization.Read) *querySource {
 	t.Helper()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, roles, ref, d)

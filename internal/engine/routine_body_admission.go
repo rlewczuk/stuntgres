@@ -90,7 +90,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
 	if revision != 0 && current.Revision() != revision {
-		return nil, CatalogConflict{}
+		return nil, catalog.Conflict{}
 	}
 	return current, nil
 }

@@ -10,7 +10,7 @@ import (
 // Record the actual result of a named, qualified CREATE INDEX on a table freshly
 // created by this import. No generated name, eligibility rebinding or index
 // metadata is synthesized here; the ordinary provider already completed it.
-func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.CreateIndex, created map[ids.ObjectAddress]ids.ObjectRef) *catalog.Relation {
+func (e *Engine) capturePhysicalImportIndex(before catalog.Read, raw *parser.CreateIndex, created map[ids.ObjectAddress]ids.ObjectRef) *catalog.Relation {
 	if raw.Name.Text == "" || raw.IfNotExists || raw.Concurrent.Character != 0 || len(raw.Table.Parts) != 2 {
 		return nil
 	}

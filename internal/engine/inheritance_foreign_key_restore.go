@@ -12,7 +12,7 @@ import (
 // A valid FK to an ordinary descendant cannot live in its ancestor's CREATE:
 // the referenced relation must first inherit that declaration. Replay the real
 // constraint after both physical row streams and its actual key provider exist.
-func inheritedForeignKeyDeferred(view CatalogRead, source *catalog.Relation, foreign *catalog.ForeignKeyConstraint) bool {
+func inheritedForeignKeyDeferred(view catalog.Read, source *catalog.Relation, foreign *catalog.ForeignKeyConstraint) bool {
 	if foreign.NotValid || source.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || foreign.Target == source.Address() {
 		return false
 	}
@@ -20,7 +20,7 @@ func inheritedForeignKeyDeferred(view CatalogRead, source *catalog.Relation, for
 	return ok && target.RelationKind == catalog.TableRelation && target.Partition == nil && target.Membership == nil && inheritedForeignKeyDescendant(view, target, source.Address())
 }
 
-func inheritedForeignKeyDescendant(view CatalogRead, target *catalog.Relation, ancestor ids.ObjectAddress) bool {
+func inheritedForeignKeyDescendant(view catalog.Read, target *catalog.Relation, ancestor ids.ObjectAddress) bool {
 	if target.Inheritance == nil {
 		return false
 	}
@@ -49,7 +49,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *catalog.Relation, a
 	return walk(target)
 }
 
-func inheritedForeignKeyEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritedForeignKeyEvents(view catalog.Read, graph map[dumpEventKey][]dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	for i := range tables {
 		source := tables[i].descriptor
 		event := dumpEventKey{oid: source.Address().ObjectID, phase: dumpInheritedForeignKeys}
@@ -84,7 +84,7 @@ func inheritedForeignKeyPrimary(target *catalog.Relation, foreign *catalog.Forei
 	return false
 }
 
-func (table *dumpRelation) emitInheritedForeignKeys(view CatalogRead, emit func(string) error) error {
+func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func(string) error) error {
 	qualified := quoteIdentifier(table.schema) + "." + quoteIdentifier(table.name)
 	for i := range table.descriptor.ForeignKeys {
 		foreign := &table.descriptor.ForeignKeys[i]
@@ -258,7 +258,7 @@ func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
-func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, declaration restoredForeignKeys, view CatalogRead) error {
+func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, declaration restoredForeignKeys, view catalog.Read) error {
 	auth := declaration.auth
 	auth.catalog = view
 	auth.recaptureCatalog(view)

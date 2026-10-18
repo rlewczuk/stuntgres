@@ -444,12 +444,12 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	var collation collationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
@@ -466,7 +466,7 @@ type viewQueryRemapper struct {
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*projectNode]LogicalNode
 	collation      collationRemapper
-	catalog        CatalogRead
+	catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*cteDefinition]*cteDefinition
 	mutation       func(*cteDefinition) (binding, error)
@@ -1025,14 +1025,14 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 	return changed
 }
 
-func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func (e *Engine) remapCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	return e.reownCatalogExpressions(next, mapping, false)
 }
 
 // Imported rules have identities outside the descriptor address map. Reserve
 // them before allocating replacements, including collisions with retained TEMP
 // objects and relation identities remapped earlier in the private candidate.
-func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
+func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 	const descriptorOID, ruleOID, claimedOID = uint8(1), uint8(2), uint8(4)
 	reserved := make(map[ids.OID]uint8, next.DescriptorCount())
 	var views []*catalog.Relation

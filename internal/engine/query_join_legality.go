@@ -12,7 +12,7 @@ import (
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
-func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited lock.Mode) error {
+func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog catalog.Read, inherited lock.Mode) error {
 	reads := queryExecutionSourceReads(node, nil)
 	if source, ok := node.(*sourceNode); ok {
 		reads[source.occurrence] = nil
@@ -63,7 +63,7 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 
 // Mutation targets and RETURNING are planned even when their input selects no
 // rows. Walk only the execution-owned expressions that the binding consumes.
-func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]expr.Expr, catalog CatalogRead) error {
+func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]expr.Expr, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*arrayAssignmentTarget) error {
@@ -121,7 +121,7 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]e
 	return nil
 }
 
-func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catalog CatalogRead) error {
+func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catalog catalog.Read) error {
 	if expression == nil {
 		return nil
 	}
@@ -180,7 +180,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
+func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil

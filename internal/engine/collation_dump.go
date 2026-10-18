@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func collationDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*catalog.Collation) ([]dumpDomain, error) {
+func collationDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Collation) ([]dumpDomain, error) {
 	sort.Slice(definitions, func(i, j int) bool {
 		return collationSQLName(view, uint32(definitions[i].OID)) < collationSQLName(view, uint32(definitions[j].OID))
 	})

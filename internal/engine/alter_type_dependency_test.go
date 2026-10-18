@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -98,7 +99,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				added = next.Address()
 			}}
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+action), nil)
-			var conflict CatalogConflict
+			var conflict catalog.Conflict
 			if !errors.As(err, &conflict) {
 				t.Fatal("expected dependency publication conflict", err)
 			}

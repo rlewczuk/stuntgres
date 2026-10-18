@@ -142,7 +142,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
 	return auth.engine.lookupNamespacesSnapshot(auth, name, functionLookup)
 }
-func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (Descriptor, error) {
+func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (catalog.Descriptor, error) {
 	path, err := objectLookupPath(scope, names)
 	if err != nil {
 		return nil, err

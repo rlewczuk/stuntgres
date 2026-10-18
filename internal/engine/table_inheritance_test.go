@@ -21,7 +21,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 	d.AttributeHighWater = int32(len(names))
 	return d
 }
-func inheritanceUnitView(e *Engine, relations ...*catalog.Relation) CatalogRead {
+func inheritanceUnitView(e *Engine, relations ...*catalog.Relation) catalog.Read {
 	state := catalog.CloneState(e.CatalogRead().State())
 	for _, d := range relations {
 		state.SetDescriptor(d.Address(), d)

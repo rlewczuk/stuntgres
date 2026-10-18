@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
 	source, ok := catalog.Relation(address)
@@ -23,7 +23,7 @@ func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalo
 	return source, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
+func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *querySource {
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
@@ -116,7 +116,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	unchanged()
 	foreign := New()
 	for _, tc := range []struct {
-		catalog CatalogRead
+		catalog catalog.Read
 		roles   authorization.Read
 		ref     ids.ObjectRef
 	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {

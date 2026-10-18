@@ -114,7 +114,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "DROP TABLE a")
 	run(t, e, "CREATE TABLE a(id INT)")
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal(changes, err)
 	}
@@ -213,7 +213,7 @@ func TestCatalogDropChangedDescriptorAndUnrelatedRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal("changed ACL target lost", changes, err)
 	}

@@ -82,7 +82,7 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	return nil
 }
 
-func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if err := captureRegprocOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
@@ -150,11 +150,11 @@ func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 }
 
 // regclassSpelling uses only the statement's captured catalog and relation path.
-func regclassSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
+func regclassSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return regclassSpellingAt(view, nil, path, id)
 }
 
-func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ids.ObjectAddress, id ids.OID) string {
+func regclassSpellingAt(view catalog.Read, reader definitionReader, path []ids.ObjectAddress, id ids.OID) string {
 	if id == 0 {
 		return "-"
 	}

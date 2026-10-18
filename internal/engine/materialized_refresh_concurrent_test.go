@@ -407,7 +407,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			defer cancel()
 			fault := errors.New("provider veto")
 			if phase == "provider" {
-				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return fault }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return fault }}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {
@@ -503,17 +503,17 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
 	maintenance.indexSets = map[ids.ObjectAddress]int{d.Address(): 1}
-	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(CatalogConflict)) {
+	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
 	current := catalog.CloneState(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++
 	current.SetDescriptor(index.Address(), &changed)
-	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(CatalogConflict)) {
+	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}
-	if err := stage.materializedReplacementCurrent(current, e.storage[d.Address()]); !errors.As(err, new(CatalogConflict)) {
+	if err := stage.materializedReplacementCurrent(current, e.storage[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("replacement lost final exact index identity fence", err)
 	}
 }

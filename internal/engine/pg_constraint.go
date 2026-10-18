@@ -22,7 +22,7 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -346,7 +346,7 @@ func constraintAction(typ *sqltype.Descriptor, action parser.ForeignKeyAction) (
 	return sqltype.String(typ, code), nil
 }
 
-func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID) (ids.OID, error) {
+func constraintOperator(catalog catalog.Read, name string, left, right sqltype.ID) (ids.OID, error) {
 	for _, operand := range []*sqltype.ID{&left, &right} {
 		typ, ok := catalog.LookupType(*operand)
 		if !ok {
@@ -369,7 +369,7 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 	return address.ObjectID, nil
 }
 
-func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog CatalogRead, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
+func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog catalog.Read, row []sqltype.Value, child *catalog.Relation, f catalog.ForeignKeyConstraint) error {
 	if len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 		return fmt.Errorf("stuntgres: invalid foreign-key metadata keys")
 	}

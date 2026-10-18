@@ -45,7 +45,7 @@ func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *
 	return d
 }
 
-func partitionAttachUnitStage(t *testing.T, e *Engine, view CatalogRead, parent, child *catalog.Relation) *CatalogStage {
+func partitionAttachUnitStage(t *testing.T, e *Engine, view catalog.Read, parent, child *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(view)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })

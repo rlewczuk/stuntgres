@@ -55,7 +55,7 @@ func remapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids
 // Existing remapDefinitionOIDsLocked has already minted the actual final key
 // group. Reissue only the exact captured relation/attribute and that group;
 // neither this helper nor the certificate allocates a constraint or index.
-func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
+func (e *Engine) remapPhysicalNotNull(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
 		if !ok || len(table.PhysicalNotNull) == 0 {

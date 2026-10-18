@@ -111,7 +111,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 					original = base.Get(a)
 				}
 				if e.catalog.state.Get(a) != original {
-					err = CatalogConflict{}
+					err = catalog.Conflict{}
 					break
 				}
 			}
@@ -121,7 +121,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 					original = base.Get(a)
 				}
 				if e.catalog.state.Get(a) != original {
-					err = CatalogConflict{}
+					err = catalog.Conflict{}
 					break
 				}
 			}

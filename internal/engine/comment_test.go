@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func commentWant(t *testing.T, e *Engine, read CatalogRead, ref ids.ObjectRef, want string) {
+func commentWant(t *testing.T, e *Engine, read catalog.Read, ref ids.ObjectRef, want string) {
 	t.Helper()
 	got, present, err := e.Comment(read, ref)
 	if err != nil || got != want || present != (want != "") {

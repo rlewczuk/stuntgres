@@ -146,7 +146,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 	e := New()
 	domain := queryCreateDomain(t, e)
 	stage, d := queryCreateStage(t, e, "copy", 0)
-	stage.domainBases = []Descriptor{domain}
+	stage.domainBases = []catalog.Descriptor{domain}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 	}
 	queryCreatePublish(t, e, peer)
 	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func pgClassHistoryCatalog(e *Engine) (CatalogRead, *catalog.Relation) {
+func pgClassHistoryCatalog(e *Engine) (catalog.Read, *catalog.Relation) {
 	state := catalog.CloneState(e.CatalogRead().State())
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)

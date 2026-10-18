@@ -65,7 +65,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					}
 				}
 				var address ids.ObjectAddress
-				var descriptor Descriptor
+				var descriptor catalog.Descriptor
 				switch dependency {
 				case "schema":
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")

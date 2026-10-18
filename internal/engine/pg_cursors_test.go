@@ -172,7 +172,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if !ok || array.SQLType != arrayType || array.OwningRelation != d.Address() {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}
-	for _, descriptor := range []Descriptor{row, array} {
+	for _, descriptor := range []catalog.Descriptor{row, array} {
 		if err := (typeProvider{}).Validate(view, descriptor); err != nil {
 			t.Fatal(err)
 		}

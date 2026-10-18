@@ -23,6 +23,6 @@ func (e *policyExpression) DependsOn(target ids.ObjectAddress) bool {
 	return e.presentation.DependsOn(target)
 }
 
-func (e *policyExpression) Validate(v CatalogRead, owner *catalog.Relation) error {
+func (e *policyExpression) Validate(v catalog.Read, owner *catalog.Relation) error {
 	return validatePolicyExpression(v, owner, e)
 }

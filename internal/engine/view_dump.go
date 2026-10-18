@@ -12,7 +12,7 @@ import (
 // Standalone sequences are emitted before this graph. An identity sequence is
 // instead created by its owning table's inline declaration, so dependencies on
 // it must wait for that exact reciprocal owner, even after address remapping.
-func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids.OID, error) {
+func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
 	if address.ClassID == ids.ProcedureClassID {
 		if _, builtin := routineByOID[address.ObjectID]; builtin {

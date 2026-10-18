@@ -1,14 +1,17 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/sqltype"
+)
 
 // Anonymous record shapes are occurrence authorities, not catalog providers.
 // Every concrete leaf still belongs to the current catalog generation.
-func validExpressionUsage(view CatalogRead, usage sqltype.Usage) bool {
+func validExpressionUsage(view catalog.Read, usage sqltype.Usage) bool {
 	return validExpressionUsageAt(view, nil, usage)
 }
 
-func validExpressionUsageAt(view CatalogRead, reader definitionReader, usage sqltype.Usage) bool {
+func validExpressionUsageAt(view catalog.Read, reader definitionReader, usage sqltype.Usage) bool {
 	if !usage.Valid() || validateUsageCollationAt(view, reader, usage) != nil {
 		return false
 	}

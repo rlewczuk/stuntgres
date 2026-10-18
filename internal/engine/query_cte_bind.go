@@ -232,7 +232,7 @@ func cteVolatile(root LogicalNode) bool {
 // Stored views are source leaves, not logical inputs. Inspect their immutable
 // definitions using the same identity-bound graph authority as view expansion;
 // no source is opened and no expression is evaluated during this analysis.
-func cteStoredViewVolatile(view CatalogRead, root LogicalNode) (bool, error) {
+func cteStoredViewVolatile(view catalog.Read, root LogicalNode) (bool, error) {
 	var leaves []queryLeaf
 	var sourceErr error
 	visitCTEQuery(root, func(node LogicalNode) {

@@ -14,7 +14,7 @@ import (
 type ruleCommandScratch struct {
 	mutation   statementMutation
 	ref        ids.ObjectRef
-	descriptor Descriptor
+	descriptor catalog.Descriptor
 	storage    *relationStorage
 	viewWrite  *viewWrite
 	sources    []queryLeaf

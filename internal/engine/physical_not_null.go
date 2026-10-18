@@ -59,7 +59,7 @@ func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotN
 	return catalog.PhysicalNotNullProof{Cause: cause, Usage: old.Columns[slot].Usage, Support: capturePhysicalPrimarySupport(candidate, primary)}, true
 }
 
-func physicalNotNullOriginValid(view CatalogRead, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
+func physicalNotNullOriginValid(view catalog.Read, table *catalog.Relation, attribute int32, proof catalog.PhysicalNotNullProof) bool {
 	cause := proof.Cause
 	if cause == nil || cause.Self != cause || cause.Kind != catalog.PhysicalNotNullTypeCleanup && cause.Kind != catalog.PhysicalNotNullImportCleanup && cause.Kind != catalog.PhysicalNotNullImportFlag || cause.Ref.Address != table.Address() || cause.Ref.Address.SubID != 0 || cause.Attribute != attribute || cause.RemovedNN == 0 || cause.Usage.Type == nil || !storedReferenceEpochValid(view, table, cause.Ref) {
 		return false
@@ -78,7 +78,7 @@ func physicalNotNullOriginValid(view CatalogRead, table *catalog.Relation, attri
 	return table.RelationKind == catalog.TableRelation && table.Partition == nil && table.Membership == nil && slot >= 0 && table.Columns[slot].NullabilityKnown && !table.Columns[slot].Nullable && proof.Usage == table.Columns[slot].Usage
 }
 
-func physicalPrimarySupportValid(view CatalogRead, table *catalog.Relation, primary *catalog.UniqueConstraint, support *catalog.PhysicalPrimarySupport) bool {
+func physicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, primary *catalog.UniqueConstraint, support *catalog.PhysicalPrimarySupport) bool {
 	if support == nil || primary == nil || !primary.Primary || support.Constraint != primary.OID || support.Index != primary.Index || len(support.Keys) != len(primary.Attributes) {
 		return false
 	}
@@ -96,7 +96,7 @@ func physicalPrimarySupportValid(view CatalogRead, table *catalog.Relation, prim
 	return true
 }
 
-func validatePhysicalNotNull(view CatalogRead, table *catalog.Relation, ordinary map[int32]bool) error {
+func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
 	var validated *catalog.PhysicalPrimarySupport
 	for attribute, proof := range table.PhysicalNotNull {
 		if ordinary[attribute] || !physicalNotNullOriginValid(view, table, attribute, proof) {

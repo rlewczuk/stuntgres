@@ -821,7 +821,7 @@ func functionFromCaptures(root LogicalNode) []functionCorrelation {
 // Descendants with no free captures have already satisfied/normalized their
 // own dependencies and must not be rebased again. Ordinary join expressions
 // retain their independent output-row layout.
-func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
+func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
 	captures := functionFromCaptures(root)
 	needed := false
 	for _, capture := range captures {

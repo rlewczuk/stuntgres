@@ -73,7 +73,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	valid := e.catalog.state.Epoch() == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
-		return Result{}, CatalogConflict{}
+		return Result{}, catalog.Conflict{}
 	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {

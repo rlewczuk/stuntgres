@@ -43,7 +43,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
-func truncateOtherTemporary(catalog CatalogRead, relation *catalog.Relation, token ids.SessionToken) (bool, error) {
+func truncateOtherTemporary(catalog catalog.Read, relation *catalog.Relation, token ids.SessionToken) (bool, error) {
 	namespace, ok := catalog.Namespace(relation.Namespace())
 	if !ok {
 		return false, ids.ErrCatalogReplaced
@@ -252,7 +252,7 @@ func compareTruncateAddress(a, b ids.ObjectAddress) int {
 }
 
 // FK definitions alone decide closure, including empty referencing tables.
-func truncateReferencers(view CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
+func truncateReferencers(view catalog.Read, selected map[ids.ObjectAddress]int) []truncateReferencer {
 	var result []truncateReferencer
 	for address, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)

@@ -168,7 +168,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
 		name string
-		base *catalogState
+		base *catalog.State
 		own  *catalogChanges
 	}{
 		{"no definitions", e.catalog.state, nil},
@@ -233,7 +233,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{&base, catalog.NewState(0)} {
+	for _, state := range []*catalog.State{&base, catalog.NewState(0)} {
 		rows, err := capturePGSequence(ctx, state, own, ref, source)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)

@@ -12,7 +12,7 @@ import (
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
-func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
+func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
 		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
@@ -22,16 +22,16 @@ func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltyp
 	}, collations...)
 }
 
-func retagBoundTypesWithQuery(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func retagBoundTypesWithQuery(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -1016,7 +1016,7 @@ func mapCompositeChildren(node expr.Composite, mapChild func(expr.Expr) (expr.Ex
 
 // retagEnvironment gives Retaggable nodes the retained descriptors, the stored
 // collation remap and collation derivation over the catalog view.
-func retagEnvironment(view CatalogRead, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations []collationRemapper) expr.Retag {
+func retagEnvironment(view catalog.Read, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations []collationRemapper) expr.Retag {
 	remap := func(ref sqltype.CollationRef) (sqltype.CollationRef, error) { return ref, nil }
 	if len(collations) != 0 && collations[0] != nil {
 		remap = collations[0]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -133,7 +134,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	return arrayExpression{Info: info, elements: elements, multidimensional: multidimensional}, nil
 }
 
-func (r scalarRenderer) arraySQL(ctx context.Context, view CatalogRead, n arrayExpression) (string, error) {
+func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n arrayExpression) (string, error) {
 	parts := make([]string, len(n.elements))
 	for i, child := range n.elements {
 		text, err := r.sql(ctx, view, child)
@@ -304,7 +305,7 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	return subscriptExpression{info, base, subs, slice}, nil
 }
 
-func (r scalarRenderer) subscriptSQL(ctx context.Context, view CatalogRead, n subscriptExpression) (string, error) {
+func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n subscriptExpression) (string, error) {
 	text, err := r.sql(ctx, view, n.base)
 	if err != nil {
 		return "", err

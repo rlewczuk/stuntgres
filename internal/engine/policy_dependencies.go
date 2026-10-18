@@ -19,11 +19,11 @@ func policyDepends(p catalog.PolicyDefinition, target ids.ObjectAddress) bool {
 	}
 	return false
 }
-func policyDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
+func policyDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
 	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
 }
 
-func policyDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {
+func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)
@@ -92,7 +92,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 	}
 	return nil
 }
-func policyTypeChangeError(view CatalogRead, target ids.ObjectAddress) error {
+func policyTypeChangeError(view catalog.Read, target ids.ObjectAddress) error {
 	var owners []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok {

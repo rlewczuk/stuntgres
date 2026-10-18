@@ -67,7 +67,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version any, installed bool) {
+func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, version any, installed bool) {
 	t.Helper()
 	comment := "text search dictionary that removes accents"
 	for _, oid := range []ids.OID{12081, 12085} {

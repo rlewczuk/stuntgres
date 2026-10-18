@@ -5,13 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 type indexMaintenanceSnapshot struct {
-	catalog *catalogState
+	catalog *catalog.State
 	roots   map[ids.ObjectAddress]*logicalIndexRoot
 	stores  map[ids.ObjectAddress]*relationStorage
 }

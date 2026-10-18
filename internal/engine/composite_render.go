@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
@@ -15,7 +16,7 @@ func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error)
 	return rendered.sql, nil
 }
 
-func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog CatalogRead, captured compositeOccurrence, base string) ([]string, error) {
+func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog catalog.Read, captured compositeOccurrence, base string) ([]string, error) {
 	shape := captured.base.Type.BaseType()
 	fields := make([]string, len(captured.attributes))
 	var exposed []string
@@ -64,7 +65,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog Catalo
 	return fields, nil
 }
 
-func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog CatalogRead, raw parser.FieldExpr, path viewLiteralPath) ([]string, error) {
+func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalog.Read, raw parser.FieldExpr, path viewLiteralPath) ([]string, error) {
 	path.query = v.frame
 	path.node = 0
 	captured, ok := v.composites[path]

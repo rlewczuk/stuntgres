@@ -53,14 +53,14 @@ type sqlCursor struct {
 	currentIndex                                int
 	leaves                                      []queryLeaf
 	locks                                       *queryLockContext
-	catalog                                     CatalogRead
+	catalog                                     catalog.Read
 	roles                                       authorization.Read
 	routineDependencies                         []catalog.ExpressionDependency // Original immutable binding lifetimes, not permissions.
 	routineAuth                                 AuthorizationView              // DECLARE's initialized executor, not cached permission results.
 	deparseAuth                                 AuthorizationView
 	deparsePath                                 []ids.ObjectAddress
 	collationPath                               []ids.ObjectAddress
-	visibilityCatalog                           CatalogRead
+	visibilityCatalog                           catalog.Read
 	visibilityRelationPath, visibilityOtherPath []ids.ObjectAddress
 }
 
@@ -95,12 +95,12 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.state = queryState{}
 	c.root = nil
 	c.leaves, c.locks = nil, nil
-	c.catalog = CatalogRead{}
+	c.catalog = catalog.Read{}
 	c.roles = authorization.Read{}
 	c.deparseAuth = AuthorizationView{}
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
 	c.collationPath = nil
-	c.visibilityCatalog = CatalogRead{}
+	c.visibilityCatalog = catalog.Read{}
 	c.routineDependencies = nil
 	c.routineAuth = AuthorizationView{}
 	if c.authority != nil {

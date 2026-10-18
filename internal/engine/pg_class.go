@@ -25,7 +25,7 @@ func representedCatalogHasIndexes(oid ids.OID) bool {
 
 // catalogRelation describes execution, not PostgreSQL relation kind. Keep this
 // classification separate from virtualView, which controls source dispatch.
-func pgClassKind(view CatalogRead, relation *catalog.Relation) string {
+func pgClassKind(view catalog.Read, relation *catalog.Relation) string {
 	switch relation.RelationKind {
 	case catalog.ForeignRelation:
 		return "f"
@@ -52,7 +52,7 @@ func pgClassKind(view CatalogRead, relation *catalog.Relation) string {
 	return "r"
 }
 
-func pgClassPersistence(catalog CatalogRead, relation *catalog.Relation) string {
+func pgClassPersistence(catalog catalog.Read, relation *catalog.Relation) string {
 	if relation.SQLIndex != nil {
 		if parent, ok := catalog.Relation(relation.SQLIndex.Parent); ok {
 			relation = parent
@@ -72,7 +72,7 @@ func pgClassPersistence(catalog CatalogRead, relation *catalog.Relation) string 
 	return "p"
 }
 
-func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authorization.Read, source, relation *catalog.Relation) ([]sqltype.Value, error) {
+func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles authorization.Read, source, relation *catalog.Relation) ([]sqltype.Value, error) {
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {

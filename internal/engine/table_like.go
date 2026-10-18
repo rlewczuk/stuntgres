@@ -81,7 +81,7 @@ func (in createLikeInput) targetSlot(slot int) int {
 
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
 // references are never imported; row owners and stable attributes are mapped.
-func (in createLikeInput) rowMapper(destination *catalog.Relation, authority CatalogRead) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
+func (in createLikeInput) rowMapper(destination *catalog.Relation, authority catalog.Read) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
 	attributes := make(map[int32]int32, len(in.source.Attributes))
 	slots := make(map[int32]int, len(in.source.Attributes))
 	for slot, attribute := range in.source.Attributes {
@@ -104,20 +104,20 @@ func (in createLikeInput) rowMapper(destination *catalog.Relation, authority Cat
 	}, slots
 }
 
-func (in *createLikeInput) remap(node expr.Expr, destination *catalog.Relation, authority CatalogRead) (expr.Expr, error) {
+func (in *createLikeInput) remap(node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.rowRef == nil {
 		in.rowRef, in.slots = in.rowMapper(destination, authority)
 	}
 	return remapScalarExpression(node, nil, in.rowRef, in.slots, nil)
 }
 
-func (s *CatalogStage) captureLikeSource(source Descriptor) {
+func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
 	if !slices.Contains(s.likeSources, source) {
 		s.likeSources = append(s.likeSources, source)
 	}
 }
 
-func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
+func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 	if len(s.likeSources) == 0 {
 		return nil
 	}

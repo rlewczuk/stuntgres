@@ -11,7 +11,7 @@ import (
 // install lock against captured authorities. No callbacks, source lock or external
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
-func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalogState, error) {
+func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, error) {
 	e.retainDatabaseLocked(state)
 	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
 	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {

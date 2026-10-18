@@ -40,7 +40,7 @@ func physicalPermutedPrimary(table *catalog.Relation) *catalog.UniqueConstraint 
 
 // Reuse the existing eligible-index predicate. Only real providers competing
 // with a captured permuted self-FK's primary are ordered after that FK.
-func physicalCompetingIndexSource(view CatalogRead, index *catalog.Relation) (*catalog.Relation, bool, error) {
+func physicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*catalog.Relation, bool, error) {
 	if index == nil || index.SQLIndex == nil {
 		return nil, false, nil
 	}
@@ -63,7 +63,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *catalog.Relation) (*c
 	return source, true, nil
 }
 
-func emitPhysicalCompetingUniques(view CatalogRead, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	primary := physicalPermutedPrimary(table)
 	if primary == nil {
 		return nil

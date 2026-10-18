@@ -44,7 +44,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 	}
 	return refs, protected, nil
 }
-func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
+func ownedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	var roots []ids.ObjectAddress
 	for a, d := range catalog.Descriptors() {
 		owner, _, _ := descriptorACL(d)
@@ -63,7 +63,7 @@ func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool
 
 // Ownership locks follow canonical associations, not generated names. Include
 // independent roots and their backing relations, indexes and owned sequences.
-func ownershipRelationLocks(view CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
+func ownershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
 		switch d := view.Get(a).(type) {

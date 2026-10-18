@@ -14,13 +14,13 @@ import (
 
 // Retain the published maps, not merely a CatalogRead pointing at mutable maps.
 type temporaryProjectionCatalog struct {
-	view        CatalogRead
-	descriptors map[ids.ObjectAddress]Descriptor
+	view        catalog.Read
+	descriptors map[ids.ObjectAddress]catalog.Descriptor
 	names       map[ids.NameKey]ids.ObjectAddress
 }
 
 func captureTemporaryProjectionCatalog(e *Engine) temporaryProjectionCatalog {
-	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
+	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
 	for a, d := range p.view.Descriptors() {
 		p.descriptors[a] = d
 	}

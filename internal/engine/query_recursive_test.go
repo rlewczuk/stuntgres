@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -378,7 +379,7 @@ func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 		t.Fatal("stored self scan lost opaque node identity")
 	}
 	renderer := &viewRenderer{slots: map[LogicalNode]map[int]string{self: {0: "r.n"}}}
-	text, err := renderer.slotSQL(context.Background(), CatalogRead{}, viewCTETable(project, table), 0)
+	text, err := renderer.slotSQL(context.Background(), catalog.Read{}, viewCTETable(project, table), 0)
 	if err != nil || text != "r.n" {
 		t.Fatal("worktable namespace slot", text, err)
 	}

@@ -3,20 +3,21 @@ package engine
 import (
 	"maps"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Stage observations describe the exact private entry roots. Outer publication
 // instead fences their committed predecessors, never private-vs-committed pointer
 // equality and never another execution of the selected CHECK.
-func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalogState) error {
+func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
 	if fence := stage.domainValidation; fence != nil {
 		stores := make(map[ids.ObjectAddress]*relationStorage, len(fence.uses))
 		for _, use := range fence.uses {
 			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
 		}
 		if !fence.current(e.catalog.read(current), stores) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		committed, err := domainUsesAt(e.catalog.read(e.catalog.state), fence.target, fence.path)
 		if committed == nil {
@@ -29,7 +30,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 			use := &committed.uses[i]
 			use.storage = e.storage[use.relation.Address()]
 			if use.storage == nil {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			use.versions = use.storage.versions[:len(use.storage.versions):len(use.storage.versions)]
 			use.ends, use.generation = use.storage.ends, use.storage.generation
@@ -43,7 +44,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		}
 		for address, root := range stage.domainIndexRoots {
 			if e.domainStageIndexRootLocked(stage, address) != root {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			changes.domainIndexRoots[address] = e.indexRoots[address]
 		}

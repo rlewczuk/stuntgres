@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,14 +19,14 @@ func TestPrimaryKeyExplicitRetention(t *testing.T) {
 			elements = []parser.TableElement{p, u}
 		}
 		elements = append(elements, parser.TableElement{Unique: &parser.UniqueConstraint{NullsNotDistinct: true, Columns: []parser.Identifier{{Text: "a"}}}})
-		bound, err := bindCreateUniques(&parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: elements}, map[string]int{"a": 0}, nil, CatalogRead{})
+		bound, err := bindCreateUniques(&parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: elements}, map[string]int{"a": 0}, nil, catalog.Read{})
 		if err != nil || len(bound) != 2 || !bound[0].Primary || bound[0].Name != "chosen" || bound[1].Primary || !bound[1].NullsNotDistinct || !reflect.DeepEqual(bound[0].Attributes, []int32{1}) {
 			t.Fatal(primaryFirst, bound, err)
 		}
 	}
 	first := parser.TableElement{Unique: &parser.UniqueConstraint{Primary: true, Columns: []parser.Identifier{{Text: "a"}}}}
 	second := parser.TableElement{Unique: &parser.UniqueConstraint{Primary: true, Columns: []parser.Identifier{{Text: "missing"}}, Pos: parser.Position{Character: 37}}}
-	bound, err := bindCreateUniques(&parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: []parser.TableElement{first, second}}, map[string]int{"a": 0}, nil, CatalogRead{})
+	bound, err := bindCreateUniques(&parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: []parser.TableElement{first, second}}, map[string]int{"a": 0}, nil, catalog.Read{})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P16", Message: `multiple primary keys for table "t" are not allowed`, Position: "37"})
 	if bound != nil {
 		t.Fatal("partial declarations escaped", bound)
@@ -53,7 +54,7 @@ func TestPrimaryKeyNotNullBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	uniques, err := bindCreateUniques(s, index, nil, CatalogRead{})
+	uniques, err := bindCreateUniques(s, index, nil, catalog.Read{})
 	if err != nil {
 		t.Fatal(err)
 	}

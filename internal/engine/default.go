@@ -140,17 +140,17 @@ type scalarRenderer struct {
 	uuidShiftIntervalNulls bool
 }
 
-func defaultSQL(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func defaultSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	return (scalarRenderer{}).sql(ctx, view, node)
 }
 
-func renderColumnDefault(ctx context.Context, view CatalogRead, node expr.Expr) (string, []ids.ObjectRef, error) {
+func renderColumnDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, []ids.ObjectRef, error) {
 	var dependencies []ids.ObjectRef
 	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
 	return text, dependencies, err
 }
 
-func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -857,7 +857,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 	}
 }
 
-func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []expr.Expr) (string, error) {
+func (r scalarRenderer) functionSQL(ctx context.Context, view catalog.Read, name string, args []expr.Expr) (string, error) {
 	parts := make([]string, len(args))
 	for i, arg := range args {
 		text, err := r.sql(ctx, view, arg)

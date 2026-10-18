@@ -30,7 +30,7 @@ func materializedIndexEligible(parent, index *catalog.Relation) bool {
 	return true
 }
 
-func materializedConcurrentAdmission(view CatalogRead, parent *catalog.Relation, noData bool) error {
+func materializedConcurrentAdmission(view catalog.Read, parent *catalog.Relation, noData bool) error {
 	if !parent.Populated {
 		return sqlError("0A000", "CONCURRENTLY cannot be used when the materialized view is not populated")
 	}
@@ -46,7 +46,7 @@ func materializedConcurrentAdmission(view CatalogRead, parent *catalog.Relation,
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.Name()), pgIdentifier(parent.Name())), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
-func materializedEligibleIndexes(view CatalogRead, parent *catalog.Relation) []*catalog.Relation {
+func materializedEligibleIndexes(view catalog.Read, parent *catalog.Relation) []*catalog.Relation {
 	var indices []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && materializedIndexEligible(parent, index) {
@@ -103,7 +103,7 @@ func materializedGroupEnd(ctx context.Context, ordering indexOrdering, entries [
 	return end, nil
 }
 
-func materializedDuplicatePreflight(ctx context.Context, view CatalogRead, parent *catalog.Relation, ordering indexOrdering, entries []logicalIndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
+func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, parent *catalog.Relation, ordering indexOrdering, entries []logicalIndexEntry, rows [][]sqltype.Value, output sqltype.OutputEnvironment) error {
 	duplicate := len(rows)
 	for start := 0; start < len(entries) && duplicate != 0; {
 		end, err := materializedGroupEnd(ctx, ordering, entries, start)
@@ -169,7 +169,7 @@ func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, 
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func materializedConcurrentRows(ctx context.Context, view CatalogRead, parent *catalog.Relation, previous *relationStorage, frontier ids.CommitSeq, oldEntries []logicalIndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *relationStorage, frontier ids.CommitSeq, oldEntries []logicalIndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func sameMaterializedLineage(old, current *catalog.Relation, a, b *relationStora
 
 // A producer snapshot may outlive a compatible source publication, never a
 // defining-authority change. All storage/token observations require Engine.mu.
-func materializedSourceCurrent(snapshot *visibilityData, observed Descriptor, current *catalogState, store *relationStorage) bool {
+func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descriptor, current *catalog.State, store *relationStorage) bool {
 	if current.Get(observed.Address()) == observed {
 		return true
 	}

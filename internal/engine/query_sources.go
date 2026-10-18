@@ -128,7 +128,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
-func currentQuerySourceLocked(e *Engine, view CatalogRead, changes *catalogChanges, source queryLeaf) (*catalog.Relation, error) {
+func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *catalogChanges, source queryLeaf) (*catalog.Relation, error) {
 	current, ok := view.Relation(source.ref.Address)
 	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.Epoch() || source.ref.Address.SubID != 0 ||
 		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||

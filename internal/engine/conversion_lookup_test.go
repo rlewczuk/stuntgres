@@ -26,7 +26,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	nondefault := conversionUnitDefinition(e, 90003, "shadow_nondefault", false)
 	nondefault.ObjectNamespace = earlier.Address()
 	stage := e.BeginCatalogStage(view)
-	for _, d := range []Descriptor{earlier, low, high, first, nondefault} {
+	for _, d := range []catalog.Descriptor{earlier, low, high, first, nondefault} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

@@ -41,7 +41,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	old.Inheritance.Columns[2] = catalog.InheritedColumn{Local: true, Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 2}}}
 	created := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(created) })
-	for _, descriptor := range []Descriptor{parent, old, index} {
+	for _, descriptor := range []catalog.Descriptor{parent, old, index} {
 		if err := created.Create(descriptor); err != nil {
 			t.Fatal(err)
 		}

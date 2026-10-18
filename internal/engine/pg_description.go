@@ -9,7 +9,7 @@ import (
 
 // Projection coverage is deliberately broader than legacy obj_description.
 // Inquiry dispatch and COMMENT target support remain their owning authorities.
-func catalogDescription(d Descriptor, sub int32) string {
+func catalogDescription(d catalog.Descriptor, sub int32) string {
 	if sub == 0 {
 		switch d := d.(type) {
 		case *catalog.Collation:
@@ -52,7 +52,7 @@ func conversionDescription(oid ids.OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGDescription(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

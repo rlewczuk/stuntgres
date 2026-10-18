@@ -43,7 +43,7 @@ func (e *Engine) initializeTablePrivileges() error {
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureTablePrivileges(ctx context.Context, view catalog.Read, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

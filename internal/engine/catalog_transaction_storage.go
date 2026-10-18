@@ -29,7 +29,7 @@ type catalogStorageChange struct {
 }
 
 type catalogDependencyObservation struct {
-	base    *catalogState
+	base    *catalog.State
 	targets []ids.ObjectAddress
 }
 
@@ -37,14 +37,14 @@ type catalogAuthority struct {
 	session                                *Session
 	authorization, roles                   uint64
 	ref                                    ids.ObjectRef
-	descriptor                             Descriptor
-	databaseAuthority, databasePredecessor Descriptor
+	descriptor                             catalog.Descriptor
+	databaseAuthority, databasePredecessor catalog.Descriptor
 	// Immutable consulted providers captured by the statement's catalog stage.
-	observations []Descriptor
+	observations []catalog.Descriptor
 }
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
-func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor Descriptor) *catalogAuthority {
+func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *catalogAuthority {
 	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.Get(catalog.CurrentDatabaseAddress), databasePredecessor: v.databasePredecessor}
 }
 
@@ -56,15 +56,15 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 		return nil
 	}
 	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	if a.databasePredecessor != nil {
 		if e.catalog.state.Get(catalog.CurrentDatabaseAddress) != a.databasePredecessor {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		if c != nil {
 			if original, ok := c.originals[catalog.CurrentDatabaseAddress]; ok && original != a.databasePredecessor {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			c.originals[catalog.CurrentDatabaseAddress] = a.databasePredecessor
 		}
@@ -83,7 +83,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 				continue
 			}
 		}
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	return nil
 }

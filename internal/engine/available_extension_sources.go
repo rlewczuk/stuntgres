@@ -11,7 +11,7 @@ import (
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(ctx context.Context, registry map[string]catalog.ExtensionImplementation, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureAvailableExtensions(ctx context.Context, registry map[string]catalog.ExtensionImplementation, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

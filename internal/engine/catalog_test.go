@@ -156,8 +156,8 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 
 type testProvider struct{ id ids.OID }
 
-func (p testProvider) ClassID() ids.OID                     { return p.id }
-func (testProvider) Validate(CatalogRead, Descriptor) error { return nil }
+func (p testProvider) ClassID() ids.OID                              { return p.id }
+func (testProvider) Validate(catalog.Read, catalog.Descriptor) error { return nil }
 
 func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	e := New()
@@ -310,7 +310,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	run(t, e, "INSERT INTO public.first VALUES (77)")
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(second, PublicationToken{Epoch: base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatalf("address collision: changes=%+v error=%v", changes, err)
 	}
@@ -493,7 +493,7 @@ func TestForeignCatalogReplacementOwnsRowBacking(t *testing.T) {
 type initializationTestProvider struct{ validated int }
 
 func (*initializationTestProvider) ClassID() ids.OID { return 90000 }
-func (p *initializationTestProvider) Validate(_ CatalogRead, d Descriptor) error {
+func (p *initializationTestProvider) Validate(_ catalog.Read, d catalog.Descriptor) error {
 	if d.Address().ClassID != p.ClassID() {
 		return errors.New("unexpected descriptor class")
 	}
@@ -557,7 +557,7 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 	}
 }
 
-func catalogRef(t *testing.T, e *Engine, view CatalogRead, name string) ids.ObjectRef {
+func catalogRef(t *testing.T, e *Engine, view catalog.Read, name string) ids.ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	ref, err := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
@@ -581,7 +581,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		engine       *Engine
-		view         CatalogRead
+		view         catalog.Read
 		own, foreign ids.ObjectRef
 		want         int64
 	}{{a, va, ra, rb, 11}, {b, vb, rb, ra, 22}} {

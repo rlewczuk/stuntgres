@@ -40,7 +40,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	return nil
 }
 
-func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
+func (p *pgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
 	if v.Owner() == nil || p != stockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
 		return invalid()
@@ -65,7 +65,7 @@ func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *catalog.Extensi
 	return nil
 }
 
-func (p *pgcryptoProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
+func (p *pgcryptoProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	if v.Get(proc.Address()) != proc || pgcryptoProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
 	}

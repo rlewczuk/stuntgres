@@ -45,7 +45,7 @@ func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 		t.Fatal(err)
 	}
 }
-func domainUnitType(t *testing.T, view CatalogRead, name string) *catalog.Type {
+func domainUnitType(t *testing.T, view catalog.Read, name string) *catalog.Type {
 	t.Helper()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
 	if len(addresses) != 1 {

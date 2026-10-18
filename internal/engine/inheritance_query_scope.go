@@ -9,7 +9,7 @@ import (
 
 // Closure is physical-identity deduplication within one SQL occurrence. A foreign
 // session's temporary branch is not admitted, even through a persistent ancestor.
-func inheritanceQueryClosure(view CatalogRead, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
+func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
 	if err := visit(root); err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func inheritanceQueryClosure(view CatalogRead, root *catalog.Relation, token ids
 
 // Called under Engine.mu. Stored views expose their named source's scan mode,
 // not a flattened set of leaves or the mode of an unrelated SQL occurrence.
-func inheritanceQueryLeaves(view CatalogRead, roots []queryLeaf, token ids.SessionToken, visit func(queryLeaf) error) error {
+func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.SessionToken, visit func(queryLeaf) error) error {
 	var active []ids.ObjectAddress
 	var walk func(queryLeaf) error
 	walk = func(leaf queryLeaf) error {
@@ -231,7 +231,7 @@ func sourceOnly(statement parser.Statement) bool {
 	return false
 }
 
-func (s *StatementScope) inheritanceRead(current CatalogRead) CatalogRead {
+func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
 	if s.inheritanceCatalog.State() != nil {
 		return s.inheritanceCatalog
 	}

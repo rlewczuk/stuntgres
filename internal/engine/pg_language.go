@@ -10,7 +10,7 @@ import (
 
 const pgLanguageOID ids.OID = 2612
 
-func capturePGLanguage(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGLanguage(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

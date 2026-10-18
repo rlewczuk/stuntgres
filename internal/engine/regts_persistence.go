@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type dumpRegTSOutput struct{ view CatalogRead }
+type dumpRegTSOutput struct{ view catalog.Read }
 
 func (r dumpRegTSOutput) FormatRegconfig(id uint32) (string, error) {
 	return regTSSpelling(r.view, nil, id, sqltype.Regconfig, true), nil
@@ -15,11 +15,11 @@ func (r dumpRegTSOutput) FormatRegdictionary(id uint32) (string, error) {
 	return regTSSpelling(r.view, nil, id, sqltype.Regdictionary, true), nil
 }
 
-func walkRegTSReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRegTSReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkRegTSReferencesAt(view, nil, value, record)
 }
 
-func walkRegTSReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRegTSReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}

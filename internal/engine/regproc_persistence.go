@@ -4,11 +4,12 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func routineLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
+func routineLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) {
 	id, err := value.ProcedureOID()
 	if err != nil {
 		return "", err
@@ -26,11 +27,11 @@ func routineLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 
 // Only real descriptors create expression ownership dependencies. Source-fixed
 // lookup-only identities never invent providers or extension replay events.
-func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRoutineReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkRoutineReferencesAt(view, nil, value, record)
 }
 
-func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRoutineReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -66,7 +67,7 @@ func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sq
 	return nil
 }
 
-func (r scalarRenderer) recordRoutineReferences(view CatalogRead, value sqltype.Value) error {
+func (r scalarRenderer) recordRoutineReferences(view catalog.Read, value sqltype.Value) error {
 	return walkRoutineReferencesAt(view, r.definition, value, func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
@@ -113,11 +114,11 @@ type routineFragment struct {
 	expression bool
 }
 
-func routineContainerLiteral(ctx context.Context, view CatalogRead, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
+func routineContainerLiteral(ctx context.Context, view catalog.Read, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
 	return routineContainerLiteralAt(ctx, view, nil, value, usage, acl)
 }
 
-func routineContainerLiteralAt(ctx context.Context, view CatalogRead, reader definitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
+func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader definitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
 	fragments, err := routineContainerFragments(ctx, view, value, acl)
 	if err != nil {
 		return "", err
@@ -166,7 +167,7 @@ func quoteRoutineFragments(fragments []routineFragment) []routineFragment {
 	return append(result, routineFragment{text: "\""})
 }
 
-func routineContainerFragments(ctx context.Context, view CatalogRead, value sqltype.Value, acl sqltype.ACLItemFormatter) ([]routineFragment, error) {
+func routineContainerFragments(ctx context.Context, view catalog.Read, value sqltype.Value, acl sqltype.ACLItemFormatter) ([]routineFragment, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -69,7 +69,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Exte
 	return nil
 }
 
-func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
+func (p *intaggProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
 	if p != stockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
 		return invalid()
@@ -103,7 +103,7 @@ func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension
 	return nil
 }
 
-func (p *intaggProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
+func (p *intaggProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intagg installation")

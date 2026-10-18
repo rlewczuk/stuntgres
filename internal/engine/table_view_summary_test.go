@@ -274,7 +274,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	base := e.CatalogRead()
 	address := roleTableRef(t, e, "summary_owned").Address
 	previous := base.MustRelation(address)
-	capture := func(catalog CatalogRead) []sqltype.Value {
+	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})

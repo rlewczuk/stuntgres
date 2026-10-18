@@ -137,7 +137,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err == nil {
 		scope.completed = true
 	}
-	if _, conflict := err.(CatalogConflict); conflict {
+	if _, conflict := err.(catalog.Conflict); conflict {
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
 		}

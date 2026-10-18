@@ -25,7 +25,7 @@ type viewDependencyEdge struct {
 	target ids.ObjectAddress
 }
 
-func viewDependencyClosure(catalog CatalogRead, targets []ids.ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
+func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
 	provider := &dropProvider{base: catalog, stage: stage}
 	return provider.viewClosure(targets)
 }
@@ -101,7 +101,7 @@ func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string 
 	return ""
 }
 
-func constraintParent(view CatalogRead, address ids.ObjectAddress) *catalog.Relation {
+func constraintParent(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
 	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return nil
 	}
@@ -113,7 +113,7 @@ func constraintParent(view CatalogRead, address ids.ObjectAddress) *catalog.Rela
 	return nil
 }
 
-func dependencyObject(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) string {
+func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) string {
 	base := target
 	base.SubID = 0
 	if parent := constraintParent(view, base); parent != nil {
@@ -256,7 +256,7 @@ func dependencyObject(view CatalogRead, target ids.ObjectAddress, path []ids.Obj
 	return object
 }
 
-func dependencyRelationName(catalog CatalogRead, d *catalog.Relation, path []ids.ObjectAddress) string {
+func dependencyRelationName(catalog catalog.Read, d *catalog.Relation, path []ids.ObjectAddress) string {
 	// Internal provider stages have no SQL visibility context. SQL utilities
 	// supply their actual lookup path, including an empty effective path.
 	if path == nil {
@@ -276,7 +276,7 @@ type supportedDependent struct {
 
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
-func supportedDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) []supportedDependent {
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ids.ObjectAddress, len(targets), len(targets)+len(views))
@@ -291,7 +291,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, 
 }
 
 // Other labels are captured before CASCADE mutates policy and rule metadata.
-func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
+func supportedDependentLabelsWithPolicies(catalog catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
 	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
@@ -350,12 +350,12 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.Obj
 	return ordered
 }
 
-func supportedRestrictError(catalog CatalogRead, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) error {
+func supportedRestrictError(catalog catalog.Read, targets []ids.ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ids.ObjectAddress, foreign ...domainDependency) error {
 	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
 	return supportedRestrictErrorLabels(catalog, views, path, dependents, false)
 }
 
-func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
+func supportedRestrictErrorLabels(catalog catalog.Read, views []viewDependencyEdge, path []ids.ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		provider := dependencyObject(catalog, dependent.target, path)
@@ -460,7 +460,7 @@ func emitViewCascade(op *Operation, details []string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 }
 
-func validateViewDefinition(v CatalogRead, d *catalog.Relation) error {
+func validateViewDefinition(v catalog.Read, d *catalog.Relation) error {
 	if d.View == nil {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
@@ -469,7 +469,7 @@ func validateViewDefinition(v CatalogRead, d *catalog.Relation) error {
 
 // Validate implements viewPayload: it checks the frozen definition against
 // its owning relation d in catalog v.
-func (definition *viewDefinition) Validate(v CatalogRead, d *catalog.Relation) error {
+func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) error {
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.Columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
@@ -537,7 +537,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *catalog.Relation) e
 	return nil
 }
 
-func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
+func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error {
 	seen := make([]*sourceNode, len(definition.sources))
 	projects := make(map[uint32]*projectNode, len(definition.frames))
 	marked := make(map[uint32]bool)

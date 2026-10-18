@@ -268,7 +268,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}
 	return stage.Create(dict)
 }
-func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
+func extensionMemberConflict(d catalog.Descriptor, ns ids.ObjectAddress) error {
 	err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR"}
 	switch d := d.(type) {
 	case *catalog.Procedure:
@@ -307,7 +307,7 @@ func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 
 type extensionAuthorityObservation struct {
 	roles               uint64
-	namespace, database Descriptor
+	namespace, database catalog.Descriptor
 }
 
 func extensionNameConflict(name string) error {

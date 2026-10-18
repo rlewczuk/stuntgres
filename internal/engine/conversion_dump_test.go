@@ -32,7 +32,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	seedCollision := conversionUnitDefinition(e, 90003, "__stuntgres_conversion_seed_4519", false)
 	seedCollision.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	stage := e.BeginCatalogStage(view)
-	for _, d := range []Descriptor{hidden, collision, first, second, plain, seedCollision} {
+	for _, d := range []catalog.Descriptor{hidden, collision, first, second, plain, seedCollision} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

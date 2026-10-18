@@ -14,7 +14,7 @@ func addDumpDependency(graph map[dumpEventKey][]dumpEventKey, event, predecessor
 	}
 }
 
-func partitionDumpIndexBacking(view CatalogRead, index, table ids.ObjectAddress) *catalog.Relation {
+func partitionDumpIndexBacking(view catalog.Read, index, table ids.ObjectAddress) *catalog.Relation {
 	for _, descriptor := range view.Descriptors() {
 		candidate, ok := descriptor.(*catalog.Relation)
 		if ok && candidate.SQLIndex != nil && candidate.SQLIndex.Parent == table && candidate.SQLIndex.PartitionParent == index {
@@ -44,7 +44,7 @@ func dumpEventDependsOn(graph map[dumpEventKey][]dumpEventKey, event, target dum
 // synthesize a missing child or replace a captured invalid child. Delay all
 // manual virtual indexes on that table, including the intended valid tree, so
 // physical backings cannot be consumed by the wrong equivalent parent index.
-func partitionDumpLateIndexTables(view CatalogRead) map[ids.ObjectAddress]bool {
+func partitionDumpLateIndexTables(view catalog.Read) map[ids.ObjectAddress]bool {
 	late := make(map[ids.ObjectAddress]bool)
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -77,7 +77,7 @@ func partitionDumpLateIndexTables(view CatalogRead) map[ids.ObjectAddress]bool {
 // Extend the existing declaration graph in place. The same source-priority
 // scheduler owns declarations, names, physical data, constraint origins and
 // captured membership/index edges; there is no independent topology sorter.
-func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
+func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, indexIndices map[ids.OID]int, replay *partitionConstraintReplay, deferDefaults bool) error {
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {

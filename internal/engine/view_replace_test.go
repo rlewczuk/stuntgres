@@ -180,7 +180,7 @@ func TestViewReplaceAtomicCancellation(t *testing.T) {
 			defer cancel()
 			original := e.catalog.Providers[ids.RelationClassID]
 			var once sync.Once
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
 			_, err := testExecute(e, ctx, statement(t, q), nil)
 			if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 				t.Fatal(err, "partial publication")

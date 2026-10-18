@@ -18,7 +18,7 @@ type alterTypeCheck struct {
 	literals []literalExpression
 }
 
-func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
 	if len(survivor.CheckConstraints) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}

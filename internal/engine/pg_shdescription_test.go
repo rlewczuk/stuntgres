@@ -121,7 +121,7 @@ func pgShDescriptionUnitRole(e *Engine, state *roleCatalog, id uint64, name, tex
 	return ref
 }
 
-func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Read, catalog CatalogRead, id uint32, want *string) {
+func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Read, catalog catalog.Read, id uint32, want *string) {
 	t.Helper()
 	oidUsage, nameUsage, textUsage := testUsage(e, sqltype.Oid), testUsage(e, sqltype.Name), testUsage(e, sqltype.Text)
 	oid, err := sqltype.OIDValue(oidUsage.Type, id)

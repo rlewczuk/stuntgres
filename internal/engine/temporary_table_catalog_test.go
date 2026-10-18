@@ -52,7 +52,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
 	e.storage[table.Address()] = &relationStorage{}
-	if _, ok := e.catalogPreflightLocked(c).(CatalogConflict); !ok {
+	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}
 }
@@ -265,7 +265,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
-	lookup := func(view CatalogRead, name string, namespace ids.SessionToken) *catalog.Relation {
+	lookup := func(view catalog.Read, name string, namespace ids.SessionToken) *catalog.Relation {
 		t.Helper()
 		for _, descriptor := range view.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)

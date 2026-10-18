@@ -100,7 +100,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch replacement accepted old rebuild", err)
 				}
-			} else if _, ok := err.(CatalogConflict); !ok {
+			} else if _, ok := err.(catalog.Conflict); !ok {
 				t.Fatal("changed observation accepted old rebuild", err)
 			}
 			indexMaintenanceUnchanged(t, e, before)

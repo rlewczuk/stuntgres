@@ -360,16 +360,16 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	return nil
 }
 
-func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalogState, storage *relationStorage) error {
+func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, storage *relationStorage) error {
 	r := s.materializedReplacement
 	if r == nil {
 		return nil
 	}
 	if s.Descriptors[r.original.Address()] != r.descriptor {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.generation != r.generation || len(r.predecessor.versions) != r.length || r.predecessor.ends != r.ends {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	// The effective diff depends on every eligible key; root publication also
 	// depends on ineligible indexes. Fence the exact original complete set,
@@ -381,12 +381,12 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalogState, st
 			continue
 		}
 		if s.Base.Get(address) != descriptor {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		count++
 	}
 	if count != r.indexCount {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	return nil
 }

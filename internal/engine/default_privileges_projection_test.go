@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
+func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())

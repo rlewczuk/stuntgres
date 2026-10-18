@@ -21,7 +21,7 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Obj
 	}
 	return source, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
-func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
+func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[string][]sqltype.Value {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
@@ -45,7 +45,7 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 	return out
 }
 
-func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
+func pgConstraintUnitBootstrap(t *testing.T, view catalog.Read, row []sqltype.Value) {
 	t.Helper()
 	domain := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
 	if len(row) != 28 || len(domain.DomainChecks) != 1 {

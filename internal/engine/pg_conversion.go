@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGConversion(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGConversion(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	var definitions []*catalog.Conversion
 	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*catalog.Conversion); ok {

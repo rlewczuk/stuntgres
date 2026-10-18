@@ -38,7 +38,7 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
-func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
+func (n installedCryptoFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")

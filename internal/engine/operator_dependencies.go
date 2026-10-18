@@ -6,7 +6,7 @@ import (
 )
 
 // Commutator and negator are reciprocal links, deliberately not dependencies.
-func operatorDependencyAddresses(view CatalogRead, d *catalog.Operator) []ids.ObjectAddress {
+func operatorDependencyAddresses(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
 	refs := make([]ids.ObjectAddress, 0, 7)
 	add := func(a ids.ObjectAddress) {
 		if a.ObjectID == 0 {

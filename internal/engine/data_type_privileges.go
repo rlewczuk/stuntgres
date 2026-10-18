@@ -40,7 +40,7 @@ func (e *Engine) initializeDataTypePrivileges() error {
 
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

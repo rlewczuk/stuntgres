@@ -24,7 +24,7 @@ type indexPresentation struct {
 	exclusion   bool
 }
 
-func indexDefinitionSQL(ctx context.Context, view CatalogRead, index *catalog.Relation, presentation indexPresentation) (string, error) {
+func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relation, presentation indexPresentation) (string, error) {
 	if err := validateIndexDefinition(view, index); err != nil {
 		return "", err
 	}
@@ -306,7 +306,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 // the existing TYPE-buffer function grammar, and the decoration reconstruction
 // owner. Return the classified column/expression usage, not its type default:
 // PostgreSQL compares full-key collation with that usage. Dump stays canonical.
-func compactIndexKeySQL(ctx context.Context, view CatalogRead, parent *catalog.Relation, key catalog.IndexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
+func compactIndexKeySQL(ctx context.Context, view catalog.Read, parent *catalog.Relation, key catalog.IndexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
 	if presentation.reconstruct && key.Derived != nil {
 		node := key.Derived.Definition
 		text, err := (pgRenderer{view: view, relation: parent, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})

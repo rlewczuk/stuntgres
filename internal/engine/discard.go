@@ -291,7 +291,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 	return s.relationCursorPreflight(stage.Base, address, "DROP TABLE")
 }
 
-func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ids.ObjectAddress, command string) error {
+func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.op.session
 	for _, cursor := range session.cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {

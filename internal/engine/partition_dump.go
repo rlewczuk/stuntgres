@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func partitionDumpPredecessors(view CatalogRead, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
+func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
 	add := func(address ids.ObjectAddress) error {
 		id, err := dumpPredecessor(view, address, d.Address())
 		if err != nil {
@@ -77,7 +77,7 @@ func partitionDumpPredecessors(view CatalogRead, d *catalog.Relation, predecesso
 	return predecessors, nil
 }
 
-func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *catalog.Relation) (string, error) {
+func partitionKeySQL(ctx context.Context, catalog catalog.Read, d *catalog.Relation) (string, error) {
 	if d.Partition == nil {
 		return "", nil
 	}
@@ -123,7 +123,7 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *catalog.Relati
 // Existing-table attachment need not have any of those properties. Decide from
 // captured definitions, not a historical CREATE/ATTACH flag, so logical replay
 // remains canonical after stable attribute numbers have been reminted.
-func partitionDumpNeedsAttach(catalog CatalogRead, d *catalog.Relation) bool {
+func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil {
 		return false
 	}
@@ -160,7 +160,7 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *catalog.Relation) bool {
 	return false
 }
 
-func partitionAttachDumpSQL(ctx context.Context, view CatalogRead, d *catalog.Relation) (string, error) {
+func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.Relation) (string, error) {
 	parent := view.MustRelation(d.Membership.Parent)
 	qualified := func(table *catalog.Relation) string {
 		return quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
@@ -185,7 +185,7 @@ func partitionAttachDumpSQL(ctx context.Context, view CatalogRead, d *catalog.Re
 
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
-func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
+func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
 	parent, ok := catalog.Relation(d.Membership.Parent)
 	if !ok || parent.Partition == nil {
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
@@ -315,7 +315,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *catalog.Rela
 
 // Bounds are evaluated datums, not saved SQL expressions. The ordinary Dump
 // literal authority preserves owned type declarations and reference names.
-func partitionTupleDumpSQL(ctx context.Context, catalog CatalogRead, keys []catalog.PartitionKeyEntry, tuple []catalog.PartitionDatum) (string, error) {
+func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []catalog.PartitionKeyEntry, tuple []catalog.PartitionDatum) (string, error) {
 	var text strings.Builder
 	for i, datum := range tuple {
 		if i != 0 {
@@ -344,7 +344,7 @@ func hashPartitionBoundSQL(bound *catalog.PartitionMembership) string {
 
 // Replay identity-sensitive rows through their highest HASH ancestor; RANGE-only
 // trees preserve physical destinations. Parent insertion checks every ancestor.
-func partitionHashReplayTarget(catalog CatalogRead, d *catalog.Relation) *catalog.Relation {
+func partitionHashReplayTarget(catalog catalog.Read, d *catalog.Relation) *catalog.Relation {
 	target := d
 	for child := d; child.Membership != nil; {
 		parent := catalog.MustRelation(child.Membership.Parent)

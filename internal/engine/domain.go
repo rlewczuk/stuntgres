@@ -150,7 +150,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	return nil
 }
 
-func typeDiagnosticNameAt(view CatalogRead, d *catalog.Type, path []ids.ObjectAddress) string {
+func typeDiagnosticNameAt(view catalog.Read, d *catalog.Type, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
 		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
@@ -172,7 +172,7 @@ func typeDiagnosticNameAt(view CatalogRead, d *catalog.Type, path []ids.ObjectAd
 	return dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
-func validateTypeProviders(view CatalogRead, d Descriptor) error {
+func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 	switch d := d.(type) {
 	case *catalog.Type:
 		if d.SQLType.IsDomain() {
@@ -182,13 +182,13 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 			}
 			actual, ok := view.LookupType(base.Type.ID())
 			if !ok || actual != base.Type {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 		if d.SQLType.IsArray() {
 			actual, ok := view.LookupType(d.SQLType.Element().ID())
 			if !ok || actual != d.SQLType.Element() {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 	case *catalog.Relation:
@@ -198,7 +198,7 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 			}
 			actual, ok := view.LookupType(c.Usage.Type.ID())
 			if !ok || actual != c.Usage.Type {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 	}

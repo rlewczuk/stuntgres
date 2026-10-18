@@ -25,7 +25,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	peerTable := *table
 	peerTable.ObjectAddress.ObjectID = 20006
 	peerTable.ObjectNamespace = peerNamespace.Address()
-	for _, d := range []Descriptor{sequence, index, peerNamespace, &peerTable} {
+	for _, d := range []catalog.Descriptor{sequence, index, peerNamespace, &peerTable} {
 		e.catalogChangeLocked(c, d.Address(), d)
 	}
 	e.catalog.state = e.privateCatalogLocked(c).State()

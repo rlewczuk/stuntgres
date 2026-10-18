@@ -51,7 +51,7 @@ func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	stage.domainBases = []Descriptor{d}
+	stage.domainBases = []catalog.Descriptor{d}
 	stage.domainValidation = domainAlterUnitFence(t, e, view, d.Address())
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {

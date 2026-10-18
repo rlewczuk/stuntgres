@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 type collationRemapper func(sqltype.CollationRef) (sqltype.CollationRef, error)
 
-func remappedCollationCapabilities(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) collationRemapper {
+func remappedCollationCapabilities(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) collationRemapper {
 	needed := false
 	for from, to := range mapping {
 		if from.ClassID == ids.CollationClassID && from != to {

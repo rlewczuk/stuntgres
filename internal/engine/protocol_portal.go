@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -374,7 +375,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		}
 	}
 	var values []sqltype.Value
-	var catalog CatalogRead
+	var catalog catalog.Read
 	if p.producer != nil {
 		c := p.producer
 		s.enterProtocolProducer(c)
@@ -512,7 +513,7 @@ func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 	s.protocolResume = false
 }
 
-func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype.Value, catalog CatalogRead) error {
+func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype.Value, catalog catalog.Read) error {
 	// Readers borrow only this row. Reuse their maps without retaining old
 	// spellings or a query-sized history across demands/destinations. The ACL
 	// identity stays engine-owned, and operatorGroups belongs to the catalog.

@@ -13,7 +13,7 @@ type alterTypeIndex struct {
 	sql       string
 }
 
-func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
+func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
 	op := scope.op
 	hasType := false
 	for _, action := range actions {

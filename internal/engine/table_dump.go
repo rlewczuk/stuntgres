@@ -32,7 +32,7 @@ type dumpRelation struct {
 	identitySequences   map[ids.ObjectAddress]dumpSequence
 }
 
-func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
 	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 	for i, c := range t.columns {
 		definition, exists := t.defaults[t.attributes[i]]
@@ -54,7 +54,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog Catalog
 	return nil
 }
 
-func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
 	destination := partitionHashReplayTarget(catalog, t.descriptor)
 	qualified := quoteIdentifier(catalog.Get(destination.Namespace()).Name()) + "." + quoteIdentifier(destination.Name())
 	var line strings.Builder
@@ -126,7 +126,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 // Stored regclass values need the actual replay name, not merely the table's
 // type declaration. Reuse the ordinary scalar reference walker for arrays and
 // opaque owned values, and the same captured visibility frontier as emitRows.
-func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogRead, add func(ids.ObjectAddress) error) error {
+func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.Read, add func(ids.ObjectAddress) error) error {
 	for _, version := range t.versions {
 		if err := ctx.Err(); err != nil {
 			return err

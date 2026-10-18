@@ -38,7 +38,7 @@ type viewDefinition struct {
 	rule              ids.OID
 	consumer          ids.ObjectAddress
 	temporary         ids.SessionToken
-	references        map[ids.ObjectRef]Descriptor
+	references        map[ids.ObjectRef]catalog.Descriptor
 	collations        map[viewLiteralPath]uint32
 	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
 }
@@ -197,7 +197,7 @@ func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewC
 
 // Relation occurrences, including unused/join/subquery leaves, determine PG18
 // inference. Expression-only regclass/sequence dependencies deliberately do not.
-func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sources []queryLeaf) string {
+func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []queryLeaf) string {
 	if view.Persistence == "temporary" {
 		return "temporary"
 	}
@@ -505,7 +505,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	return Result{}, err
 }
 
-func checkViewPrefix(catalog CatalogRead, old, next []ColumnDescriptor) error {
+func checkViewPrefix(catalog catalog.Read, old, next []ColumnDescriptor) error {
 	if len(next) < len(old) {
 		return sqlError("42P16", "cannot drop columns from view")
 	}

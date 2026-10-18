@@ -79,7 +79,7 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, defi
 	c.routineConsumer = owner
 }
 
-func (e columnExpression) admitVirtualGeneration(c *EvalContext, view CatalogRead) error {
+func (e columnExpression) admitVirtualGeneration(c *EvalContext, view catalog.Read) error {
 	if e.virtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -100,7 +100,7 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, view CatalogRea
 }
 
 // CHECK recipes belong to the completed destination, not a copied source.
-func refreshGenerationChecks(d *catalog.Relation, catalog CatalogRead) error {
+func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.CheckConstraints {
 		next, changed, err := mapBoundExpression(catalog, d.CheckConstraints[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)

@@ -143,7 +143,7 @@ func TestTruncateGraph(t *testing.T) {
 			} else {
 				truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
 			}
-			if err := scope.Finish(nil); err != (CatalogConflict{}) {
+			if err := scope.Finish(nil); err != (catalog.Conflict{}) {
 				t.Fatalf("late host graph: %v", err)
 			}
 			scope.op.Done()

@@ -40,7 +40,7 @@ func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture boo
 	}
 }
 
-func rangePartitionRetirementDescriptors(t *testing.T, view CatalogRead) (*catalog.Relation, *catalog.Relation) {
+func rangePartitionRetirementDescriptors(t *testing.T, view catalog.Read) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	var provider, root *catalog.Relation
 	for _, d := range view.Descriptors() {
@@ -228,7 +228,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	peerDescriptors := make(map[ids.ObjectAddress]Descriptor)
+	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)
 	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
 	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for a, d := range base.Descriptors() {

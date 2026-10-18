@@ -24,7 +24,7 @@ var pgAMMethods = [...]struct {
 	{783, "gist", 332, "i"},
 }
 
-func capturePGAM(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGAM(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

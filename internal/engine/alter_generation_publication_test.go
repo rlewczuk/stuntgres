@@ -193,7 +193,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			if kind == "descriptor" || kind == "acl" {
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.As(err, &conflict) {
 					t.Fatal("provider conflict changed error boundary", err)
 				}

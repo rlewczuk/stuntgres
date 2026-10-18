@@ -191,21 +191,21 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		e, ext, base := intarrayUnitInstalled(t)
 		original := slices.Clone(ext.Members)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		for _, corrupt := range []func(*catalogState, *catalog.Extension){
-			func(_ *catalogState, d *catalog.Extension) { d.Members[1] = d.Members[0] },
-			func(_ *catalogState, d *catalog.Extension) { d.Version = "1.2" },
-			func(state *catalogState, d *catalog.Extension) { state.RemoveDescriptor(d.Members[1]) },
-			func(state *catalogState, d *catalog.Extension) {
+		for _, corrupt := range []func(*catalog.State, *catalog.Extension){
+			func(_ *catalog.State, d *catalog.Extension) { d.Members[1] = d.Members[0] },
+			func(_ *catalog.State, d *catalog.Extension) { d.Version = "1.2" },
+			func(state *catalog.State, d *catalog.Extension) { state.RemoveDescriptor(d.Members[1]) },
+			func(state *catalog.State, d *catalog.Extension) {
 				proc := *state.MustProcedure(d.Members[1])
 				proc.Result++
 				state.SetDescriptor(proc.Address(), &proc)
 			},
-			func(state *catalogState, d *catalog.Extension) {
+			func(state *catalog.State, d *catalog.Extension) {
 				proc := *state.MustProcedure(d.Members[2])
 				proc.Signature = "25"
 				state.SetDescriptor(proc.Address(), &proc)
 			},
-			func(state *catalogState, _ *catalog.Extension) {
+			func(state *catalog.State, _ *catalog.Extension) {
 				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
 				array := *state.MustType(address)
 				array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), text)

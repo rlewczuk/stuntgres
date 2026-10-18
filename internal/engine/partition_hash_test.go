@@ -39,14 +39,14 @@ func TestHashPartitionBounds(t *testing.T) {
 	}
 }
 
-func hashPartitionUnitDescriptor(t *testing.T) (CatalogRead, *catalog.Relation, *catalog.Relation) {
+func hashPartitionUnitDescriptor(t *testing.T) (catalog.Read, *catalog.Relation, *catalog.Relation) {
 	_, catalog, root, leaf := hashPartitionUnitEngine(t)
 	return catalog, root, leaf
 }
 
 // hashPartitionUnitEngine is hashPartitionUnitDescriptor with the engine that
 // owns the returned view.
-func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *catalog.Relation, *catalog.Relation) {
+func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	snapshot := catalog.CloneState(e.catalog.state)

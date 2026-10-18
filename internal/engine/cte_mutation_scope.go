@@ -17,7 +17,7 @@ type admittedMutationTarget struct {
 type statementMutation struct {
 	statement             parser.Statement
 	lockedRef             ids.ObjectRef
-	lockedDescriptor      Descriptor
+	lockedDescriptor      catalog.Descriptor
 	lockedStorage         *relationStorage
 	lockedIdentityOnly    bool
 	inheritedTargets      []queryLeaf

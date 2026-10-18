@@ -97,7 +97,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return source, err
 		}
-		var catalog CatalogRead
+		var catalog catalog.Read
 		switch d.Address().ObjectID {
 		case 2609, 3079, ids.ParameterClassID:
 			catalog = scope.commentCatalog

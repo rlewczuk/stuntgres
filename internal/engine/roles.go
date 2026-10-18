@@ -165,7 +165,7 @@ type roleDependency struct {
 
 // A nil collector stops at the first dependency without building diagnostics.
 // Admission and final publication share the exact same descriptor classification.
-func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Policies {
 			for _, role := range policy.Roles {
@@ -279,7 +279,7 @@ func relationDiagnosticName(auth AuthorizationView, relation *catalog.Relation) 
 	return relationDiagnosticNameAt(auth.catalog, relation, path)
 }
 
-func relationVisibleAt(catalog CatalogRead, relation *catalog.Relation, path []ids.ObjectAddress) bool {
+func relationVisibleAt(catalog catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
 		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.Name()}); ok {
 			return a == relation.Address()
@@ -288,7 +288,7 @@ func relationVisibleAt(catalog CatalogRead, relation *catalog.Relation, path []i
 	return false
 }
 
-func relationDiagnosticNameAt(catalog CatalogRead, relation *catalog.Relation, path []ids.ObjectAddress) string {
+func relationDiagnosticNameAt(catalog catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) string {
 	name := dependencyIdentifier(relation.Name())
 	if relationVisibleAt(catalog, relation, path) {
 		return name

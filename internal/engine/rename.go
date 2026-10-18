@@ -121,7 +121,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 		}
 	}
-	if _, conflict := err.(CatalogConflict); conflict && !columnRename {
+	if _, conflict := err.(catalog.Conflict); conflict && !columnRename {
 		e.mu.Lock()
 		current := e.stageCatalogBaseLocked(stage)
 		winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination})

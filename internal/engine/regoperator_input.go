@@ -14,7 +14,7 @@ import (
 type operatorSignature struct{ left, right ids.OID }
 type operatorGroups map[string][]*catalog.Operator
 
-func collectOperatorGroups(view CatalogRead) operatorGroups {
+func collectOperatorGroups(view catalog.Read) operatorGroups {
 	groups := make(operatorGroups)
 	for key, addresses := range view.State().OperatorNames().Buckets {
 		for _, address := range addresses {

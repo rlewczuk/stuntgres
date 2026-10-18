@@ -51,7 +51,7 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 	return err
 }
 
-func (e *Engine) preflightACLItemDump(ctx context.Context, view CatalogRead, output capturedACLItemOutput) error {
+func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, output capturedACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {

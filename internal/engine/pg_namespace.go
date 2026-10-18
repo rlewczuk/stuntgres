@@ -12,7 +12,7 @@ import (
 
 // Caller owns e.mu. Catalog and paired roles are immutable captured authority;
 // inventory visibility is independent of the actor's schema USAGE privileges.
-func (e *Engine) capturePGNamespace(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

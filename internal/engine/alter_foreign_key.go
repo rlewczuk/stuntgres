@@ -167,7 +167,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 
 // Only definitions introduced by this ALTER get an initial historical scan.
 // The ordinary Finish checker remains responsible for genuine later writes.
-func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *catalog.Relation, added []ids.OID) error {
+func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *catalog.Relation, added []ids.OID) error {
 	if len(added) == 0 {
 		return nil
 	}

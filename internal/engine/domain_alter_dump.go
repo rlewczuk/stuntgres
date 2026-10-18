@@ -12,7 +12,7 @@ import (
 
 // Invalid domain CHECKs are post-data events. Their providers do not constrain
 // CREATE DOMAIN, which would invent cycles through a later table/derived type.
-func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*catalog.Type) error {
+func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*catalog.Type) error {
 	var data []dumpEventKey
 	for event := range graph {
 		if event.phase == dumpTableCompletion {
@@ -54,7 +54,7 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 	return nil
 }
 
-func domainInvalidDumpStatement(ctx context.Context, view CatalogRead, domain *catalog.Type) (string, error) {
+func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *catalog.Type) (string, error) {
 	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err

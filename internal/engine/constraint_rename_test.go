@@ -216,7 +216,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 				provider := e.catalog.Providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
+					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {

@@ -11,9 +11,9 @@ import (
 )
 
 // Names are namespace-wide only when generated. Explicit names are relation-local.
-func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *catalog.Relation, reader ...definitionReader) map[string]bool {
+func constraintNames(read catalog.Read, namespace ids.ObjectAddress, candidate *catalog.Relation, reader ...definitionReader) map[string]bool {
 	names := make(map[string]bool)
-	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
+	descriptors := func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range read.Descriptors() {
 			if !yield(address, descriptor) {
 				return
@@ -311,7 +311,7 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declar
 	return constraints, nil
 }
 
-func nameCreateNotNull(d *catalog.Relation, read CatalogRead) error {
+func nameCreateNotNull(d *catalog.Relation, read catalog.Read) error {
 	if len(d.NotNullConstraints) == 0 {
 		return nil
 	}

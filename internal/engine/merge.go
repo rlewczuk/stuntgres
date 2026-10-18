@@ -256,7 +256,7 @@ func mergeTargetUnion(union, targets []int) []int {
 
 // Each Execute has a newly analyzed binding. Preflight mutates only that private
 // binding, never a stored source/default definition or held prepared statement.
-func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) error {
+func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	var err error

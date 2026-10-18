@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func validateRules(view CatalogRead, d *catalog.Relation) error {
+func validateRules(view catalog.Read, d *catalog.Relation) error {
 	if d.Rules == nil {
 		return nil
 	}
@@ -16,7 +16,7 @@ func validateRules(view CatalogRead, d *catalog.Relation) error {
 }
 
 // validateRuleList checks rules owned by d.
-func validateRuleList(view CatalogRead, d *catalog.Relation, rules []ruleDefinition) error {
+func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefinition) error {
 	previous := ""
 	for i, r := range rules {
 		if r.OID == 0 || r.Name == "" || i != 0 && strings.Compare(previous, r.Name) >= 0 {

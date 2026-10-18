@@ -114,9 +114,9 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 	return prepared
 }
 
-func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalogState) {
+func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalog.State) {
 	t.Helper()
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || err.Error() != "stuntgres: catalog publication conflict" {
 		t.Fatal("late incoming dependency did not reject retirement before publication", err)
 	}

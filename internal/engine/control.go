@@ -1727,7 +1727,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		} else {
 			deferredPhysical = nil
 		}
-		var physicalIndexBase CatalogRead
+		var physicalIndexBase catalog.Read
 		if _, ok := stmt.(*parser.CreateIndex); ok {
 			physicalIndexBase = stage.CatalogRead()
 		}

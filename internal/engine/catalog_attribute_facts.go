@@ -59,7 +59,7 @@ func catalogAttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 }
 
 func initializeCatalogAttributes(d *catalog.Relation) {
-	d.CatalogAttributes = make([]catalogAttribute, len(d.Columns))
+	d.CatalogAttributes = make([]catalog.CatalogAttribute, len(d.Columns))
 	view := d.VirtualView || representedSummaryViewDefinition(d.Address().ObjectID) != ""
 	for i, column := range d.Columns {
 		attribute := catalogAttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
@@ -67,7 +67,7 @@ func initializeCatalogAttributes(d *catalog.Relation) {
 		if attribute > d.AttributeHighWater {
 			d.AttributeHighWater = attribute
 		}
-		fact := catalogAttribute{NotNull: !view, Collation: column.Usage.Collation.ID}
+		fact := catalog.CatalogAttribute{NotNull: !view, Collation: column.Usage.Collation.ID}
 		if !view {
 			if column.Usage.Type.IsArray() {
 				fact.Dimensions = 1

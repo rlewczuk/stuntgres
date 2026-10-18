@@ -68,7 +68,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 // through functions.Binder.InstalledRoutine.
 type installedExtensionRoutine struct {
 	binder    *expressionBinder
-	catalog   CatalogRead
+	catalog   catalog.Read
 	procedure *catalog.Procedure
 }
 

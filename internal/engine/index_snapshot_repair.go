@@ -34,7 +34,7 @@ func (snapshot *indexSnapshot) needsOwnerRepair() bool {
 
 // Track only generated cells that can invalidate a captured index. False means
 // observed unchanged so far, not a missing dependency or a cached SQL result.
-func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.ObjectAddress]map[int32]bool {
+func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.ObjectAddress]map[int32]bool {
 	if snapshot == nil {
 		return nil
 	}

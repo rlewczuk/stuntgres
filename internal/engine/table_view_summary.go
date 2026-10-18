@@ -53,7 +53,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 // belong to retained source snapshots. Normalize represented indexes into that
 // candidate without mutating source roots or clearing history-only true flags.
 // Structural index validation remains independent of this publication metadata.
-func normalizeReplacementIndexHistory(ctx context.Context, view CatalogRead) error {
+func normalizeReplacementIndexHistory(ctx context.Context, view catalog.Read) error {
 	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -85,7 +85,7 @@ func representedSummaryTable(oid ids.OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, presentation viewPresentation) (*querySource, error) {
+func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, value) }

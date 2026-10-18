@@ -41,7 +41,7 @@ func (v *viewDefinition) TemporaryConsumer() (ids.ObjectAddress, ids.SessionToke
 	return v.consumer, v.temporary
 }
 
-func (v *viewDefinition) CapturedReference(ref ids.ObjectRef) (Descriptor, bool) {
+func (v *viewDefinition) CapturedReference(ref ids.ObjectRef) (catalog.Descriptor, bool) {
 	d, ok := v.references[ref]
 	return d, ok
 }

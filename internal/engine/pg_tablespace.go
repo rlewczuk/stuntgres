@@ -12,7 +12,7 @@ import (
 
 // Capture descriptors and ACLs from the same immutable root as the query's
 // other catalog sources. Later grants cannot mutate already captured rows.
-func (e *Engine) capturePGTablespace(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGTablespace(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

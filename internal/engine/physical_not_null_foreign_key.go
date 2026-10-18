@@ -20,7 +20,7 @@ func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.For
 	return false
 }
 
-func emitPhysicalSelfForeignKeys(view CatalogRead, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
 		return nil
 	}

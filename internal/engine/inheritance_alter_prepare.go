@@ -14,7 +14,7 @@ type inheritancePreparedAction struct {
 	added     addedColumn
 	drop      *preparedDrop
 	identity  *preparedIdentityDrop
-	types     []Descriptor
+	types     []catalog.Descriptor
 	using     *usingIndexPreparation
 	err       error
 	notices   []sqlstate.Error
@@ -254,7 +254,7 @@ phases:
 	return prepared, nil
 }
 
-func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]Descriptor, error) {
+func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *catalog.Relation) ([]catalog.Descriptor, error) {
 	if relation.RowType == 0 {
 		return nil, nil
 	}
@@ -263,15 +263,15 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 	if !ok {
 		return nil, nil
 	}
-	var effects []Descriptor
-	err := synchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) Descriptor {
+	var effects []catalog.Descriptor
+	err := synchronizeRowTypeMetadata(relation, row, func(address ids.ObjectAddress) catalog.Descriptor {
 		descriptor, _ := reader.descriptor(address)
 		return descriptor
 	}, func(namespace ids.ObjectAddress, name string) string {
 		return chooseAssociatedArrayName(name, func(candidate string) bool {
 			return reader.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
-	}, func(descriptor Descriptor) error {
+	}, func(descriptor catalog.Descriptor) error {
 		reader.appendDescriptor(descriptor)
 		effects = append(effects, descriptor)
 		return nil

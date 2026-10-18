@@ -156,7 +156,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 
 func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
-	capture := func(catalog CatalogRead) *querySource {
+	capture := func(catalog catalog.Read) *querySource {
 		t.Helper()
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"})
 		source := catalog.MustRelation(address)

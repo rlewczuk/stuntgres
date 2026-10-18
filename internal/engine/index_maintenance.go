@@ -139,18 +139,18 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 
 // Stage observations are checked against the exact current catalog before any
 // work is prepared. The publication loop also fences that catalog at install.
-func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
+func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	if (len(s.indexParents) > 0 || len(s.indexRebuilds) > 0 || len(s.indexSets) > 0) && current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, observed := range s.indexParents {
 		if current.Get(address) != observed {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for address, observed := range s.indexRebuilds {
 		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.Base.Get(address) != observed {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for parent, count := range s.indexSets {
@@ -164,12 +164,12 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
 			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			actual++
 		}
 		if actual != count {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil

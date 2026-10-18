@@ -6,7 +6,7 @@ import "stuntgres/internal/engine/catalog"
 // the rules always had, so copy-on-write sharing is unchanged.
 type ruleList []ruleDefinition
 
-func (r ruleList) Validate(v CatalogRead, owner *catalog.Relation) error {
+func (r ruleList) Validate(v catalog.Read, owner *catalog.Relation) error {
 	return validateRuleList(v, owner, r)
 }
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *catalog.Type {
+func infoTimeStampCatalogType(t *testing.T, view catalog.Read) *catalog.Type {
 	t.Helper()
 	key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, Name: "time_stamp"}
 	addresses := view.Lookup(key)

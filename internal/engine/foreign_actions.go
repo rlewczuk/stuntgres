@@ -154,7 +154,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	return jobs, auth, nil
 }
 
-func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
+func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	child, cok := view.Relation(job.child.Address())
 	parent, pok := view.Relation(job.parent.Address())
 	index, iok := view.Relation(job.index.Address())

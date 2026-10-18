@@ -483,7 +483,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, descriptor)
 			changes.generators[address] = stage.generators[address]
@@ -499,7 +499,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, nil)
 			delete(changes.generators, address)
@@ -823,7 +823,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		for name := range stage.Touched {
 			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 		}
 	}
@@ -834,7 +834,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
@@ -845,7 +845,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)

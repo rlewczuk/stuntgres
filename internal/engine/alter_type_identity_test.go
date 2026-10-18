@@ -359,7 +359,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 					t.Fatal("exact current identity refresh rejected", err)
 				}
 			} else {
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.As(err, &conflict) {
 					t.Fatal("dependency/original fence weakened", name, err)
 				}

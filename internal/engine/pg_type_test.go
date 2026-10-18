@@ -157,7 +157,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, nil)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), CatalogRead{}, roles, ref, d)
+	s, err = e.capturePGType(t.Context(), catalog.Read{}, roles, ref, d)
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ids.ObjectRef{}, d)
 	ordinary(s, err)
@@ -266,7 +266,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldRows := pgTypeUnitBag(t, captured, source)
-	array := func(t *testing.T, view CatalogRead, d *catalog.Type) *catalog.Type {
+	array := func(t *testing.T, view catalog.Read, d *catalog.Type) *catalog.Type {
 		t.Helper()
 		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)})
 		if !ok || a.SQLType.Element() != d.SQLType {
@@ -274,7 +274,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		}
 		return a
 	}
-	check := func(view CatalogRead, rows map[uint32][]sqltype.Value) {
+	check := func(view catalog.Read, rows map[uint32][]sqltype.Value) {
 		t.Helper()
 		base := domainUnitType(t, view, "query_int")
 		domain := domainUnitType(t, view, "pt18_query_domain")

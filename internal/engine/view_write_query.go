@@ -14,7 +14,7 @@ type viewWriteOccurrence struct {
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
+func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
 	project, ok := root.(*projectNode)
 	if !ok {
 		return rewriteQueryExpressions(root, rewrite)

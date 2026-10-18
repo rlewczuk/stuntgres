@@ -166,7 +166,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-			} else if err != (CatalogConflict{}) {
+			} else if err != (catalog.Conflict{}) {
 				t.Fatal("missing final veto", err)
 			}
 			if len(oldP.versions) != 2 || len(oldQ.versions) != 1 || oldPS.last != 2 || oldQS.last != 44 || oldP.truncateLineage != nil || oldQ.truncateLineage != nil || e.storage[q.Address] != oldQ || e.sequences[qs.Address] != oldQS || e.catalog.state.Get(qs.Address) != oldQD {
@@ -236,7 +236,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 					d.Sequence = &options
 				})
 			}
-			if err := scope.Finish(nil); err != (CatalogConflict{}) {
+			if err := scope.Finish(nil); err != (catalog.Conflict{}) {
 				t.Fatalf("host ownership did not veto: %v", err)
 			}
 			scope.op.Done()

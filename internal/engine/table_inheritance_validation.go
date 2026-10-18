@@ -12,7 +12,7 @@ import (
 // Retained TEMP definitions keep their original row-reference epoch across a
 // persistent replacement. Compare at current row authority without changing
 // either descriptor or remapping external provider references.
-func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v CatalogRead) bool {
+func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) bool {
 	if sameGroupExpression(mapped, child) {
 		return true
 	}
@@ -21,7 +21,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v Cat
 	return err == nil && sameGroupExpression(mapped, current)
 }
 
-func validateInheritance(v CatalogRead, d *catalog.Relation) error {
+func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 	graph := d.Inheritance
 	if graph == nil {
 		return nil

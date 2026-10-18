@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2964}
 	d, ok := catalog.Relation(address)
@@ -25,7 +25,7 @@ func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*c
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) {
+func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
 	t.Helper()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	e.mu.Lock()

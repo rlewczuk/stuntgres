@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func namespaceUnitSource(t *testing.T, e *Engine, c catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2615}
 	d, ok := c.Relation(a)
@@ -22,7 +22,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*catalog.Relat
 	}
 	return d, e.catalog.Domain.Ref(c.Epoch(), a)
 }
-func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
+func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource {
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
@@ -226,7 +226,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
 	foreign := New()
-	reject := func(catalog CatalogRead, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
+	reject := func(catalog catalog.Read, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
 		rows, err := e.capturePGNamespace(context.Background(), catalog, roles, r, source)

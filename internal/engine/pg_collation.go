@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCollation(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGCollation(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	var definitions []*catalog.Collation
 	for _, d := range view.Descriptors() {
 		if c, ok := d.(*catalog.Collation); ok {

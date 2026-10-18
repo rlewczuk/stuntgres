@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *catalog.Relation) {
+func generatedUnitDescriptor(t *testing.T) (*Engine, catalog.Read, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	view := e.CatalogRead()

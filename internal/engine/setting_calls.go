@@ -144,7 +144,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	if !validInputs {
 		e.mu.Unlock()
-		return Result{}, CatalogConflict{}
+		return Result{}, catalog.Conflict{}
 	}
 	owner := op.session.settings
 	locked := true

@@ -24,15 +24,15 @@ type domainValidationUse struct {
 // comparison. Unrelated declarations can publish without replaying CHECK truth.
 type domainValidationFence struct {
 	target          ids.ObjectAddress
-	objects         map[ids.ObjectAddress]Descriptor
+	objects         map[ids.ObjectAddress]catalog.Descriptor
 	uses            []domainValidationUse
 	path            []ids.ObjectAddress
 	reads           []*catalog.Relation
 	allowContainers bool // Committed predecessors may be hidden by prior own DDL.
 }
 
-func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
-	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]Descriptor), path: path}
+func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
+	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]catalog.Descriptor), path: path}
 	cache := make(map[sqltype.ID]sqltype.ID)
 	active := make(map[sqltype.ID]bool)
 	var contains func(sqltype.ID) (sqltype.ID, error)
@@ -154,7 +154,7 @@ func domainGraphEqual(a, b *domainValidationFence) bool {
 	return a.target == b.target && maps.Equal(a.objects, b.objects)
 }
 
-func (f *domainValidationFence) current(view CatalogRead, storage map[ids.ObjectAddress]*relationStorage) bool {
+func (f *domainValidationFence) current(view catalog.Read, storage map[ids.ObjectAddress]*relationStorage) bool {
 	next, err := domainUsesAt(view, f.target, f.path)
 	if next == nil || err != nil && !f.allowContainers || !maps.Equal(f.objects, next.objects) {
 		return false
@@ -168,7 +168,7 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 	return true
 }
 
-func domainHistoricalViolation(view CatalogRead, relation *catalog.Relation, column int) error {
+func domainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
 	diagnostic.Schema = view.Get(relation.Namespace()).Name()
 	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name

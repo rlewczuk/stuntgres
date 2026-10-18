@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-func validateExclusions(view CatalogRead, parent *catalog.Relation, names map[string]bool) error {
+func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
 		if !ok || parent.RelationKind != catalog.TableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
@@ -194,7 +194,7 @@ func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnviron
 	return nil
 }
 
-func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog CatalogRead) error {
+func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog catalog.Read) error {
 	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.Name())

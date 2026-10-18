@@ -95,7 +95,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	child := inheritanceLifecycleTable(e, 20001, "c", parent.Address())
 	parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 22000, Name: "nn", Attribute: 1}}
 	child.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 22000}}}
-	old := map[ids.ObjectAddress]Descriptor{parent.Address(): parent, child.Address(): child}
+	old := map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, child.Address(): child}
 	changed := *parent
 	changed.NotNullConstraints = []catalog.NotNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
 	next := catalog.CloneState(e.catalog.state)

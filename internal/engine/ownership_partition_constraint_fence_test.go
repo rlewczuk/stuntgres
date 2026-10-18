@@ -14,7 +14,7 @@ import (
 
 // This fixture reuses the real partition/key/storage construction, then drives
 // the actual early-return handler rather than publishing a hand-built drop stage.
-func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, Descriptor, *catalogChanges) {
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, catalog.Descriptor, *catalogChanges) {
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
@@ -190,7 +190,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					return
 				}
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}

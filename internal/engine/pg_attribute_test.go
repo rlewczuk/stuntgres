@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgAttributeUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1249}
 	d, ok := catalog.Relation(address)
@@ -24,7 +24,7 @@ func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catal
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
+func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *querySource {
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.mu.Lock()

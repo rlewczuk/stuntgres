@@ -17,10 +17,10 @@ type partitionAttachScan struct {
 
 // Candidate AX admission is unconditional and already complete. DEFAULT opens
 // descendants only when the deciding relation cannot prove its exclusion.
-func (s *StatementScope) partitionAttachFrontier(catalogView CatalogRead, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partitionAttachScan, error) {
+func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, parent, target *catalog.Relation, bound *catalog.PartitionMembership, exclude, lockChildren bool) ([]partitionAttachScan, error) {
 	var scans []partitionAttachScan
-	var walk func(CatalogRead, *catalog.Relation) error
-	walk = func(view CatalogRead, d *catalog.Relation) error {
+	var walk func(catalog.Read, *catalog.Relation) error
+	walk = func(view catalog.Read, d *catalog.Relation) error {
 		proven, err := partitionConstraintProven(s, view, parent, d, bound, exclude)
 		if err != nil {
 			return err
@@ -75,7 +75,7 @@ func (s *StatementScope) partitionAttachFrontier(catalogView CatalogRead, parent
 // Fences cover the complete candidate stores even when proof elides a scan.
 // Scanned DEFAULT stores have their own predecessors. Normal query snapshots
 // are untouched; the dedicated view uses the same owner/command and own rows.
-func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, view CatalogRead, candidate *catalog.Relation, jobs []partitionAttachScan) error {
+func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partitionAttachScan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -119,7 +119,7 @@ type partitionAttachRowConstraint struct {
 	scratch []sqltype.Value
 }
 
-func partitionAttachValidateRows(scope *StatementScope, view CatalogRead, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {
+func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {
 	ctx := scope.op.Context()
 	evaluation := EvalContext{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output}
 	for _, job := range jobs {

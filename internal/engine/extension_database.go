@@ -27,7 +27,7 @@ func (e *Engine) initializeDatabase(name string) {
 
 // Attachment identity and ACLs belong to the destination, not portable state.
 // Retain them before replacement principal validation and publication.
-func (e *Engine) retainDatabaseLocked(next *catalogState) {
+func (e *Engine) retainDatabaseLocked(next *catalog.State) {
 	if old := next.Get(catalog.CurrentDatabaseAddress); old != nil {
 		next.UnbindName(catalog.DescriptorNameKey(old))
 	}

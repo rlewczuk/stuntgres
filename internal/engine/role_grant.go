@@ -35,8 +35,8 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
-func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]Descriptor, error) {
-	targets := make([]Descriptor, 0, len(s.Relations)+len(s.Routines))
+func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
+	targets := make([]catalog.Descriptor, 0, len(s.Relations)+len(s.Routines))
 	for _, name := range s.Relations {
 		if err := op.Context().Err(); err != nil {
 			return nil, err
@@ -128,7 +128,7 @@ type columnGrantRequest struct {
 	mask authorization.Privileges
 }
 type objectGrantChange struct {
-	descriptor   Descriptor
+	descriptor   catalog.Descriptor
 	columnsOwned bool
 }
 
@@ -156,7 +156,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	default:
 		return Result{}, sqlError("0A000", "statement is not supported")
 	}
-	var targets []Descriptor
+	var targets []catalog.Descriptor
 	var err error
 	if unavailable == "" {
 		targets, err = e.objectGrantTargets(op, v, s)
@@ -211,7 +211,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if err != nil {
 		return Result{}, err
 	}
-	var candidate *catalogState
+	var candidate *catalog.State
 	changed := make(map[ids.ObjectAddress]objectGrantChange)
 	for _, target := range targets {
 		address := target.Address()

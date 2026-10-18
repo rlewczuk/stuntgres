@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*catalog.Relation, ids.ObjectRef) {
+func pgCollationUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3456}
 	d, ok := catalog.Relation(address)
@@ -60,7 +60,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func pgCollationUnitCapture(t *testing.T, e *Engine, view CatalogRead) *querySource {
+func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySource {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, view)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision

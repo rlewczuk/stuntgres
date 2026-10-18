@@ -246,7 +246,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if storage[table.Address()] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
 		t.Fatal("source payload/provider mutated")
 	}
-	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	descriptors := make(map[ids.ObjectAddress]catalog.Descriptor, next.DescriptorCount())
 	names := make(map[ids.NameKey]ids.ObjectAddress, next.NameCount())
 	for address, descriptor := range next.Descriptors() {
 		target := address

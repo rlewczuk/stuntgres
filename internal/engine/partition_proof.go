@@ -73,7 +73,7 @@ func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *
 	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(scope *StatementScope, view CatalogRead, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
+func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {

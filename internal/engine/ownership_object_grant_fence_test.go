@@ -156,7 +156,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 						t.Fatal("missing final cancellation veto", err)
 					}
 				} else {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing retained ObjectGrant DB predecessor veto", err)
 					}

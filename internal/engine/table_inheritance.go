@@ -16,7 +16,7 @@ type createInheritanceInput struct {
 	source *catalog.Relation
 }
 
-func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
+func inheritanceHasChildren(v catalog.Read, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
 			return true
@@ -25,7 +25,7 @@ func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 	return false
 }
 
-func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*catalog.Relation {
+func inheritanceChildren(v catalog.Read, parent ids.ObjectAddress) []*catalog.Relation {
 	var children []*catalog.Relation
 	for address := range v.Descriptors() {
 		if address.ClassID != ids.RelationClassID {
@@ -47,7 +47,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*catalog.Rel
 	})
 	return children
 }
-func inheritanceParticipant(v CatalogRead, d *catalog.Relation) bool {
+func inheritanceParticipant(v catalog.Read, d *catalog.Relation) bool {
 	return d.Inheritance != nil || inheritanceHasChildren(v, d.Address())
 }
 
@@ -59,7 +59,7 @@ func inheritanceTypeName(u sqltype.Usage) string {
 	}
 	return name
 }
-func inheritanceColumnConflict(view CatalogRead, old, next ColumnDescriptor, local bool) error {
+func inheritanceColumnConflict(view catalog.Read, old, next ColumnDescriptor, local bool) error {
 	prefix := "inherited column"
 	if local {
 		prefix = "column"

@@ -39,7 +39,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 			return err
 		}
 		if current.Revision() != dependency.Revision {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
@@ -218,7 +218,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 			return err
 		}
 		if d.Revision() != dependency.Revision {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		rights, err := auth.Effective(ref, false)
 		if err != nil {

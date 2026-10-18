@@ -14,7 +14,7 @@ import (
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ids.ObjectAddress) *domainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *domainValidationFence {
 	t.Helper()
 	f, err := domainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {

@@ -102,7 +102,7 @@ func policyDuplicate(name string, d *catalog.Relation) error {
 	return sqlError("42710", fmt.Sprintf(`policy "%s" for table "%s" already exists`, name, d.Name()))
 }
 
-func validatePolicies(view CatalogRead, d *catalog.Relation) error {
+func validatePolicies(view catalog.Read, d *catalog.Relation) error {
 	if len(d.Policies) != 0 && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: policies require a table")
 	}

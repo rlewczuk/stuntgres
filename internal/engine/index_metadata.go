@@ -35,7 +35,7 @@ type indexesMetadata struct {
 
 // Both projections use exactly this capture. In particular, deparsing does not
 // consult the current engine or filter records through the caller's ACL.
-func projectIndexMetadata(ctx context.Context, view CatalogRead, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
+func projectIndexMetadata(ctx context.Context, view catalog.Read, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
 	var m indexMetadata
 	var names indexesMetadata
 	if err := ctx.Err(); err != nil {
@@ -122,7 +122,7 @@ func projectIndexMetadata(ctx context.Context, view CatalogRead, ref ids.ObjectR
 
 // ACL-neutral structural enumeration for internal metadata consumers.
 // The SQL pg_indexes source separately applies its invoker disclosure policy.
-func indexCatalogMetadata(ctx context.Context, view CatalogRead) ([]indexMetadata, []indexesMetadata, error) {
+func indexCatalogMetadata(ctx context.Context, view catalog.Read) ([]indexMetadata, []indexesMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}

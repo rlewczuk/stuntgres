@@ -50,7 +50,7 @@ func ruleColumnInfo(column ColumnDescriptor) expr.Info {
 	return expr.Info{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: expr.Properties{RowDependent: true}}
 }
 
-func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
+func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
 	d := b.relation
 	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.querySources}
 	for i, column := range d.Columns {
@@ -190,7 +190,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 // A NEW substitution may move a stored DEFAULT into the action's query tree.
 // Loan only original callable dependencies, after its actual containing recipe
 // certifies lifetime (including the existing retained-TEMP epoch bridge).
-func loanRuleDefaultDependencies(view CatalogRead, parent *catalog.Relation, slot int, dependencies *[]catalog.ExpressionDependency, private *bool) error {
+func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, slot int, dependencies *[]catalog.ExpressionDependency, private *bool) error {
 	definition, ok := parent.Defaults[parent.Attributes[slot]]
 	if !ok || definition.OID == 0 || definition.Expression == nil || definition.Expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
@@ -209,7 +209,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *catalog.Relation, slo
 			return
 		}
 		if current.Revision() != captured.Revision() {
-			failure = CatalogConflict{}
+			failure = catalog.Conflict{}
 			return
 		}
 		for _, original := range definition.Dependencies {
@@ -978,7 +978,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 	return b, nil
 }
 
-func ruleReturningProjection(catalog CatalogRead, original, provider *boundReturning) (*boundReturning, error) {
+func ruleReturningProjection(catalog catalog.Read, original, provider *boundReturning) (*boundReturning, error) {
 	copy := *original
 	// Output names/usages belong to the caller; column privileges belong to
 	// the physical provider whose expressions replace those output Vars.
@@ -1021,7 +1021,7 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
 }
 
-func refreshRuleBinding(catalog CatalogRead, b binding, current *catalog.Relation) (binding, error) {
+func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relation) (binding, error) {
 	old := b.relation
 	if slices.Equal(old.Attributes, current.Attributes) {
 		b.relation = current
@@ -1171,7 +1171,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	return b, nil
 }
 
-func refreshRuleConflict(catalog CatalogRead, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
+func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
 	c := *b.conflict
 	var err error
 	c.targets, err = slots(c.targets)

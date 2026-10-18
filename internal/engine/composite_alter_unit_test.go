@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -163,7 +164,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	var evolvedArray *sqltype.Descriptor
-	for _, view := range []CatalogRead{evolved, destination.CatalogRead()} {
+	for _, view := range []catalog.Read{evolved, destination.CatalogRead()} {
 		row, ok := view.LookupType(source.RowType)
 		if !ok || row.CompositeMember(1).Name != "label" || row.CompositeMember(1).Attribute != source.Attributes[1] {
 			t.Fatal("composite lost renamed stable member")

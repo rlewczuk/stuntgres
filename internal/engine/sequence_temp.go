@@ -96,8 +96,8 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
 	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
 	if c.originals == nil {
-		c.originals = make(map[ids.ObjectAddress]Descriptor)
-		c.descriptors = make(map[ids.ObjectAddress]Descriptor)
+		c.originals = make(map[ids.ObjectAddress]catalog.Descriptor)
+		c.descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
 		c.names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
 	e.catalogChangeLocked(c, ns.Address(), ns)
@@ -332,7 +332,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	e.mu.Lock()
 	if e.catalog.state != stage.Base.State() {
 		e.mu.Unlock()
-		return nil, CatalogConflict{}
+		return nil, catalog.Conflict{}
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
 	for address := range stage.Removals {

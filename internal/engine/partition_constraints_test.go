@@ -19,7 +19,7 @@ import (
 type partitionConstraintUnit struct {
 	e                         *Engine
 	root, leaf, parent, child *catalog.Relation
-	view                      CatalogRead
+	view                      catalog.Read
 }
 
 func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
@@ -342,7 +342,7 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	if f.e.stageRead(stage).State().DumpPriority(source) != 10 {
 		t.Fatal("stage lost source priority")
 	}
-	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{source: nil}}
+	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{source: nil}}
 	private := f.e.privateCatalogLocked(changes)
 	if _, exists := private.State().LookupDumpPriority(source); exists {
 		t.Fatal("private removal retained obsolete priority")
@@ -770,7 +770,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	parent := base.MustRelation(roleTableRef(t, e, "parent_idx").Address)
 	child := base.MustRelation(roleTableRef(t, e, "child_idx").Address)
 	stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.SQLIndex.Parent: base.MustRelation(parent.SQLIndex.Parent), child.SQLIndex.Parent: base.MustRelation(child.SQLIndex.Parent)}
-	stage.domainBases = []Descriptor{parent, child}
+	stage.domainBases = []catalog.Descriptor{parent, child}
 	op.session.mu.Lock()
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
 	op.session.mu.Unlock()
@@ -831,7 +831,7 @@ func TestPartitionConstraintsPublicationFences(t *testing.T) {
 					t.Fatal("authority fence", err)
 				}
 			default:
-				if _, ok := err.(CatalogConflict); !ok {
+				if _, ok := err.(catalog.Conflict); !ok {
 					t.Fatal("exact descriptor/incarnation fence", err)
 				}
 			}

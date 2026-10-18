@@ -397,7 +397,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	return e.lowerViewWrite(b, auth, stmt)
 }
 
-func rewriteViewExpression(view CatalogRead, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(LogicalNode, func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error)) (expr.Expr, bool, error) {
+func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(LogicalNode, func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error)) (expr.Expr, bool, error) {
 	var mapper func(expr.Expr) (expr.Expr, bool, error)
 	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) {

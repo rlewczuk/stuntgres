@@ -26,7 +26,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	own := scope.owner.catalog
 	rows := make([][]sqltype.Value, 0)
 	provider := &pgSequencesSource{scope: scope}
-	appendDefinition := func(descriptor Descriptor) error {
+	appendDefinition := func(descriptor catalog.Descriptor) error {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}

@@ -71,7 +71,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 
 // Replacement's private map may still point at retained immutable descriptors.
 // Reconstruct active facts without losing already-retained TEMP history.
-func normalizeReplacementSubclassHistory(ctx context.Context, view CatalogRead) error {
+func normalizeReplacementSubclassHistory(ctx context.Context, view catalog.Read) error {
 	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err

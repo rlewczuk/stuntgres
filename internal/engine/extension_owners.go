@@ -31,7 +31,7 @@ type extensionOwnerRecord struct {
 	Members []extensionMemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *catalog.Extension) (string, error) {
+func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Extension) (string, error) {
 	owner, err := roles.Descriptor(ext.Owner)
 	if err != nil {
 		return "", err

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -9,7 +10,7 @@ import (
 // Mutation-owned WITH bodies are not the INSERT source SELECT's own WITH.
 // Retain even unused definitions in the existing analysis-only query carrier so
 // current-name/literal presentation and remapping see their ordinary typed graph.
-func retainRuleCTEPresentation(view CatalogRead, b binding) binding {
+func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 	if b.query == nil || len(b.ctes) == 0 {
 		return b
 	}

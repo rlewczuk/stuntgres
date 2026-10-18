@@ -82,7 +82,7 @@ func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 
 // Mapping uses the same cooked-expression path as LIKE; inherited providers are
 // never resolved again by name. Sort presentation is not attachment identity.
-func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
+func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
 	in := createLikeInput{source: source, targetSlots: make([]int, len(source.Columns))}
 	for i, column := range source.Columns {
 		slot, ok := child.Index[column.Name]
@@ -150,7 +150,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *cat
 	return &d, nil
 }
 
-func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *catalog.Relation, a, b *catalog.IndexDefinition) (bool, error) {
+func partitionIndexEquivalent(ctx context.Context, view catalog.Read, table *catalog.Relation, a, b *catalog.IndexDefinition) (bool, error) {
 	if a.Method != b.Method || a.Unique != b.Unique || a.NullsNotDistinct != b.NullsNotDistinct || len(a.Keys) != len(b.Keys) || !slices.Equal(a.Include, b.Include) {
 		return false, nil
 	}
@@ -419,7 +419,7 @@ func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage,
 // Inline inherited indexes exist before the child's local declarations on
 // replay. Translate immediate constraint identities in place so neither stored
 // local-first slices nor collision-reminted backing OIDs change that order.
-func appendPartitionInlineIndexes(view CatalogRead, table *catalog.Relation, indexes []*catalog.Relation) []*catalog.Relation {
+func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, indexes []*catalog.Relation) []*catalog.Relation {
 	if table.Membership != nil {
 		start := len(indexes)
 		parent := view.MustRelation(table.Membership.Parent)
@@ -461,7 +461,7 @@ func appendPartitionInlineIndexes(view CatalogRead, table *catalog.Relation, ind
 // This is the declaration order that creates automatic partition backings:
 // inherited inline keys, local inline keys, then separately emitted indexes.
 // Only the separate-index tail uses sparse collision provenance / OID ordering.
-func partitionIndexDeclarationOrder(view CatalogRead, table *catalog.Relation) []*catalog.Relation {
+func partitionIndexDeclarationOrder(view catalog.Read, table *catalog.Relation) []*catalog.Relation {
 	indexes := appendPartitionInlineIndexes(view, table, nil)
 	inline := len(indexes)
 	for _, descriptor := range view.Descriptors() {

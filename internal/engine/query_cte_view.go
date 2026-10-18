@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
 	return viewCTEScan(root, func(n *derivedNode) bool { return n.ordinal == ordinal })
 }
 
-func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
 	prefix, err := r.withClauseSQL(ctx, catalog, s.With, s.WithRecursive)
 	if err != nil {
 		return "", err
@@ -46,7 +47,7 @@ func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog Catalo
 	return prefix + text, nil
 }
 
-func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog CatalogRead, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
+func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog catalog.Read, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
 	var definitions []string
 	for _, definition := range raw {
 		var body string
@@ -130,7 +131,7 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog CatalogRead, r
 	return modifier + strings.Join(definitions, ", ") + " ", nil
 }
 
-func cycleConstantSQL(catalog CatalogRead, raw parser.Expr, source sqltype.Usage) (string, error) {
+func cycleConstantSQL(catalog catalog.Read, raw parser.Expr, source sqltype.Usage) (string, error) {
 	switch constant := raw.(type) {
 	case parser.TypedLiteralExpr:
 		// The introducer must use the typed-literal binder's source modifier,

@@ -11,7 +11,7 @@ import (
 // active-path recurrence, not repeated occurrences of a shared acyclic source.
 // The same current identity-bound graph supplies inherited visibility demand;
 // stored query markers describe only expressions local to that definition.
-func validateViewReadGraph(view CatalogRead, leaves []queryLeaf) (bool, error) {
+func validateViewReadGraph(view catalog.Read, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
 		if leaf.relation.RelationKind == catalog.ViewRelation {

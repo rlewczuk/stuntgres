@@ -1,13 +1,14 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Dump names ordinary types by their qualified catalog identity. A reciprocal
 // associated array uses element[] so replay does not depend on generated names.
-func regtypeReference(view CatalogRead, id uint32) string {
+func regtypeReference(view catalog.Read, id uint32) string {
 	if id == 0 {
 		return "-"
 	}
@@ -23,7 +24,7 @@ func regtypeReference(view CatalogRead, id uint32) string {
 	return regtypeSpelling(view, nil, ids.OID(id))
 }
 
-type dumpCatalogAliasOutput struct{ view CatalogRead }
+type dumpCatalogAliasOutput struct{ view catalog.Read }
 
 func (r dumpCatalogAliasOutput) FormatRegtype(id uint32) (string, error) {
 	return regtypeReference(r.view, id), nil
@@ -49,11 +50,11 @@ func catalogAliasAddress(value sqltype.Value) (ids.ObjectAddress, error) {
 }
 
 // Visit existing represented identities independently of the datum's datatype.
-func walkCatalogAliasReferences(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasReferences(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkCatalogAliasReferencesAt(view, nil, value, record)
 }
 
-func walkCatalogAliasReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return nil
 	}
@@ -86,11 +87,11 @@ func walkCatalogAliasReferencesAt(view CatalogRead, reader definitionReader, val
 // PostgreSQL dependency.c examines the exact Const datatype. The new aliases'
 // opaque compound payloads are not scalar Const children. REGTYPE retains its
 // existing recursive dependency behavior; replay/remap uses the full walker.
-func walkCatalogAliasDependencies(view CatalogRead, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasDependencies(view catalog.Read, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	return walkCatalogAliasDependenciesAt(view, nil, value, record)
 }
 
-func walkCatalogAliasDependenciesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasDependenciesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	typ := value.Type()
 	// Structural dependency nodes may have declared Usage but no materialized
 	// datum. Their datatype edge is recorded by the expression visitor, not here.
@@ -111,7 +112,7 @@ func walkCatalogAliasDependenciesAt(view CatalogRead, reader definitionReader, v
 	})
 }
 
-func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value sqltype.Value) error {
+func (r scalarRenderer) recordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil
@@ -125,7 +126,7 @@ func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value s
 	return walkRegTSReferencesAt(view, r.definition, value, record)
 }
 
-func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sqltype.Value) error {
+func (r scalarRenderer) recordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
 		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 		return nil

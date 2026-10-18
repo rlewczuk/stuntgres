@@ -23,7 +23,7 @@ func foreignMappingFor(auth AuthorizationView, server *catalog.ForeignObject) (*
 	}
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.Name()))
 }
-func foreignHandlerFor(catalog CatalogRead, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
+func foreignHandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
 	if wrapper.Handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.Name()))
 	}

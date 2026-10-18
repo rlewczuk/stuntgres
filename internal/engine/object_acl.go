@@ -203,7 +203,7 @@ func objectACLClass(class ids.OID) (hasACL, known bool) {
 	return false, false
 }
 
-func rawObjectACL(view CatalogRead, address ids.ObjectAddress) (authorization.ACLValue, error) {
+func rawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	if address.ClassID == 0 && address.ObjectID == 0 {
 		return authorization.ACLValue{}, nil
 	}

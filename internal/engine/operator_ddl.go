@@ -103,7 +103,7 @@ func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw par
 	}
 	return id, e.checkOperatorArgumentUsage(auth, id)
 }
-func operatorInputName(v CatalogRead, left, right ids.OID, name parser.ObjectName) string {
+func operatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectName) string {
 	n := objectNameText(name)
 	if left != 0 {
 		t, _ := v.LookupType(sqltype.ID(left))
@@ -462,7 +462,7 @@ func stageOperatorDescriptor(stage *CatalogStage, d *catalog.Operator) error {
 	}
 	if old := stage.Descriptors[d.Address()]; old != nil {
 		if catalog.DescriptorNameKey(old) != catalog.DescriptorNameKey(d) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		stage.Descriptors[d.Address()] = d
 		return nil

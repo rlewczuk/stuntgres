@@ -162,7 +162,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			rootStorage, childStorage := e.storage[root.Address()], e.storage[child.Address()]
 			original := e.catalog.Providers[ids.RelationClassID]
 			called := false
-			var after *catalogState
+			var after *catalog.State
 			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
@@ -175,7 +175,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				after = e.CatalogRead().State()
 			}}
 			_, err := e.Execute(op, statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
-			var conflict CatalogConflict
+			var conflict catalog.Conflict
 			if !called || !errors.As(err, &conflict) {
 				t.Fatal("late semantic own-row dependency admitted", called, err)
 			}
@@ -306,7 +306,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	oldSource, oldTable, oldStorage := before.Get(pair.Address), before.Get(table.Address), e.storage[table.Address]
 	original := e.catalog.Providers[ids.RelationClassID]
 	called := false
-	var after *catalogState
+	var after *catalog.State
 	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		if called {
 			return
@@ -317,7 +317,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 		after = e.CatalogRead().State()
 	}}
 	_, err := e.Execute(op, statement(t, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE"), 0, nil)
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !called || !errors.As(err, &conflict) {
 		t.Fatal("late member ACL change escaped final authority fence", called, err)
 	}

@@ -20,7 +20,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &catalog.Relation{ObjectAddress: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
+	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []catalog.ExpressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]catalog.Descriptor{ref: captured}}
 	d := &catalog.Relation{ObjectAddress: consumer, View: viewPayloadOf(definition)}
 	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
@@ -73,11 +73,11 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	if got := rulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
 		t.Fatal("rule list identity")
 	}
-	if validateRules(CatalogRead{}, &catalog.Relation{}) != nil {
+	if validateRules(catalog.Read{}, &catalog.Relation{}) != nil {
 		t.Fatal("absent rules rejected")
 	}
 	rules[1].Name = "a"
-	if withRules.Rules.Validate(CatalogRead{}, withRules) == nil {
+	if withRules.Rules.Validate(catalog.Read{}, withRules) == nil {
 		t.Fatal("unordered rule names accepted")
 	}
 }

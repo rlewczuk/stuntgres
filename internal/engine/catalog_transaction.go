@@ -12,8 +12,8 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals           map[ids.ObjectAddress]Descriptor
-	descriptors         map[ids.ObjectAddress]Descriptor
+	originals           map[ids.ObjectAddress]catalog.Descriptor
+	descriptors         map[ids.ObjectAddress]catalog.Descriptor
 	names               map[ids.NameKey]ids.ObjectAddress
 	defaultACLs         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	defaultOriginals    map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
@@ -24,8 +24,8 @@ type catalogChanges struct {
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
 	extensionAuthority  []extensionAuthorityObservation
-	cachedBase          *catalogState
-	cached              CatalogRead
+	cachedBase          *catalog.State
+	cached              catalog.Read
 	enumCreated         map[ids.ObjectAddress]bool // CREATE at top transaction level only.
 	enumUnsafe          map[int64]bool             // Globally nonreused member identities.
 	rolesBase           *roleCatalog
@@ -43,7 +43,7 @@ type catalogChanges struct {
 }
 
 func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{originals: map[ids.ObjectAddress]Descriptor{}, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*sequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
+	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*sequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
 }
 func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
@@ -122,7 +122,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 }
 
 // Caller holds Engine.mu and the session's statement admission.
-func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
+func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 	if c == nil {
 		return e.catalog.read(e.catalog.state)
 	}
@@ -158,7 +158,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
 	return c.cached
 }
-func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d Descriptor) {
+func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d catalog.Descriptor) {
 	if _, ok := c.originals[a]; !ok {
 		c.originals[a] = e.catalog.state.Get(a)
 	}
@@ -180,7 +180,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d D
 		delete(c.indexCandidates, a)
 	}
 	c.cachedBase = nil
-	c.cached = CatalogRead{}
+	c.cached = catalog.Read{}
 }
 func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *sequenceGenerator {
 	if s.catalog != nil {
@@ -201,7 +201,7 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 	}
 	return e.sequences[a]
 }
-func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch ids.CatalogEpoch) (*catalogState, error) {
+func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch ids.CatalogEpoch) (*catalog.State, error) {
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
@@ -235,10 +235,10 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 }
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.rolesBase != nil && e.roles != c.rolesBase {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
-		return CatalogConflict{}
+		return catalog.Conflict{}
 	}
 	roles := e.roles
 	if c.roles != nil {
@@ -267,7 +267,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		if e.roles.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
 			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
 			e.catalog.state.Get(observation.database.Address()) != observation.database {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
@@ -279,22 +279,22 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	for a, shape := range c.storage {
 		store := e.storage[a]
 		if store != shape.original || store != nil && (store.generation != shape.generation || len(store.versions) != len(shape.root) || store.ends != shape.ends || !sameVersionRoot(store.versions, shape.root)) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for _, fence := range c.materializedSources {
 		if !e.materializedSourceFenceCurrent(fence) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for a, original := range c.originals {
 		if e.catalog.state.Get(a) != original {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for k, a := range c.names {
 		if e.catalog.state.NameAddress(k) != a {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for _, d := range c.descriptors {
@@ -310,7 +310,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 // Inspect only committed descriptors changed since a captured retirement.
 // Candidate overrides matter: an owner removed or rewired by this transaction
 // must not impersonate a surviving edge into an absent provider.
-func catalogDependencyPreflight(current, candidate *catalogState, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]Descriptor) error {
+func catalogDependencyPreflight(current, candidate *catalog.State, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
 		if current == observation.base {
 			continue
@@ -324,13 +324,13 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 			for _, target := range observation.targets {
 				if relation != nil {
 					if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
-						return CatalogConflict{}
+						return catalog.Conflict{}
 					}
 					if relation.Sequence != nil && relation.Sequence.Owned == target {
 						// Identity TYPE refreshes this exact internal link under
 						// its SRX grant; preserve the existing original fence.
 						if !relation.Sequence.Identity || originals[address] != descriptor {
-							return CatalogConflict{}
+							return catalog.Conflict{}
 						}
 					}
 				}
@@ -341,12 +341,12 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 				case *catalog.ForeignObject:
 					for _, dependency := range foreignDependencyAddresses(owner) {
 						if dependency != (ids.ObjectAddress{}) && dependency == target {
-							return CatalogConflict{}
+							return catalog.Conflict{}
 						}
 					}
 				case *catalog.Relation:
 					if owner.Foreign != nil && owner.Foreign.Server == target {
-						return CatalogConflict{}
+						return catalog.Conflict{}
 					}
 				}
 			}

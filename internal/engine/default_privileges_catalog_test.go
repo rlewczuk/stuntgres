@@ -238,7 +238,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.grant(t, "sequences", "usage", []string{"default_schema"})
-	if err := defaultUnitPublish(t, f.e, stale); err != (CatalogConflict{}) {
+	if err := defaultUnitPublish(t, f.e, stale); err != (catalog.Conflict{}) {
 		t.Fatal("new scoped key escaped schema retirement fence", err)
 	}
 }

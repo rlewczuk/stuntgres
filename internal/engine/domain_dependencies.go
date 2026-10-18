@@ -672,8 +672,8 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []Descriptor, cascade bool) error {
-	var contained []Descriptor
+func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
+	var contained []catalog.Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)
 	}

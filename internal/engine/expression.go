@@ -31,7 +31,7 @@ type EvalContext struct {
 	Output                             sqltype.OutputEnvironment
 	Outer                              *EvalContext
 	query                              *queryState
-	catalog                            CatalogRead // Current imported request/view authority for local lowering.
+	catalog                            catalog.Read // Current imported request/view authority for local lowering.
 	queryOccurrences                   []int
 	queryProvenance                    []int
 	queryRowSource                     *querySource
@@ -2153,7 +2153,7 @@ func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.Definition
 	}
 	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{ref, revision})
 }
-func (b *expressionBinder) bindingCatalog() CatalogRead {
+func (b *expressionBinder) bindingCatalog() catalog.Read {
 	if b.queryAuth != nil {
 		return b.queryAuth.catalog
 	}
@@ -3228,7 +3228,7 @@ func storageDestination(node expr.Expr, target sqltype.Usage, pos parser.Positio
 // Only a new domain conversion adds semantic authority before storage. Other
 // assignments already retain their semantic expression as the child and can
 // convert directly to the physical destination, without an intermediate relabel.
-func storageCoercionInfo(view CatalogRead, info expr.Info, child expr.Expr) (expr.Info, error) {
+func storageCoercionInfo(view catalog.Read, info expr.Info, child expr.Expr) (expr.Info, error) {
 	if info.Usage.Type.IsDomain() && child.ResultUsage().Type != info.Usage.Type {
 		return coercionInfo(view, info, child)
 	}

@@ -366,7 +366,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if _, ok := err.(CatalogConflict); !ok {
+				if _, ok := err.(catalog.Conflict); !ok {
 					t.Fatal("stale detached source was published", err)
 				}
 			}

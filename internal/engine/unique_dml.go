@@ -11,17 +11,17 @@ import (
 
 // Admission owns private overlays for this statement; committed immutable roots
 // are recaptured only after each key grant, including after peer outcome waits.
-func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, CatalogRead, error) {
+func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
-		return nil, CatalogRead{}, ids.ErrCatalogReplaced
+		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
 	parent, ok := view.Relation(ref.Address)
 	if !ok {
-		return nil, CatalogRead{}, errors.New("stuntgres: invalid unique parent")
+		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
 	}
 	return parent, view, nil
 }
@@ -37,7 +37,7 @@ type uniqueBoundKey struct {
 type uniqueWriteBinding struct {
 	ref       ids.ObjectRef
 	parent    *catalog.Relation
-	catalog   *catalogState
+	catalog   *catalog.State
 	keys      []uniqueBoundKey
 	keySlots  []int
 	typeName  func(sqltype.ID) string
@@ -310,7 +310,7 @@ type uniqueConflict struct {
 	key           []sqltype.Value
 	existing      []sqltype.Value
 	auth          AuthorizationView
-	view          CatalogRead
+	view          catalog.Read
 	schema        string
 	row           rowVersion
 	committed     bool

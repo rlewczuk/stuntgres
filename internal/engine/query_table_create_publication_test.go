@@ -31,8 +31,8 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	return stage, d
 }
 
-func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
-	types := make(map[ids.ObjectAddress]Descriptor)
+func queryCreateTypes(e *Engine) map[ids.ObjectAddress]catalog.Descriptor {
+	types := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for address, descriptor := range e.CatalogRead().Descriptors() {
 		if address.ClassID == ids.TypeClassID {
 			types[address] = descriptor
@@ -41,7 +41,7 @@ func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
 	return types
 }
 
-func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]Descriptor) {
+func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]catalog.Descriptor) {
 	t.Helper()
 	got := queryCreateTypes(e)
 	if len(got) != len(want) {
@@ -175,7 +175,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
 				stage.initialTables[d.Address()].versions[0].values = nil
@@ -240,7 +240,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 			case "source_definition":
 				original := e.CatalogRead().Get(d.Namespace())
-				stage.querySources = []Descriptor{original}
+				stage.querySources = []catalog.Descriptor{original}
 				next := *original.(*catalog.Namespace)
 				next.ObjectRevision++
 				peer := e.BeginCatalogStage(e.CatalogRead())
@@ -272,7 +272,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 			default:
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.As(err, &conflict) {
 					t.Fatal(err)
 				}
@@ -295,18 +295,18 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 }
 
 type queryCreateProbeProvider struct {
-	CatalogProvider
+	catalog.Provider
 	e     *Engine
 	t     *testing.T
 	check func() error
 }
 
-func (p queryCreateProbeProvider) Validate(view CatalogRead, d Descriptor) error {
+func (p queryCreateProbeProvider) Validate(view catalog.Read, d catalog.Descriptor) error {
 	if !p.e.mu.TryLock() {
 		p.t.Fatal("definition callback under Engine.mu")
 	}
 	p.e.mu.Unlock()
-	if err := p.CatalogProvider.Validate(view, d); err != nil {
+	if err := p.Provider.Validate(view, d); err != nil {
 		return err
 	}
 	return p.check()

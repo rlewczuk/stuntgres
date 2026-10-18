@@ -69,7 +69,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgRangeUnitSource(t, e)
-	checkDescriptor := func(view CatalogRead, d *catalog.Relation) {
+	checkDescriptor := func(view catalog.Read, d *catalog.Relation) {
 		t.Helper()
 		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)

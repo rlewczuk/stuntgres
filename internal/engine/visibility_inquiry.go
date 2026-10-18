@@ -182,11 +182,11 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 	}
 	return visibilityInquiryExpression{info, kind, arg}, nil
 }
-func namedObjectVisible(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
+func namedObjectVisible(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor) bool {
 	return namedObjectVisibleAt(view, nil, path, d)
 }
 
-func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ids.ObjectAddress, d Descriptor) bool {
+func namedObjectVisibleAt(view catalog.Read, reader definitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
 	for _, namespace := range path {
 		key := catalog.DescriptorNameKey(d)
 		key.Namespace = namespace

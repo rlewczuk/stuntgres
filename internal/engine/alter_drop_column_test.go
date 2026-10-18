@@ -96,7 +96,7 @@ func TestAlterDropColumnStageRejectsConcurrentInsert(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO t VALUES(2,'two')")
 	change, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(change.Definitions) != 0 || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal(change, err)
 	}
@@ -228,12 +228,12 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 }
 
 type alterDropProvider struct {
-	CatalogProvider
+	catalog.Provider
 	callback func()
 }
 
-func (p alterDropProvider) Validate(v CatalogRead, d Descriptor) error {
-	if err := p.CatalogProvider.Validate(v, d); err != nil {
+func (p alterDropProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	if err := p.Provider.Validate(v, d); err != nil {
 		return err
 	}
 	p.callback()

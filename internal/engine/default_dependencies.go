@@ -32,7 +32,7 @@ func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
-func validateDefaultProviders(view CatalogRead, d *catalog.Relation) error {
+func validateDefaultProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.Defaults {
 		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
@@ -41,7 +41,7 @@ func validateDefaultProviders(view CatalogRead, d *catalog.Relation) error {
 	return nil
 }
 
-func validateColumnDefaultProviders(view CatalogRead, d *catalog.Relation, definition catalog.ColumnDefault) error {
+func validateColumnDefaultProviders(view catalog.Read, d *catalog.Relation, definition catalog.ColumnDefault) error {
 	for _, ref := range definition.Dependencies {
 		address := ref.Address
 		address.SubID = 0

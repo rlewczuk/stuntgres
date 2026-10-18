@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureExtensionCatalog(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.Obje
 			}
 		}
 	}
-	descriptors := make([]Descriptor, 0)
+	descriptors := make([]catalog.Descriptor, 0)
 	for _, d := range view.Descriptors() {
 		if d.Address().ClassID == source.Address().ObjectID {
 			descriptors = append(descriptors, d)

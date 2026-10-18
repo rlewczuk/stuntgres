@@ -13,7 +13,7 @@ import (
 type extensionCatalogProvider struct{ class ids.OID }
 
 func (p extensionCatalogProvider) ClassID() ids.OID { return p.class }
-func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
+func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid extension provider descriptor") }
 	a := d.Address()
 	if a.ClassID != p.class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != a {
@@ -189,7 +189,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	return nil
 }
-func extensionMembership(d Descriptor) ids.ObjectAddress {
+func extensionMembership(d catalog.Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *catalog.Type:
 		return d.Extension
@@ -211,7 +211,7 @@ func procedureArity(p *catalog.Procedure) int64 {
 
 // Namespace retirement owns complete installations by their real target, not
 // by the extension's database-wide name or generic Namespace field.
-func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) ([]ids.ObjectAddress, error) {
+func namespaceChildren(base catalog.Read, namespaces map[ids.ObjectAddress]bool) ([]ids.ObjectAddress, error) {
 	selected := make(map[ids.ObjectAddress]bool)
 	for address, descriptor := range base.Descriptors() {
 		if namespaces[descriptor.Namespace()] {
@@ -241,7 +241,7 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 	return children, nil
 }
 
-func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name string, signature catalog.ProcedureSignature) *catalog.Procedure {
+func procedureInNamespaces(catalog catalog.Read, path namespaceSelection, name string, signature catalog.ProcedureSignature) *catalog.Procedure {
 	for i := range path.count() {
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)})
 		if address != (ids.ObjectAddress{}) {
@@ -252,7 +252,7 @@ func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name st
 	return nil
 }
 
-func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *catalog.Extension) error {
+func (p *unaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
 	if p != stockUnaccent || len(d.Members) != 6 {
 		return invalid()

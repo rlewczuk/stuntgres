@@ -57,7 +57,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	e, owner, peer, foreign, chain, persistent := namespaceTemporaryStorageFixture(t)
 	catalogView := e.CatalogRead()
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
-	collect := func(view CatalogRead, relation *catalog.Relation, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
+	collect := func(view catalog.Read, relation *catalog.Relation, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
 		leaf := queryLeaf{ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), relation: relation, only: only, analysisOnly: analysis}
 		auth := peerAuth

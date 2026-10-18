@@ -43,14 +43,14 @@ func foreignLabel(class ids.OID) string {
 		return "foreign table"
 	}
 }
-func findForeign(catalog CatalogRead, class ids.OID, name string) (*catalog.ForeignObject, error) {
+func findForeign(catalog catalog.Read, class ids.OID, name string) (*catalog.ForeignObject, error) {
 	a := catalog.NameAddress(ids.NameKey{ClassID: class, Name: name})
 	if d, ok := catalog.Foreign(a); ok {
 		return d, nil
 	}
 	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, foreignLabel(class), name))
 }
-func foreignRef(auth AuthorizationView, d Descriptor) ids.ObjectRef {
+func foreignRef(auth AuthorizationView, d catalog.Descriptor) ids.ObjectRef {
 	return auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 }
 

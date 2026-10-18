@@ -10,13 +10,13 @@ import (
 )
 
 type alterSchemaCandidateProvider struct {
-	CatalogProvider
-	inspect func(CatalogRead)
+	catalog.Provider
+	inspect func(catalog.Read)
 }
 
-func (p alterSchemaCandidateProvider) Validate(v CatalogRead, d Descriptor) error {
+func (p alterSchemaCandidateProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	p.inspect(v)
-	return p.CatalogProvider.Validate(v, d)
+	return p.Provider.Validate(v, d)
 }
 
 func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *catalog.Relation) {
@@ -47,7 +47,7 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 	}
 	calls := 0
 	provider := e.catalog.Providers[ids.RelationClassID]
-	e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{CatalogProvider: provider, inspect: func(v CatalogRead) {
+	e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{Provider: provider, inspect: func(v catalog.Read) {
 		calls++
 		for _, address := range addresses {
 			d, ok := v.Descriptor(address)

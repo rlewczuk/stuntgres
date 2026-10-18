@@ -12,7 +12,7 @@ import (
 
 func hierarchyRelation(d *catalog.Relation) bool { return d.Partition != nil || d.Membership != nil }
 
-func validatePartitionDescriptor(view CatalogRead, d *catalog.Relation) error {
+func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
 	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
 		return invalid()
@@ -274,7 +274,7 @@ func partitionContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bo
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
 // outlive an explicit sibling's publication or its atomic removal.
-func partitionAccepts(view CatalogRead, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+func partitionAccepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
 	var buffer [32]catalog.PartitionDatum
 	key, err := partitionRowKey(parent, row, evaluation, buffer[:])
 	if err != nil {
@@ -296,7 +296,7 @@ func partitionAccepts(view CatalogRead, parent *catalog.Relation, child *catalog
 	return true, nil
 }
 
-func partitionPhysicalDescendants(catalog CatalogRead, d *catalog.Relation, visit func(*catalog.Relation) error) error {
+func partitionPhysicalDescendants(catalog catalog.Read, d *catalog.Relation, visit func(*catalog.Relation) error) error {
 	if d.Partition == nil {
 		return visit(d)
 	}

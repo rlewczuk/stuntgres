@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddress]Descriptor {
-	result := make(map[ids.ObjectAddress]Descriptor)
+func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAddress]catalog.Descriptor {
+	result := make(map[ids.ObjectAddress]catalog.Descriptor)
 	var visit func(*catalog.Relation)
 	visit = func(table *catalog.Relation) {
 		if result[table.Address()] != nil {
@@ -59,7 +59,7 @@ func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddr
 	return result
 }
 
-func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
+func typedObservationValid(stage *CatalogStage, current catalog.Read) bool {
 	if stage.typedSource == (ids.ObjectAddress{}) {
 		return true
 	}
@@ -76,7 +76,7 @@ func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
 }
 
 // Parent-before-child order processes a diamond only after both incoming edges.
-func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*catalog.Relation {
+func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catalog.Relation {
 	selected := make(map[ids.ObjectAddress]*catalog.Relation)
 	var selectTable func(*catalog.Relation)
 	selectTable = func(table *catalog.Relation) {
@@ -158,7 +158,7 @@ func typedShapeActions(old, next, table *catalog.Relation, forced map[int32]bool
 	return actions, renames
 }
 
-func typedInheritedActions(view CatalogRead, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
+func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
 	graph := *old.Inheritance
 	graph.Columns = maps.Clone(graph.Columns)
 	graph.Checks = maps.Clone(graph.Checks)
@@ -253,7 +253,7 @@ func typedInheritedActions(view CatalogRead, old *catalog.Relation, forced map[i
 	return actions, renames, &graph, nil
 }
 
-func finishTypedInheritance(view CatalogRead, next *catalog.Relation, graph *catalog.TableInheritance) {
+func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *catalog.TableInheritance) {
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {

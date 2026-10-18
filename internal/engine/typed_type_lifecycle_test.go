@@ -36,7 +36,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
 	}
@@ -67,7 +67,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
 	}
@@ -118,7 +118,7 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{root.Address(), other.Address()}, Columns: map[int32]catalog.InheritedColumn{3: {Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 1}, {Parent: other.Address(), Attribute: 1}}}, 8: {Local: true, Origins: []catalog.InheritanceOrigin{{Parent: root.Address(), Attribute: 7}, {Parent: other.Address(), Attribute: 7}}}}}
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
-	state := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{root.Address(): &changed, other.Address(): &other}, nil)
+	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{root.Address(): &changed, other.Address(): &other}, nil)
 	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.Columns[3].Origins, []catalog.InheritanceOrigin{{Parent: other.Address(), Attribute: 1}}) || len(child.Inheritance.Columns[3].Origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)

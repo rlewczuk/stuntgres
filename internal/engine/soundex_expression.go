@@ -26,7 +26,7 @@ func (e installedSoundexFunctionExpression) Rebuild(info expr.Info, children []e
 	return e, nil
 }
 
-func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
+func (n installedSoundexFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Soundex argument")

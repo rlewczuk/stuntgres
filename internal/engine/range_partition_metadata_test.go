@@ -106,7 +106,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 	newRoot := rangePartitionRelation(t, e, "root")
 	newRest := rangePartitionRelation(t, e, "rest")
 	row := []sqltype.Value{finite[0].Value, finite[1].Value}
-	for _, catalog := range []CatalogRead{retained, e.CatalogRead()} {
+	for _, catalog := range []catalog.Read{retained, e.CatalogRead()} {
 		parent, child := root, rest
 		if catalog.State() == e.CatalogRead().State() {
 			parent, child = newRoot, newRest

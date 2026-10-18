@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -86,7 +87,7 @@ func jsonPredicateRecipe(child, kind string, unique, not bool) string {
 	return "(" + child + functions.JSONPredicateSuffix(kind, unique, not)
 }
 
-func (r scalarRenderer) sqlJSON(ctx context.Context, view CatalogRead, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
+func (r scalarRenderer) sqlJSON(ctx context.Context, view catalog.Read, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
 	parts := make([]string, len(n.Args))
 	for i, arg := range n.Args {
 		text, err := r.sql(ctx, view, sqlJSONSource(arg))

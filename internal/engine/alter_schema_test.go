@@ -97,7 +97,7 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-			original := make(map[ids.ObjectAddress]Descriptor)
+			original := make(map[ids.ObjectAddress]catalog.Descriptor)
 			for _, name := range []string{"t", "q1", "q2", "free"} {
 				a := NameAddressForTempMove(t, e, source, name)
 				original[a] = e.catalog.state.Get(a)
@@ -107,7 +107,7 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			defer cancel()
 			var once sync.Once
 			provider := e.catalog.Providers[ids.RelationClassID]
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 				once.Do(func() {
 					e.catalog.Providers[ids.RelationClassID] = provider
 					switch kind {

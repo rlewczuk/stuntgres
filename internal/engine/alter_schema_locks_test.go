@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -17,7 +18,7 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 				alterSchemaEngineFixture(t, e)
 				a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 				source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-				original := make(map[ids.ObjectAddress]Descriptor)
+				original := make(map[ids.ObjectAddress]catalog.Descriptor)
 				for _, name := range []string{"t", "q1", "q2"} {
 					address := NameAddressForTempMove(t, e, source, name)
 					original[address] = e.catalog.state.Get(address)

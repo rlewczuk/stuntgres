@@ -23,7 +23,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 
 // Namespace lookup and role privileges precede physical storage admission.
 // Identity/metadata providers do not acquire another session's stored TEMP data.
-func checkTemporaryStorageAccess(catalog CatalogRead, relation *catalog.Relation, token ids.SessionToken) error {
+func checkTemporaryStorageAccess(catalog catalog.Read, relation *catalog.Relation, token ids.SessionToken) error {
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}

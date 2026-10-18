@@ -11,7 +11,7 @@ import (
 
 // Parameter identities and sparse membership belong to the grant owner. Read
 // only actual descriptors, using the statement's matching catalog/role roots.
-func (e *Engine) capturePGParameterACL(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

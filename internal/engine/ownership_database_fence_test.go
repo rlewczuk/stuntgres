@@ -160,7 +160,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("missing final context veto", err)
 				}
 			} else {
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}

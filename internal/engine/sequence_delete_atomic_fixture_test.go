@@ -14,9 +14,9 @@ import (
 // These snapshots distinguish container replacement from in-place mutation.
 // Values are copied only in this test fixture; production roots remain retained.
 type sequenceDeletePublicationSnapshot struct {
-	state                   *catalogState
-	catalog                 catalogState
-	descriptors             map[ids.ObjectAddress]Descriptor
+	state                   *catalog.State
+	catalog                 catalog.State
+	descriptors             map[ids.ObjectAddress]catalog.Descriptor
 	names                   map[ids.NameKey]ids.ObjectAddress
 	storageID, generatorsID uintptr
 	stores                  map[ids.ObjectAddress]*relationStorage
@@ -37,7 +37,7 @@ type sequenceDeletePublicationSnapshot struct {
 func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
 		state: e.catalog.state, catalog: *e.catalog.state,
-		descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
+		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
 		storageID:       uintptr(reflect.ValueOf(e.storage).UnsafePointer()),
 		generatorsID:    uintptr(reflect.ValueOf(e.sequences).UnsafePointer()),
 		stores:          make(map[ids.ObjectAddress]*relationStorage),

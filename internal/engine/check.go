@@ -193,7 +193,7 @@ func checkDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 // The merge fence checks external identities against the candidate current root,
 // not the stage's older validation snapshot. The publisher retries if that root
 // changes before its single final install. No rendering or row evaluation here.
-func validateCheckProviders(view CatalogRead, d *catalog.Relation) error {
+func validateCheckProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, c := range d.CheckConstraints {
 		for _, dep := range c.Dependencies {
 			address := dep.Ref.Address
@@ -226,7 +226,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		return err
 	}
 	var refs []ids.ObjectRef
-	var retained map[ids.ObjectAddress]Descriptor
+	var retained map[ids.ObjectAddress]catalog.Descriptor
 	add := func(ref ids.ObjectRef, d *catalog.Relation) error {
 		address := ref.Address
 		address.SubID = 0
@@ -258,7 +258,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		ref.Address = address
 		if ref.Epoch != stage.Base.Epoch() {
 			if retained == nil {
-				retained = make(map[ids.ObjectAddress]Descriptor)
+				retained = make(map[ids.ObjectAddress]catalog.Descriptor)
 			}
 			retained[ref.Address] = stage.Base.Get(ref.Address)
 		}
@@ -380,7 +380,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	return stage.validateLikeSources(auth.catalog)
 }
 
-func validateChecks(view CatalogRead, d *catalog.Relation, names map[string]bool) error {
+func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]bool) error {
 	previous := ""
 	for i, c := range d.CheckConstraints {
 		if c.Ordinal < 0 {

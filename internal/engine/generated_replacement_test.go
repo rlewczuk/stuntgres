@@ -43,7 +43,7 @@ type generatedRepairFixture struct {
 	stage      *Engine
 	session    *Session
 	op         *Operation
-	next       *catalogState
+	next       *catalog.State
 	storage    map[ids.ObjectAddress]*relationStorage
 	sequences  map[ids.ObjectAddress]*sequenceGenerator
 	mapping    map[ids.ObjectAddress]ids.ObjectAddress

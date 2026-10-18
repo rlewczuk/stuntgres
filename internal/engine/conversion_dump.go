@@ -12,11 +12,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func conversionSQLName(view CatalogRead, d *catalog.Conversion) string {
+func conversionSQLName(view catalog.Read, d *catalog.Conversion) string {
 	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 }
 
-func conversionDefinition(view CatalogRead, d *catalog.Conversion, name string) (string, error) {
+func conversionDefinition(view catalog.Read, d *catalog.Conversion, name string) (string, error) {
 	procedure, ok := view.Procedure(d.Handler)
 	if !ok || procedure.Conversion.Name() == "" {
 		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
@@ -32,7 +32,7 @@ func conversionDefinition(view CatalogRead, d *catalog.Conversion, name string) 
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
 // directly CREATED there. Only additional defaults use a collision-free helper
 // schema, which is created before owner groups and removed by the same replay.
-func conversionDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*catalog.Conversion) (statements []dumpDomain, schemas []string, err error) {
+func conversionDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, definitions []*catalog.Conversion) (statements []dumpDomain, schemas []string, err error) {
 	if len(definitions) == 0 {
 		return
 	}
@@ -96,7 +96,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 
 // All moving/renamed seeds first receive intermediate names, avoiding swaps and
 // collisions with both canonical seed names and current user-object names.
-func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
+func conversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
 	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")

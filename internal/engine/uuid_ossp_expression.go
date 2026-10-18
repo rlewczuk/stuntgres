@@ -37,7 +37,7 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 	return n.procedure != nil && n.RoutineReference == n.procedure && uuidOsspProviderOf(n.procedure) == stockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: expr.Volatile})
 }
 
-func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {
+func (n installedUUIDOsspFunctionExpression) validate(v catalog.Read) error {
 	if !n.validShape() || v.Get(n.ref.Address) != n.procedure {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}

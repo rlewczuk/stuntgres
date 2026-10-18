@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) ([]ids.ObjectAddress, error) {
+func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition) ([]ids.ObjectAddress, error) {
 	var refs []ids.ObjectAddress
 	add := func(items []ids.ObjectAddress) {
 		for _, a := range items {
@@ -169,7 +169,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 	return refs, nil
 }
 
-func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress) bool {
+func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddress) bool {
 	for _, a := range r.references {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
@@ -178,7 +178,7 @@ func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress
 	return false
 }
 
-func ruleDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
+func ruleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
 	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
 }
 
@@ -189,7 +189,7 @@ func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) [
 	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
 }
 
-func ruleDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
+func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*catalog.Relation)

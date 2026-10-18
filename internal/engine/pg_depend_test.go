@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func pgDependUnitCatalog(t *testing.T) (*Engine, CatalogRead, *sqltype.Descriptor) {
+func pgDependUnitCatalog(t *testing.T) (*Engine, catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	e := New()
 	base := e.CatalogRead()

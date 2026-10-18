@@ -27,7 +27,7 @@ func collationActualVersion(d *catalog.Collation) (*string, error) {
 	return nil, nil
 }
 
-func collationVersionWarning(op *Operation, d *catalog.Collation, view CatalogRead, actual *string) error {
+func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil
 	}
