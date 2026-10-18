@@ -144,10 +144,10 @@ func TestUnicode16Boundaries(t *testing.T) {
 		output     string
 		normalized bool
 	}{
-		{"가ᆧ", NFC, "가", true}, {"가ᆧ", NFKC, "가", true},
-		{"가ᆧ", NFC, "가", false}, {"가ᆧ", NFKC, "가", false},
+		{"가ᆧ", NFC, "가ᆧ", true}, {"가ᆧ", NFKC, "가ᆧ", true},
+		{"가ᆧ", NFC, "가ᆧ", false}, {"가ᆧ", NFKC, "가ᆧ", false},
 		{"가ᆧ", NFD, "가ᆧ", false}, {"가ᆧ", NFKD, "가ᆧ", false},
-		{"가ᆧᆧ", NFC, "가", true}, {"가́ᆧ", NFC, "가́ᆧ", true},
+		{"가ᆧᆧ", NFC, "가ᆧᆧ", true}, {"가́ᆧ", NFC, "가́ᆧ", true},
 		{"Ḍ̇", NFC, "Ḍ̇", false}, {"̈́", NFC, "̈́", false},
 		{"a̅́", NFC, "a̅́", true}, {"ﬃ", NFKC, "ffi", false},
 		{"á́", NFD, "á́", true}, {"\U0001E030", NFKC, "а", false},

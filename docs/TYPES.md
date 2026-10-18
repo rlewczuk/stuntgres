@@ -1336,8 +1336,8 @@ has no network, ICU/cgo, mutable startup maps or host-Go-Unicode dependency.
 Tests compare generated outputs byte-for-byte and retain the official corpus,
 original-input case context and bounded cancellation assertions.
 
-Native targets PostgreSQL 18.0's observed normalization release boundary,
-including its Hangul TBASE behavior; the official corpus is not edited to hide
-that difference. This is not a blanket Unicode-conformance claim. Registered
+Native targets PostgreSQL 18.6's observed normalization behavior: a Hangul
+LV syllable followed by U+11A7 (TBASE, not a trailing consonant) stays
+uncomposed, which 18.0 composed away. This is not a blanket Unicode-conformance claim. Registered
 provider-equivalent collations retain distinct identities through native replay,
 not interchangeable authority.

@@ -1,6 +1,6 @@
 // Package unicode16 implements the selected PostgreSQL18 normalization and case
-// algorithms with Unicode16 data. PostgreSQL18's inclusive Hangul TBASE composition and
-// predicate quickcheck are intentional release behavior, not input exceptions.
+// algorithms with Unicode16 data. PostgreSQL18's predicate quickcheck is
+// intentional release behavior, not an input exception.
 package unicode16
 
 import (
@@ -106,25 +106,22 @@ func quickProperty(r rune, p []property) uint8 {
 	return 0
 }
 
-// quickCheck returns YES=0, NO=1 or MAYBE=2. force records a release composition
-// boundary that normalization must execute even when predicate quickcheck is YES.
-func quickCheck(ctx context.Context, s string, f Form) (result uint8, force bool, count int, err error) {
+// quickCheck returns YES=0, NO=1 or MAYBE=2.
+func quickCheck(ctx context.Context, s string, f Form) (result uint8, count int, err error) {
 	if err = ctx.Err(); err != nil {
-		return 0, false, 0, err
+		return 0, 0, err
 	}
 	p := properties(f)
 	var previousClass uint8
-	var previous rune
 	for _, r := range s {
 		if count&1023 == 0 {
 			if err = ctx.Err(); err != nil {
-				return 0, false, count, err
+				return 0, count, err
 			}
 		}
 		count++
 		if r < 0x80 {
 			previousClass = 0
-			previous = r
 			continue
 		}
 		c := class(r)
@@ -138,18 +135,14 @@ func quickCheck(ctx context.Context, s string, f Form) (result uint8, force bool
 		} else if q == 2 && result == 0 {
 			result = 2
 		}
-		if (f == NFC || f == NFKC) && r == 0x11A7 && previous >= 0xAC00 && previous < 0xD7A4 && (previous-0xAC00)%28 == 0 {
-			force = true
-		}
-		previous = r
 	}
-	return result, force, count, nil
+	return result, count, nil
 }
 func IsNormalized(ctx context.Context, s string, f Form) (bool, error) {
 	if f > NFKD {
 		return false, fmt.Errorf("invalid normalization form")
 	}
-	q, _, count, err := quickCheck(ctx, s, f)
+	q, count, err := quickCheck(ctx, s, f)
 	if err != nil {
 		return false, err
 	}
@@ -204,8 +197,9 @@ func compose(a, b rune) (rune, bool) {
 	if a >= 0x1100 && a < 0x1113 && b >= 0x1161 && b < 0x1176 {
 		return 0xAC00 + ((a-0x1100)*21+b-0x1161)*28, true
 	}
-	// REL_18_0 deliberately admits TBASE itself, consuming it with tindex=0.
-	if a >= 0xAC00 && a < 0xD7A4 && (a-0xAC00)%28 == 0 && b >= 0x11A7 && b < 0x11C3 {
+	// TBASE itself is not a trailing consonant (REL_18_0 consumed it with
+	// tindex=0; 18.6 and Unicode leave it in place).
+	if a >= 0xAC00 && a < 0xD7A4 && (a-0xAC00)%28 == 0 && b > 0x11A7 && b < 0x11C3 {
 		return a + b - 0x11A7, true
 	}
 	key := uint64(a)<<32 | uint64(b)
@@ -227,11 +221,11 @@ func Normalize(ctx context.Context, s string, f Form) (string, error) {
 	if f > NFKD {
 		return "", fmt.Errorf("invalid normalization form")
 	}
-	q, force, count, err := quickCheck(ctx, s, f)
+	q, count, err := quickCheck(ctx, s, f)
 	if err != nil {
 		return "", err
 	}
-	if q == 0 && !force {
+	if q == 0 {
 		return s, nil
 	}
 	return normalizeChecked(ctx, s, f, count)
