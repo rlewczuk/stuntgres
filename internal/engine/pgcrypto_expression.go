@@ -12,7 +12,7 @@ import (
 )
 
 type installedCryptoFunctionExpression struct {
-	functions.Pgcrypto[BoundExpr, *EvalContext, ExprProperties]
+	functions.Pgcrypto[BoundExpr, ExprContext, ExprProperties]
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -151,7 +151,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.routineReference = proc
-	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
+	call, err := functions.NewPgcrypto[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}
@@ -234,13 +234,13 @@ func closedPgcryptoDefault(node BoundExpr) bool {
 		comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression,
 		nullTestExpression, truthTestExpression, logicalExpression, distinctExpression,
 		conditionalExpression, caseExpression, scalarArrayComparisonExpression,
-		functions.Binary[BoundExpr, *EvalContext, ExprProperties],
-		functions.String[BoundExpr, *EvalContext, ExprProperties],
-		functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin],
-		functions.Format[BoundExpr, *EvalContext, ExprProperties],
-		functions.NullCount[BoundExpr, *EvalContext, ExprProperties],
-		functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties],
-		functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		functions.Binary[BoundExpr, ExprContext, ExprProperties],
+		functions.String[BoundExpr, ExprContext, ExprProperties],
+		functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin],
+		functions.Format[BoundExpr, ExprContext, ExprProperties],
+		functions.NullCount[BoundExpr, ExprContext, ExprProperties],
+		functions.LikeEscape[BoundExpr, ExprContext, ExprProperties],
+		functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
 	default:
 		return p.Volatility <= Stable
 	}

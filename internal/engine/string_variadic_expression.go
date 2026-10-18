@@ -79,7 +79,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 		return nil, d
 	}
 	text := b.typ(sqltype.Text).Usage()
-	node := functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: functions.StringVariadicIntrinsicStable(name), Frame: b.frameID()}
+	node := functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: functions.StringVariadicIntrinsicStable(name), Frame: b.frameID()}
 	if textInput && len(args) > 0 {
 		args[0], err = functions.CoerceStringVariadicFirst(b, first, text)
 		if err != nil {

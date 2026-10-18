@@ -20,7 +20,8 @@ type scalarArrayComparisonExpression struct {
 	all                 bool
 }
 
-func (n scalarArrayComparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n scalarArrayComparisonExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -56,5 +56,5 @@ func (b *expressionBinder) bindUUIDExtract(raw parser.FunctionExpr) (BoundExpr, 
 		return nil, err
 	}
 	properties := mergeExpressionProperties(functionIntrinsicProperties(functions.UUIDExtractIntrinsicRule()), arg.Properties())
-	return functions.NewUUIDExtract[BoundExpr, *EvalContext](functionInfo(b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)), kind, arg)
+	return functions.NewUUIDExtract[BoundExpr, ExprContext](functionInfo(b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)), kind, arg)
 }

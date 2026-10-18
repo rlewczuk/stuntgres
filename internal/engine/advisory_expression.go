@@ -89,7 +89,8 @@ type advisoryExpression struct {
 	lifetime advisoryLifetime
 }
 
-func (x advisoryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

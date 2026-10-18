@@ -202,7 +202,7 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
 		values, err := call.EvalSet(c)
 		if err != nil {
 			return functionSetCursor{}, err
@@ -248,7 +248,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
@@ -272,7 +272,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{record: cursor, kind: functionJSONRecordCursor, initialized: true}, nil
-	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
 		if call.ReturnsSet() {
 			values, err := call.EvalSet(c)
 			if err != nil {
@@ -396,7 +396,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		cursor.exhausted = dim.Length == 0
 		return cursor, nil
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
@@ -412,7 +412,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
-	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
@@ -428,7 +428,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{binaryElements: cursor, kind: functionJSONBElementsCursor, initialized: true}, nil
-	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
@@ -456,7 +456,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 		}
@@ -465,7 +465,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
@@ -481,7 +481,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{elements: cursor, kind: functionJSONElementsCursor, initialized: true}, nil
-	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 		}
@@ -490,19 +490,19 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 		values, err := call.EvalSet(c)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
-	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		value, err := call.Eval(c)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.String[BoundExpr, ExprContext, ExprProperties]:
 		if !isStringSet(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 		}

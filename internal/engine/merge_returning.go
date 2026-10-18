@@ -12,7 +12,8 @@ type mergeActionExpression struct {
 	scope, frame uint32
 }
 
-func (e mergeActionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e mergeActionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	owner, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

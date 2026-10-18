@@ -178,7 +178,8 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 	}
 	return b.identityExpression(raw, kind, arg)
 }
-func (n transactionIdentityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -114,9 +114,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.leftConstructor = child(n.leftConstructor)
 		}
 		next = n
-	case functions.VersionInformation[*EvalContext, ExprProperties]:
+	case functions.VersionInformation[ExprContext, ExprProperties]:
 		next = n
-	case domainValueExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
+	case domainValueExpression, identityExpression, functions.CurrentDateTime[ExprContext, ExprProperties], functions.TransactionTime[ExprContext, ExprProperties]:
 		next = n
 	case literalExpression:
 		if ref == nil {
@@ -232,7 +232,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
-	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
 		n.Value = child(n.Value)
 		if !n.Local {
 			n.Zone = child(n.Zone)
@@ -250,10 +250,10 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
-	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case seriesExpression:
@@ -268,45 +268,45 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.ref = ref(n.ref)
 		}
 		next = n
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case likeExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
-	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
 		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		next = n
-	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
 		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		next = n
-	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -357,108 +357,108 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case conditionalExpression:
 		n.args = args(n.args)
 		next = n
-	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
 		n.Arg = child(n.Arg)
 		next = n
-	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.String[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case catalogUserNameExpression:
@@ -476,26 +476,26 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.arg = child(n.arg)
 		}
 		next = n
-	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
 		n.Arg = child(n.Arg)
 		next = n
-	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Kind.Arity() {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case currentSchemasExpression:
@@ -543,7 +543,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case commentInquiryExpression:
 		n.args = args(n.args)
 		next = n
-	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case installedSoundexFunctionExpression:
@@ -601,13 +601,13 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case jsonPredicateExpression:
 		n.child = child(n.child)
 		next = n
-	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		if err == nil {
 			n, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
 		n.Args = args(n.Args)
 		if ref != nil && n.Origin.owner != (ids.ObjectRef{}) {
 			origin := n.Origin
@@ -615,19 +615,19 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n = n.WithOrigin(origin)
 		}
 		next = n
-	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
-	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 		n.Arg = child(n.Arg)
 		next = n
 	case advisoryExpression:
 		n.args = args(n.args)
 		next = n
-	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
 	case sequenceCallExpression:

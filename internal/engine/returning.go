@@ -55,7 +55,8 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
 }
 
-func (e returningColumnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e returningColumnExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

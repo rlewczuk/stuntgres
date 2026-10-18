@@ -82,7 +82,7 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.arg)
 	case visibilityInquiryExpression:
 		walk(e.arg)
-	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Value)
 		if !e.Local {
 			walk(e.Zone)
@@ -110,23 +110,23 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Pattern)
 		walk(e.Escape)
-	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Left)
 		walk(e.Right)
-	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Left)
 		walk(e.Right)
-	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Pattern)
 		walk(e.Escape)
-	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
@@ -136,21 +136,21 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case unnestExpression:
 		args(e.args)
-	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case logicalExpression:
 		walk(e.left)
@@ -164,9 +164,9 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.child)
 	case conditionalExpression:
 		args(e.args)
-	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.String[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case installedSoundexFunctionExpression:
 		args(e.Args)
@@ -184,57 +184,57 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case jsonPredicateExpression:
 		walk(e.child)
-	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
 		args(e.Args)
-	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case indexPropertyExpression:
 		args(e.children())
-	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Arg)
-	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Arguments())
-	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args[:])
-	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args[:])
-	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case catalogUserNameExpression:
 		walk(e.arg)
@@ -247,31 +247,31 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		if e.arg != nil {
 			walk(e.arg)
 		}
-	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Arg)
-	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args[:e.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args[:])
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case deparseExpression:
 		args(e.args)
 	case commentInquiryExpression:
 		args(e.args)
-	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
-	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 		walk(e.Arg)
 	case advisoryExpression:
 		args(e.args)
-	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
 		args(e.Args)
 	case sequenceCallExpression:
 		args(e.args)

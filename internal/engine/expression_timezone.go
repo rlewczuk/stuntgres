@@ -15,7 +15,7 @@ func (b *expressionBinder) bindTimeZone(raw parser.TimeZoneExpr) (BoundExpr, err
 	if err != nil {
 		return nil, err
 	}
-	e := node.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.Timezone[BoundExpr, ExprContext, ExprProperties])
 	e.Function, e.Pos = false, raw.Pos
 	// Keep the existing conservative analysis contract distinct from physical
 	// plannedVolatility, which uses the actual resolved overload.

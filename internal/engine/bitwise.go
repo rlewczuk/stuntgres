@@ -18,7 +18,8 @@ type bitwiseExpression struct {
 	namespace   string
 }
 
-func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err

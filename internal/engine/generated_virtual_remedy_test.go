@@ -16,7 +16,7 @@ type generatedOccurrenceProbe struct {
 	err   error
 }
 
-func (e generatedOccurrenceProbe) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e generatedOccurrenceProbe) Eval(ExprContext) (sqltype.Value, error) {
 	*e.calls++
 	return e.value, e.err
 }

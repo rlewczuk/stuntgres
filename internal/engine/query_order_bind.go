@@ -221,7 +221,8 @@ type cachedOrderExpression struct {
 	slot int
 }
 
-func (e cachedOrderExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e cachedOrderExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -27,7 +27,7 @@ func overlapsExecutionConstant(node BoundExpr, c *EvalContext) bool {
 
 // Only duration starts occur twice in the SQL wrapper body. Released inline
 // safety tests apply to those slots, not volatile single-use durations/ends.
-func overlapsInlineSafe(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]) bool {
+func overlapsInlineSafe(e functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]) bool {
 	for pair, duration := range e.Plan.Duration() {
 		if !duration {
 			continue
@@ -76,17 +76,17 @@ func overlapsNodeCost(node BoundExpr) int {
 		return 10
 	case commentInquiryExpression:
 		return 100
-	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
 		if n.Plan.Name() == "age" && n.Count == 1 {
 			return 3
 		}
 		return 1
-	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
 		if n.Plan.Name() == "date_part" && n.Plan.InputID() == sqltype.Date {
 			return 2
 		}
 		return 1
-	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
 		cost := 1
 		if !n.WrapperContext {
 			for pair, duration := range n.Plan.Duration() {
@@ -110,7 +110,7 @@ func overlapsTreeCost(node BoundExpr) int {
 // Simplification of caller children precedes SQL wrapper evaluation/inlining.
 // A partial constant body addition can fail during inlining even when another
 // pair uses table columns. Stable zoned addition is never ordinarily folded.
-func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]) (functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]) (functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	old := e.WrapperContext
 	oldFolded := e.Folded
 	e.WrapperContext = !overlapsInlineSafe(e)

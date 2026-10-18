@@ -10,7 +10,7 @@ import (
 )
 
 type installedMetaphoneFunctionExpression struct {
-	functions.Metaphone[BoundExpr, *EvalContext, ExprProperties]
+	functions.Metaphone[BoundExpr, ExprContext, ExprProperties]
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 	}
 	info := b.info(text, raw.Pos, properties)
 	info.routineReference = proc
-	call, err := functions.NewMetaphone[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
+	call, err := functions.NewMetaphone[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}

@@ -83,7 +83,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(value, err)
 		}
 	}
-	random := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if closedPgcryptoDefault(random) {
 		t.Fatal("unrelated volatile DEFAULT admitted")
 	}

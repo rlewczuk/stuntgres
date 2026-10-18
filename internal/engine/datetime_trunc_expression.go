@@ -52,7 +52,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	}
 	selected := selection.Selected
 	input := selection.Input
-	e := functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]{Count: len(operands)}
+	e := functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeTruncIntrinsicStable(selected, e.Count) {
 		properties.Volatility = Stable

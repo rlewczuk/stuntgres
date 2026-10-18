@@ -106,12 +106,12 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[result].Usage()}), Plan: p, Args: args}
+		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[result].Usage()}), Plan: p, Args: args}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
 		}
-		next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 		got, err := next.Eval(&EvalContext{Context: context.Background()})
 		before, oldErr := original.Eval(&EvalContext{Context: context.Background()})
 		want, retagErr := before.Retag(replacement[result])
@@ -152,7 +152,7 @@ func bitAccessBindingProperties(t *testing.T) {
 				if err != nil {
 					t.Fatal(name, unknown, defaults, err)
 				}
-				binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+				binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 				if err := binary.Validate(); err != nil {
 					t.Fatal(err)
 				}
@@ -202,7 +202,7 @@ func bitAccessBindingProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(name, family, err)
 			}
-			binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}

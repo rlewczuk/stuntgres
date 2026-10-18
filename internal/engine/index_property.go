@@ -208,7 +208,8 @@ func validateStoredIndexPropertyExpression(e indexPropertyExpression) error {
 	return nil
 }
 
-func (e indexPropertyExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e indexPropertyExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

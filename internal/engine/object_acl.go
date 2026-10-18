@@ -135,7 +135,8 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 	return n, nil
 }
 
-func (n objectACLExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n objectACLExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

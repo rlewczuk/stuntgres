@@ -95,7 +95,8 @@ func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (BoundE
 	return namespaceInquiryExpression{b.info(result, raw.Pos, properties), kind, arg}, nil
 }
 
-func (n namespaceInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n namespaceInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

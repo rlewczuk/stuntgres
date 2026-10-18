@@ -13,8 +13,8 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	source := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, slot: 0}
 	pattern := columnExpression{expressionInfo: expressionInfo{usage: text.Usage()}, slot: 1}
-	predicate := functions.Posix[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: source, Right: pattern, Operator: "~"}
-	extraction := functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Args: [2]BoundExpr{source, pattern}}
+	predicate := functions.Posix[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: source, Right: pattern, Operator: "~"}
+	extraction := functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Args: [2]BoundExpr{source, pattern}}
 	for _, node := range []BoundExpr{predicate, extraction} {
 		var slots []int
 		walkBoundExpression(node, func(n BoundExpr) {
@@ -58,15 +58,15 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &EvalContext{Context: context.Background(), pgRegex: sqltype.PGRegexExecution{}}
-	p := functions.Posix[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
-	s := functions.Similar[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
+	p := functions.Posix[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
+	s := functions.Similar[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: boolean.Usage()}), Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
 	for _, node := range []BoundExpr{p, s, p} {
 		value, err := node.Eval(c)
 		if err != nil {
 			t.Fatal(err)
 		}
 		expected := true
-		if _, ok := node.(functions.Similar[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if _, ok := node.(functions.Similar[BoundExpr, ExprContext, ExprProperties]); ok {
 			expected = false
 		}
 		got, err := value.Boolean()

@@ -29,7 +29,8 @@ func (n installedFunctionExpression) validProvider() bool {
 	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == Stable && p.strict && n.usage.Type == n.arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
 }
 
-func (n installedFunctionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

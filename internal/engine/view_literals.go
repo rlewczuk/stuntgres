@@ -161,7 +161,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return nil
 		}
 	case parser.CurrentDateTimeExpr:
-		if _, ok := bound.(functions.CurrentDateTime[*EvalContext, ExprProperties]); ok {
+		if _, ok := bound.(functions.CurrentDateTime[ExprContext, ExprProperties]); ok {
 			return nil
 		}
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
@@ -322,7 +322,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 		}
 	case parser.TimeZoneExpr:
-		if n, ok := bound.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties]); ok && r.Local == n.Local {
+		if n, ok := bound.(functions.Timezone[BoundExpr, ExprContext, ExprProperties]); ok && r.Local == n.Local {
 			if err := child(r.Value, n.Value); err != nil {
 				return err
 			}
@@ -360,7 +360,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
 			return child(r.Base, n.base)
 		}
-		if n, ok := bound.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]); ok && len(n.Args) == 1 {
+		if n, ok := bound.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]); ok && len(n.Args) == 1 {
 			b.captureViewComposite(path, compositeDotBuiltin, n.Args[0], nil)
 			captured := b.viewComposites[path]
 			captured.function = n.Kind
@@ -431,11 +431,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		switch n := bound.(type) {
 		case aclValueExpression:
 			return children(r.Args, n.arguments())
-		case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 			return selectedArrayArguments(r.Args, n.Args)
-		case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
 			return children(r.Args, n.Args[:])
-		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 			return selectedArrayArguments(r.Args, n.Args)
 		case rowComparisonExpression:
 			return b.captureRowComparison(r.Args, n, path, ordinal)
@@ -447,7 +447,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return err
 			}
 			return child(r.Args[1], n)
-		case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 			return children(r.Args, n.Args)
 		case literalExpression:
 			// Unary plus over a checked integer or numeric literal is identity.
@@ -458,11 +458,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					return child(operand, n)
 				}
 			}
-		case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
 			return children(r.Args, n.Args[:])
-		case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
 			return children(r.Args, n.Args[:])
-		case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.String[BoundExpr, ExprContext, ExprProperties]:
 			return children(r.Args, n.Args)
 		case bitwiseExpression:
 			if err := child(r.Args[0], n.left); err != nil {
@@ -497,12 +497,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return err
 			}
 			return child(r.Args[1], n.right)
-		case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
 			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
 			return child(r.Args[1], n.Right)
-		case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
 			if err := child(r.Args[0], n.Left); err != nil {
 				return err
 			}
@@ -571,29 +571,29 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return children(r.Args, n.args)
 		}
-		if n, ok := bound.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONEach[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONElements[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		var regexp *functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties]
+		var regexp *functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]
 		switch n := bound.(type) {
-		case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 			regexp = &n.RegexpCall
-		case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 			regexp = &n.RegexpCall
 		}
 		if regexp != nil {
@@ -628,16 +628,16 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
 		}
-		if n, ok := bound.(functions.VersionInformation[*EvalContext, ExprProperties]); ok && len(r.Args) == 0 {
+		if n, ok := bound.(functions.VersionInformation[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
 			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
-		if n, ok := bound.(functions.TransactionTime[*EvalContext, ExprProperties]); ok && len(r.Args) == 0 {
+		if n, ok := bound.(functions.TransactionTime[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
 			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
-		if n, ok := bound.(functions.Random[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.Random[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]); ok {
 			// Retain the signature's implicit cast at the call occurrence:
 			// PostgreSQL displays function argument coercions even though the
 			// literal traversal below preserves the original operand type.
@@ -652,16 +652,16 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(advisoryExpression); ok {
 			return children(r.Args, n.args)
 		}
-		if n, ok := bound.(functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]); ok {
 			if err := child(r.Args[0], n.Pattern); err != nil {
 				return err
 			}
 			return child(r.Args[1], n.Escape)
 		}
-		if n, ok := bound.(functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]); ok {
 			if err := child(r.Args[0], n.Pattern); err != nil {
 				return err
 			}
@@ -670,14 +670,14 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]); ok {
 			if b.viewPosixSubstrings == nil {
 				b.viewPosixSubstrings = make(map[viewLiteralPath]bool)
 			}
 			b.viewPosixSubstrings[path] = true
 			return children(r.Args, n.Args[:])
 		}
-		if n, ok := bound.(functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]); ok {
 			if b.viewSimilarSubstrings == nil {
 				b.viewSimilarSubstrings = make(map[viewLiteralPath]bool)
 			}
@@ -749,37 +749,37 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return children(r.Args, structure.args)
 			}
 		}
-		if n, ok := bound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.Binary[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties]); ok && n.Function {
+		if n, ok := bound.(functions.Timezone[BoundExpr, ExprContext, ExprProperties]); ok && n.Function {
 			if n.Local {
 				return children(r.Args, []BoundExpr{n.Value})
 			}
 			return children(r.Args, []BoundExpr{n.Zone, n.Value})
 		}
-		if n, ok := bound.(functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
-		if n, ok := bound.(functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSON stripping syntax")
 			}
@@ -790,10 +790,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONPath array query syntax")
 			}
@@ -804,7 +804,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
 			}
@@ -815,7 +815,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
 			}
@@ -826,7 +826,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
 			}
@@ -837,7 +837,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
 			}
@@ -848,7 +848,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONB replacement syntax")
 			}
@@ -859,7 +859,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched constructor syntax")
 			}
@@ -870,25 +870,25 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
-		if n, ok := bound.(functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args[:])
 		}
-		if n, ok := bound.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args[:])
 		}
-		if n, ok := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.String[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
 		if n, ok := bound.(catalogUserNameExpression); ok && len(r.Args) == 1 {
@@ -913,34 +913,34 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return child(r.Args[0], n.arg)
 			}
 		}
-		if n, ok := bound.(functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]); ok && len(r.Args) == 1 {
+		if n, ok := bound.(functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.Arg)
 		}
-		if n, ok := bound.(functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args[:n.Kind.Arity()])
 		}
-		if n, ok := bound.(functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.Enum[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.Enum[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.Math[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.Math[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(currentSchemasExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}
-		if n, ok := bound.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.NullCount[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]); ok {
+		if n, ok := bound.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(functions.Format[BoundExpr, *EvalContext, ExprProperties]); ok {
+		if n, ok := bound.(functions.Format[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
 	case parser.CallExpr:

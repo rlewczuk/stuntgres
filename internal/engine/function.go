@@ -150,9 +150,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 				b.queryHasTargetSet = true
 			}
-			return functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
+			return functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: call}, nil
 		}
-		return functions.Regexp[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
+		return functions.Regexp[BoundExpr, ExprContext, ExprProperties]{RegexpCall: call}, nil
 	}
 	if parser.ArrayTransformFunctionName(name) {
 		return b.bindArrayTransform(raw)
@@ -365,7 +365,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if err != nil {
 		return nil, err
 	}
-	return functions.NullCount[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args}, nil
+	return functions.NullCount[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args}, nil
 }
 
 type currentSchemasExpression struct {
@@ -373,7 +373,8 @@ type currentSchemasExpression struct {
 	arg BoundExpr
 }
 
-func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	v, err := e.arg.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err

@@ -22,7 +22,8 @@ type defaultOrdinal struct {
 	cancel  context.CancelFunc
 }
 
-func (e *defaultOrdinal) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e *defaultOrdinal) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

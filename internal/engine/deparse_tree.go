@@ -74,17 +74,17 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			return err
 		}
 		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
-	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
+	case functions.CurrentDateTime[ExprContext, ExprProperties]:
 		if err := n.Validate(functionPropertiesMatch(n.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.Kind, n.HasPrecision, n.Precision)
-	case functions.VersionInformation[*EvalContext, ExprProperties]:
+	case functions.VersionInformation[ExprContext, ExprProperties]:
 		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "VersionInformation kind %d", n.Kind)
-	case functions.TransactionTime[*EvalContext, ExprProperties]:
+	case functions.TransactionTime[ExprContext, ExprProperties]:
 		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err
 		}
@@ -146,22 +146,22 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case likeExpression:
 		fmt.Fprintf(out, "Like %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
-	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "LikeEscape")
 		err = pair(n.Pattern, n.Escape)
-	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "Posix %s namespace %q", n.Operator, n.Namespace)
 		err = pair(n.Left, n.Right)
-	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "Similar %s", n.Operator)
 		err = pair(n.Left, n.Right)
-	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "SimilarEscape omitted %t", n.Omitted)
 		err = pair(n.Pattern, n.Escape)
-	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "PosixSubstring syntax %d", n.Syntax)
 		err = args(n.Args[:])
-	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.Syntax)
 		err = args(n.Args[:])
 	case rowComparisonExpression:
@@ -171,10 +171,10 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 				break
 			}
 		}
-	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "Regexp %s", n.Plan.Name())
 		err = args(n.Args)
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "RegexpSet %s", n.Plan.Name())
 		err = args(n.Args)
 	case scalarArrayComparisonExpression:
@@ -199,22 +199,22 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			fmt.Fprint(out, "Unnest")
 		}
 		err = args(n.args)
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
 		err = args(n.Args)
-	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONBRecord %s", n.Name)
 		err = args(n.Args)
-	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONBElements %s", n.Plan.Name())
 		err = args(n.Args)
-	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONRecord %s", n.Plan.Name())
 		err = args(n.Args)
-	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONEach %s", n.Plan.Name())
 		err = args(n.Args)
-	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONElements %s", n.Plan.Name())
 		err = args(n.Args)
 	case comparisonExpression:
@@ -254,16 +254,16 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
-	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("ArrayRandom " + n.Kind.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
-	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "ArrayTransform %s namespace %s slots %v labels %v operator %t", n.Kind.Name(), n.Namespace, n.Slots, n.Labels, n.Operator)
 		err = args(n.Args)
-	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("ArrayInspect " + n.Kind.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
-	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
 	case catalogUserNameExpression:
@@ -287,82 +287,82 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if n.arg != nil {
 			err = child(n.arg)
 		}
-	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("UUIDExtract " + n.Kind.Name())
 		err = child(n.Arg)
-	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("NetworkFormat " + n.Kind.Name())
 		err = args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("RangeOperator " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args[:])
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("RangeInspect " + n.Plan.Name())
 		err = args(n.Args)
-	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Enum " + n.Plan.Name())
 		err = args(n.Args)
-	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Math " + n.Plan.Name())
 		err = args(n.Args)
-	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime extraction " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime overlaps")
 		err = args(n.Arguments())
-	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime binning")
 		err = args(n.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime truncation")
 		err = args(n.Arguments())
-	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime " + n.Name)
 		err = args(n.Arguments())
-	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSON stripping")
 		err = args(n.Arguments())
-	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSON extraction " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONPath array query")
 		err = args(n.Arguments())
-	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONPath query")
 		err = args(n.Arguments())
-	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONPath query")
 		err = args(n.Arguments())
-	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONPath query")
 		err = args(n.Arguments())
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONPath query")
 		err = args(n.Arguments())
-	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("JSONB replacement " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime constructor " + n.Plan.Name())
 		err = args(n.Arguments())
-	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Datetime " + n.Plan.Name())
 		err = args(n.Args[:])
-	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("NumericFormatting " + n.Plan.Name())
 		err = args(n.Args[:])
-	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.String[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("String " + n.Plan.Name())
 		err = args(n.Args)
-	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
 		if err := n.ValidateSyntax(); err != nil {
 			return err
 		}
@@ -372,10 +372,10 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			out.WriteString(" syntax TRIM")
 		}
 		err = args(n.Args)
-	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("Random " + n.Name)
 		err = args(n.Args)
-	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("DatetimeSleep " + n.Kind.Name())
 		err = args([]BoundExpr{n.Arg})
 	case advisoryExpression:
@@ -385,10 +385,10 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			out.WriteString("AdvisorySession " + n.name)
 		}
 		err = args(n.args)
-	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
 		out.WriteString("UUIDGeneration " + n.Name)
 		err = args(n.Args)
-	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "NullCount %d", n.Kind)
 		err = args(n.Args)
 	case installedSoundexFunctionExpression:
@@ -414,13 +414,13 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case jsonPredicateExpression:
 		fmt.Fprintf(out, "IS JSON %s unique %t not %t", n.kind, n.unique, n.not)
 		err = args([]BoundExpr{n.child})
-	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.Kind.Name(), n.Variadic)
 		err = args(n.Args)
-	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
 		fmt.Fprintf(out, "StringVariadic %s variadic %t anyelement %t", n.Name, n.Variadic, n.AnyElement)
 		err = args(n.Args)
-	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
 		fmt.Fprintf(out, "Format variadic %t", n.Variadic)
 		err = args(n.Args)
 	case visibilityInquiryExpression:
@@ -483,7 +483,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)
-	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
 		if n.Function {
 			out.WriteString("Datetime timezone")
 			err = args(n.Arguments())

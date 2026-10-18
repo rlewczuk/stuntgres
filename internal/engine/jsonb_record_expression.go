@@ -169,7 +169,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		properties.StageDependent = true
 	}
 	info := b.info(result, raw.Pos, properties)
-	call := functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args, Unresolved: unresolved}
+	call := functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args, Unresolved: unresolved}
 	call, err = call.Reconstruct(call.Info, args)
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 }
 
 func jsonbRecordUnresolved(expr BoundExpr) bool {
-	call, ok := expr.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties])
+	call, ok := expr.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
 	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
 }
 
@@ -256,7 +256,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	offset := 0
 	for _, expression := range source.calls {
 		width := functionFromCallWidth(expression)
-		if call, selected := expression.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]); selected && call.ResultUsage().Type.BaseType().IsComposite() {
+		if call, selected := expression.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]); selected && call.ResultUsage().Type.BaseType().IsComposite() {
 			if offset+width > len(qualifier.columns) {
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")
 			}
@@ -271,7 +271,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	return columns, nil
 }
 
-func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]) ([]queryColumn, error) {
+func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]) ([]queryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
 	key := preparedCompositeKey{offset: call.SourcePosition().Offset, kind: compositeSourceExpansion, projection: star.Pos.Offset}

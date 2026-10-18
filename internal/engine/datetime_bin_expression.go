@@ -40,7 +40,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]{}
+	e := functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]{}
 	properties := ExprProperties{Volatility: Immutable}
 	for i, o := range operands {
 		id := selected

@@ -114,7 +114,7 @@ type aggregateExpression struct {
 	frame uint32
 }
 
-func (e aggregateExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e aggregateExpression) Eval(ExprContext) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: aggregate occurrence not rewritten")
 }
 
@@ -126,7 +126,8 @@ type groupExpression struct {
 	frame uint32
 }
 
-func (e groupExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e groupExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

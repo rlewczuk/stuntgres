@@ -208,7 +208,8 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 	return deparseExpression{info, signature, args}, nil
 }
 
-func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -92,7 +92,7 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewRangeInspect[BoundExpr, *EvalContext](functionInfo(info), operation, args)
+	return functions.NewRangeInspect[BoundExpr, ExprContext](functionInfo(info), operation, args)
 }
 
 // The selected text/range overloads share diagnostic ordering, not coercion

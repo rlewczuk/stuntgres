@@ -185,7 +185,7 @@ type deparseTrap struct {
 	calls *int
 }
 
-func (n deparseTrap) Eval(*EvalContext) (sqltype.Value, error) {
+func (n deparseTrap) Eval(ExprContext) (sqltype.Value, error) {
 	*n.calls++
 	panic("stored tree evaluated")
 }

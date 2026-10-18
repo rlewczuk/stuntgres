@@ -24,7 +24,8 @@ type caseExpression struct {
 	otherwise BoundExpr
 }
 
-func (e caseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e caseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -78,7 +79,8 @@ type conditionalExpression struct {
 	comparison      sqltype.Comparison
 }
 
-func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e conditionalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

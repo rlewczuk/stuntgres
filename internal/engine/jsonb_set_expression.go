@@ -57,7 +57,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	if !visible || raw.ResolutionOnly || (name != "jsonb_set" && name != "jsonb_set_lax" && name != "jsonb_insert") || len(operands) > count {
 		return signature()
 	}
-	e := functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]{Count: count, WrittenCount: len(operands), Variadic: raw.Variadic}
+	e := functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]{Count: count, WrittenCount: len(operands), Variadic: raw.Variadic}
 	var supplied [5]bool
 	for i, o := range operands {
 		slot := i
@@ -140,7 +140,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	return e, nil
 }
 
-func jsonbSetSQL(e functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbSetSQL(e functions.JSONBSet[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.Count < 4 || e.Count > 5 || e.WrittenCount < 3 || e.WrittenCount > e.Count {
 		return "", fmt.Errorf("invalid stored JSONB replacement")
 	}

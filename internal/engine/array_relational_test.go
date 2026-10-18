@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], *EvalContext) {
+func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], *EvalContext) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{arrayInspectUnitArray(input)}
@@ -29,7 +29,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	session := &Session{}
 	session.arrayRandom.SeedWords(1, 2)
 	c := &EvalContext{Context: context.Background(), statementScope: &StatementScope{op: &Operation{session: session}}}
-	return node.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]), c
+	return node.(functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
 	t.Helper()
@@ -495,7 +495,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	old, next := node.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]), mapped.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties])
+	old, next := node.(functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]), mapped.(functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties])
 	if next.Validate() != nil || old.Usage.Type == next.Usage.Type || old.Args[0].ResultUsage().Type.Element() == next.Args[0].ResultUsage().Type.Element() || old.Args[1].ResultUsage().Type == next.Args[1].ResultUsage().Type || old.SourcePosition() != next.SourcePosition() || old.Properties() != next.Properties() {
 		t.Fatal("random generation remap")
 	}

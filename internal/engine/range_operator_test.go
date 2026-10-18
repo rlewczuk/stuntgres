@@ -17,7 +17,7 @@ type rangeOperatorProbe struct {
 	failure error
 }
 
-func (e rangeOperatorProbe) Eval(*EvalContext) (sqltype.Value, error) {
+func (e rangeOperatorProbe) Eval(ExprContext) (sqltype.Value, error) {
 	*e.calls++
 	return e.value, e.failure
 }
@@ -33,7 +33,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	counts := [2]int{}
 	args := [2]BoundExpr{rangeOperatorProbe{b.info(d.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), v, &counts[0], nil}, rangeOperatorProbe{b.info(d.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), v, &counts[1], nil}}
 	info := functionInfo(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, mergeExpressionProperties(args[0].Properties(), args[1].Properties())))
-	e, err := functions.NewRangeOperator[BoundExpr, *EvalContext](info, sqltype.RangeContains, args, "")
+	e, err := functions.NewRangeOperator[BoundExpr, ExprContext](info, sqltype.RangeContains, args, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	arg := literalExpression{expressionInfo: b.info(d.Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: v}
-	original, err := functions.NewRangeOperator[BoundExpr, *EvalContext](functionInfo(b.info(d.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeUnion, [2]BoundExpr{arg, arg}, "pg_catalog")
+	original, err := functions.NewRangeOperator[BoundExpr, ExprContext](functionInfo(b.info(d.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeUnion, [2]BoundExpr{arg, arg}, "pg_catalog")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
-	next := mapped.(functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties])
+	next := mapped.(functions.RangeOperator[BoundExpr, ExprContext, ExprProperties])
 	value, err := next.Eval(&EvalContext{Context: ctx})
 	if err != nil || value.Type() != fresh.typ(sqltype.NumRange) {
 		t.Fatal(value, err)

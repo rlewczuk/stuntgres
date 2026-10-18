@@ -18,7 +18,8 @@ type windowExpression struct {
 	nullable bool
 }
 
-func (e *windowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e *windowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

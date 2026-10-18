@@ -40,7 +40,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if result.Collation.ID != 0 {
 		info = inputInfo
 	}
-	node, err := functions.NewString[BoundExpr, *EvalContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.collationConflict)
+	node, err := functions.NewString[BoundExpr, ExprContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.collationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +324,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 
 // Both PostgreSQL presentation and native replay preserve special syntax, but
 // each renderer owns its child formatting and literal transport.
-func stringSpecialSQL(n functions.String[BoundExpr, *EvalContext, ExprProperties], parts []string) (string, error) {
+func stringSpecialSQL(n functions.String[BoundExpr, ExprContext, ExprProperties], parts []string) (string, error) {
 	source, set := parts[0], ""
 	if len(parts) > 1 {
 		set = parts[1]

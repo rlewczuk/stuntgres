@@ -10,7 +10,8 @@ type assignmentValueExpression struct {
 	target      *arrayAssignmentTarget
 }
 
-func (e assignmentValueExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e assignmentValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

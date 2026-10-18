@@ -35,7 +35,8 @@ type identityExpression struct {
 	ordinaryCall bool
 }
 
-func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e identityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

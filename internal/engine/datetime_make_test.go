@@ -38,7 +38,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+		e := node.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
 		if e.Count != tc.count || e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 {
 			t.Fatal(tc, e)
 		}
@@ -49,7 +49,7 @@ func TestDatetimeMakeBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
 	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.parameters[1].Type.ID() != sqltype.Float8 || b.parameters[2].Type.ID() != sqltype.Int4 {
 		t.Fatal(e, b.parameters)
 	}
@@ -89,7 +89,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+		e := node.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
 		stable := name == "make_timestamptz"
 		want := Immutable
 		if stable {
@@ -109,7 +109,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(name, next, changed, err)
 		}
-		rebound := next.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+		rebound := next.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
 		if rebound.ResultUsage().Type != replacement[e.Usage.Type.ID()] || e.ResultUsage().Type == rebound.ResultUsage().Type {
 			t.Fatal("descriptor authority", name)
 		}
@@ -148,7 +148,7 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	if err != nil || got != "make_interval(secs => '1.5'::double precision, days => 2)" {
 		t.Fatal("written literal association/default omission", got, err)
 	}
-	e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
 	other := e
 	other.WrittenSlots[0], other.WrittenSlots[1] = other.WrittenSlots[1], other.WrittenSlots[0]
 	other.Labels[0], other.Labels[1] = other.Labels[1], other.Labels[0]

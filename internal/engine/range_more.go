@@ -16,7 +16,8 @@ type unnestExpression struct {
 	ref ids.ObjectRef
 }
 
-func (e unnestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e unnestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

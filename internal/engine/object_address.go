@@ -250,7 +250,8 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 	}
 	return sqltype.OwnedArrayValue(d, dims, values)
 }
-func (n objectAddressExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

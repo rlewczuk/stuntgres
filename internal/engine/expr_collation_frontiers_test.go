@@ -17,7 +17,8 @@ type rowOperandEffect struct {
 	failure error
 }
 
-func (e rowOperandEffect) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e rowOperandEffect) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

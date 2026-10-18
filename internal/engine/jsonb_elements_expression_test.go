@@ -23,7 +23,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		arg := literalExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.JSONB).Usage()}, value: value}
-		original, err := functions.NewJSONBElements[BoundExpr, *EvalContext](functionInfo(expressionInfo{usage: b.typ(id).Usage(), pos: parser.Position{Offset: 20, Character: 21}, properties: ExprProperties{StageDependent: true}}), name, BoundExpr(arg))
+		original, err := functions.NewJSONBElements[BoundExpr, ExprContext](functionInfo(expressionInfo{usage: b.typ(id).Usage(), pos: parser.Position{Offset: 20, Character: 21}, properties: ExprProperties{StageDependent: true}}), name, BoundExpr(arg))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +41,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := mapped.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties])
+		next := mapped.(functions.JSONBElements[BoundExpr, ExprContext, ExprProperties])
 		assertFirst := func(call BoundExpr, result *sqltype.Descriptor, want string) {
 			t.Helper()
 			cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, call)
@@ -78,7 +78,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		assertFirst(root.calls[0], b.typ(id), "1")
 		draws := 0
 		// Use the reminted argument captured before replacing its expression.
-		input := mapped.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]).Args[0]
+		input := mapped.(functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]).Args[0]
 		next.Args = []BoundExpr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
 		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
 		if err != nil {

@@ -175,7 +175,8 @@ func (n aclValueExpression) values(c *EvalContext) ([4]sqltype.Value, bool, erro
 	}
 	return values, null, nil
 }
-func (n aclValueExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	values, null, err := n.values(c)
 	if err != nil {
 		return sqltype.Value{}, err

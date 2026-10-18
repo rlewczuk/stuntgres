@@ -40,7 +40,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	op := raw.Name.Parts[0].Text
 	result := b.typ(sqltype.Bool).Usage()
 	info := b.info(result, raw.Pos, likeProperties(l, r))
-	node, err := functions.NewSimilar[BoundExpr, *EvalContext](functionInfo(info), l, r, op, collation.usage.Collation, collation.collationConflict)
+	node, err := functions.NewSimilar[BoundExpr, ExprContext](functionInfo(info), l, r, op, collation.usage.Collation, collation.collationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewSimilarEscape[BoundExpr, *EvalContext](functionInfo(info), pattern, escape, omitted)
+	return functions.NewSimilarEscape[BoundExpr, ExprContext](functionInfo(info), pattern, escape, omitted)
 }
 func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
 	text := b.typ(sqltype.Text).Usage()
@@ -128,5 +128,5 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewSimilarSubstring[BoundExpr, *EvalContext](functionInfo(info), args, raw.Syntax, wrapper)
+	return functions.NewSimilarSubstring[BoundExpr, ExprContext](functionInfo(info), args, raw.Syntax, wrapper)
 }

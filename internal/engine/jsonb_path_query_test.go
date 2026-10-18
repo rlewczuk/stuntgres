@@ -187,7 +187,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	if err != nil || !sameQuerySetOccurrence(call, rebuilt) {
 		t.Fatal("source reconstruction", rebuilt, err)
 	}
-	if _, ok := rebuilt.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]); !ok {
+	if _, ok := rebuilt.(functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]); !ok {
 		t.Fatal("source replaced typed provider", rebuilt)
 	}
 	fresh := jsonObjectUnitTypes()

@@ -65,7 +65,7 @@ func (b *expressionBinder) jsonbOperatorNode(raw parser.OperatorExpr, operands [
 		properties = mergeExpressionProperties(properties, node.Properties())
 	}
 	info := b.info(targets[0], raw.Pos, properties)
-	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	node, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
 	if err != nil {
 		return nil, err
 	}

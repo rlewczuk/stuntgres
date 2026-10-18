@@ -23,7 +23,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := x.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
+		n := x.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties])
 		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			t.Fatalf("binding %s: %#v", tc.name, n)
 		}
@@ -140,7 +140,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
+	n := node.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties])
 	if !closedTransactionTimeDefault(n) {
 		t.Fatal("closed sleep default rejected")
 	}
@@ -152,7 +152,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal("retag", err)
 	}
-	copy := rebound.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
+	copy := rebound.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties])
 	value, err := copy.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted zero delay", value, err)

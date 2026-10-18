@@ -80,7 +80,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	if _, err := nodes[0].Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := nodes[0].Eval(nil); err == nil {
+	if _, err := nodes[0].Eval((*EvalContext)(nil)); err == nil {
 		t.Fatal("missing context")
 	}
 	if _, err := nodes[0].Eval(&EvalContext{Context: context.Background()}); err == nil {

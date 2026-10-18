@@ -70,7 +70,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 		resultType = b.typ(id)
 	}
 	info := b.info(resultType.Usage(), raw.Pos, arg.Properties())
-	node, err := functions.NewSize[BoundExpr, *EvalContext](functionInfo(info), name, arg, target.Usage())
+	node, err := functions.NewSize[BoundExpr, ExprContext](functionInfo(info), name, arg, target.Usage())
 	if err != nil {
 		return nil, err
 	}

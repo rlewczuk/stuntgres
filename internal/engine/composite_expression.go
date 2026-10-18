@@ -26,7 +26,8 @@ type rowExpression struct {
 	expansions     map[int]compositeExpansionBinding
 }
 
-func (n rowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n rowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -58,7 +59,8 @@ type fieldExpression struct {
 	index     int
 }
 
-func (n fieldExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n fieldExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	// Analysis/preflight still visits every constructor child. Runtime demand
 	// may bypass its allocation and unused volatile children.
 	if row, ok := n.base.(rowExpression); ok {

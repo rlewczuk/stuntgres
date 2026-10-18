@@ -50,7 +50,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 				t.Fatal(node.ResultUsage())
 			}
 			// Valid runtime evaluation requires statement authority. Printing must not.
-			if _, err := node.Eval(nil); err == nil {
+			if _, err := node.Eval((*EvalContext)(nil)); err == nil {
 				t.Fatal("identity unexpectedly evaluates without authority")
 			}
 			original := node

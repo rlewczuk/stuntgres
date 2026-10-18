@@ -8,9 +8,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool) (functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], error) {
+func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool) (functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties]
+	var call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]
 	operands := make([]functions.Argument[BoundExpr], len(raw.Args))
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringTextArgument})
@@ -102,7 +102,7 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 		info.usage.Collation = input.usage.Collation
 		info.collationConflict = input.collationConflict
 	}
-	call, err = functions.NewRegexpCall[BoundExpr, *EvalContext](functionInfo(info), name, call.Args, call.WrittenSlots, call.Labels, input.usage.Collation, input.collationConflict)
+	call, err = functions.NewRegexpCall[BoundExpr, ExprContext](functionInfo(info), name, call.Args, call.WrittenSlots, call.Labels, input.usage.Collation, input.collationConflict)
 	if err == nil && call.Plan.ReturnsSet() {
 		err = b.regexpPlacement(call)
 	}
@@ -114,7 +114,7 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 	}
 	return call, err
 }
-func regexpSQL(call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func regexpSQL(call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	text := name + "("
 	for i, slot := range call.WrittenSlots[:len(call.Args)] {
 		if i > 0 {
@@ -132,7 +132,7 @@ func regexpSQL(call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties
 	return text + ")", nil
 }
 
-func mapRegexpChildren(call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], view CatalogRead, info expressionInfo, child func(BoundExpr) BoundExpr) (functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], error) {
+func mapRegexpChildren(call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], view CatalogRead, info expressionInfo, child func(BoundExpr) BoundExpr) (functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], error) {
 	call.Args = append([]BoundExpr(nil), call.Args...)
 	for i, old := range call.Args {
 		call.Args[i] = child(old)
@@ -143,7 +143,7 @@ func mapRegexpChildren(call functions.RegexpCall[BoundExpr, *EvalContext, ExprPr
 	}
 	return call.Reconstruct(functionInfo(info), call.Args, input.usage.Collation, input.collationConflict)
 }
-func preflightRegexpCall(c *EvalContext, call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], decisive bool) (functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+func preflightRegexpCall(c *EvalContext, call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], decisive bool) (functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], bool, error) {
 	var args []BoundExpr
 	for i, old := range call.Args {
 		next, did, err := preflightCoercionsWithPolicy(c, old, decisive)
@@ -162,7 +162,7 @@ func preflightRegexpCall(c *EvalContext, call functions.RegexpCall[BoundExpr, *E
 	}
 	return call, args != nil, nil
 }
-func sameRegexpCall(a, b functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], same func(BoundExpr, BoundExpr) bool) bool {
+func sameRegexpCall(a, b functions.RegexpCall[BoundExpr, ExprContext, ExprProperties], same func(BoundExpr, BoundExpr) bool) bool {
 	if a.Plan != b.Plan || len(a.Args) != len(b.Args) {
 		return false
 	}
@@ -174,7 +174,7 @@ func sameRegexpCall(a, b functions.RegexpCall[BoundExpr, *EvalContext, ExprPrope
 	return true
 }
 
-func (b *expressionBinder) regexpPlacement(call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties]) error {
+func (b *expressionBinder) regexpPlacement(call functions.RegexpCall[BoundExpr, ExprContext, ExprProperties]) error {
 	context := b.regexpClause
 	hint := context == "CASE" || context == "COALESCE"
 	if context == "" && b.argumentOwner.active {
@@ -215,5 +215,5 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall[BoundExpr, 
 	if context == "" {
 		return nil
 	}
-	return rejectRegexpSets(functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, context, hint)
+	return rejectRegexpSets(functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: call}, context, hint)
 }

@@ -52,5 +52,5 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Arg: arg}, nil
+	return functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Arg: arg}, nil
 }

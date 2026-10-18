@@ -37,7 +37,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		return resolution(selection.Resolution == functions.Ambiguous)
 	}
 	signature := selection.Signature
-	e := functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]{Syntax: raw.Syntax}
+	e := functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]{Syntax: raw.Syntax}
 	properties := ExprProperties{Volatility: Immutable}
 	var local [4]bool
 	for i, o := range operands {

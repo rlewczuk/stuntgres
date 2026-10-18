@@ -131,7 +131,8 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 	return n, nil
 }
 
-func (n accessInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

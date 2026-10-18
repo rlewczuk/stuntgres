@@ -16,7 +16,8 @@ type sqlJSONExpression struct {
 	plan sqltype.SQLJSONPlan
 }
 
-func (e sqlJSONExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e sqlJSONExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -236,7 +237,8 @@ type jsonPredicateExpression struct {
 	unique, not bool
 }
 
-func (e jsonPredicateExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e jsonPredicateExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

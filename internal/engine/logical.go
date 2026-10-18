@@ -82,7 +82,8 @@ type logicalExpression struct {
 	queryRight bool
 }
 
-func (e logicalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

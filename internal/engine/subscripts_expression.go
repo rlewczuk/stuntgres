@@ -14,7 +14,8 @@ type subscriptsExpression struct {
 	args []BoundExpr
 }
 
-func (e subscriptsExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e subscriptsExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

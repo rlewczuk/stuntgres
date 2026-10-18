@@ -133,7 +133,7 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
 	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
 	info := b.info(usage, raw.Pos, properties)
-	record, err := functions.NewJSONRecord[BoundExpr, *EvalContext](functionInfo(info), name, baseIndex, args)
+	record, err := functions.NewJSONRecord[BoundExpr, ExprContext](functionInfo(info), name, baseIndex, args)
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +152,8 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 // Completion follows ordinary call/signature/SRF analysis, but precedes source
 // schema expansion. Explicit definitions are occurrence authorities, not aliases.
 func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call BoundExpr, definitions []parser.FunctionColumnDefinition) (BoundExpr, error) {
-	record, isRecord := call.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
-	jsonb, isJSONB := call.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties])
+	record, isRecord := call.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
+	jsonb, isJSONB := call.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
 	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
 		if isRecord && anonymous || jsonbRecordUnresolved(call) {

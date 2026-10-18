@@ -83,7 +83,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
+		e := node.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties])
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -92,7 +92,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
+		rebound := next.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties])
 		for i, arg := range rebound.Args {
 			if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained child authority")
@@ -143,7 +143,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
+	e := node.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties])
 	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
@@ -161,14 +161,14 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil || !rewritten.Properties().StageDependent {
 		t.Fatal(rewritten, err)
 	}
-	if _, ok := rewritten.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]).Args[1].(groupExpression); !ok {
+	if _, ok := rewritten.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]).Args[1].(groupExpression); !ok {
 		t.Fatal("group child not rewritten")
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]).Args[1].(columnExpression)
+	remapped := mapped.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]).Args[1].(columnExpression)
 	if remapped.origin.Address.ObjectID != 456 || remapped.slot != 2 {
 		t.Fatal(remapped)
 	}

@@ -14,7 +14,7 @@ type unknownOutput struct {
 	raw parser.Expr
 }
 
-func (unknownOutput) Eval(*EvalContext) (sqltype.Value, error) {
+func (unknownOutput) Eval(ExprContext) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unresolved query output")
 }
 

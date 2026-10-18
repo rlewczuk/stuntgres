@@ -31,7 +31,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		call := node.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties])
+		call := node.(functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties])
 		if call.Kind != kind || call.ResultUsage().Type != b.typ(kind.Result()) || call.Validate() != nil {
 			t.Fatal(call)
 		}
@@ -77,7 +77,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := node.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties])
+	old := node.(functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties])
 	mapped, changed, err := retagBoundTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil
@@ -87,7 +87,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := mapped.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties])
+	next := mapped.(functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties])
 	if err := next.Validate(); err != nil {
 		t.Fatal(err)
 	}

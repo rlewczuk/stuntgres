@@ -16,7 +16,8 @@ type enumCapturedArgument struct {
 	calls *int
 }
 
-func (e enumCapturedArgument) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e enumCapturedArgument) Eval(ctx ExprContext) (sqltype.Value, error) {
+	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -55,7 +56,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	for _, route := range []string{"default", "generation", "check"} {
 		t.Run(route, func(t *testing.T) {
 			calls := 0
-			producer := functions.Enum[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			producer := functions.Enum[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			nested := conditionalExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, kind: parser.Coalesce, args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
