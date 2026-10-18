@@ -81,7 +81,8 @@ must not run alongside each other or another broad rewrite or alias removal
       `0a04835ae`, `36411c4fd`, `0a80f30a0`, then the docs commit)
       *(racecheck skipped at user request)*
     - [x] format
-    - [ ] binary
+    - [x] binary (`6e15eb725`, `8e4f3177b`, `0d43b5592`, then the docs
+      commit) *(racecheck skipped at user request)*
     - [x] numeric formatting (`b6dc6c486`, then the docs commit)
     - [ ] pgcrypto
     - [ ] fuzzystrmatch

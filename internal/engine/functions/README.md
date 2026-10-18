@@ -126,8 +126,20 @@ SIMILAR escape), `Context` (bind-time template compilation for `to_char`,
   re-analysis for diagnostic names, composite-candidate 0A000, the note),
   used by `like_escape` and `similar_to_escape` for malformed calls.
   Reimplementing it here would duplicate the engine's diagnostic routing.
-- `FinishBinary` (**leak**): string bytea/bit overloads finish in the binary
-  family, which the engine still binds. The binary port removes it.
+
+Added for binary data functions (F4/F5), which also use
+`BuiltinOperatorRoutineInfo` (the `||` identity for bytea and bit-string
+concatenation), `CollatedInfo` and `DefaultConsumer`; the binary port also
+removed the string family's `FinishBinary` leak:
+
+- `LiteralNull`: whether a bound argument is the engine's NULL literal,
+  looking through collation and coercion wrappers. A strict `convert*` call
+  with a literal NULL never runs, so it demands no visibility snapshot; the
+  engine's random, advisory and conditional-planning code reads the same
+  predicate.
+- `NoteVisibilitySnapshot`: the statement executes an encoding conversion
+  lookup, so it captures the catalog visibility snapshot that lookup reads.
+  It is statement-level analyzer state, like `NoteCatalogText`.
 
 Added to register `regexp_*` and the variadic string family, replacing the
 values their engine branches passed in:
@@ -212,6 +224,7 @@ Registered families:
 | Variadic strings | `string_variadic_bind.go` | `stringVariadicNames` | `Claims` (`StringVariadicFunctionName`) |
 | `regexp_*` | `regexp_bind.go` | `regexpNames` | `ExactSpelling` (checks its own labels) |
 | `to_number` | `numeric_formatting_bind.go` | `to_number` | `ExactSpelling`, `SharedGates` |
+| Binary data | `binary_bind.go` | `binaryNames` | `ExactSpelling`, `SharedGates` |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
 timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
@@ -227,9 +240,12 @@ entry point, because they need engine state the registry cannot express:
   inline safety, an engine node walk that F2 replaces.
 - `similar_to_escape` (`BindSimilarEscape`): claimed by call syntax, not name.
 - Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
-  operators (`BindPosix`, `BindSimilar`), the binary family's substring routes
-  (`BindPosixSubstring`, `BindSimilarSubstring`, `FinishString`) and `||`/`^@`
-  (`StringNode`).
+  operators (`BindPosix`, `BindSimilar`) and `||`/`^@` (`StringNode`).
+
+`BindBinary` takes a precomputed visibility for the engine's analyzer tests;
+it reaches the text routes `BindPosixSubstring`, `BindSimilarSubstring` and
+`FinishString`. `FinishBinary` is shared with the string family's binary
+candidates and the engine's `||` binder.
 
 The LIKE operator binder is ported onto `Binder` but stays in the engine,
 because its node (`likeExpression`) is engine-private.
@@ -337,7 +353,8 @@ extension routines keep their engine wrapper nodes (for example
 `installedUUIDOsspFunctionExpression`), manifest validation and stored
 identity; registered bind code reaches them only through `InstalledRoutine`.
 UUID DEFAULT admission (`closedUUIDDefault`) stays with the engine's DEFAULT
-binder.
+binder. Binary call deparse (`renderBinaryCall` in `binary_render.go`) stays
+with the engine's renderers until F2.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine. Function evaluation borrows the same owners only when demanded. Literal
@@ -507,6 +524,15 @@ Reference selections (add `REFERENCE=1` for the PostgreSQL run):
 make check RUN='^TestReference(Datetime(AgeFinite|Bin|Extract|Justify|Make|Overlaps|Trunc|Zone|Formatting)|Timezone|NumericFormatting)'
 make check RUN='^TestReference(Like|Similar|Posix|Regexp)'
 make check RUN='^TestReferenceString(Core|Case|Encoding|Ident|Length|Numeric|Pad|Replace|Slice|Split|Variadic)'
+```
+
+Binary data functions (registry here; the engine's `TestBinary*`,
+`TestBitString*` and `TestStringSlice*` cover analyzer switches, consumers
+and grouping; add `REFERENCE=1` for the PostgreSQL run):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestBinary|TestBit|TestStringSlice)'
+make check RUN='^TestReference(Binary|BitAccess|BitString|BitOperators|StringSlice|StringCore|StringPad|Similar|Posix|LikeBinary|Bytea|Pgcrypto|SearchPath|Conversion)'
 ```
 
 Focused private state/demand examples:
