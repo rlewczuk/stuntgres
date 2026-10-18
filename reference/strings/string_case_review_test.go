@@ -10,13 +10,14 @@ import (
 
 func TestReferenceStringCaseReviewSigma(t *testing.T) {
 	stringCaseScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		// Independently derived from REL_18_0's original-input prefix scan and
-		// word boundaries; confirmed on pinned PostgreSQL18.0 by root discovery.
+		// A capital sigma is final only when the nearest preceding character that
+		// is not Case_Ignorable is cased (REL_18_6; 18.0 also accepted an entirely
+		// ignorable prefix such as U+0345 or U+0301). Observed on pinned 18.6.
 		cases := []struct{ input, lower, initcap string }{
-			{"\u0345Σ", "\u0345ς", "Ις"},
-			{"\u0301Σ", "\u0301ς", "\u0301Σ"},
-			{"\u0301\u0345Σ", "\u0301\u0345ς", "\u0301Ις"},
-			{"\u0345Σ\u0345", "\u0345ς\u0345", "Ις\u0345"},
+			{"\u0345Σ", "\u0345σ", "Ισ"},
+			{"\u0301Σ", "\u0301σ", "\u0301Σ"},
+			{"\u0301\u0345Σ", "\u0301\u0345σ", "\u0301Ισ"},
+			{"\u0345Σ\u0345", "\u0345σ\u0345", "Ισ\u0345"},
 			{"Σ", "σ", "Σ"},
 			{"1Σ", "1σ", "1σ"},
 			{"1\u0345Σ", "1\u0345σ", "1\u0345σ"},
@@ -45,7 +46,7 @@ func TestReferenceStringCaseReviewSigma(t *testing.T) {
 			if value == nil {
 				row = []any{nil, nil}
 			} else if value != "" {
-				row = []any{"\u0345ς", "Ις"}
+				row = []any{"\u0345σ", "Ισ"}
 			}
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(q, []string{"lo", "ic"}, []string{"TEXT", "TEXT"}, [][]any{row}, value))
 		}
