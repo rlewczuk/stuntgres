@@ -88,24 +88,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindSubscripts(raw, visible)
 	}
-	if sqltype.RegexpFunctionKind(name) != 0 {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		call, err := functions.BindRegexpCall(b, raw, visible, b.regexpPlacement)
-		if err != nil {
-			return nil, err
-		}
-		if call.Plan.ReturnsSet() {
-			switch b.aggregateClause {
-			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-				b.queryHasTargetSet = true
-			}
-			return functions.RegexpSet{RegexpCall: call}, nil
-		}
-		return functions.Regexp{RegexpCall: call}, nil
-	}
 	if strings.EqualFold(name, "unnest") {
 		return b.bindUnnest(raw)
 	}

@@ -8,9 +8,32 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// BindRegexpCall binds a regexp_* call. place checks a set-returning call's
-// placement, which the engine's analyzer context decides.
-func BindRegexpCall(b Binder, raw parser.FunctionExpr, visible bool, place func(RegexpCall) error) (RegexpCall, error) {
+// regexpNames are the regexp_* functions. They dispatched before the
+// engine's shared gates by exact spelling and check their own labels.
+var regexpNames = [...]string{
+	"regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches",
+	"regexp_replace", "regexp_split_to_array", "regexp_split_to_table",
+}
+
+// bindRegexp binds a regexp_* call. A set-returning call is placed by the
+// analyzer's regexp policy and marks the query target list.
+func bindRegexp(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
+	}
+	call, err := bindRegexpCall(b, raw, visible)
+	if err != nil {
+		return nil, err
+	}
+	if call.Plan.ReturnsSet() {
+		b.TargetSet()
+		return RegexpSet{RegexpCall: call}, nil
+	}
+	return Regexp{RegexpCall: call}, nil
+}
+
+func bindRegexpCall(b Binder, raw parser.FunctionExpr, visible bool) (RegexpCall, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var call RegexpCall
 	operands := make([]Argument, len(raw.Args))
@@ -106,7 +129,7 @@ func BindRegexpCall(b Binder, raw parser.FunctionExpr, visible bool, place func(
 	}
 	call, err = NewRegexpCall(info, name, call.Args, call.WrittenSlots, call.Labels, input.Usage.Collation, input.CollationConflict)
 	if err == nil && call.Plan.ReturnsSet() {
-		err = place(call)
+		err = b.RegexpSetPlacement(call)
 	}
 	if err == nil {
 		info, err = b.BuiltinRoutineInfo(info, RegexpRoutineProvider, name, types[:len(operands)]...)

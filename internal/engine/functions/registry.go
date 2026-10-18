@@ -49,6 +49,7 @@ var definitions = [...]Definition{
 	{Names: textObjectNames[:], ExactSpelling: true, SharedGates: true, Bind: bindTextObject},
 	{Names: datetimeNames[:], ExactSpelling: true, SharedGates: true, Bind: bindDatetime},
 	{Names: datetimeMakeNames[:], ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindDatetime},
+	{Names: regexpNames[:], ExactSpelling: true, Bind: bindRegexp},
 	{Names: []string{"like_escape"}, ExactSpelling: true, SharedGates: true, Bind: bindLikeEscape},
 	{Names: stringNames[:], ExactSpelling: true, SharedGates: true, Bind: bindStringName},
 	{Names: []string{"string_to_table"}, ExactSpelling: true, SharedGates: true, Bind: bindStringToTable},
