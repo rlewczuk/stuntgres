@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `5b986e558`.
+Last verified against `master` at `a3a2f0548`.
 
 ## Next ready sub-steps
 
@@ -13,7 +13,7 @@ Last verified against `master` at `5b986e558`.
 - **F2 session 2** — render hooks for deparse, node tree and stored scalar
   SQL (needs F2 session 1 ✓) *(broad rewrite)*.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
-- **F4/F5** — port Tier A, Tier B and aggregate families one at a time
+- **F4/F5 JSON** — JSON operators, SQL/JSON constructors and `IS JSON`
   (needs F3 ✓).
 - **5c** — view, rule, policy, extension-provider and expression payload
   seams (needs 5b ✓).
@@ -84,18 +84,24 @@ must not run alongside each other or another broad rewrite or alias removal
     - [x] binary (`6e15eb725`, `8e4f3177b`, `0d43b5592`, then the docs
       commit) *(racecheck skipped at user request)*
     - [x] numeric formatting (`b6dc6c486`, then the docs commit)
-    - [ ] pgcrypto
-    - [ ] fuzzystrmatch
-    - [ ] unaccent
-    - [ ] intarray
-    - [ ] intagg
+    - [x] pgcrypto (with fuzzystrmatch and unaccent: `a4e02ba94`,
+      `c037c89d9`, `56271aa34`, docs `f6e3d98c5`) *(racecheck skipped at
+      user request)*
+    - [x] fuzzystrmatch
+    - [x] unaccent
+    - [x] intarray (nothing to port)
+    - [x] intagg (with random, clocks and sleep: `50ab66515`, `a59940644`,
+      `208390a37`, docs `11cad8edf`) *(racecheck skipped at user request)*
     - [x] uuid-ossp
-  - [ ] F4/F5 Tier B
-    - [ ] random
-    - [ ] current time and clocks
-    - [ ] sleep
-    - [ ] settings reads
-  - [ ] F4/F5 aggregates and windows
+  - [x] F4/F5 Tier B
+    - [x] random
+    - [x] current time and clocks (FILTER fix `920fafff4`)
+    - [x] sleep
+    - [x] settings reads (`4014a7726`, `e030789b6`, then the docs commit)
+      *(racecheck skipped at user request)*
+  - [x] F4/F5 aggregates and windows (`f4ee7801c`, `d9d8e6482`, `8066e02e9`,
+    `ff28e5996`, `a18766bcc`, `c4a15e187`, then the docs commit)
+    *(racecheck skipped at user request)*
   - [ ] Tier C refined *(after steps 4, 5 and 7)*
 - [ ] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit

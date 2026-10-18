@@ -182,9 +182,15 @@ Tier C has a refined plan.
   commit; the aggregate path stays with the aggregates item) [x] uuid-ossp (UUID, format and
   uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
   `36411c4fd` format move, `0a80f30a0` uuid-ossp move, then the docs commit)
-- [ ] F4/F5 Tier B: [x] random [x] current time and clocks [x] sleep
-  (with intagg; clock FILTER fix `920fafff4`) [ ] settings reads
-- [ ] F4/F5 aggregates and windows
+- [x] F4/F5 Tier B: [x] random [x] current time and clocks [x] sleep
+  (with intagg; clock FILTER fix `920fafff4`) [x] settings reads (the bind
+  half of statement-level `current_setting`/`set_config`: `4014a7726` port,
+  `e030789b6` move, then the docs commit)
+- [x] F4/F5 aggregates and windows (`f4ee7801c` seam, `d9d8e6482` intagg
+  prelude, `8066e02e9` simple aggregates, `ff28e5996` JSON aggregates,
+  `a18766bcc` ordered-set and hypothetical-set, `c4a15e187` window
+  functions, then the docs commit; `int_array_aggregate` keeps its engine
+  branch)
 - [ ] Tier C refined (after steps 4, 5 and 7)
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
@@ -197,7 +203,10 @@ generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 `AdmitSetReturning` and `CaptureTypeInput` (JSON calls); `ConstantValue`
 (datetime), `BuiltinOperatorVisible` and `CallSignatureError` (pattern) and
 `FinishBinary` (string, a leak the binary port removed); `LiteralNull` and
-`NoteVisibilitySnapshot` (binary). The pgcrypto, fuzzystrmatch and unaccent
+`NoteVisibilitySnapshot` (binary); `JSONReturningType` and the
+`AggregateBinder` methods `AnalyzeAggregateFilter`, `FinishAggregate`,
+`DomainTypeName`, `CollationName`, `CommonArgumentUsage` and
+`CollationRelabel` (aggregates and windows). The pgcrypto, fuzzystrmatch and unaccent
 port added none, nor did the intagg, random, clock and sleep port. Reasons
 for every method are in the `functions` README.
 
@@ -910,6 +919,122 @@ Notes for later steps (intagg, random, clocks, sleep):
   builtins.
 - `Lookup` now scans 31 definitions with 258 names, plus the JSON and
   variadic string predicates.
+
+F4/F5 settings reads, aggregates and windows record, measured at its start on
+`101168762` and rebased onto `5b986e558` (intagg, random, clocks, sleep) and
+`a3a2f0548` (catalog 5b):
+
+- Settings reads (scope chosen by the user). `current_setting` and
+  `set_config` exist only as the statement form `SELECT current_setting(...)`
+  (`parser.SettingCall`); no expression-level settings family exists, so
+  nothing registers. `describeSettingCall`'s binding (visibility, then each
+  argument in assignment context, then routine identity) moved to
+  `functions.BindSettingCall`. The `AssignmentFormalArgument` intent binds the
+  unanalyzed literal or parameter in assignment context, which
+  `DirectFormalArgument` (function-argument context) does not.
+  `binder.finish()`, execution and settings locking stay in `setting_calls.go`.
+- Aggregates are not name-chain calls: they arrive as `parser.AggregateExpr`
+  with folded names. Two exact-match static tables replace the engine's
+  if-chains: `aggregateDefinitions` (15 definitions, 55 names) and
+  `windowFunctions` (5 definitions, 11 names). Engine dispatch consults them
+  where the chains tested names, after the same gates. The names are
+  disjoint, so precedence is unchanged. An unregistered aggregate name still
+  binds as count.
+- `AggregateBinder` (scalar `Binder` plus six methods, listed in the
+  `functions` README) keeps aggregate-only capabilities off the scalar
+  interface. `AggregateCall` carries the function-owned part of the engine's
+  `aggregateCall`. `FinishAggregate` adds ORDER BY, DISTINCT, merging and
+  registration.
+- Corrections to the plan:
+  - The duplicated INSERT ... VALUES namespace prelude (sum, `bit_*` and
+    intagg) became one engine helper. Definitions select it with
+    `ValuesNamespace`, a value instead of a method.
+  - Every aggregate is now owned in dispatch. The JSON aggregates owned
+    themselves inside bind. `BindReturning` now returns their RETURNING usage
+    and the engine applies the coercion after ownership, in the same order as
+    before.
+  - count's argument binding needs the new `BareProjectionArgument` intent.
+    `ProjectionArgument` marks unknown NULLs, which would change deparse and
+    grouping identity.
+- Window binding asks the window registry, then `ResolveWindowAggregate`
+  (registered `Window` entries, including count), for every signature. Its
+  operation mapping, formals, frames and execution stay in the engine, as do
+  `windowValueAliases` (now in `window_value_query.go`), `rejectOrdinaryWithin`
+  (`aggregate_dispatch.go`) and `rewriteOrderedSetDirect` (`query_bind.go`).
+- Providers that moved:
+  - money/interval SUM: `MoneySum`, `IntervalSum`;
+  - JSON object: `JSONObjectAggregate`, completed by `FinishAggregate`;
+  - WITHIN GROUP: `OrderedSet`, `HypotheticalSet` behind `OrderedAggregate`.
+  The executor keeps sorting and replay. It lends the sorted group as an
+  `OrderedInput` whose `Compare` closes over the call's sort keys (one
+  closure per ordered finalization). `AggregateOrdering` and the SQL/JSON
+  RETURNING helpers (`JSONReturningCoercion`, `ValidateJSONOutputFormat`,
+  `JSONReturningPseudoType`) became exported and the engine callers were
+  repointed. No aliases were added.
+- 23 engine glue files are deleted. These are the 11 simple aggregate binders,
+  `money_sum.go`, `interval_sum.go`, the three JSON aggregate files, the four
+  ordered-set and hypothetical-set files, and the three window binder files.
+- Deviation: each family slice is one "move" commit rather than separate
+  port and move commits. The bind code was written against the interface
+  directly in `functions`, where the compiler enforces it more strictly than
+  in the engine.
+
+Tests in F4/F5 settings reads, aggregates and windows:
+- Added `TestAggregateDefinitionsAreWellFormed`,
+  `TestLookupAggregateClaimsRegisteredNames` (failed before registration) and
+  `TestLookupWindowFunctionClaimsRegisteredNames` (added with the window
+  registry).
+- Moved to `functions/money_interval_sum_test.go`, adapted to builtin
+  descriptor generations: `TestMoneySumProvider`,
+  `TestMoneySumProviderCancellation`, `TestIntervalSumProvider` and
+  `TestIntervalSumProviderCancellation`. The view-remap tests stay in the
+  engine (`money_interval_sum_remap_test.go`).
+- Adapted engine tests:
+  - `sum_test.go` and `ordered_set_aggregate_test.go` bind through
+    `bindRegisteredAggregate`.
+  - The bitwise and statistical window tests have test-local mappings in
+    place of the deleted helpers.
+  - The JSON object tests use the provider's constructor and accessors.
+  - The ordered-set and hypothetical-set tests use `NewOrderedSet`,
+    `NewHypotheticalSet` and accessors, where they had set fields, and lend
+    input through the executor's `borrowed`. Their frame-name suffixes now
+    name `(*OrderedSet)` and `(*HypotheticalSet)`.
+  - Operation constants and `AggregateOrdering` are now referenced from
+    `functions`.
+- No test was deleted.
+
+Verification:
+- `make quickcheck` passed (44 packages). `make deps` lists only module
+  paths, and `functions` imports no engine state packages.
+- Quick mode passed for each slice's selection (settings, simple, JSON,
+  ordered-set and window aggregates; the selectors are in the `functions`
+  README).
+- `REFERENCE=1` passed for
+  `^TestReference(Settings|ObjectGrantSettingCallAuthority|SearchPath|TimestampSettingArguments|PreparedRebind|FormatEncoding)`,
+  for the simple and JSON aggregate selections, and for the ordered-set,
+  hypothetical, window, grouping-sets, view-replace, deparse and intagg
+  selections. The only failure is the new
+  `TestReferenceHypotheticalAggregateMultiKey/postgres` drift listed below,
+  which fails identically on master.
+- Bench skipped: no startup code changed.
+- Racecheck skipped at the user's request.
+
+Notes for later steps (aggregates and windows):
+
+- `int_array_aggregate` can register once `AggregateCall` carries an
+  installed-routine handle for the procedure identity that merging
+  (`sameIntaggIdentity`) and view remap read.
+- `AnalyzeFilter` could become a wrapper of `AnalyzeAggregateFilter`.
+- `bindWindow` still maps names to window operations and formals, and the
+  partition consumer gate in `expression.go` keeps its own name list (window
+  functions minus the rank family). Move them into `WindowFunction` when
+  window planning gets an owner.
+- The grouping switches in `aggregate_bind.go` (`sameGroupExpression`,
+  `rewriteGroup`, `aggregateOccurrence`) list function nodes; they belong to
+  the F2 follow-up list.
+- New oracle drift, failing on master `5b986e558` too, `/postgres` only:
+  `TestReferenceHypotheticalAggregateMultiKey` (18.6 reports "aggregates
+  cannot have more than 99 arguments" at the 100-operand boundary).
 
 F2 session 1 record, measured at its start on `604ee2be6`:
 
