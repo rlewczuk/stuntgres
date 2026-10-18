@@ -67,4 +67,10 @@ type Binder interface {
 	// lookup errors, and returns the routine that extension installed there
 	// with the signature (comma-separated input type OIDs), or nil.
 	InstalledRoutine(name parser.ObjectName, extension Extension, signature string) (InstalledRoutine, error)
+	// BuiltinOperatorRoutineInfo attaches the selected builtin operator's
+	// routine identity to info, as BuiltinRoutineInfo does for functions.
+	BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error)
+	// CaptureComparisonInput records the statement's diagnostic type-name
+	// input when comparing values of the type needs it.
+	CaptureComparisonInput(*sqltype.Descriptor) error
 }

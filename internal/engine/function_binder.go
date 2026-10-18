@@ -99,3 +99,11 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 	}
 	return nil, fmt.Errorf("stuntgres: unknown installed extension %d", extension)
 }
+
+func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error) {
+	return b.builtinOperatorRoutineInfo(info, operator, left, right)
+}
+
+func (b *expressionBinder) CaptureComparisonInput(typ *sqltype.Descriptor) error {
+	return b.captureComparisonDiagnosticInput(typ)
+}
