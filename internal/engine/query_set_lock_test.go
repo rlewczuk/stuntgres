@@ -258,7 +258,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.mu.Lock()
 	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: set, relation: &d, mark: localMark}})
 	e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("set boundary skipped stale arm admission", err)
 	}
 	// First-mode discovery still finds locally stored marks beneath a set when

@@ -250,12 +250,12 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE p(id SERIAL PRIMARY KEY); INSERT INTO p DEFAULT VALUES;")); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				if phase == "StagedReset" {
 					op := transactionOperation(t, holder)
 					_, err := e.Commit(op, tx)
 					op.Done()
-					if err != ErrCatalogReplaced {
+					if err != ids.ErrCatalogReplaced {
 						t.Fatal("old transaction published across replacement", err)
 					}
 					controlsRequire(t, holder, "ROLLBACK")

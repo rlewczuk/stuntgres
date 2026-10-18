@@ -20,7 +20,7 @@ type indexInsertionBinding struct {
 func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
 	if output, exists := r.indexes[bound.index.address]; exists {
 		if !output.matches(bound.index) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		return nil
 	}
@@ -61,7 +61,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion
 	if binding.checked || prior != nil && prior.checked {
 		purpose = indexProbeRevalidation
 		if prior != nil && !sameRelationRowShape(prior.parent, binding.parent) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	if prior != nil {

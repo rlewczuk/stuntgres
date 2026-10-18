@@ -17,7 +17,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 	d, exists := e.privateCatalogLocked(scope.owner.catalog).Relation(ref.Address)
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !exists {
 		e.mu.Unlock()
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if hierarchyRelation(d) && mark.mode != 0 {
 		e.mu.Unlock()
@@ -192,7 +192,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	principal := d.owner
 	if definition.invoker {
@@ -202,7 +202,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 	for _, leaf := range definition.sources {
 		source, ok := auth.catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(auth.catalog, d, leaf.ref) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if leaf.analysisOnly {
 			continue

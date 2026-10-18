@@ -369,7 +369,7 @@ func TestRelationLockReplacement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			lockAwait(t, done, ErrCatalogReplaced)
+			lockAwait(t, done, ids.ErrCatalogReplaced)
 			lockEmpty(t, e)
 			transactionEnd(t, a, ra, false)
 			if restore {

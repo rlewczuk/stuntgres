@@ -184,11 +184,11 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	e.mu.Lock()
 	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if stage.initialTx != (ids.TxRef{}) && stage.initialTx != scope.txRef {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	err := e.captureCatalogStageLocked(stage, changes, e.privateCatalogLocked(scope.owner.catalog).state, scope.catalogAuthority)
 	if err == nil {
@@ -232,7 +232,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	scope.op.session.mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
 	if err == nil && scope.txRef.Epoch() != e.catalog.state.epoch {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).revision != stage.roleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")

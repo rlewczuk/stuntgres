@@ -26,14 +26,14 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		fresh, err := e.statementAuthorizationLocked(op, raw)
 		if err == nil && current.Get(old.address) != old {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
 			err = fresh.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		}
 		childSlot, exists := old.index[raw.Column.Text]
 		if err == nil && !exists {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		var definition columnDefault
 		if err == nil && raw.Action == parser.SetDefault {
@@ -68,7 +68,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		store := e.privateStorageLocked(scope.owner.catalog, old.address)
 		if store == nil {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		length, generation, ends := len(store.versions), store.generation, store.ends
 		e.mu.Unlock()

@@ -42,7 +42,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		seen[ref] = strongerQueryRowMode(prior, mode)
 		d, ok := catalog.Relation(ref.Address)
 		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if s.materializedRefresh && !visited {
 			s.materializedSources = append(s.materializedSources, d)
@@ -139,14 +139,14 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	if s.materializedRefresh {
 		for _, observed := range s.materializedSources {
 			if !materializedSourceCurrent(s.materializedSourceView, observed, catalog.state, e.privateStorageLocked(s.owner.catalog, observed.Address())) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}
 	for _, view := range retainedViews {
 		for ref := range view.view.references {
 			if !storedViewReferenceValid(catalog, view, ref) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}
@@ -206,7 +206,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		}
 		e.mu.Unlock()
 		if !valid {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil

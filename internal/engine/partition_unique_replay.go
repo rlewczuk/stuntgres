@@ -47,7 +47,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	}
 	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if table.partition == nil || table.membership == nil || table.inheritance != nil {
 		return nil
@@ -156,7 +156,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	e.mu.Lock()
 	auth, err := e.statementAuthorizationLocked(op, raw)
 	if err == nil && !partitionUniqueReplayAllowed(op, auth, raw, table) {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		e.mu.Unlock()

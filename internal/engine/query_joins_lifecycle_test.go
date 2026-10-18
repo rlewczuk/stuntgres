@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -211,7 +212,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	e.mu.Lock()
 	_, err = currentQuerySourceLocked(e, e.catalog.read(e.catalog.state), nil, grant)
 	e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
 	}
 	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -262,13 +263,13 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 					run(t, e, "CREATE TABLE t(a INT)")
 				}
 				if kind == "reset" || kind == "restore" {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
 				transactionEnd(t, holder, tx, false)
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 				} else if kind != "reset" && kind != "restore" {
-					lockAwait(t, done, ErrCatalogReplaced)
+					lockAwait(t, done, ids.ErrCatalogReplaced)
 				}
 				lockEmpty(t, e)
 			})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -124,10 +125,10 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 			if err != nil || len(rows.values) != 2 || calls != 2 || source.view != nil {
 				t.Fatal(rows, err, calls, source.view)
 			}
-			if err = scope.Writes().Apply(b.ref, rows.values); !errors.Is(err, ErrCatalogReplaced) {
+			if err = scope.Writes().Apply(b.ref, rows.values); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
-			if err = scope.Finish(err); !errors.Is(err, ErrCatalogReplaced) {
+			if err = scope.Finish(err); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
 			op.Done()

@@ -38,7 +38,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		if current.Epoch() != auth.catalog.Epoch() {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		targets := inheritanceAlterOrder(current, state.root)
 		e.mu.Unlock()
@@ -68,7 +68,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			actual, _ := actualCatalog.Relation(observed.address)
 			if actualCatalog.Epoch() != auth.catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			currentAuth, err := e.statementAuthorizationLocked(op, raw)
 			if err == nil && !preparatory && (index == 0 || inheritanceEntryOwner(incoming)) {

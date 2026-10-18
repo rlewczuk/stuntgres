@@ -242,7 +242,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				if change == "reset" || change == "restore" {
-					if !errors.Is(err, ErrCatalogReplaced) {
+					if !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatal(err)
 					}
 					return

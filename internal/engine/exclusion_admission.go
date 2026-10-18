@@ -144,7 +144,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	}
 	definition := exclusionDefinition(binding.parent, bound.index)
 	if definition == nil {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	member, keys, err := proposal.uniqueOutput(bound, &evaluation, precheck, purpose)
 	if err != nil {
@@ -155,12 +155,12 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Epoch != e.catalog.state.epoch || e.privateCatalogLocked(s.owner.catalog).state != binding.catalog {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
 	row, err := s.exclusionCandidateLocked(e, proposal, excluded, binding.catalog)
@@ -277,7 +277,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.catalog)
 	if ref.Epoch != e.catalog.state.epoch || view.state != binding.catalog {
-		return exclusionScan{}, ErrCatalogReplaced
+		return exclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
@@ -433,7 +433,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 		}
 		c := exclusionDefinition(binding.parent, index)
 		if c == nil {
-			return uniqueConflict{}, false, ErrCatalogReplaced
+			return uniqueConflict{}, false, ids.ErrCatalogReplaced
 		}
 		if c.Deferrable && !recheck {
 			return uniqueConflict{}, potential, nil
@@ -458,7 +458,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 	}
 	c := exclusionDefinition(binding.parent, index)
 	if c == nil {
-		return uniqueConflict{}, ErrCatalogReplaced
+		return uniqueConflict{}, ids.ErrCatalogReplaced
 	}
 	if action != nil && c.Deferrable {
 		schema := binding.catalog.Get(binding.parent.namespace).Name()

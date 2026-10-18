@@ -91,14 +91,14 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	for _, declaration := range pending {
 		if declaration.child.Domain() != e.catalog.domain || declaration.child.Epoch != base.Epoch() {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		child, ok := stage.descriptors[declaration.child.Address].(*relationDescriptor)
 		if !ok {
 			old, ok := base.Relation(declaration.child.Address)
 			if !ok {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			copy := *old
 			copy.foreignKeys = slices.Clone(old.foreignKeys)
@@ -128,7 +128,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			}
 			if _, ok := base.Find(target); !ok {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target, definition.supporting); err != nil {
 				e.mu.Unlock()
@@ -139,7 +139,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			definition.boundOID = bound.OID
 			if definition.inherited != nil && !definition.inherited.accepts(bound) {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}
@@ -152,7 +152,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		auth.recaptureCatalog(auth.catalog)
 		for _, definition := range declaration.definitions {
 			if definition.boundSlot < 0 || definition.boundSlot >= len(child.foreignKeys) || definition.boundOID == 0 || child.foreignKeys[definition.boundSlot].OID != definition.boundOID {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			f := child.foreignKeys[definition.boundSlot]
 			if f.NotValid {
@@ -166,7 +166,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			}
 			childStore, parentStore := e.storage[child.address], e.storage[parent.address]
 			if childStore == nil || parentStore == nil {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			children := foreignKeyRows{storage: childStore, committed: childStore.versions, ends: childStore.ends, frontier: e.commitSeq}
 			parents := foreignKeyRows{storage: parentStore, committed: parentStore.versions, ends: parentStore.ends, frontier: e.commitSeq, index: f.Index, root: e.indexRoots[f.Index]}
@@ -186,7 +186,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *relationDescriptor, f foreignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	index, ok := auth.catalog.Relation(f.Index)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	key := make([]sqltype.Value, len(comparisons))
 	return children.each(func(row rowVersion) (bool, error) {

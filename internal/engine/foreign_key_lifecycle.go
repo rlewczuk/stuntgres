@@ -259,7 +259,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 				ok = true
 			}
 			if !ok {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			index, err := foreignKeyIndex(view, target, c.Referenced)
 			if err != nil {
@@ -435,18 +435,18 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			}
 			parent, ok := auth.catalog.Relation(f.Target)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			index, ok := auth.catalog.Relation(f.Index)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			eligible, err := foreignKeyIndexEligible(parent, index, f.Referenced)
 			if err != nil {
 				return err
 			}
 			if !eligible {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			if _, err := bindForeignKeyComparison(auth.catalog, child, parent, index, f); err != nil {
 				return err

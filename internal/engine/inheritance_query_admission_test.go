@@ -116,7 +116,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("descendant wait did not resume")
 	}
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("in-flight SELECT retargeted a same-name sentinel", err)
 	}
 	scope.Finish(err)

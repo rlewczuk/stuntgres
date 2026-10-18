@@ -223,7 +223,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					if err := e.Reset(context.Background()); err != nil {
 						t.Fatal(err)
 					}
-					if err := concurrentUnitRequestWait(t, request); !errors.Is(err, ErrCatalogReplaced) {
+					if err := concurrentUnitRequestWait(t, request); !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatal(err)
 					}
 				}

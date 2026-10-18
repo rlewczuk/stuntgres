@@ -1136,7 +1136,7 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	copy := *old
 	copy.record, copy.path = m.typ(old.record), m.typ(old.path)
 	if !occurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	expression := func(old expr.Expr) (expr.Expr, error) {
 		next, err := remapBoundExpressionWithQuery(old, m.ref, nil, m.nested, nil)
@@ -1182,7 +1182,7 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	}
 	boolean, ok := m.catalog.LookupType(sqltype.Bool)
 	if !ok {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	usage := copy.mark.ResultUsage()
 	copy.inequality, err = sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, usage.Type, usage.Type, boolean, usage.Collation, copy.mark.CollationIndeterminate())
@@ -1198,7 +1198,7 @@ func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
 	if copy.record == nil || copy.record.ID() != 2249 || !copy.record.IsComposite() ||
 		old.syntax.Breadth && copy.result != copy.record ||
 		!old.syntax.Breadth && (!occurrenceRecordArray(copy.result) || copy.result.Element() != copy.record) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	copy.grouping = make([]sqltype.Grouping, len(old.grouping))
 	for i := range copy.grouping {

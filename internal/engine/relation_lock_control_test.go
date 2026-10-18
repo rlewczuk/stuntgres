@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -76,7 +77,7 @@ func TestRelationLockReplacementWaitingPhases(t *testing.T) {
 				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9)")); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				lockEmpty(t, e)
 				transactionEnd(t, a, ra, false)
 				transactionRows(t, b, "SELECT v FROM t", 9)
@@ -137,8 +138,8 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 	e.mu.Unlock()
 	e.replacementMu.Unlock()
 	e.locks.Fence(epoch)
-	lockAwait(t, done, ErrCatalogReplaced)
-	if err = scope.Finish(ErrCatalogReplaced); !errors.Is(err, ErrCatalogReplaced) {
+	lockAwait(t, done, ids.ErrCatalogReplaced)
+	if err = scope.Finish(ids.ErrCatalogReplaced); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	op.Done()

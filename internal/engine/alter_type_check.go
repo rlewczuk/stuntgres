@@ -84,7 +84,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		e.mu.Lock()
 		if ref.Epoch != e.catalog.state.epoch {
 			e.mu.Unlock()
-			return nil, nil, ErrCatalogReplaced
+			return nil, nil, ids.ErrCatalogReplaced
 		}
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.checkConsumer, binder.noParameters, binder.queryAuth = true, true, &auth

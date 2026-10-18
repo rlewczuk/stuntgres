@@ -73,12 +73,12 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	ref := original
 	if c.routineConsumer != nil {
 		if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		ref.Epoch = auth.catalog.Epoch()
 	}
 	if ref.Epoch != auth.catalog.Epoch() {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	descriptor, err := auth.object(ref)
 	if err != nil {

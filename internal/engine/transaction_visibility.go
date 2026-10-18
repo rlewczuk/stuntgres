@@ -100,14 +100,14 @@ func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs [
 
 func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*VisibilityView, error) {
 	if s.txRef.Epoch() != e.catalog.state.epoch {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
 		if ref.Domain() != e.catalog.domain {
 			return nil, errors.New("stuntgres: foreign catalog reference")
 		}
 		if ref.Epoch != e.catalog.state.epoch {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 			return nil, errors.New("stuntgres: relation storage is missing")
@@ -132,7 +132,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				oldRelation, _ := data.catalog.Relation(ref.Address)
 				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 			}
 		}
@@ -175,7 +175,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage[ref.Address]
 				if !ok || !sameRelationRowShape(root.relation, current) {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				if root.storage == live {
 					versions, ends = root.versions, root.ends
@@ -185,7 +185,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 					versions, ends = root.versions, root.ends
 				} else {
 					if !sameTruncateLineage(root.storage, live) {
-						return nil, ErrCatalogReplaced
+						return nil, ids.ErrCatalogReplaced
 					}
 					needsBirthFilter = true
 				}

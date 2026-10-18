@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -392,7 +393,7 @@ func querySourceReadUses(reads []int32, attributes []int32) ([]int, error) {
 		}
 	}
 	if len(uses) != len(reads) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	return uses, nil
 }

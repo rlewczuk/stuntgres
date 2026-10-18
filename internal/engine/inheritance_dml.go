@@ -29,7 +29,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 		root, ok := catalog.Relation(s.lockedRef.Address)
 		if !ok {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if root.relationKind != tableRelation {
 			e.mu.Unlock()

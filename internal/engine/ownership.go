@@ -255,7 +255,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {

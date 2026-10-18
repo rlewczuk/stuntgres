@@ -115,7 +115,7 @@ func TestViewWriteMapping(t *testing.T) {
 	if err != nil || slot != 0 {
 		t.Fatal(slot, err)
 	}
-	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := stableViewSlot(&compact, f.view.view.sources[0], 0); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing identity admitted", err)
 	}
 	// Reject the first released classifier reason rather than a later group
@@ -380,10 +380,10 @@ func TestViewWriteReplacement(t *testing.T) {
 	f.e.mu.Lock()
 	err := scope.validateLockedRelation(f.e)
 	f.e.mu.Unlock()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old write grant survived replacement", err)
 	}
-	if err := scope.Finish(err); !errors.Is(err, ErrCatalogReplaced) {
+	if err := scope.Finish(err); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	lockEmpty(t, f.e)

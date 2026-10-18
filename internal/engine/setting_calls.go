@@ -123,7 +123,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	if current.catalog.owner != catalog.owner || current.catalog.Epoch() != catalog.Epoch() {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	evaluation.routineAuthority = &current
 	if invoke {

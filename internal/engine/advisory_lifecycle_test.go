@@ -159,7 +159,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			advisoryUnitScopeResult(t, done, ErrCatalogReplaced)
+			advisoryUnitScopeResult(t, done, ids.ErrCatalogReplaced)
 			lockState = m.Inspect(ticket)
 			liveSource := lockState.Valid(ticket)
 			journal := len(lockState.Journals[ticket])

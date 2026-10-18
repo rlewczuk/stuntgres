@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
@@ -26,7 +27,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	for _, layer := range w.layers {
 		current, ok := v.catalog.Relation(layer.ref.Address)
 		if !ok || current.view != layer.relation.view {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		authority := v
 		authority.state.CurrentUser = current.owner
@@ -35,7 +36,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		}
 		source, ok := v.catalog.Relation(layer.sourceRef.Address)
 		if !ok || !sameRelationRowShape(source, layer.source) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		physical := binding{relation: source, ref: layer.sourceRef}
 		if mask == authorization.DeletePrivilege {
@@ -54,7 +55,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			}
 			relation, ok := v.catalog.Relation(leaf.ref.Address)
 			if !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			use, err := storedViewUseReference(v.catalog, current, leaf.ref)
 			if err != nil {
@@ -71,7 +72,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 					}
 				}
 				if !found {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 			}
 			sourceBinding := binding{ref: use, relation: relation}
@@ -128,17 +129,17 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	current, ok := catalog.Relation(w.ref.Address)
 	if !ok || w.ref.Domain() != e.catalog.domain || w.ref.Epoch != e.catalog.state.epoch || !sameRelationRowShape(current, w.base) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, layer := range w.layers {
 		d, ok := catalog.Relation(layer.ref.Address)
 		if !ok || d.view != layer.relation.view || !sameRelationRowShape(d, layer.relation) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	storage := e.privateStorageLocked(s.owner.catalog, w.ref.Address)
 	if storage == nil {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	s.viewWrite = w
 	s.lockedRef, s.lockedDescriptor, s.lockedStorage = w.ref, current, storage

@@ -59,7 +59,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.catalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")
 			}
-			if err := e.captureCatalogStageLocked(stage, newCatalogChanges(), auth.catalog.state, nil); !errors.Is(err, ErrCatalogReplaced) {
+			if err := e.captureCatalogStageLocked(stage, newCatalogChanges(), auth.catalog.state, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
 			if auth.catalog.Get(currentDatabaseAddress) != stage.databaseAuthority || auth.roleRecord.revision != e.roles.revision {
@@ -160,7 +160,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				}
 			} else {
 				var conflict CatalogConflict
-				if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}
 			}

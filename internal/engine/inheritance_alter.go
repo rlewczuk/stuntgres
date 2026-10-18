@@ -256,7 +256,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		if current.Get(old.address) != old {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		currentAuth, err := e.statementAuthorizationLocked(op, raw)
 		refForOwner := original.lockedRef
@@ -339,7 +339,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	for _, old := range state.targets {
 		if state.selected[old.address] && e.privateCatalogLocked(scope.owner.catalog).Get(old.address) != old {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 	}
 	for address, d := range stage.descriptors {

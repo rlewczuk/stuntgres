@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -99,7 +100,7 @@ func TestTransactionIsolationSavedShapeFence(t *testing.T) {
 	op := transactionOperation(t, a)
 	_, err := e.Execute(op, statement(t, "SELECT v FROM u"), 0, nil)
 	op.Done()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("saved shape silently rebound", err)
 	}
 	sessionSQL(t, a, "ROLLBACK")

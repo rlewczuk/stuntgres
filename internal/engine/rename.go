@@ -23,7 +23,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	ref, err := e.resolveRelationReference(auth, name, true)
 	if err == nil && ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && renameMissing(err) {
 		op.session.mu.Lock()

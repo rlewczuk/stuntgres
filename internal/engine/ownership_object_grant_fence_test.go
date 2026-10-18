@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -155,7 +156,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 				} else {
 					var conflict CatalogConflict
-					if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing retained ObjectGrant DB predecessor veto", err)
 					}
 				}

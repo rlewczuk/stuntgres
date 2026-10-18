@@ -212,7 +212,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			nextRow, nextVersion, nextRevision := f.target.nextRow, f.target.nextVersion, f.target.catalog.nextRevision
 			f.target.mu.Unlock()
 			release.Do(func() { close(f.gate.release) })
-			if err := <-result; !errors.Is(err, ErrCatalogReplaced) {
+			if err := <-result; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("stale repair accepted", err)
 			}
 			if f.gate.calls != 1 {

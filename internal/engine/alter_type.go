@@ -114,7 +114,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	if ref.Epoch != e.catalog.state.epoch {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if _, generated := original.generations[original.attributes[source]]; generated {
 		if a.Using != nil {
@@ -243,7 +243,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Epoch != e.catalog.state.epoch {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	target := ref.Address
 	target.SubID = original.attributes[source]

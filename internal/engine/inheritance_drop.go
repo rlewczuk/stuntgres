@@ -96,7 +96,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		}
 		current := scope.op.session.Engine().CatalogRead()
 		if current.Epoch() != catalog.Epoch() {
-			return catalog, ErrCatalogReplaced
+			return catalog, ids.ErrCatalogReplaced
 		}
 		for address := range locked {
 			if current.Get(address) != catalog.Get(address) {

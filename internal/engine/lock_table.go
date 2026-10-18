@@ -74,7 +74,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
 		if err == nil && s.txRef.Epoch() != e.catalog.state.epoch {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
 			ref, err = e.resolveRelationReference(auth, target.Name, true)
@@ -102,7 +102,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	e := s.op.session.Engine()
 	inspect := func() (*relationDescriptor, error) {
 		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		if err != nil {
@@ -111,7 +111,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		auth.state.CurrentUser = actor
 		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if !only || d.view != nil {
 			if err := inheritanceTargetGuard(auth.catalog, d); err != nil {
@@ -162,7 +162,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		valid := ok && useErr == nil
 		e.mu.Unlock()
 		if !valid {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if child.relationKind == materializedViewRelation {
 			return tableKind(child, "lock")

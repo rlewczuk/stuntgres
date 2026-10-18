@@ -144,7 +144,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	next.name = "renamed"
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	e.catalog.state.setDescriptor(c.address, &next)
-	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ErrCatalogReplaced) {
+	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}
 	if s.inheritedTargets[0].ref != before.ref || s.inheritedTargets[0].relation != before.relation || s.inheritedTargets[0].storage != before.storage {

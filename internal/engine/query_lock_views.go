@@ -110,7 +110,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 		for i, leaf := range d.view.sources {
 			child, ok := catalog.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
-				return 0, ErrCatalogReplaced
+				return 0, ids.ErrCatalogReplaced
 			}
 			first, err := visit(child, viewLeafRowMark(d.view, i, inherited), diagnostic)
 			if err != nil || first != 0 {
@@ -295,7 +295,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 			for i, leaf := range d.view.sources {
 				child, ok := catalog.Relation(leaf.ref.Address)
 				if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				if err := visit(child, viewLeafRowMark(d.view, i, inherited), referenceMarked); err != nil {
 					return err
@@ -357,7 +357,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		mark := viewLeafRowMark(d.view, i, inherited)
 		child, ok := v.catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(v.catalog, d, leaf.ref) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		indices := make([]int, 0, len(leaf.reads))
 		for _, attribute := range leaf.reads {

@@ -221,7 +221,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 			return err
 		}
 		if t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		return nil
 	}

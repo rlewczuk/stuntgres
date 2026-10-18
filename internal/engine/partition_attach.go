@@ -138,7 +138,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if auth.catalog.Get(parent.address) != parent {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	child = auth.catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
@@ -226,7 +226,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
 	current, err := e.resolveRelationReference(auth, name, true)
 	if err != nil || current != held {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
-		return CatalogRead{}, nil, ErrCatalogReplaced
+		return CatalogRead{}, nil, ids.ErrCatalogReplaced
 	}
 	return catalog, d, nil
 }

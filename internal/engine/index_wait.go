@@ -25,7 +25,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.Tx
 		return nil
 	}
 	if owner.Domain() != domainOf(e) || owner.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if e.indexBuildWaits == nil {
 		e.indexBuildWaits = make(map[ids.ObjectAddress]indexBuildWait)

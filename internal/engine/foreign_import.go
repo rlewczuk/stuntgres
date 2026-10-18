@@ -60,7 +60,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	handler, err := foreignHandlerFor(auth.catalog, wrapper)
 	if err != nil {
@@ -132,7 +132,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Lock()
 		_, currentErr := e.authorizationLocked(scope.op)
 		if currentErr == nil && e.catalog.state.epoch != stage.base.Epoch() {
-			currentErr = ErrCatalogReplaced
+			currentErr = ids.ErrCatalogReplaced
 		}
 		var validations []foreignValidation
 		if currentErr == nil {

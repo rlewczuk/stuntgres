@@ -146,7 +146,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			case pgUserMappingsOID:
 				server, ok := auth.catalog.Foreign(d.server)
 				if !ok {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				if err = putOID(1, uint32(server.address.ObjectID)); err != nil {
 					return nil, err

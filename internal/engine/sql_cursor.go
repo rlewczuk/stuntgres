@@ -274,7 +274,7 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 		return err
 	}
 	if s.txRef.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
@@ -298,7 +298,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 		return Result{}, missingSQLCursor(fetch.Name.Text)
 	}
 	if c.epoch != s.txRef.Epoch() {
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	if c.position == cursorFailed {
 		return Result{}, sqlError("55000", fmt.Sprintf("portal %q cannot be run", fetch.Name.Text))

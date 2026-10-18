@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -128,7 +129,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 			select {
 			case out := <-done:
 				joined = true
-				if !errors.Is(out.err, ErrCatalogReplaced) || out.imported || out.rows || out.metadata {
+				if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.imported || out.rows || out.metadata {
 					t.Errorf("shadow binding: err=%v imported=%t rows=%t metadata=%t", out.err, out.imported, out.rows, out.metadata)
 				}
 			case <-time.After(5 * time.Second):

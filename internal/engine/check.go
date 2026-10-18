@@ -97,7 +97,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			e.mu.Lock()
 			if auth.catalog.Epoch() != e.catalog.state.epoch {
 				e.mu.Unlock()
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 		node, err := binder.bindBoolean(c.Expression, projectionContext, "CHECK")

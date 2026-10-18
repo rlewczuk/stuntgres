@@ -298,7 +298,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	}
 	holder.Finish(nil)
 	err := inheritanceAlterJoin(t, result, joined)
-	if !errors.Is(err, ErrCatalogReplaced) || state.stage != nil {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || state.stage != nil {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)

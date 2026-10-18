@@ -3439,7 +3439,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				if err := checkStatementSignature(*b.expected, actual); err != nil {
 					return sqltype.Value{}, err
 				}
-				return sqltype.Value{}, ErrCatalogReplaced
+				return sqltype.Value{}, ids.ErrCatalogReplaced
 			}
 			return c.value.Retag(u.Type)
 		}

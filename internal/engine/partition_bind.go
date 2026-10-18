@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -170,7 +171,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		return nil, err
 	}
 	if auth.catalog.Epoch() != p.auth.catalog.Epoch() {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if auth.revision != p.stage.authRevision || auth.roleRecord.revision != p.stage.roleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")

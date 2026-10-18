@@ -39,11 +39,11 @@ func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candida
 			continue
 		}
 		if original.row != candidate.row || original.version != candidate.version {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		return original.values, nil
 	}
-	return nil, ErrCatalogReplaced
+	return nil, ids.ErrCatalogReplaced
 }
 
 func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistory, d *relationDescriptor, attribute int32, before, after []sqltype.Value) (bool, error) {
@@ -52,7 +52,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	}
 	oldSlot, newSlot := h.relation.indexForAttribute(attribute), d.indexForAttribute(attribute)
 	if oldSlot < 0 || newSlot < 0 {
-		return false, ErrCatalogReplaced
+		return false, ids.ErrCatalogReplaced
 	}
 	if generation, ok := h.relation.generations[attribute]; ok && generation.kind == generationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
@@ -98,7 +98,7 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 		}
 	}
 	if original == nil {
-		return false, ErrCatalogReplaced
+		return false, ids.ErrCatalogReplaced
 	}
 	for _, dependency := range original.dependencies {
 		address := dependency.ref.Address
@@ -200,7 +200,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 				}
 			}
 			if original == nil {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			affected, err := partitionCheckRecipeAffected(ctx, original.expression, check.expression, ownerChanged)
 			if err != nil {
@@ -221,7 +221,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 					}
 					current, exists := d.generations[attribute]
 					if !exists {
-						return nil, ErrCatalogReplaced
+						return nil, ids.ErrCatalogReplaced
 					}
 					different, err := partitionCheckRecipeAffected(ctx, generation.planned, current.planned, ownerChanged)
 					if err != nil {

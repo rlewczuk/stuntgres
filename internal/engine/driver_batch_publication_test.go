@@ -141,7 +141,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {
 					t.Fatal("cancellation primary", err)
 				}
-				if boundary == "epoch_before" && !errors.Is(err, ErrCatalogReplaced) {
+				if boundary == "epoch_before" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch primary", err)
 				}
 				var diagnostic interface{ SQLState() string }

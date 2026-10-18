@@ -87,20 +87,20 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	for _, constant := range analysis.constants {
 		ref := constant.ref
 		if ref.Domain() != e.catalog.domain {
-			return false, ErrCatalogReplaced
+			return false, ids.ErrCatalogReplaced
 		}
 		if constant.temporary != (ids.SessionToken{}) && constant.temporary != auth.session.token {
-			return false, ErrCatalogReplaced
+			return false, ids.ErrCatalogReplaced
 		}
 		if ref.Epoch != auth.catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
 			d, ok := auth.catalog.Relation(ref.Address)
 			if !ok || constant.temporary != auth.session.token || d.relationKind != sequenceRelation {
-				return false, ErrCatalogReplaced
+				return false, ids.ErrCatalogReplaced
 			}
 			ns, ok := auth.catalog.Namespace(d.namespace)
 			if !ok || ns.temporary != constant.temporary {
-				return false, ErrCatalogReplaced
+				return false, ids.ErrCatalogReplaced
 			}
 		}
 		d, ok := auth.catalog.Relation(ref.Address)
@@ -136,14 +136,14 @@ func (e *Engine) pinSequenceReplacementLocked(auth AuthorizationView, previous *
 				continue
 			}
 			if old.temporary != auth.session.token || current.temporary != old.temporary || current.ref.Domain() != old.ref.Domain() || current.ref.Address != old.ref.Address {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			current.ref.Epoch = old.ref.Epoch
 			found = true
 			break
 		}
 		if !found {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil

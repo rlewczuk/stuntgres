@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 )
 
 func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ruleAction, expression func(LogicalNode, expr.Expr) (string, error)) (string, error) {
@@ -16,7 +17,7 @@ func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ru
 		if slot >= node.leftWidth+node.rightWidth {
 			merged := slot - node.leftWidth - node.rightWidth
 			if merged >= len(node.merges) {
-				return "", ErrCatalogReplaced
+				return "", ids.ErrCatalogReplaced
 			}
 			return expression(node, node.merges[merged])
 		}
@@ -27,7 +28,7 @@ func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ru
 	case *sourceNode:
 		d, ok := view.Relation(node.ref.Address)
 		if !ok {
-			return "", ErrCatalogReplaced
+			return "", ids.ErrCatalogReplaced
 		}
 		leaf := action.binding.querySources[node.occurrence]
 		attributes := leaf.frozenAttributes
@@ -35,7 +36,7 @@ func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ru
 			attributes = leaf.relation.attributes
 		}
 		if slot >= len(attributes) {
-			return "", ErrCatalogReplaced
+			return "", ids.ErrCatalogReplaced
 		}
 		column, err := deparseAttribute(d, attributes[slot])
 		if err != nil {

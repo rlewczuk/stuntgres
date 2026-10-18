@@ -163,7 +163,7 @@ retry:
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {
 		return err

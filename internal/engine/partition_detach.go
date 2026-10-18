@@ -97,7 +97,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		err = scope.validateLockedRelation(e)
 	}
 	if err == nil && auth.catalog.Get(parent.address) != parent {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		e.mu.Unlock()

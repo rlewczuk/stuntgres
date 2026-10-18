@@ -41,7 +41,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	next := *old
 	next.revision, err = e.catalog.revisionLocked()

@@ -80,7 +80,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	current := e.catalog.state.epoch == epoch
 	e.mu.Unlock()
 	if !current {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	rows, err := pgLockRows(ctx, d, databaseOID, records, predicates)
 	if err != nil {

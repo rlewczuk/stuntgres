@@ -158,7 +158,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			err = join()
 			if replacement {
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("identity replacement escaped admission fence", err)
 				}
 				return

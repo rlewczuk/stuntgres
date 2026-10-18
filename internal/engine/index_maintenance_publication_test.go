@@ -96,7 +96,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 			before := indexMaintenanceCapture(e)
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
 			if action == "reset" {
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch replacement accepted old rebuild", err)
 				}
 			} else if _, ok := err.(CatalogConflict); !ok {

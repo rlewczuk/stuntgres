@@ -209,7 +209,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 		return err
 	}
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }
@@ -228,11 +228,11 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 		return rowVersion{}, false, err
 	}
 	if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if store == nil {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current := store.versions
 	hint := candidate.slot
@@ -256,7 +256,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if from != nil {
 			from.close()
 		}
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	var positioned mutationRowIdentity
 	if b.currentOf != "" {

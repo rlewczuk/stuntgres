@@ -145,7 +145,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		}
 		other := New()
 		foreign, _ := advisoryUnitOwner(t, other)
-		if _, err := e.locks.StartAcquire(context.Background(), foreign.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{}); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := e.locks.StartAcquire(context.Background(), foreign.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("foreign owner", err)
 		}
 		e.locks.DetachPrepared(a.transactions.ticket)
@@ -225,7 +225,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 			} else if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			advisoryUnitScopeResult(t, done, ErrCatalogReplaced)
+			advisoryUnitScopeResult(t, done, ids.ErrCatalogReplaced)
 			c, _ := advisoryUnitOwner(t, e)
 			advisoryXactUnitGrant(t, c, key, lock.AdvisoryExclusive, true)
 			if advisoryUnitHold(a, persistent).Shared != 1 {

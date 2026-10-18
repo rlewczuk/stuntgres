@@ -129,7 +129,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		current, ok := fresh.catalog.Find(event.ref.Address)
 		if !ok || event.ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.revision {
 			e.mu.Unlock()
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	for i := range commands {

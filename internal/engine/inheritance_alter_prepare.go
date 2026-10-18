@@ -294,7 +294,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return nil, addedColumn{}, false, nil
 	}
 	if step.old != old {
-		return nil, addedColumn{}, true, ErrCatalogReplaced
+		return nil, addedColumn{}, true, ids.ErrCatalogReplaced
 	}
 	if len(step.notices) != 0 {
 		scope.op.notices = append(scope.op.notices, step.notices...)

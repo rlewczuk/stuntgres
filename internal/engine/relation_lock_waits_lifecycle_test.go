@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -39,7 +40,7 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 				cancel()
 			}
 			err = r.Wait()
-			want := map[string]error{"cancel": context.Canceled, "end": lock.ErrOwnerEnded, "fence": ErrCatalogReplaced, "grant": nil}[action]
+			want := map[string]error{"cancel": context.Canceled, "end": lock.ErrOwnerEnded, "fence": ids.ErrCatalogReplaced, "grant": nil}[action]
 			if !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}

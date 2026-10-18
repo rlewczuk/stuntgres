@@ -314,15 +314,15 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	}
 	changed := append([]queryLeaf(nil), bound.querySources...)
 	changed[0], changed[1] = changed[1], changed[0]
-	if err = scope.validateQuerySources(changed); err != ErrCatalogReplaced {
+	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("reordered admission accepted", err)
 	}
 	changed = append([]queryLeaf(nil), bound.querySources...)
 	changed[2].mark = queryRowMark{}
-	if err = scope.validateQuerySources(changed); err != ErrCatalogReplaced {
+	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
 	}
-	if err = scope.validateQuerySources(bound.querySources[:2]); err != ErrCatalogReplaced {
+	if err = scope.validateQuerySources(bound.querySources[:2]); err != ids.ErrCatalogReplaced {
 		t.Fatal("omitted occurrence admitted", err)
 	}
 }

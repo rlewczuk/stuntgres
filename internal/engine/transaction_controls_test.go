@@ -332,7 +332,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	op := transactionOperation(t, a)
 	_, err := e.Execute(op, statement(t, "SELECT v FROM t"), 0, nil)
 	op.Done()
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	controlsRequire(t, a, "ROLLBACK AND CHAIN")

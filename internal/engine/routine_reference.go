@@ -105,7 +105,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 	if auth.engine != nil {
 		current, ok := auth.catalog.Relation(recipe.address)
 		if !ok || current.view != recipe.view || recipe.owner.ID() == 0 || recipe.owner != auth.engine.authorizationDomain.Principal(recipe.owner.ID()) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	c.routineChecks = recipe.view.dependencies

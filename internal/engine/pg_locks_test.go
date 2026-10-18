@@ -212,7 +212,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal("assignment discarded visibility")
 		}
 		e.locks.Fence(ticket.Ref().Epoch() + 1)
-		if rows, err := e.locks.PGLocks(ticket.Ref().Epoch()); !errors.Is(err, ErrCatalogReplaced) || rows != nil {
+		if rows, err := e.locks.PGLocks(ticket.Ref().Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) || rows != nil {
 			t.Fatal("old epoch snapshot", rows, err)
 		}
 		if rows, err := e.locks.PGLocks(ticket.Ref().Epoch() + 1); err != nil || len(rows) != 0 {

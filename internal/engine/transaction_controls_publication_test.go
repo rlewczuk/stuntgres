@@ -33,7 +33,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = scope.Execute(statement(t, "SELECT v FROM t"), 0, nil)
-			if !errors.Is(scope.Finish(err), ErrCatalogReplaced) {
+			if !errors.Is(scope.Finish(err), ids.ErrCatalogReplaced) {
 				t.Fatal("stale ordinary statement", err)
 			}
 			op.Done()
@@ -51,10 +51,10 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 			}
 			defer scope.Finish(errors.New("test cleanup"))
 			_, err = scope.Execute(statement(t, end), 0, nil)
-			if !errors.Is(err, ErrCatalogReplaced) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("stale aborted commit must reject publication", err)
 			}
-			if !errors.Is(scope.Finish(err), ErrCatalogReplaced) {
+			if !errors.Is(scope.Finish(err), ids.ErrCatalogReplaced) {
 				t.Fatal("lost replacement error")
 			}
 			if a.TransactionState() != TxIdle || a.transactions.ticket != nil || a.transactions.ref != (ids.TxRef{}) {
@@ -209,7 +209,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if boundary == "epoch_before" && !errors.Is(err, ErrCatalogReplaced) {
+				if boundary == "epoch_before" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 				wantError := map[string]string{"terminal_before": "stuntgres: inactive operation", "counter_before": "stuntgres: commit sequence exhausted", "ref_before": "stuntgres: stale transaction reference"}[boundary]
@@ -390,7 +390,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				probe := transactionOperation(t, a)
 				_, err := e.Execute(probe, statement(t, "SELECT v FROM t"), 0, nil)
 				probe.Done()
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("ordinary work did not reject stale chained epoch", err)
 				}
 				controlsRequire(t, a, "ROLLBACK AND CHAIN")

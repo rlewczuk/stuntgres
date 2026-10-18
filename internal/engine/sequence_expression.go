@@ -452,7 +452,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		ref.Epoch = before.catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.Domain() != e.catalog.domain || ref.Epoch != before.catalog.Epoch()) {
-		beforeErr = ErrCatalogReplaced
+		beforeErr = ids.ErrCatalogReplaced
 	}
 	if beforeErr == nil {
 		d, ok := before.catalog.Relation(ref.Address)

@@ -49,7 +49,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	}
 	rowID, versionID := e.nextRow, e.nextVersion
 	if snapshot == nil {
-		return nil, 0, 0, ErrCatalogReplaced
+		return nil, 0, 0, ids.ErrCatalogReplaced
 	}
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
@@ -69,7 +69,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			}
 			identity := indexRowIdentity{row: row.row, version: row.version}
 			if _, duplicate := selected[identity]; duplicate {
-				return nil, 0, 0, ErrCatalogReplaced
+				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
 			selected[identity] = i
 			row.row, row.version = ids.RowID(rowID), ids.VersionID(versionID)
@@ -90,7 +90,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		}
 		parent, ok := next.Relation(index.sqlIndex.parent)
 		if !ok {
-			return nil, 0, 0, ErrCatalogReplaced
+			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		if parent.partition != nil {
 			continue
@@ -98,20 +98,20 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		if retained.Get(address) != nil {
 			root := e.indexRoots[address]
 			if root == nil {
-				return nil, 0, 0, ErrCatalogReplaced
+				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
 			roots[address] = root
 			continue
 		}
 		root := roots[address]
 		if root == nil {
-			return nil, 0, 0, ErrCatalogReplaced
+			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
 		if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
 			namespace := next.Get(parent.namespace)
 			if namespace == nil {
-				return nil, 0, 0, ErrCatalogReplaced
+				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
 			schema = namespace.Name()
 		}

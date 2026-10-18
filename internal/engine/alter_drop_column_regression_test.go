@@ -128,9 +128,9 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	lockAwait(t, queued, ErrCatalogReplaced)
+	lockAwait(t, queued, ids.ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
-	lockAwait(t, dropping, ErrCatalogReplaced)
+	lockAwait(t, dropping, ids.ErrCatalogReplaced)
 	e.catalog.providers[ids.RelationClassID] = relationProvider{}
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
@@ -244,7 +244,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				select {
 				case out := <-done:
 					joined = true
-					if !errors.Is(out.err, ErrCatalogReplaced) || len(out.notices) != 0 || out.count != 0 {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || len(out.notices) != 0 || out.count != 0 {
 						t.Errorf("unlocked shadow must not bind: err=%v notices=%v count=%d", out.err, out.notices, out.count)
 					}
 				case <-time.After(5 * time.Second):

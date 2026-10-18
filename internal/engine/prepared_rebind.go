@@ -119,7 +119,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		seen[ref] = true
 		d := auth.catalog.Get(ref.Address)
 		if d == nil || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
 		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation && relation.view != nil {
@@ -194,7 +194,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 	}
 	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
-		return ids.ObjectRef{}, ErrCatalogReplaced
+		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
 	ns := e.catalog.domain.Ref(ref.Epoch, d.namespace)
 	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
@@ -236,7 +236,7 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 			return err
 		}
 		if after != before {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		return nil
 	}

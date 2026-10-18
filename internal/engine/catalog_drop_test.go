@@ -165,7 +165,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	if err = e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 }
@@ -264,7 +264,7 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes, err = e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, ErrCatalogReplaced) || !reflect.DeepEqual(changes, ChangeSet{}) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || !reflect.DeepEqual(changes, ChangeSet{}) {
 		t.Fatal(changes, err)
 	}
 	if tuples(run(t, e, "SELECT * FROM replacement"))[0][0] != int64(99) {

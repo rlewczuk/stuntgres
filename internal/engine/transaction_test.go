@@ -226,7 +226,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	}
 	op := transactionOperation(t, a)
 	_, err := e.Execute(op, statement(t, "SELECT v FROM t"), 0, nil)
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	op.Done()
@@ -240,7 +240,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	op = transactionOperation(t, a)
 	_, err = e.Commit(op, ref)
 	op.Done()
-	if !errors.Is(err, ErrCatalogReplaced) || a.TransactionState() != TxIdle {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || a.TransactionState() != TxIdle {
 		t.Fatal("stale commit", err)
 	}
 }
@@ -474,7 +474,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				want := map[string]error{
 					"cancel_before":   context.Canceled,
 					"terminal_before": errors.New("stuntgres: inactive operation"),
-					"epoch_before":    ErrCatalogReplaced,
+					"epoch_before":    ids.ErrCatalogReplaced,
 					"counter_before":  errors.New("stuntgres: commit sequence exhausted"),
 					"ref_before":      errors.New("stuntgres: stale transaction reference"),
 				}[boundary]

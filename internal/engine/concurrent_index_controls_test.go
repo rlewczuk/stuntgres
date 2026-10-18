@@ -401,7 +401,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 	if !fenced {
 		t.Fatal("replacement retained an older-cohort observation")
 	}
-	if err := await(); !errors.Is(err, ErrCatalogReplaced) {
+	if err := await(); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old coordinator did not finish at the actual epoch fence", err)
 	}
 	sessionSQL(t, reader, "ROLLBACK")

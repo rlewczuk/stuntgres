@@ -69,7 +69,7 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 	if err = e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.ValidateObjectRef(view, ref); !errors.Is(err, ErrCatalogReplaced) {
+	if err = e.ValidateObjectRef(view, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(23)

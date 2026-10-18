@@ -167,10 +167,10 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if hierarchyRelation(d) && s.partitionRelations[ref.Address] == nil {
 		if s.partitionRelations == nil {
@@ -191,14 +191,14 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	var ancestors []ids.ObjectRef
 	for d.membership != nil {
 		d, ok = catalog.Relation(d.membership.parent)
 		if !ok {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, d.address))
 	}
@@ -221,7 +221,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode loc
 	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := s.observePartitionRelationLocked(e, ref); err != nil {
 		e.mu.Unlock()
@@ -254,7 +254,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 	d, ok := catalog.Relation(parent.Address)
 	if !ok || parent.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if err := s.observePartitionRelationLocked(e, parent); err != nil {
 		e.mu.Unlock()

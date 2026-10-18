@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -81,7 +82,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
 		t.Fatal(err)
 	}
-	if err = request.Wait(); !errors.Is(err, ErrCatalogReplaced) {
+	if err = request.Wait(); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	transactionEnd(t, b, holder, false)
@@ -183,7 +184,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 				t.Fatal("Restore mutated retained old root")
 			}
 			if outcome == "success" {
-				join(ErrCatalogReplaced)
+				join(ids.ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 				transactionRows(t, peer, "SELECT v FROM t", 9)
 				if len(e.locks.Inspect(oldTicket).Journals[oldTicket]) != 0 {

@@ -58,7 +58,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			history = snapshot.partitionRows[address]
 		}
 		if history.relation == nil && partitionNeedsRowHistory(catalog, source) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0
 		var retainedChecks partitionRetainedChecks
@@ -156,7 +156,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 	for address := range dirty {
 		original := storage[address]
 		if original == nil {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		next := *original
 		next.versions = make([]rowVersion, 0, len(original.versions)-len(removed[address])+len(incoming[address]))

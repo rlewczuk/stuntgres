@@ -123,19 +123,19 @@ func (r *inheritanceDefinitionReader) appendIdentity(identity *preparedIdentityD
 }
 func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
 	if view.owner != r.base.owner || view.Epoch() != r.base.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if r.observations == nil {
 		return nil
 	}
 	for address, descriptor := range r.observations.descriptors {
 		if view.Get(address) != descriptor {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	for key, address := range r.observations.names {
 		if view.NameAddress(key) != address {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil

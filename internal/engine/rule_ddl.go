@@ -37,7 +37,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.catalog.MustRelation(ref.Address)
 	index := ruleIndex(old, name)

@@ -135,10 +135,10 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			if errors.As(resolveErr, &diagnostic) && diagnostic.Code == "42501" {
 				return resolveErr
 			}
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if current != expected {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		return nil
 	}
@@ -155,7 +155,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		}
 		if captures[i].index != (ids.ObjectAddress{}) {
 			if _, ok := auth.catalog.Relation(captures[i].index); !ok {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 		i++
@@ -183,11 +183,11 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		}
 		parent, ok := view.Relation(f.Target)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		index, ok := view.Relation(f.Index)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 		if err != nil {

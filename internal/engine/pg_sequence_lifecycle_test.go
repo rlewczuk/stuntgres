@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -73,7 +74,7 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	if retained != old {
 		t.Fatal("candidate catalog was not captured")
 	}
-	if err := join(); !errors.Is(err, ErrCatalogReplaced) {
+	if err := join(); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	if scope.owner.sequenceCatalog != nil || scope.owner.snapshotSet {

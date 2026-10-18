@@ -1,6 +1,10 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"stuntgres/internal/engine/ids"
+)
 
 type catalogOverlayIndex struct {
 	index, parent *relationDescriptor
@@ -15,7 +19,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	e.mu.Lock()
 	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
 	auth, err := e.authorizationLocked(scope.op)

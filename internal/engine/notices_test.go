@@ -357,7 +357,7 @@ func TestNoticesPublicationReplacement(t *testing.T) {
 	}
 	defer cleanup()
 	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS epoch_rows(lost INT)"), 0, nil)
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("replacement became skip", err)
 	}
 	if got := op.DetachNotices(); got != nil {

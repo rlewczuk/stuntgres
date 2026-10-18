@@ -108,7 +108,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 		return err
 	}
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	auth, err := e.authorizationLocked(p.scope.op)
 	if err != nil {

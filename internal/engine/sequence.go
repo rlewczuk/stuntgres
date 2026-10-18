@@ -117,7 +117,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
 	return nil
@@ -159,7 +159,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	// Keep the captured incarnation, not a replacement now found by name.
 	r, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return ids.ObjectAddress{}, ErrCatalogReplaced
+		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
 	}
 	if r.relationKind != tableRelation && r.relationKind != partitionedRelation {
 		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
@@ -328,7 +328,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		current, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		old = current
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
@@ -554,7 +554,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if auth.catalog.Epoch() != e.catalog.state.epoch {
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	for address := range checkStage.descriptors {
 		expected := auth.catalog.Get(address)
@@ -584,7 +584,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for _, ref := range refs {
 		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		if err = relationDropOwner(auth, ref, d); err != nil {
 			return Result{}, err

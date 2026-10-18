@@ -259,7 +259,7 @@ func TestIndexMaintenanceGrantIncarnationIndexSetAndEpoch(t *testing.T) {
 			}
 			before := indexMaintenanceCapture(e)
 			transactionEnd(t, writer, tx, false)
-			if err := await(); !errors.Is(err, ErrCatalogReplaced) {
+			if err := await(); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("grant retargeted or accepted changed index set/epoch", err)
 			}
 			indexMaintenanceUnchanged(t, e, before)

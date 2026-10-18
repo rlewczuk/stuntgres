@@ -108,7 +108,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			index, iok := auth.catalog.Relation(f.Index)
 			if !pok || !iok {
 				e.mu.Unlock()
-				return nil, auth, ErrCatalogReplaced
+				return nil, auth, ids.ErrCatalogReplaced
 			}
 			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
 			for _, a := range []ids.ObjectAddress{child.address, parent.address} {
@@ -158,13 +158,13 @@ func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
 	parent, pok := view.Relation(job.parent.address)
 	index, iok := view.Relation(job.index.address)
 	if !cok || !pok || !iok || index.sqlIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	found := false
 	for _, current := range child.foreignKeys {
 		if current.OID == job.definition.OID {
 			if !sameForeignKeyDefinition(current, job.definition) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			job.definition = current
 			found = true
@@ -172,7 +172,7 @@ func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
 		}
 	}
 	if !found {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	job.child, job.parent, job.index = child, parent, index
 	return nil

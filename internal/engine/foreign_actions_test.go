@@ -193,7 +193,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
 	admission.jobs[0] = originalJob
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed action definition authority survived", err)
 	}
 	originalStorage := admission.storage
@@ -202,7 +202,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()
 	admission.storage = originalStorage
-	if !errors.Is(err, ErrCatalogReplaced) {
+	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign child storage survived", err)
 	}
 }

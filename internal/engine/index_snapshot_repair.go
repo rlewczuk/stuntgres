@@ -85,15 +85,15 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		}
 		index, ok := evaluation.catalog.Relation(snapshot.destination(address))
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		parent, ok := evaluation.catalog.Relation(parentAddress)
 		if !ok || parent.partition != nil || index.sqlIndex.parent != parentAddress {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		store := storage[parentAddress]
 		if store == nil {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, store, nil)
 		if err != nil {

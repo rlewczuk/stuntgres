@@ -34,7 +34,7 @@ func transactionAge(now, xid uint32) int32 {
 }
 func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
-		return 0, ErrCatalogReplaced
+		return 0, ids.ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
 	if !v.ageDemanded {

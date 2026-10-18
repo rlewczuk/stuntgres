@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -146,21 +147,21 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			// from genuine physical, row-shape and catalog-epoch replacement.
 			var descriptorError error
 			if !mode.storage {
-				descriptorError = ErrCatalogReplaced
+				descriptorError = ids.ErrCatalogReplaced
 			}
 			check("descriptor replacement", func() { replacement(false) }, descriptorError)
-			check("row shape replacement", func() { replacement(true) }, ErrCatalogReplaced)
+			check("row shape replacement", func() { replacement(true) }, ids.ErrCatalogReplaced)
 			if mode.storage {
 				check("storage replacement", func() {
 					storage := *e.storage[ref.Address]
 					e.storage[ref.Address] = &storage
-				}, ErrCatalogReplaced)
+				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
 				catalog := cloneCatalog(e.catalog.state)
 				catalog.epoch++
 				e.catalog.state = catalog
-			}, ErrCatalogReplaced)
+			}, ids.ErrCatalogReplaced)
 			if err := scope.Finish(rollback); err != rollback {
 				t.Fatal(err)
 			}

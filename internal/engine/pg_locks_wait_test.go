@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -310,13 +311,13 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 				// A capture is coherent at its manager linearization point. A
 				// terminal outcome after capture need not invalidate owned history.
 				_, err := e.locks.PGLocks(a.Ref().Epoch())
-				if err != nil && !errors.Is(err, ErrCatalogReplaced) {
+				if err != nil && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Error(err)
 				}
 			}
 			wg.Wait()
 			err := deadlockResult(t, r)
-			if ending == "grant" && err != nil || ending == "cancel" && !errors.Is(err, context.Canceled) || ending == "fence" && !errors.Is(err, ErrCatalogReplaced) {
+			if ending == "grant" && err != nil || ending == "cancel" && !errors.Is(err, context.Canceled) || ending == "fence" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("terminal outcome", ending, err)
 			}
 			epoch := a.Ref().Epoch()

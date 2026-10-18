@@ -15,7 +15,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, C
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return nil, CatalogRead{}, ErrCatalogReplaced
+		return nil, CatalogRead{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
 	parent, ok := view.Relation(ref.Address)
@@ -258,7 +258,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 		if index.sqlIndex.isExclusion() {
 			c := exclusionDefinition(binding.parent, index)
 			if c == nil {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			if c.Deferrable || !index.sqlIndex.exactEqualityClaims() {
 				continue
@@ -374,7 +374,7 @@ retry:
 			if insertion.unique == nil {
 				if purpose == indexProbeRevalidation {
 					if output, exists := candidate.indexes[insertion.index.address]; !exists || !output.matches(insertion.index) {
-						return uniqueConflict{}, ErrCatalogReplaced
+						return uniqueConflict{}, ids.ErrCatalogReplaced
 					}
 				} else if err := candidate.materializeInsertion(insertion, &evaluation); err != nil {
 					return uniqueConflict{}, err
@@ -413,7 +413,7 @@ retry:
 		e.mu.Lock()
 		if ref.Epoch != e.catalog.state.epoch {
 			e.mu.Unlock()
-			return uniqueConflict{}, ErrCatalogReplaced
+			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		current := e.privateCatalogLocked(s.owner.catalog)
 		if current.state != binding.catalog {
@@ -425,7 +425,7 @@ retry:
 		currentIndex, indexOK := current.Relation(index.address)
 		if !parentOK || !indexOK || currentParent.revision != parent.revision || !sameRelationRowShape(parent, currentParent) || currentIndex.revision != index.revision || !sameIndexKeySemantics(index, currentIndex) {
 			e.mu.Unlock()
-			return uniqueConflict{}, ErrCatalogReplaced
+			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		parent, index = currentParent, currentIndex
 		auth, err := s.writeAuthorizationLocked(e)
@@ -449,7 +449,7 @@ retry:
 			return uniqueConflict{}, err
 		}
 		if namespace == nil {
-			return uniqueConflict{}, ErrCatalogReplaced
+			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		if check := s.insertConflict; check != nil {
 			if err := auth.checkBinding(bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
@@ -583,11 +583,11 @@ retry:
 
 func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVersion, error) {
 	if entry.position < 0 || entry.position >= len(versions) {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	head := versions[entry.position]
 	if head.row != entry.row || head.version != entry.version {
-		return rowVersion{}, ErrCatalogReplaced
+		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	return head, nil
 }

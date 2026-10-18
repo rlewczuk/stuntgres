@@ -46,7 +46,7 @@ func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource,
 			s.replacementRead = true
 			e.mu.Lock()
 			if s.txRef.Epoch() != e.catalog.state.epoch {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
 		}

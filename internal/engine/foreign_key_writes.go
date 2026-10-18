@@ -69,7 +69,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return foreignKeyRows{}, ErrCatalogReplaced
+		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
@@ -77,7 +77,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	}
 	storage := e.privateStorageLocked(changes, ref.Address)
 	if storage == nil {
-		return foreignKeyRows{}, ErrCatalogReplaced
+		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
 	r := foreignKeyRows{storage: storage, committed: storage.versions, ends: storage.ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.commitSeq}
 	r.index = index
@@ -127,17 +127,17 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
 		changes = s.catalog
 	}
 	if _, ok := e.privateCatalogLocked(changes).Find(ref.Address); !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if storage != nil && e.privateStorageLocked(changes, ref.Address) != storage {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return s.validateLockedRelation(e)
 }
@@ -409,7 +409,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
 	if s.catalog != nil {
@@ -417,7 +417,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	}
 	storage := e.privateStorageLocked(changes, ref.Address)
 	if storage == nil || storage != rows.storage {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	rows.committed, rows.ends, rows.frontier = storage.versions, storage.ends, e.commitSeq
 	rows.root = e.indexRoots[rows.index]

@@ -96,7 +96,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 		t.Fatal(values)
 	}
 	child.columns[1].Usage = testUsage(e, sqltype.Int8)
-	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := inheritanceQueryLayout(parent, child); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 }

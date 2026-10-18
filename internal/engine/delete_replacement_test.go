@@ -199,11 +199,11 @@ func deleteReplacementReject(t *testing.T, scope *StatementScope, done <-chan de
 		t.Fatal("stale DELETE did not leave row wait/readmission")
 	}
 	var diagnostic *sqlstate.Error
-	if !errors.Is(outcome.err, ErrCatalogReplaced) || errors.As(outcome.err, &diagnostic) || outcome.result.Count != 0 || outcome.result.Rows != nil {
+	if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || errors.As(outcome.err, &diagnostic) || outcome.result.Count != 0 || outcome.result.Rows != nil {
 		t.Fatal("replacement must return ordinary ErrCatalogReplaced and no successful result", outcome)
 	}
 	ticket := scope.ticket
-	if err := scope.Finish(outcome.err); !errors.Is(err, ErrCatalogReplaced) {
+	if err := scope.Finish(outcome.err); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	scope.op.Done()
@@ -272,7 +272,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					t.Fatal("replacement did not complete with old holder active")
 				}
 				deleteReplacementReject(t, scope, done)
-				fenced := request.Terminal() && errors.Is(request.Err(), ErrCatalogReplaced)
+				fenced := request.Terminal() && errors.Is(request.Err(), ids.ErrCatalogReplaced)
 				if !fenced || oldStorage.ends != nil {
 					t.Fatal("queued request not fenced or private deletion published")
 				}

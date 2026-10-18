@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -15,7 +16,7 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 	for _, origin := range provenance.origins {
 		parent, ok := view.Relation(origin.parent)
 		if !ok {
-			return provenance, ErrCatalogReplaced
+			return provenance, ids.ErrCatalogReplaced
 		}
 		if definition, exists := parent.defaults[origin.attribute]; exists {
 			suppliedDefault = true
@@ -29,7 +30,7 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 			for i, column := range parent.columns {
 				slot, ok := child.index[column.Name]
 				if !ok {
-					return provenance, ErrCatalogReplaced
+					return provenance, ids.ErrCatalogReplaced
 				}
 				mapper.targetSlots[i] = slot
 			}

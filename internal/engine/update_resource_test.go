@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -38,7 +39,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 		}
 	}
 	copied := *a.transactions.ticket
-	if request, err := acquire(&copied, resource); request != nil || !errors.Is(err, ErrCatalogReplaced) {
+	if request, err := acquire(&copied, resource); request != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied ticket admitted", request, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

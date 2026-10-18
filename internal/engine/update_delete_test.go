@@ -285,7 +285,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				_, err = e.Commit(op, tx)
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "canceled_final_publication":

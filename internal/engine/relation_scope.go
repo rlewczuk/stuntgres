@@ -312,7 +312,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	parentAuth := auth
@@ -559,7 +559,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	defer e.mu.Unlock()
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || txref.Epoch() != e.catalog.state.epoch || !live {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
 		(descriptor.relationKind != materializedAlterAuthority.relationKind ||
@@ -574,7 +574,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if authorityErr = alterViewAuthority(currentAuth, ref, stmt.(*parser.AlterView)); authorityErr != nil {
 			return authorityErr
 		}
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if preparedDefinitionStamp(descriptor, s.op.session) != definitionStamp {
 		s.preparedChangedDuringAdmission = true
@@ -614,7 +614,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			auth.recaptureCatalog(auth.catalog)
 		}
 		if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {
 			return err
@@ -715,21 +715,21 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	if s.lockedRef.Domain() != e.catalog.domain || s.lockedRef.Epoch != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	current := catalog.Get(s.lockedRef.Address)
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	} else if s.lockedStorage != nil {
 		relation, ok := current.(*relationDescriptor)
 		captured, capturedOK := s.lockedDescriptor.(*relationDescriptor)
 		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, target := range s.inheritedTargets {
 		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, target); err != nil {
@@ -739,14 +739,14 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
 		if current != captured && !partitionAppendCompatible(captured, current) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
 			current, ok := catalog.Relation(layer.ref.Address)
 			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 	}

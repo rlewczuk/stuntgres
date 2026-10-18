@@ -83,7 +83,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "shape":
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "namespace":

@@ -197,7 +197,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().state != before.state {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}
-			if change == "replacement" && !errors.Is(err, ErrCatalogReplaced) {
+			if change == "replacement" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
 		})

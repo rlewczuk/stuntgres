@@ -39,20 +39,20 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	}
 	key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
 	forged := *a.advisory.ticket
-	if _, err := e.locks.StartAcquire(context.Background(), &forged, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := e.locks.StartAcquire(context.Background(), &forged, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied ticket authorized", err)
 	}
-	if _, err := other.locks.StartAcquire(context.Background(), a.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := other.locks.StartAcquire(context.Background(), a.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign manager authorized", err)
 	}
 	contaminated := key
 	contaminated.ObjectRef = ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1}}
-	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, lock.AdvisoryExclusive, true); err == nil || errors.Is(err, ErrCatalogReplaced) {
+	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, lock.AdvisoryExclusive, true); err == nil || errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("fabricated catalog identity accepted for advisory", err)
 	}
 	retiredSource := ra
 	retiredSource = withTxID(retiredSource, retiredSource.ID()+1)
-	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, lock.AdvisoryExclusive, true); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, lock.AdvisoryExclusive, true); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing exact transient provenance authorized", err)
 	}
 	if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, key).Exclusive != 1 {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -230,7 +231,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 			case "authority":
 				state(t, executeErr, "42501")
 			case "storage", "attribute", "type", "width", "epoch":
-				if !errors.Is(executeErr, ErrCatalogReplaced) {
+				if !errors.Is(executeErr, ids.ErrCatalogReplaced) {
 					t.Error(executeErr)
 				}
 			case "preflight", "relock", "teardown":

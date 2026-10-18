@@ -334,11 +334,11 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 	}
 	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
-		return restoredGenerationRecipe{}, ErrCatalogReplaced
+		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
 	slot, ok := table.index[raw.Actions[0].Column.Text]
 	if !ok {
-		return restoredGenerationRecipe{}, ErrCatalogReplaced
+		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
 	attribute := table.attributes[slot]
 	generation := table.generations[attribute]

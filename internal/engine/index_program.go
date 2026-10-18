@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/ids"
+
 // Only actual consumed calls need migration. An untouched structural binding
 // must retain the established non-call rebind behavior.
 func (b *uniqueWriteBinding) hasConsumedPrograms() bool {
@@ -29,7 +31,7 @@ func (b *uniqueWriteBinding) inheritConsumedPrograms(old *uniqueWriteBinding) er
 		old.ref.Epoch != old.catalog.epoch || b.ref.Epoch != b.catalog.epoch ||
 		old.catalog.Get(old.ref.Address) != old.parent || b.catalog.Get(b.ref.Address) != b.parent ||
 		old.parent.revision != b.parent.revision || !sameRelationRowShape(old.parent, b.parent) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for i := range old.keys {
 		key := &old.keys[i]
@@ -54,11 +56,11 @@ func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *
 		return nil
 	}
 	if index == nil || original.Get(index.address) != index {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	current, ok := b.catalog.Relation(index.address)
 	if !ok || current.revision != index.revision || !sameIndexKeySemantics(index, current) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for i := range b.keys {
 		if b.keys[i].index == current {
@@ -72,5 +74,5 @@ func (b *uniqueWriteBinding) inheritIndexProgram(original *catalogState, index *
 			return nil
 		}
 	}
-	return ErrCatalogReplaced
+	return ids.ErrCatalogReplaced
 }

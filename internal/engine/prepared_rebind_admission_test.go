@@ -151,12 +151,12 @@ func TestPreparedRebindAdmission(t *testing.T) {
 						t.Fatal("cancellation leaked result/publication", out)
 					}
 				} else if action == "shadow_during_wait" {
-					if !errors.Is(out.err, ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
 						t.Fatal("new shadow during admission crossed native conflict fence", out)
 					}
 					transactionRows(t, caller, "SELECT v FROM b.t")
 				} else if action == "reset" || action == "restore" {
-					if !errors.Is(out.err, ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
 						t.Fatal("admitted replacement retargeted/published", out)
 					}
 					if action == "reset" {

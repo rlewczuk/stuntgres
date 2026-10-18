@@ -272,7 +272,7 @@ func TestTruncateAdmission(t *testing.T) {
 			if kind != "control-epoch" {
 				transactionEnd(t, holder, tx, false)
 			}
-			lockAwait(t, done, ErrCatalogReplaced)
+			lockAwait(t, done, ids.ErrCatalogReplaced)
 			if kind == "control-epoch" {
 				transactionEnd(t, holder, tx, false)
 				transactionRows(t, waiter, "SELECT id FROM p", 9)

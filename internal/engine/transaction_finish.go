@@ -135,7 +135,7 @@ func (s *StatementScope) Finish(err error) error {
 				session.mu.Lock()
 				err = publicationOperationLocked(e, s.op)
 				if err == nil && t.ref.Epoch() != e.catalog.state.epoch {
-					err = ErrCatalogReplaced
+					err = ids.ErrCatalogReplaced
 				}
 				if err == nil && s.catalog != nil {
 					err = e.catalogPreflightLocked(catalog)
@@ -181,7 +181,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.clear()
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
-		if errors.Is(err, ErrCatalogReplaced) {
+		if errors.Is(err, ids.ErrCatalogReplaced) {
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.clear()...)
 			t.truncateSavepoints(0)
 		}

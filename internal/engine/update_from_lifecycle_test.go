@@ -106,7 +106,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 				}
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 10, 20, 30)
 			case "reset":
-				if !errors.Is(got.err, ErrCatalogReplaced) || got.count != 0 || got.rows != nil {
+				if !errors.Is(got.err, ids.ErrCatalogReplaced) || got.count != 0 || got.rows != nil {
 					t.Fatal(got)
 				}
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")

@@ -162,7 +162,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if veto == "cancel" && !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if veto == "replacement" && !errors.Is(err, ErrCatalogReplaced) {
+				if veto == "replacement" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 				if veto == "authorization" || veto == "storage" {

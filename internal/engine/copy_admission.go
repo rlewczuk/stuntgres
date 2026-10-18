@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Admission remains held for ordinary statements. Only a reserved COPY drops
@@ -81,7 +83,7 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 		if resume == nil {
 			e.mu.Lock()
 			if s.txRef.Epoch() != e.catalog.state.epoch {
-				resume = ErrCatalogReplaced
+				resume = ids.ErrCatalogReplaced
 			} else {
 				resume = s.validateLockedRelation(e)
 			}

@@ -71,11 +71,11 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 				next[i].uses = slices.Clone(next[i].uses)
 				for j, slot := range next[i].uses {
 					if slot < 0 || slot >= len(old.attributes) {
-						return nil, ErrCatalogReplaced
+						return nil, ids.ErrCatalogReplaced
 					}
 					next[i].uses[j] = next[i].relation.indexForAttribute(old.attributes[slot])
 					if next[i].uses[j] < 0 {
-						return nil, ErrCatalogReplaced
+						return nil, ids.ErrCatalogReplaced
 					}
 				}
 			}
@@ -142,7 +142,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 	if b.relation != nil {
 		current, _ = view.Relation(b.ref.Address)
 		if current == nil {
-			return b, ErrCatalogReplaced
+			return b, ids.ErrCatalogReplaced
 		}
 		b.storage = nil
 	}
@@ -419,12 +419,12 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				if address.ClassID == 2606 {
 					parent := constraintParent(view, address)
 					if parent == nil {
-						return ErrCatalogReplaced
+						return ids.ErrCatalogReplaced
 					}
 					provider = parent
 				}
 				if provider == nil {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
 				if !ok || providerNS.temporary != ns.temporary {

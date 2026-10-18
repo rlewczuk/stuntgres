@@ -22,7 +22,7 @@ func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
 	for i, column := range parent.columns {
 		slot, ok := child.index[column.Name]
 		if !ok || !samePartitionColumnUsage(child.columns[slot].Usage, column.Usage) {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		identity = identity && slot == i
 	}

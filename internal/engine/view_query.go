@@ -27,7 +27,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || consumer.view != definition {
-		return nil, nil, ErrCatalogReplaced
+		return nil, nil, ids.ErrCatalogReplaced
 	}
 	evaluation.routineRecipe, evaluation.routineConsumer = true, consumer
 	evaluation.routineChecks = definition.dependencies

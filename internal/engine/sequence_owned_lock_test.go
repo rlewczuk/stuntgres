@@ -394,7 +394,7 @@ func TestSequenceOwnedTableLockReplacement(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, a, ar, false)
 				assertTemporaryProjectionProviders(t, e)
 				sessionSQL(t, b, "CREATE TABLE t(c INT)")

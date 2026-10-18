@@ -100,7 +100,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 			}
 			select {
 			case outcome := <-done:
-				if !errors.Is(outcome.err, ErrCatalogReplaced) || outcome.result.Rows != nil {
+				if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || outcome.result.Rows != nil {
 					t.Fatal(outcome)
 				}
 			case <-ctx.Done():

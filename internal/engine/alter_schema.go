@@ -18,7 +18,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if err == nil && ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && renameMissing(err) {
 		op.session.mu.Lock()
@@ -113,7 +113,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	if current != ref || auth.catalog.Get(ref.Address) != old {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
@@ -123,7 +123,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	if liveDestination != destination {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
@@ -134,13 +134,13 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		live, ok := auth.catalog.Relation(r.address)
 		if ok && r.sqlIndex != nil {
 			if live.sqlIndex != r.sqlIndex || live.namespace != old.namespace || live.owner != old.owner {
-				return fail(ErrCatalogReplaced)
+				return fail(ids.ErrCatalogReplaced)
 			}
 			group = append(group, live)
 			continue
 		}
 		if !ok || live.relationKind != sequenceRelation || live.sequence.owned != r.sequence.owned || live.namespace != old.namespace || live.owner != old.owner {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		group = append(group, live)
 	}

@@ -28,12 +28,12 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 	for address, observed := range g.descriptors {
 		current, ok := auth.catalog.Relation(address)
 		if !ok || strict && current != observed {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	for _, ref := range g.targets {
 		if ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		d := auth.catalog.MustRelation(ref.Address)
 		switch s := stmt.(type) {
@@ -87,7 +87,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 	for _, ref := range g.indexes {
 		d := auth.catalog.MustRelation(ref.Address)
 		if d.sqlIndex == nil || g.descriptors[d.sqlIndex.parent] == nil {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	for parent, count := range g.indexSets {
@@ -98,12 +98,12 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				continue
 			}
 			if g.descriptors[address] == nil {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			actual++
 		}
 		if actual != count {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil
@@ -149,7 +149,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
 	if s.txRef.Epoch() != e.catalog.state.epoch {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	if err != nil {
@@ -286,7 +286,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			return err
 		}
 		if s.txRef.Epoch() != e.catalog.state.epoch {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if err := g.check(auth, stmt, false); err != nil {
 			return err
@@ -294,7 +294,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		for address, observed := range g.descriptors {
 			current := auth.catalog.MustRelation(address)
 			if g.partition && current != observed {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			g.descriptors[address] = current
 		}

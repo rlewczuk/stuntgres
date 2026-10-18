@@ -185,7 +185,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			}
 			relation, ok := catalog.Relation(root.ref.Address)
 			if !ok {
-				return "", ErrCatalogReplaced
+				return "", ids.ErrCatalogReplaced
 			}
 			// PostgreSQL qualifies simple source slots inside set operands.
 			// Keep natural attribute labels separate from their displayed
@@ -551,7 +551,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 	if column.ruleSide != 0 {
 		d, ok := catalog.Relation(ids.ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID})
 		if !ok {
-			return "", ErrCatalogReplaced
+			return "", ids.ErrCatalogReplaced
 		}
 		name, err := deparseAttribute(d, column.ruleRef.Address.SubID)
 		if err != nil {

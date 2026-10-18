@@ -25,7 +25,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
@@ -81,7 +81,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		index, ok := auth.catalog.Relation(backing)
 		if !ok {
 			e.DiscardCatalogStage(stage)
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}); exists {
 			e.DiscardCatalogStage(stage)
@@ -120,7 +120,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Epoch != e.catalog.state.epoch {
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
@@ -204,5 +204,5 @@ func renameLocalConstraint(parent *relationDescriptor, old, destination string, 
 			}
 		}
 	}
-	return nil, ErrCatalogReplaced
+	return nil, ids.ErrCatalogReplaced
 }

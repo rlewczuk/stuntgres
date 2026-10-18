@@ -59,7 +59,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	relation, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if !hierarchyRelation(relation) {
 		e.mu.Unlock()
@@ -70,7 +70,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 		relation, ok = catalog.Relation(relation.membership.parent)
 		if !ok {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		ancestors = append(ancestors, ref.Domain().Ref(ref.Epoch, relation.address))
 	}

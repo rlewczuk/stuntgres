@@ -328,7 +328,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		if !storedReferenceEpochValid(retained, consumer, ref) {
 			t.Fatal("actual same-owner relation rejected", target.name)
 		}
-		if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ErrCatalogReplaced) {
+		if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("generic object reference gained old-epoch authority", err)
 		}
 		if temporarySequenceEpochValid(retained, ref, owner.token) {

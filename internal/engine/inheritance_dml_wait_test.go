@@ -105,7 +105,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("mutation admission did not resume")
 	}
-	if replace && !errors.Is(err, ErrCatalogReplaced) {
+	if replace && !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("queued mutation rebound to same-name replacement", err)
 	}
 	if !replace && !errors.Is(err, context.Canceled) {

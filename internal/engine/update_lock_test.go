@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func TestUpdateCoreRowWaitRecheck(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 				sessionSQL(t, c, "CREATE TABLE t(id INT,a INT,b INT)")
 				sessionSQL(t, c, "INSERT INTO t VALUES(1,7,0)")

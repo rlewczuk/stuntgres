@@ -146,7 +146,7 @@ func stableViewSlot(source *relationDescriptor, leaf viewLeaf, frozen int) (int,
 			return i, nil
 		}
 	}
-	return 0, ErrCatalogReplaced
+	return 0, ids.ErrCatalogReplaced
 }
 func sameViewRelation(a, b ids.ObjectRef) bool {
 	a.Address.SubID = 0
@@ -205,12 +205,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			return viewWriteError(d, operation, reason)
 		}
 		if sourceNode.occurrence < 0 || sourceNode.occurrence >= len(d.view.sources) {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		leaf := d.view.sources[sourceNode.occurrence]
 		source, ok := auth.catalog.Relation(leaf.ref.Address)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		use, err := storedViewUseReference(auth.catalog, d, leaf.ref)
 		if err != nil {
@@ -338,7 +338,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				return n, false, nil
 			}
 			if c.slot < 0 || c.slot >= len(expanded) {
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 			return expanded[c.slot], true, nil
 		}
@@ -453,7 +453,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 			if sameViewRelation(c.origin, w.logical.ref) && c.frame == 1 {
 				if c.slot < 0 || c.slot >= len(w.outputs) {
-					return nil, false, ErrCatalogReplaced
+					return nil, false, ids.ErrCatalogReplaced
 				}
 				output := w.outputs[c.slot]
 				output, _, err := rewriteViewExpression(auth.catalog, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
@@ -587,7 +587,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					}
 				}
 				if slot < 0 {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				output, ok := viewDirectColumn(w.outputs[slot])
 				if !ok {

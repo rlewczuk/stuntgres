@@ -178,7 +178,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			f.e.indexRoots[f.index.address] = &root
 			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
-				if admitted || !errors.Is(err, ErrCatalogReplaced) {
+				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
 				}
 			} else if admitted || err != nil {
@@ -197,7 +197,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.position = -1 }, func(e *logicalIndexEntry) { e.position = len(f.store.versions) }, func(e *logicalIndexEntry) { e.row++ }, func(e *logicalIndexEntry) { e.version++ }} {
 		bad := entry
 		change(&bad)
-		if _, err := conflictEntryVersion(f.store.versions, bad); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := conflictEntryVersion(f.store.versions, bad); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("invalid hint silently recovered", bad, err)
 		}
 	}

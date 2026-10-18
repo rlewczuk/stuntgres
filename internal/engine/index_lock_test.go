@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -70,7 +71,7 @@ func TestBtreeIndexWaitingCancellationAndEpochFence(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 			} else {
 				cancel()
 				lockAwait(t, done, context.Canceled)

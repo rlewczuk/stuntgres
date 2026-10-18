@@ -174,7 +174,7 @@ func TestAlterDropColumnStageCancellationAndReplacement(t *testing.T) {
 		if !replacement && (e.catalog.state.Get(ref.Address) != old || !errors.Is(err, context.Canceled)) {
 			t.Fatal(err)
 		}
-		if replacement && !errors.Is(err, ErrCatalogReplaced) {
+		if replacement && !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal(err)
 		}
 	}
@@ -264,7 +264,7 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 		_, err := testExecute(e, ctx, statement(t, "ALTER TABLE t DROP b"), nil)
 		cancel()
 		if reset {
-			if !errors.Is(err, ErrCatalogReplaced) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
 		} else {

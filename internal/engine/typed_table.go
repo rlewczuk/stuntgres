@@ -145,7 +145,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	old, ok := scope.lockedDescriptor.(*relationDescriptor)
 	if !ok {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	if err := tableKind(old, "OF"); err != nil {
 		return fail(err)

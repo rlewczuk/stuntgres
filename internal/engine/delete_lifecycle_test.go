@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
@@ -51,7 +52,7 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 				manager.End(a.transactions.ticket)
 				cancel()
 			}
-			want := map[string]error{"cancel": context.Canceled, "end": lock.ErrOwnerEnded, "fence": ErrCatalogReplaced, "grant": nil}[action]
+			want := map[string]error{"cancel": context.Canceled, "end": lock.ErrOwnerEnded, "fence": ids.ErrCatalogReplaced, "grant": nil}[action]
 			if err := request.Wait(); !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}

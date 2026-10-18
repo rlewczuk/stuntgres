@@ -517,11 +517,11 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 		return rowVersion{}, false, err
 	}
 	if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if store == nil {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current, hint := store.versions, candidate.slot
 	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.row, -1); found {

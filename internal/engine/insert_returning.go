@@ -120,7 +120,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {
-		return false, false, ErrCatalogReplaced
+		return false, false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.state {
@@ -128,7 +128,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	}
 	parent, ok := catalog.Relation(ref.Address)
 	if !ok || !sameRelationRowShape(s.uniqueBinding.parent, parent) {
-		return false, false, ErrCatalogReplaced
+		return false, false, ids.ErrCatalogReplaced
 	}
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")

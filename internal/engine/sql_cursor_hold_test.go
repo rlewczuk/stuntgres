@@ -47,7 +47,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM fenced")
-	if !errors.Is(err, ErrCatalogReplaced) || result.Rows != nil {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || result.Rows != nil {
 		t.Fatal("export loses original epoch fence", result, err)
 	}
 	s.RequestEnd(CleanClose)

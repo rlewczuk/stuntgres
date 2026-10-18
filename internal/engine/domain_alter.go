@@ -74,7 +74,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		old, current, err = e.resolveAlterDomainLocked(auth, raw.Name)
 	}
 	if err == nil && (ref != current || old != original) {
-		err = ErrCatalogReplaced
+		err = ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		e.mu.Unlock()

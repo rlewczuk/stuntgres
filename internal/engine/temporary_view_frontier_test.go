@@ -73,7 +73,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)
 			}
-			if !errors.Is(staleErr, ErrCatalogReplaced) {
+			if !errors.Is(staleErr, ids.ErrCatalogReplaced) {
 				t.Fatal("unscoped old source admitted", staleErr)
 			}
 			for _, q := range []string{"SELECT v FROM retained_w", "SELECT v FROM retained_catalog", "SELECT v FROM retained_summary"} {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -198,10 +199,10 @@ func identityMultiCacheUnits(t *testing.T) {
 			t.Fatal("inquiry did not populate the actual caller cache")
 		}
 		e.endLockOwner(reader)
-		if _, err := e.locks.MultiXactMembers(reader, 1); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := e.locks.MultiXactMembers(reader, 1); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("retired owner resurrected read/cache authority", err)
 		}
-		if _, err := e.locks.MultiAge(reader, 1); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := e.locks.MultiAge(reader, 1); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("retired owner resurrected counter authority", err)
 		}
 	})

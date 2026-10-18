@@ -116,7 +116,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case <-ctx.Done():
 				t.Fatal("queued authority join", ctx.Err())
 			}
-			if !errors.Is(err, ErrCatalogReplaced) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("changed frozen authority was admitted", phase, err)
 			}
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {

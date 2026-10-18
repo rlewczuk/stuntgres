@@ -208,13 +208,13 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 		return rowVersion{}, nil, "", false, err
 	}
 	if ref.Epoch != e.catalog.state.epoch {
-		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	parent, ok := catalog.Relation(ref.Address)
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
-		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
@@ -227,7 +227,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	}
 	namespace, ok := catalog.Namespace(parent.namespace)
 	if !ok {
-		return rowVersion{}, nil, "", false, ErrCatalogReplaced
+		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	var row rowVersion
 	var found bool

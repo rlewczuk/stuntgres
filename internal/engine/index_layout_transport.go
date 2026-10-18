@@ -81,24 +81,24 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	e.mu.Lock()
 	if e.catalog.state.epoch != stage.base.Epoch() {
 		e.mu.Unlock()
-		return nil, false, ErrCatalogReplaced
+		return nil, false, ids.ErrCatalogReplaced
 	}
 	for address, lineage := range stage.indexLayouts {
 		if lineage.source == nil || lineage.target == nil || lineage.sourceParent == nil || lineage.targetParent == nil {
 			e.mu.Unlock()
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		if lineage.targetParent.address != parent.address {
 			continue
 		}
 		if lineage.target.sqlIndex.parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
 			e.mu.Unlock()
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		target, ok := evaluation.catalog.Relation(address)
 		if !ok || !sameIndexKeySemantics(target, lineage.target) {
 			e.mu.Unlock()
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		root := e.indexRoots[address]
 		if private := changes.uniqueRoots[address]; private != nil {
@@ -113,7 +113,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			}
 			if !pinned || candidate.root != private || (!candidate.matchesIndex(lineage.source, sourceStore) && !candidate.matchesIndex(lineage.target, targetStore)) {
 				e.mu.Unlock()
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 			root = private
 		} else {
@@ -127,7 +127,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			}
 			if !ok || !sameIndexKeySemantics(source, lineage.source) || sourceStore == nil || current != indexStorageIdentity(sourceStore) || current.generation != sourceStore.generation || current.ends != sourceStore.ends || len(current.versions) != len(sourceStore.versions) {
 				e.mu.Unlock()
-				return nil, false, ErrCatalogReplaced
+				return nil, false, ids.ErrCatalogReplaced
 			}
 		}
 		if root == nil {
@@ -141,7 +141,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		return writes, false, nil
 	}
 	if sourceStore == nil || targetStore == nil || len(sourceStore.versions) != len(targetStore.versions) {
-		return nil, false, ErrCatalogReplaced
+		return nil, false, ids.ErrCatalogReplaced
 	}
 	for i, row := range sourceStore.versions {
 		if err := evaluation.Context.Err(); err != nil {
@@ -149,7 +149,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		}
 		next := targetStore.versions[i]
 		if row.row != next.row || row.version != next.version {
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 	}
 	for _, captured := range captures {
@@ -168,11 +168,11 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 						return nil, false, err
 					}
 					if entry.position < 0 || entry.position >= len(sourceStore.versions) {
-						return nil, false, ErrCatalogReplaced
+						return nil, false, ids.ErrCatalogReplaced
 					}
 					row := sourceStore.versions[entry.position]
 					if row.row != entry.row || row.version != entry.version {
-						return nil, false, ErrCatalogReplaced
+						return nil, false, ids.ErrCatalogReplaced
 					}
 				}
 			}
@@ -193,11 +193,11 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 					return nil, false, err
 				}
 				if entry.position < 0 || entry.position >= len(sourceStore.versions) {
-					return nil, false, ErrCatalogReplaced
+					return nil, false, ids.ErrCatalogReplaced
 				}
 				row := sourceStore.versions[entry.position]
 				if row.row != entry.row || row.version != entry.version {
-					return nil, false, ErrCatalogReplaced
+					return nil, false, ids.ErrCatalogReplaced
 				}
 			}
 			if !indexLayoutSlotsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) {
@@ -230,7 +230,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		}
 		position, ok := positions[indexRowIdentity{row: row.row, version: row.version}]
 		if !ok {
-			return nil, false, ErrCatalogReplaced
+			return nil, false, ids.ErrCatalogReplaced
 		}
 		var outputs map[ids.ObjectAddress]indexRowOutput
 		for _, captured := range captures {
@@ -282,7 +282,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
 	parent, ok := catalog.Relation(address)
 	if !ok || store == nil || len(store.versions) != 0 {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)

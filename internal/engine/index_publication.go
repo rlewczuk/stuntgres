@@ -586,7 +586,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(catalog)
 	input := s.input
@@ -652,7 +652,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		var preparation indexExecutionPreparation
 		parent, ok := view.Relation(index.sqlIndex.parent)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if pending {
 			var err error

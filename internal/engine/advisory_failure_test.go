@@ -96,7 +96,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if err := b.WaitEnd(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := advisoryUnitAcquire(t, b, provenance, key, lock.AdvisoryExclusive, true); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := advisoryUnitAcquire(t, b, provenance, key, lock.AdvisoryExclusive, true); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("retired physical owner reacquired", err)
 		}
 		c, rc := advisoryUnitOwner(t, e)

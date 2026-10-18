@@ -290,7 +290,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					err := message.end(finishErr)
 					if phase != "healthy" {
 						var conflict CatalogConflict
-						if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 							t.Fatal("missing manual utility DB predecessor veto", err)
 						}
 						indexMaintenanceUnchanged(t, e, before.roots)
@@ -452,7 +452,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				err = message.end(finishErr)
 				if replace {
 					var conflict CatalogConflict
-					if !errors.Is(err, ErrCatalogReplaced) && !errors.As(err, &conflict) {
+					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before.roots)

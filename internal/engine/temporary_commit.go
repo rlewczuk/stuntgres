@@ -12,7 +12,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	e.mu.Lock()
 	if ref.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
-		return nil, nil, nil, ErrCatalogReplaced
+		return nil, nil, nil, ids.ErrCatalogReplaced
 	}
 	base := e.privateCatalogLocked(c)
 	if c == nil && op.session.temporaryNamespace == (ids.ObjectAddress{}) {

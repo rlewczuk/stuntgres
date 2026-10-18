@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/authorization"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+)
 
 import (
 	"context"
@@ -45,7 +48,7 @@ func TestMergeUpdateRowLocks(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 				transactionEnd(t, holder, tx, false)
 				lockEmpty(t, e)
 				return

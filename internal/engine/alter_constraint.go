@@ -101,7 +101,7 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *Operation, auth Aut
 	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.phaseZeroOnly {
 		prepared = definition.checks
 		if prepared.old != parent {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		err = definition.checksError
 	} else {

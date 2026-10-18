@@ -92,7 +92,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		return err
 	}
 	if _, removed := stage.removals[address]; removed {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	descriptor := stage.descriptors[address]
 	if descriptor == nil {
@@ -100,7 +100,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	}
 	sequence, ok := descriptor.(*relationDescriptor)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	generator := stage.generators[address]
 	if generator == nil {
@@ -169,7 +169,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		return err
 	}
 	if fresh.catalog.Epoch() != stage.base.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.catalog.Get(address)
 	if staged, exists := stage.descriptors[address]; exists {

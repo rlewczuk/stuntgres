@@ -364,7 +364,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 							t.Fatal("canceled metadata admission did not preserve cancellation", err)
 						}
 					case "subsequent_replacement":
-						if !errors.Is(err, ErrCatalogReplaced) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) {
 							t.Fatal("genuine replacement bypassed the exact marker-only fence", err)
 						}
 					}

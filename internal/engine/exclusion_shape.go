@@ -70,7 +70,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if catalog.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := cloneExclusionProjection(e.exclusionPending[s.ticket])

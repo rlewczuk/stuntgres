@@ -75,11 +75,11 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	}
 	index, ok := e.catalog.state.Relation(address)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.parent != scope.lockedRef.Address {
-		return nil, nil, auth, ErrCatalogReplaced
+		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
 	parent, ok := e.catalog.state.Relation(index.sqlIndex.parent)
 	if !ok {
-		return nil, nil, auth, ErrCatalogReplaced
+		return nil, nil, auth, ids.ErrCatalogReplaced
 	}
 	if err = auth.CheckCreate(e.catalog.domain.Ref(e.catalog.state.epoch, parent.namespace)); err != nil {
 		return nil, nil, auth, err
@@ -120,7 +120,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		store := e.storage[parent.address]
 		if store == nil {
 			e.mu.Unlock()
-			return 0, ErrCatalogReplaced
+			return 0, ids.ErrCatalogReplaced
 		}
 		snapshot := *store
 		next, definition := *index, *index.sqlIndex

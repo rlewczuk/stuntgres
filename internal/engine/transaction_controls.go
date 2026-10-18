@@ -203,7 +203,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			chainFence = true
 			e.mu.Lock()
 			if err == nil && next.Epoch() != e.catalog.state.epoch {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
 		}
@@ -218,7 +218,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if err == nil && commit {
 			e.mu.Lock()
 			if ref.Epoch() != e.catalog.state.epoch {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
 		}
@@ -238,7 +238,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			chainFence = true
 			e.mu.Lock()
 			if cleanupErr == nil && next.Epoch() != e.catalog.state.epoch {
-				cleanupErr = ErrCatalogReplaced
+				cleanupErr = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
 		}

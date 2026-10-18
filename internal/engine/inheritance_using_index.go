@@ -56,7 +56,7 @@ func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definiti
 	for _, attribute := range captured.attributes {
 		slot := next.indexForAttribute(attribute)
 		if slot < 0 {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: next.columns[slot].Name}}
 		var err error
@@ -89,7 +89,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	descriptor, present := reader.descriptor(captured.index.address)
 	index, ok := descriptor.(*relationDescriptor)
 	if !present || !ok || index.sqlIndex == nil {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	prepared.index = index
 	name := captured.syntax.Name.Text

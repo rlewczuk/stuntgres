@@ -198,7 +198,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			return Result{}, err
 		}
 		if t.ref.Epoch() != e.catalog.state.epoch {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		if control.Kind != parser.CreateSavepoint && index < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))

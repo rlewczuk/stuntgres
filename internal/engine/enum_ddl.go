@@ -136,7 +136,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 		if ref != locked {
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 		members := old.typ.EnumMembers()

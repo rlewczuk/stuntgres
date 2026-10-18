@@ -71,7 +71,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(err)
 	}
 	if ref != scope.lockedRef {
-		return fail(ErrCatalogReplaced)
+		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.catalog.MustRelation(ref.Address)
 	if err = alterViewAuthority(auth, ref, s); err != nil {
@@ -98,7 +98,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		}
 		extension, _ = auth.catalog.Extension(address)
 		if extension == nil {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		slot := sort.Search(len(old.autoExtensions), func(i int) bool { return old.autoExtensions[i].ObjectID >= address.ObjectID })
 		present := slot < len(old.autoExtensions) && old.autoExtensions[slot] == address
@@ -290,13 +290,13 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	if epoch != auth.catalog.Epoch() {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain {
 			e.mu.Unlock()
-			return Result{}, ErrCatalogReplaced
+			return Result{}, ids.ErrCatalogReplaced
 		}
 		if err := viewDropOwner(auth, ref, d); err != nil {
 			e.mu.Unlock()

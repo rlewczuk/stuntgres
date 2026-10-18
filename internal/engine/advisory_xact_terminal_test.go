@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -71,7 +72,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 							t.Fatal(err)
 						}
 					case "fence":
-						if !errors.Is(err, ErrCatalogReplaced) {
+						if !errors.Is(err, ids.ErrCatalogReplaced) {
 							t.Fatal(err)
 						}
 					case "timeout":

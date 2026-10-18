@@ -822,7 +822,7 @@ func TestPartitionConstraintsPublicationFences(t *testing.T) {
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
 			switch change {
 			case "epoch":
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("replacement fence", err)
 				}
 			case "role_registry", "session_identity":

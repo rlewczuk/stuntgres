@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -103,7 +104,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		old := e.storage[audit.Address]
 		e.storage[audit.Address] = &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation}
 		e.mu.Unlock()
-		want = ErrCatalogReplaced
+		want = ids.ErrCatalogReplaced
 		transactionEnd(t, holder, tx, false)
 	} else {
 		cancel()

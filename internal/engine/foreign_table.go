@@ -177,7 +177,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	}
 	if ref != scope.lockedRef {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		e.mu.Unlock()
@@ -201,12 +201,12 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	server, ok := auth.catalog.Foreign(old.foreign.server)
 	if !ok {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)

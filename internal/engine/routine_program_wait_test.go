@@ -92,7 +92,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 							t.Fatal(got.err)
 						}
 					case "replacement":
-						if !errors.Is(got.err, ErrCatalogReplaced) {
+						if !errors.Is(got.err, ids.ErrCatalogReplaced) {
 							t.Fatal(got.err)
 						}
 					}

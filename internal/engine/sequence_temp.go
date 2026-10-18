@@ -355,7 +355,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	for address, shape := range stage.rowShapes {
 		if shape.original == nil || shape.replacement == nil {
 			e.mu.Unlock()
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		parents[address] = true
 	}
@@ -372,7 +372,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	for address, shape := range stage.rowShapes {
 		parent, ok := next.Relation(address)
 		if !ok {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 		if _, _, err := transportIndexLayouts(&evaluation, stage, changes, parent, shape.original, shape.replacement, nil, nil); err != nil {
 			return nil, err
@@ -383,12 +383,12 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		if _, removed := stage.removals[address]; !removed {
 			index, ok := next.Relation(address)
 			if !ok || index.sqlIndex == nil {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			shape, ok := stage.rowShapes[index.sqlIndex.parent]
 			candidate, produced := changes.indexCandidates[address]
 			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			result.roots[address] = candidate.root
 		}

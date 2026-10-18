@@ -92,8 +92,8 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			select {
 			case err := <-second:
 				secondJoined = true
-				if !errors.Is(err, ErrCatalogReplaced) {
-					t.Errorf("second ALTER adopted changed admitted authority: %v, want %v", err, ErrCatalogReplaced)
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
+					t.Errorf("second ALTER adopted changed admitted authority: %v, want %v", err, ids.ErrCatalogReplaced)
 				}
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
@@ -319,7 +319,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	select {
 	case err := <-pending:
 		joined = true
-		if !errors.Is(err, ErrCatalogReplaced) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("queued ALTER adopted a genuine changed producer", err)
 		}
 	case <-ctx.Done():

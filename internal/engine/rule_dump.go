@@ -15,11 +15,11 @@ import (
 func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	d, ok := view.Relation(ref.Address)
 	if !ok {
-		return "", ErrCatalogReplaced
+		return "", ids.ErrCatalogReplaced
 	}
 	ns, ok := view.Namespace(d.namespace)
 	if !ok {
-		return "", ErrCatalogReplaced
+		return "", ids.ErrCatalogReplaced
 	}
 	return quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name), nil
 }
@@ -50,7 +50,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound expr.Expr, a
 		a.SubID = 0
 		d, ok := view.Relation(a)
 		if !ok {
-			return "", ErrCatalogReplaced
+			return "", ids.ErrCatalogReplaced
 		}
 		name, err := deparseAttribute(d, column.origin.Address.SubID)
 		if err != nil {
@@ -482,14 +482,14 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 				if address.ClassID == 2606 {
 					parent := constraintParent(view, address)
 					if parent == nil {
-						return nil, ErrCatalogReplaced
+						return nil, ids.ErrCatalogReplaced
 					}
 					provider = parent
 				} else {
 					provider = view.Get(address)
 				}
 				if provider == nil {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
 					return nil, fmt.Errorf("stuntgres: dump cannot serialize a rule referencing a temporary relation")

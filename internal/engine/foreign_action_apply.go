@@ -39,7 +39,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	for i, a := range attributes {
 		plan.targets[i] = slices.Index(job.child.attributes, a)
 		if plan.targets[i] < 0 {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	plan.input = s.input
@@ -117,7 +117,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			at := slices.Index(job.definition.Attributes, a)
 			parentSlot := slices.Index(job.parent.attributes, job.definition.Referenced[at])
 			if parentSlot < 0 {
-				return nil, ErrCatalogReplaced
+				return nil, ids.ErrCatalogReplaced
 			}
 			plan.parentSlots[i] = parentSlot
 			source, dest := job.parent.columns[parentSlot].Usage, job.child.columns[plan.targets[i]].Usage

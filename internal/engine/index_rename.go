@@ -12,7 +12,7 @@ import (
 func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) error {
 	parent, ok := stage.base.Relation(index.sqlIndex.parent)
 	if !ok {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	collision := func(name string) error {
 		if name == index.name {
@@ -48,7 +48,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		}
 	}
 	if slot < 0 {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	if parent.revision == ids.DefinitionRevision(^uint64(0)) {
 		return fmt.Errorf("stuntgres: definition revision exhausted")

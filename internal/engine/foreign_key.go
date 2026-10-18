@@ -201,7 +201,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return sqlError("42P16", "constraints on permanent tables may reference only permanent tables")
 	}
 	if childTemp != parentTemp {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	local, err := foreignKeyAttributes(child, raw.Columns)
 	if err != nil {
@@ -264,12 +264,12 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		var ok bool
 		index, ok = view.Relation(supporting)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		var eligible bool
 		eligible, err = foreignKeyIndexEligible(parent, index, referenced)
 		if err == nil && !eligible {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	if err != nil {
@@ -320,10 +320,10 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 			captured := targets[i]
 			if captured == (ids.ObjectRef{}) {
 				if current.Address != child.address {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 			} else if current != captured {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			target = current.Address
 		}

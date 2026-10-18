@@ -332,7 +332,7 @@ func partitionPhysicalDescendants(catalog CatalogRead, d *relationDescriptor, vi
 	for _, a := range d.partition.children {
 		child, ok := catalog.Relation(a)
 		if !ok {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if err := partitionPhysicalDescendants(catalog, child, visit); err != nil {
 			return err

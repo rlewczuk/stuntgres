@@ -136,7 +136,7 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "reset":
-				if !errors.Is(err, ErrCatalogReplaced) {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "authority":

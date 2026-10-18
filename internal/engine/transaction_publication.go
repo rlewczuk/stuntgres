@@ -87,7 +87,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			op.session.mu.Lock()
 			err := publicationOperationLocked(e, op)
 			if err == nil && ref.Epoch() != e.catalog.state.epoch {
-				err = ErrCatalogReplaced
+				err = ids.ErrCatalogReplaced
 			}
 			if err == nil {
 				err = e.catalogAuthorityPreflightLocked(authority, nil)
@@ -144,7 +144,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		e.mu.Lock()
 		if ref.Epoch() != e.catalog.state.epoch {
 			e.mu.Unlock()
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		current, frontier := e.catalog.state, e.commitSeq
 		var indexStores map[ids.ObjectAddress]*relationStorage
@@ -200,7 +200,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				relation, live = nextCatalog.Relation(a)
 			}
 			if store == nil || !live || a.SubID != 0 {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			prepared = append(prepared, rowPublication{address: a, store: store, original: original, originalRelation: originalRelation, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
 			return nil
@@ -328,7 +328,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		session.mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil && ref.Epoch() != e.catalog.state.epoch {
-			err = ErrCatalogReplaced
+			err = ids.ErrCatalogReplaced
 		}
 		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
@@ -343,11 +343,11 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				current, ok := e.catalog.state.Relation(p.address)
 				if p.originalRelation == nil {
 					if e.catalog.state.Get(p.address) != nil {
-						err = ErrCatalogReplaced
+						err = ids.ErrCatalogReplaced
 						break
 					}
 				} else if !ok || !sameRelationRowShape(p.originalRelation, current) {
-					err = ErrCatalogReplaced
+					err = ids.ErrCatalogReplaced
 					break
 				}
 				if p.store.generation == ^uint64(0) {

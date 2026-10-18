@@ -76,7 +76,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 	}}
 	_, err := e.Execute(op, statement(t, query), 0, nil)
-	if !called || !errors.Is(err, ErrCatalogReplaced) {
+	if !called || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("callback did not reject captured epoch", called, err)
 	}
 	view := e.CatalogRead()

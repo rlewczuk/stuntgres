@@ -106,7 +106,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 		return err
 	}
 	if candidate.ref.Domain() != e.catalog.domain || candidate.ref.Epoch != e.catalog.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	return nil
 }
@@ -143,7 +143,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
 	if candidate.ref.Epoch != e.catalog.state.epoch || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
-		return false, ErrCatalogReplaced
+		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {
 		return false, errors.New("stuntgres: deletion requires its candidate view")
@@ -231,7 +231,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if inputs != nil {
 			inputs.close()
 		}
-		return Result{}, ErrCatalogReplaced
+		return Result{}, ids.ErrCatalogReplaced
 	}
 	var positioned mutationRowIdentity
 	if b.currentOf != "" {
@@ -378,7 +378,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	}
 	store := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
 	if store == nil || store != candidate.storage {
-		return rowVersion{}, false, ErrCatalogReplaced
+		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	rows := store.versions
 	if candidate.own {

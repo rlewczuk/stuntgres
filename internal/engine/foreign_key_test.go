@@ -167,7 +167,7 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 			} else {
 				cancel()
 				lockAwait(t, done, context.Canceled)
@@ -365,7 +365,7 @@ func TestForeignKeyCreationIdentityAfterWait(t *testing.T) {
 	sessionSQL(t, c, "CREATE TABLE shadow.p(id INT PRIMARY KEY)")
 	transactionEnd(t, a, tx, true)
 	ended = true
-	lockAwait(t, done, ErrCatalogReplaced)
+	lockAwait(t, done, ids.ErrCatalogReplaced)
 	joined = true
 	transactionRows(t, c, "SELECT count(*)::int FROM pg_class WHERE relname='c'", 1)
 	sessionSQL(t, b, "CREATE TABLE c(pid INT REFERENCES p)")

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -49,7 +50,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				}
 				index, exists := catalog.Relation(c.Index)
 				if !exists {
-					return nil, ErrCatalogReplaced
+					return nil, ids.ErrCatalogReplaced
 				}
 				if err := partitionIndexDropDependency(catalog, index); err != nil {
 					return nil, err

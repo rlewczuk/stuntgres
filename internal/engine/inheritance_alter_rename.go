@@ -44,7 +44,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		if old != root {
 			slot, exists := old.index[column]
 			if !exists {
-				return Result{}, ErrCatalogReplaced
+				return Result{}, ids.ErrCatalogReplaced
 			}
 			for _, origin := range old.inheritance.columns[old.attributes[slot]].origins {
 				if !selected[origin.parent] {
@@ -191,12 +191,12 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		}
 		catalog := auth.catalog
 		if catalog.Epoch() != epoch {
-			return fail(ErrCatalogReplaced)
+			return fail(ids.ErrCatalogReplaced)
 		}
 		for address, old := range captured {
 			current, _ := catalog.Relation(address)
 			if !inheritanceMarkerPublication(old, current) {
-				return fail(ErrCatalogReplaced)
+				return fail(ids.ErrCatalogReplaced)
 			}
 			if current != old {
 				captured[address] = current

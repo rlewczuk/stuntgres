@@ -107,7 +107,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 		if s.preparedReuse != nil {
 			prior, ok := s.preparedReuse.sources[table]
 			if !ok || prior.query != admission.retainedQuery(table) {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 			s.queryLockAdmission.tableQueries[table] = preparedSource{query: queries[i], ref: prior.ref}
 		}
@@ -132,15 +132,15 @@ func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogCh
 	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
 		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.relationKind != source.relation.relationKind ||
 		!sameRelationRowShape(current, source.relation) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if current.relationKind == sequenceRelation {
 		if current.sequence == nil || source.storage != nil || current.sequencePlanStamp != source.relation.sequencePlanStamp {
-			return nil, ErrCatalogReplaced
+			return nil, ids.ErrCatalogReplaced
 		}
 	} else if storage := e.privateStorageLocked(changes, source.ref.Address); storage != source.storage &&
 		!sameMaterializedLineage(source.relation, current, source.storage, storage) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	return current, nil
 }
@@ -155,12 +155,12 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 				}
 				found = true
 				if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
-					return ErrCatalogReplaced
+					return ids.ErrCatalogReplaced
 				}
 				break
 			}
 			if !found {
-				return ErrCatalogReplaced
+				return ids.ErrCatalogReplaced
 			}
 		}
 		e := s.op.session.Engine()
@@ -174,12 +174,12 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 		return nil
 	}
 	if len(leaves) != len(s.querySources) {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	for i, leaf := range leaves {
 		grant := s.querySources[i]
 		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 	}
 	if len(s.mutations) != 0 {

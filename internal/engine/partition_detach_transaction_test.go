@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
@@ -211,7 +212,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					if !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
-				} else if !errors.Is(err, ErrCatalogReplaced) {
+				} else if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("grant fence did not reject original operation", err)
 				}
 				_ = worker.Finish(err)

@@ -25,7 +25,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		index, exists := view.Relation(event.index.Address)
 		e.mu.Unlock()
 		if event.parent.Epoch != view.Epoch() {
-			return ErrCatalogReplaced
+			return ids.ErrCatalogReplaced
 		}
 		if !live || !exists || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.sqlIndex.constraint.OID != event.constraint {
 			continue

@@ -206,7 +206,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	// never validate old descriptors before the publication epoch fence.
 	if e.catalog.state.epoch != epoch {
 		e.mu.Unlock()
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
 	if err := catalogDependencyPreflight(e.catalog.state, view.state, c.dependencies, c.originals); err != nil {

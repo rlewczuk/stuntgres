@@ -344,7 +344,7 @@ func TestUniqueClaimEpochFenceReadmission(t *testing.T) {
 	if err := e.Reset(ctx); err != nil {
 		t.Fatal(err)
 	}
-	deleteAwait(t, done, 0, ErrCatalogReplaced)
+	deleteAwait(t, done, 0, ids.ErrCatalogReplaced)
 	transactionEnd(t, a, ar, false)
 	uniqueClaimsEmpty(t, e)
 	sessionSQL(t, b, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")

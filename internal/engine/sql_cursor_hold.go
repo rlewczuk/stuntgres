@@ -150,7 +150,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 
 func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if c.epoch != s.txRef.Epoch() {
-		return ErrCatalogReplaced
+		return ids.ErrCatalogReplaced
 	}
 	c.admit(s)
 	authority := c.authority

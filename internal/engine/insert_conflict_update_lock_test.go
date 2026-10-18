@@ -263,7 +263,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 							t.Fatal(outcome)
 						}
 					case finish == "reset":
-						if !errors.Is(outcome.err, ErrCatalogReplaced) || outcome.result.Count != 0 || outcome.result.Rows != nil {
+						if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || outcome.result.Count != 0 || outcome.result.Rows != nil {
 							t.Fatal(outcome)
 						}
 					case stable && finish != "rollback":

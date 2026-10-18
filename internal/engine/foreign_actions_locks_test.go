@@ -131,7 +131,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 				if err := e.Reset(ctx); err != nil {
 					t.Fatal(err)
 				}
-				lockAwait(t, done, ErrCatalogReplaced)
+				lockAwait(t, done, ids.ErrCatalogReplaced)
 			} else {
 				cancel()
 				lockAwait(t, done, context.Canceled)
