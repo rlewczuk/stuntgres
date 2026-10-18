@@ -43,10 +43,8 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 			return nil, err
 		}
 	}
-	if raw.Filter != nil {
-		if _, err := b.bindBoolean(raw.Filter, projectionContext, "FILTER"); err != nil {
-			return nil, err
-		}
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
+		return nil, err
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)

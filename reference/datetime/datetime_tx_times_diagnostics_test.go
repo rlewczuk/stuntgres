@@ -157,3 +157,21 @@ func TestReferenceDatetimeTxTimesDiagnostics(t *testing.T) {
 		}
 	})
 }
+
+// FILTER is analyzed in its own clause before the decoration or signature is
+// rejected, so nested aggregates, set-returning and window calls fail there.
+func TestReferenceDatetimeTxTimesFilterContext(t *testing.T) {
+	var cases []txTimesFailure
+	for _, name := range txTimesNames {
+		for _, args := range []string{"", "1"} {
+			prefix := "SELECT " + name + "(" + args + ") FILTER (WHERE "
+			at := len(prefix) + 1
+			cases = append(cases,
+				txTimesFailure{prefix + "count(*) > 0)", "42803", "aggregate functions are not allowed in FILTER", "", at},
+				txTimesFailure{prefix + "generate_series(1,2) > 0)", "0A000", "set-returning functions are not allowed in FILTER", "", at},
+				txTimesFailure{prefix + "row_number() OVER () > 0)", "42P20", "window functions are not allowed in FILTER", "", at},
+			)
+		}
+	}
+	txTimesFailures(t, cases)
+}
