@@ -82,7 +82,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
-	node, err := finishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
+	node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	raw.Name.Parts[0].Text = "range_merge"
-	node, err = finishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
+	node, err = functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
 	if err != nil || node.ResultUsage().Type != d {
 		t.Fatal(node, err)
 	}
 	raw.Name.Parts[0].Text = "isempty"
-	if _, err := finishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
+	if _, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
 		t.Fatal("wrong arity")
 	}
 }

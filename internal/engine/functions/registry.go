@@ -40,6 +40,7 @@ var definitions = [...]Definition{
 	{Names: arrayRandomNames[:], Bind: bindArrayRandom},
 	{Names: arrayTransformNames[:], Bind: bindArrayTransform},
 	{Names: arraySearchNames[:], Bind: bindArraySearch},
+	{Names: rangeInspectNames[:], Bind: bindRangeInspect},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

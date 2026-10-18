@@ -173,7 +173,7 @@ func (b *expressionBinder) bindLowerUpper(raw parser.FunctionExpr) (BoundExpr, e
 func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if (name == "lower" || name == "upper") && len(operands) == 1 && sqltype.IsRangeInspectType(operands[0].Usage.Type) {
-		return finishRangeInspect(b, raw, visible, operands)
+		return functions.FinishRangeInspect(b, raw, visible, operands)
 	}
 	if sqltype.StringBaseConversion(name) {
 		return b.finishStringNumericBase(raw, visible, operands)

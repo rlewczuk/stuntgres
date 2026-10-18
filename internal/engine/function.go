@@ -167,9 +167,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
 		return b.bindLowerUpper(raw)
 	}
-	if parser.RangeInspectFunctionName(name) {
-		return bindRangeInspect(b, raw)
-	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
 	}
