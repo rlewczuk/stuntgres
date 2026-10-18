@@ -41,7 +41,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing genuine routine reference", captured, err)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released declaration", captured)
 			}
 			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
@@ -51,7 +51,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if !ok || owned != captured {
 				t.Fatal("reference is not the original owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -68,13 +68,13 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dependency := range original {
 				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, node, true, false); err == nil {
@@ -82,7 +82,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, epoch := range []bool{false, true} {
-				stale := append([]expressionDependency(nil), original...)
+				stale := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range stale {
 					if stale[i].Ref.Address == address {
 						if epoch {
@@ -192,7 +192,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			}
 			originalCalls := append([]expr.Expr(nil), source.calls...)
 			originalSchema := append(querySchema(nil), source.querySchema...)
-			originalManifest := append([]expressionDependency(nil), binder.dependencies...)
+			originalManifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			planned, err := preflightFunctionFrom(&evaluation, source)
 			if err != nil {
 				t.Fatal("source preflight", err)
@@ -218,7 +218,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				t.Fatal("execution guard hid original graph")
 			}
 			probe := evaluation
-			probe.routineChecks = []expressionDependency{}
+			probe.routineChecks = []catalog.ExpressionDependency{}
 			for _, empty := range []bool{true, false} {
 				err := validateMarkedQueryJoin(&probe, execution, evaluation.catalog, nil, queryRowMark{}, empty, nil, nil)
 				if (err == nil) != (tc.pruned || empty) {
@@ -253,7 +253,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					if fresh.scalarNull != nil && fresh.scalarNull[0] {
 						t.Fatal("original source retained a prior NULL frame")
 					}
-					again.routineChecks = []expressionDependency{}
+					again.routineChecks = []catalog.ExpressionDependency{}
 					if err := validateMarkedQueryJoin(&again, fresh, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err == nil {
 						t.Fatal("non-NULL frame borrowed NULL admission")
 					}
@@ -369,7 +369,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		source := query.Root.(*projectNode).child.(*functionFromNode)
 		sourceInfo := expr.InfoOf(source.calls[0])
 		sourceSchema := append(querySchema(nil), source.querySchema...)
-		sourceManifest := append([]expressionDependency(nil), sourceBinder.dependencies...)
+		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.dependencies...)
 		sourceEvaluation := evaluation
 		sourceEvaluation.routineChecks = sourceBinder.dependencies
 		planned, err := preflightFunctionFrom(&sourceEvaluation, source)
@@ -419,7 +419,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		t.Fatal("parameter lost genuine domain input authority")
 	}
 	before := expr.InfoOf(node)
-	manifest := append([]expressionDependency(nil), binder.dependencies...)
+	manifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 	input := evaluation.Input
 	input.DomainChecks = &evaluation
 	err := domain.CheckDomainInput(evaluation.Context, sqltype.Null(domain), input)
@@ -496,14 +496,14 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				if err != nil {
 					t.Fatal("actual source/target binding", err)
 				}
-				manifest := append([]expressionDependency(nil), binder.dependencies...)
+				manifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 				evaluation.routineChecks = binder.dependencies
 				root, err := preflightQuery(&evaluation, query.Root)
 				if err != nil {
 					t.Fatal("child preflight before source pruning", err)
 				}
 				probe := evaluation
-				probe.routineChecks = []expressionDependency{}
+				probe.routineChecks = []catalog.ExpressionDependency{}
 				err = validateMarkedQueryJoin(&probe, root, evaluation.catalog, nil, queryRowMark{}, false, nil, nil)
 				if (err == nil) != route.pruned {
 					t.Fatal("proven source demand", route.name, err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +11,7 @@ import (
 // Importing mints destination composite codecs even when logical identities and
 // members are unchanged. Visiting their children first then rebuilds dependent
 // domains and arrays against those codecs; staged evolution remains copy-on-change.
-func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool) (bool, error) {
+func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, importing bool) (bool, error) {
 	visited := make(map[ids.ObjectAddress]bool)
 	active := make(map[ids.ObjectAddress]bool)
 	changed := false
@@ -281,7 +282,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		return nil
 	}
 	for address, d := range next.Descriptors() {
-		if t, ok := d.(*typeDescriptor); ok && (t.SQLType.IsDomain() || t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.OwningRelation != (ids.ObjectAddress{})) {
+		if t, ok := d.(*catalog.Type); ok && (t.SQLType.IsDomain() || t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.OwningRelation != (ids.ObjectAddress{})) {
 			if err := visit(address); err != nil {
 				return false, err
 			}
@@ -359,7 +360,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	return target.Wrap(physical)
 }
 
-func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
@@ -368,7 +369,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		return nil
 	}
 	for address, descriptor := range next.Descriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -384,7 +385,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 			next.SetDescriptor(address, &copy)
 			d = &copy
 		}
-		var columns []ColumnDescriptor
+		var columns []catalog.Column
 		for i, c := range d.Columns {
 			target := typ(c.Usage.Type)
 			if target == nil {
@@ -400,7 +401,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 			}
 			if target != c.Usage.Type || capability != c.Usage.Collation {
 				if columns == nil {
-					columns = append([]ColumnDescriptor(nil), d.Columns...)
+					columns = append([]catalog.Column(nil), d.Columns...)
 				}
 				columns[i].Usage.Type = target
 				columns[i].Usage.Collation = capability

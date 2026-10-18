@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -17,8 +18,8 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, parentStage)
-	inherit := func(d *relationDescriptor) {
-		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
+	inherit := func(d *catalog.Relation) {
+		d.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
@@ -26,7 +27,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
-	ref := func(d *relationDescriptor) ids.ObjectRef {
+	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	originalRef := ref(c)

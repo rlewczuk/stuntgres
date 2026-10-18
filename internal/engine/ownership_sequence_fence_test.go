@@ -16,7 +16,7 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, Descriptor, *catalogChanges) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *catalogChanges) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
 	roles := cloneRoleFixture(e.roles)
@@ -69,7 +69,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		// Honest installed predecessor, distinct selected owner-private authority;
 		// this is the package overlay seam, not new database SQL admission.
 		changes = newCatalogChanges()
-		database := *committed.(*databaseDescriptor)
+		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.originals[catalog.CurrentDatabaseAddress] = committed
@@ -109,7 +109,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				dbRole := auth.roles.LookupRef("pg_database_owner")
 				old := auth.catalog.MustRelation(ref.Address)
 				selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
-				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*databaseDescriptor).Owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
+				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*catalog.Database).Owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical paired selected DB ownership authority")
 				}
 				if private && selectedDB == committed {
@@ -207,7 +207,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if candidate == nil {
 					t.Fatal("actual OWNER handler did not stage catalog changes")
 				}
-				staged, ok := candidate.descriptors[ref.Address].(*relationDescriptor)
+				staged, ok := candidate.descriptors[ref.Address].(*catalog.Relation)
 				reader, bootstrap := oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_reader"), oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 					objectACLUnitEntry(target, target, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
@@ -247,7 +247,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("healthy private authority did not retain its own DB candidate")
 					}
 				} else {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing sequence OWNER DB predecessor veto", err)
 					}

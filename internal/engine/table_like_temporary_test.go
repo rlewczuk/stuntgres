@@ -4,13 +4,14 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func tableLikeTemporaryRelation(t *testing.T, e *Engine, namespace ids.ObjectAddress, name string) *relationDescriptor {
+func tableLikeTemporaryRelation(t *testing.T, e *Engine, namespace ids.ObjectAddress, name string) *catalog.Relation {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
@@ -135,7 +136,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := destination.Identities[1]
-				sequence := stage.Descriptors[identity.Sequence].(*relationDescriptor)
+				sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
 				fresh := stage.generators[identity.Sequence]
 				want := *sourceSequence.Sequence
 				want.Persistence = persistence
@@ -253,7 +254,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		if tc.permanent {
 			consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		}
-		consumer.Defaults = map[int32]columnDefault{1: {Dependencies: []ids.ObjectRef{tc.ref}}}
+		consumer.Defaults = map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{tc.ref}}}
 		if err := candidate.Create(&consumer); err != nil {
 			t.Fatal(err)
 		}

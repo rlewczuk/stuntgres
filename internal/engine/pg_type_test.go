@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgTypeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
 	d, ok := e.catalog.state.Relation(address)
@@ -21,7 +21,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	}
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
-func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
+func pgTypeUnitBag(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	bag := make(map[uint32][]sqltype.Value)
 	for _, row := range source.anonymous {
@@ -157,7 +157,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, nil)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), CatalogRead{}, roles, ref, d)
+	s, err = e.capturePGType(t.Context(), catalog.Read{}, roles, ref, d)
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ids.ObjectRef{}, d)
 	ordinary(s, err)
@@ -176,7 +176,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	for _, badWidth := range []bool{false, true} {
 		root := catalog.CloneState(catalogView.State())
 		bad := *d
-		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		bad.Columns = append([]catalog.Column(nil), d.Columns...)
 		if badWidth {
 			bad.Columns = bad.Columns[:31]
 		} else {
@@ -266,7 +266,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldRows := pgTypeUnitBag(t, captured, source)
-	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
+	array := func(t *testing.T, view catalog.Read, d *catalog.Type) *catalog.Type {
 		t.Helper()
 		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)})
 		if !ok || a.SQLType.Element() != d.SQLType {
@@ -274,7 +274,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		}
 		return a
 	}
-	check := func(view CatalogRead, rows map[uint32][]sqltype.Value) {
+	check := func(view catalog.Read, rows map[uint32][]sqltype.Value) {
 		t.Helper()
 		base := domainUnitType(t, view, "query_int")
 		domain := domainUnitType(t, view, "pt18_query_domain")
@@ -287,7 +287,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		output := uint32(ext.Members[2].ObjectID)
-		for _, pair := range []struct{ d, base *typeDescriptor }{{domain, base}, {nested, domain}} {
+		for _, pair := range []struct{ d, base *catalog.Type }{{domain, base}, {nested, domain}} {
 			if pair.d.SQLType.DomainBase().Type != pair.base.SQLType {
 				t.Fatal("wrong immediate base generation")
 			}
@@ -347,7 +347,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 					root.SetDescriptor(original.Address(), &replacement)
 				}
 				bad := e.catalog.read(root)
-				for _, d := range []*typeDescriptor{nested, array(t, catalogView, nested)} {
+				for _, d := range []*catalog.Type{nested, array(t, catalogView, nested)} {
 					facts, err := pgTypeFacts(bad, d)
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {
 						t.Fatal("accepted missing/foreign immediate base", facts, err)

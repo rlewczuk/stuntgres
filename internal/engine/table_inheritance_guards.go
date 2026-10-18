@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -11,17 +12,17 @@ import (
 
 // Ordinary LOCK and view-target paths retain their capability boundary.
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
-func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
+func inheritanceTargetGuard(view catalog.Read, relation *catalog.Relation) error {
 	if relation.View == nil {
-		if relation.RelationKind == tableRelation && inheritanceHasChildren(catalog, relation.Address()) {
+		if relation.RelationKind == catalog.TableRelation && inheritanceHasChildren(view, relation.Address()) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
 	}
-	return inheritanceViewTargetGuard(catalog, relation, make(map[ids.ObjectAddress]bool))
+	return inheritanceViewTargetGuard(view, relation, make(map[ids.ObjectAddress]bool))
 }
 
-func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ids.ObjectAddress]bool) error {
+func inheritanceViewTargetGuard(catalog catalog.Read, relation *catalog.Relation, visited map[ids.ObjectAddress]bool) error {
 	if relation.View == nil {
 		return inheritanceTargetGuard(catalog, relation)
 	}
@@ -44,8 +45,8 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 
 // Dependency mutation sees the private descriptor authority, not stale base
 // edges. Scan the overlay directly rather than allocating a second catalog.
-func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
-	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func inheritanceStageAlterGuard(stage *CatalogStage, relation *catalog.Relation) error {
+	descriptors := func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range stage.Base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
@@ -59,14 +60,14 @@ func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescripto
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.Descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.Removals[address]; return removed }, relation)
+	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) catalog.Descriptor { return stage.Descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.Removals[address]; return removed }, relation)
 }
 
-func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, Descriptor], replacement func(ids.ObjectAddress) Descriptor, removed func(ids.ObjectAddress) bool, relation *relationDescriptor) error {
+func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], replacement func(ids.ObjectAddress) catalog.Descriptor, removed func(ids.ObjectAddress) bool, relation *catalog.Relation) error {
 	if removed(relation.Address()) {
 		return nil
 	}
-	if current, ok := replacement(relation.Address()).(*relationDescriptor); ok {
+	if current, ok := replacement(relation.Address()).(*catalog.Relation); ok {
 		relation = current
 	}
 	if relation.Inheritance != nil {
@@ -79,14 +80,14 @@ func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, De
 		if current := replacement(address); current != nil {
 			descriptor = current
 		}
-		if child, ok := descriptor.(*relationDescriptor); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.Parents, relation.Address()) {
+		if child, ok := descriptor.(*catalog.Relation); ok && child.Inheritance != nil && slices.Contains(child.Inheritance.Parents, relation.Address()) {
 			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 		}
 	}
 	return nil
 }
 
-func inheritanceColumnGuard(relation *relationDescriptor, name, operation string, position parser.Position) error {
+func inheritanceColumnGuard(relation *catalog.Relation, name, operation string, position parser.Position) error {
 	if relation.Inheritance == nil {
 		return nil
 	}
@@ -103,7 +104,7 @@ func inheritanceColumnGuard(relation *relationDescriptor, name, operation string
 
 // Check prohibited inherited actions before admitting any member of a list;
 // no earlier action may evaluate defaults or stage a partial shape change.
-func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescriptor, actions []parser.AlterTableAction) error {
+func inheritanceAlterActionsGuard(catalog catalog.Read, relation *catalog.Relation, actions []parser.AlterTableAction) error {
 	if rowSecurityActions(actions) {
 		return nil
 	}

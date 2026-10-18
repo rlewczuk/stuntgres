@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,10 +11,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor {
-	columns := make([]ColumnDescriptor, len(names))
+func settingColumns(typ *sqltype.Descriptor, names ...string) []catalog.Column {
+	columns := make([]catalog.Column, len(names))
 	for i, name := range names {
-		columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: name, Usage: typ.Usage(), NullabilityKnown: true}
 	}
 	return columns
 }
@@ -23,7 +24,7 @@ type settingCallBinding struct {
 	parameters   ParameterInfo
 	arguments    []expr.Expr
 	routine      ids.ObjectRef
-	dependencies []expressionDependency
+	dependencies []catalog.ExpressionDependency
 }
 
 // The caller holds e.mu over descriptor lookup and binding.
@@ -49,7 +50,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	e.mu.Lock()
 	binding, err := e.describeSettingCall(op.ctx, s, &input, op)
 	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
-	catalog := e.catalog.read(e.catalog.state)
+	view := e.catalog.read(e.catalog.state)
 	auth, authErr := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
@@ -67,9 +68,9 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: catalog, routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}
+	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: view, routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}
 	if scope != nil {
-		scope.domainInputCatalog = catalog
+		scope.domainInputCatalog = view
 	}
 	for _, usage := range info.Types {
 		if sqltype.ContainsDomainChecks(usage.Type) {
@@ -91,7 +92,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	for _, expression := range bound {
-		if err := validateExpressionJoinExecution(&evaluation, expression, catalog); err != nil {
+		if err := validateExpressionJoinExecution(&evaluation, expression, view); err != nil {
 			return Result{}, err
 		}
 	}
@@ -121,7 +122,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		e.mu.Unlock()
 		return Result{}, captureErr
 	}
-	if current.catalog.Owner() != catalog.Owner() || current.catalog.Epoch() != catalog.Epoch() {
+	if current.catalog.Owner() != view.Owner() || current.catalog.Epoch() != view.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -136,14 +137,14 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	for _, expression := range bound {
 		walkBoundExpression(expression, func(node expr.Expr) {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
-			if provider, exists := catalog.Descriptor(address); exists {
+			if provider, exists := view.Descriptor(address); exists {
 				validInputs = validInputs && current.catalog.Get(address) == provider
 			}
 		})
 	}
 	if !validInputs {
 		e.mu.Unlock()
-		return Result{}, CatalogConflict{}
+		return Result{}, catalog.Conflict{}
 	}
 	owner := op.session.settings
 	locked := true

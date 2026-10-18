@@ -2,18 +2,19 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Projection coverage is deliberately broader than legacy obj_description.
 // Inquiry dispatch and COMMENT target support remain their owning authorities.
-func catalogDescription(d Descriptor, sub int32) string {
+func catalogDescription(d catalog.Descriptor, sub int32) string {
 	if sub == 0 {
 		switch d := d.(type) {
-		case *collationDescriptor:
+		case *catalog.Collation:
 			return collationDescription(d.OID)
-		case *conversionDescriptor:
+		case *catalog.Conversion:
 			return conversionDescription(d.OID)
 		}
 	}
@@ -51,11 +52,11 @@ func conversionDescription(oid ids.OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDescription(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, 0, catalog.DescriptorCount())
+	rows := make([][]sqltype.Value, 0, view.DescriptorCount())
 	appendDescription := func(address ids.ObjectAddress, sub int32, text string) error {
 		if text == "" {
 			return nil
@@ -75,14 +76,14 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		rows = append(rows, []sqltype.Value{object, class, attribute, sqltype.String(source.Columns[3].Usage.Type, text)})
 		return nil
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if err := appendDescription(descriptor.Address(), 0, catalogDescription(descriptor, 0)); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, attribute := range relation.Attributes {
 				if err := ctx.Err(); err != nil {
 					return nil, err

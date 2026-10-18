@@ -71,11 +71,11 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	badRef := ref
 	badRef.Epoch++
 	for _, tc := range []struct {
-		catalog CatalogRead
+		catalog catalog.Read
 		ref     ids.ObjectRef
-		source  *relationDescriptor
+		source  *catalog.Relation
 	}{
-		{CatalogRead{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
+		{catalog.Read{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
 	} {
 		if got, err := capturePGAggregate(context.Background(), tc.catalog, tc.ref, tc.source); got != nil || err == nil {
 			t.Fatal("foreign/stale source admitted", got, err)
@@ -84,7 +84,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	for i := range source.Columns {
 		state := catalog.CloneState(view.State())
 		bad := *source
-		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
+		bad.Columns = append([]catalog.Column(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
 		state.SetDescriptor(address, &bad)
 		if got, err := capturePGAggregate(context.Background(), e.catalog.read(state), ref, &bad); got != nil || err == nil {

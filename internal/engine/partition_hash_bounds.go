@@ -2,20 +2,21 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 )
 
-func validHashPartitionBound(b *partitionMembership) bool {
+func validHashPartitionBound(b *catalog.PartitionMembership) bool {
 	return !b.DefaultBound && b.Modulus > 0 && b.Remainder >= 0 && b.Remainder < b.Modulus && len(b.Lower) == 0 && len(b.Upper) == 0
 }
-func hashPartitionOverlap(a, b *partitionMembership) bool {
+func hashPartitionOverlap(a, b *catalog.PartitionMembership) bool {
 	if a.Modulus > b.Modulus {
 		a, b = b, a
 	}
 	return b.Remainder%a.Modulus == a.Remainder
 }
-func compareHashPartitionBound(a, b *partitionMembership) int {
+func compareHashPartitionBound(a, b *catalog.PartitionMembership) int {
 	if a.Modulus < b.Modulus || a.Modulus == b.Modulus && a.Remainder < b.Remainder {
 		return -1
 	}
@@ -28,7 +29,7 @@ func compareHashPartitionBound(a, b *partitionMembership) int {
 // Search adjacent sorted bounds without a modulus-sized residue array. Pairwise
 // overlap arithmetic also preserves PostgreSQL's first occupied residue choice.
 func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) error {
-	var preceding, following *relationDescriptor
+	var preceding, following *catalog.Relation
 	greatest := int32(0)
 	for _, address := range p.parent.Partition.Children {
 		if err := scope.op.Context().Err(); err != nil {
@@ -58,7 +59,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 	if following != nil && following.Membership.Modulus%p.bound.Modulus != 0 {
 		return factorError(fmt.Sprintf(`The new modulus %d is not a factor of %d, the modulus of existing partition "%s".`, p.bound.Modulus, following.Membership.Modulus, following.Name()))
 	}
-	var conflict *relationDescriptor
+	var conflict *catalog.Relation
 	var first int32
 	for _, address := range p.parent.Partition.Children {
 		if err := scope.op.Context().Err(); err != nil {

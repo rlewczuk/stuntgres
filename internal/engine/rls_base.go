@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -47,7 +48,7 @@ func rowSecurityActions(actions []parser.AlterTableAction) bool {
 	return true
 }
 
-func rowSecurityFlags(old *relationDescriptor, actions []parser.AlterTableAction) *relationDescriptor {
+func rowSecurityFlags(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
 	enabled, forced := old.RLSEnabled, old.RLSForced
 	for _, action := range actions {
 		switch action.Action {
@@ -82,21 +83,21 @@ func rowSecurityActionLabel(action parser.AlterTableActionKind) string {
 	}
 }
 
-func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) error {
-	if d.RelationKind == tableRelation || d.RelationKind == partitionedRelation {
+func rowSecurityKind(d *catalog.Relation, action parser.AlterTableActionKind) error {
+	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
 		return nil
 	}
 	kind := ""
 	switch d.RelationKind {
-	case viewRelation:
+	case catalog.ViewRelation:
 		kind = "views"
-	case materializedViewRelation:
+	case catalog.MaterializedViewRelation:
 		kind = "materialized views"
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		kind = "sequences"
-	case indexRelation:
+	case catalog.IndexRelation:
 		kind = "indexes"
-	case compositeRelation:
+	case catalog.CompositeRelation:
 		kind = "composite types"
 	default:
 		return tableKind(d, rowSecurityActionLabel(action))
@@ -106,7 +107,7 @@ func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) 
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
-func rowSecurityApplies(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef) (bool, error) {
+func rowSecurityApplies(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
 	if !d.RLSEnabled {
 		return false, nil
 	}
@@ -129,19 +130,19 @@ func rowSecurityApplies(auth AuthorizationView, d *relationDescriptor, principal
 	return true, nil
 }
 
-func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed bool) (rlsDisposition, error) {
+func rowSecurityDecision(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (rlsDisposition, error) {
 	applies, err := rowSecurityApplies(auth, d, principal)
 	if err != nil || !applies {
 		return rlsUnrestricted, err
 	}
 	for _, policy := range d.Policies {
-		if !policy.Permissive || policy.Command != policyAll && policy.Command != command {
+		if !policy.Permissive || policy.Command != catalog.PolicyAll && policy.Command != command {
 			continue
 		}
 		expression := policyExpressionOf(policy.Using)
-		if proposed && command != policySelect {
+		if proposed && command != catalog.PolicySelect {
 			expression = policyExpressionOf(policy.Check)
-			if expression == nil && (policy.Command == policyAll || policy.Command == policyUpdate) {
+			if expression == nil && (policy.Command == catalog.PolicyAll || policy.Command == catalog.PolicyUpdate) {
 				expression = policyExpressionOf(policy.Using)
 			}
 		}
@@ -164,12 +165,12 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 	return rlsDefaultDeny, nil
 }
 
-func rowSecurityGroups(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed, selectRead bool) (rlsDisposition, error) {
+func rowSecurityGroups(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (rlsDisposition, error) {
 	decision, err := rowSecurityDecision(auth, d, principal, command, proposed)
-	if err != nil || !selectRead || command == policySelect {
+	if err != nil || !selectRead || command == catalog.PolicySelect {
 		return decision, err
 	}
-	read, err := rowSecurityDecision(auth, d, principal, policySelect, proposed)
+	read, err := rowSecurityDecision(auth, d, principal, catalog.PolicySelect, proposed)
 	if err != nil {
 		return rlsUnrestricted, err
 	}
@@ -212,7 +213,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 }
 
 // The caller holds Engine.mu; this never captures row data or mutates identity.
-func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, selectRead bool) (bool, error) {
+func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, selectRead bool) (bool, error) {
 	if !d.RLSEnabled {
 		return false, nil
 	}
@@ -241,16 +242,16 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	if b.relation == nil {
 		return nil
 	}
-	command := policyCommand("")
+	command := catalog.PolicyCommand("")
 	switch stmt.(type) {
 	case *parser.Insert:
-		command = policyInsert
+		command = catalog.PolicyInsert
 	case *parser.Update:
-		command = policyUpdate
+		command = catalog.PolicyUpdate
 	case *parser.Delete:
-		command = policyDelete
+		command = catalog.PolicyDelete
 	case *parser.Merge:
-		command = policySelect
+		command = catalog.PolicySelect
 	default:
 		return nil
 	}
@@ -272,7 +273,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	if b.viewWrite != nil {
 		reads = reads || len(b.viewWrite.logical.usedColumns) != 0
 	}
-	if command != policyInsert {
+	if command != catalog.PolicyInsert {
 		decision, err := rowSecurityGroups(auth, b.relation, principal, command, false, reads)
 		if err != nil {
 			return err
@@ -285,13 +286,13 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	proposedRead := b.conflict != nil && len(b.conflict.reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, policyInsert, true, proposedRead)
+		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, policyUpdate, true, reads)
+		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = rowSecurityGroups(auth, b.relation, principal, policyInsert, true, false)
+		scope.rlsMergeInsert, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = rowSecurityGroups(auth, b.relation, principal, policyUpdate, true, true)
+			scope.rlsMergeUpdate, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err

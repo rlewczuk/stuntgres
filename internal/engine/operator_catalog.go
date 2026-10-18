@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func operatorSeeded(d *operatorDescriptor) bool {
+func operatorSeeded(d *catalog.Operator) bool {
 	index := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= d.Address().ObjectID })
 	if index == len(builtinOperators) {
 		return false
@@ -22,8 +22,8 @@ func operatorSeeded(d *operatorDescriptor) bool {
 type operatorProvider struct{}
 
 func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
-func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
-	d, ok := descriptor.(*operatorDescriptor)
+func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
+	d, ok := descriptor.(*catalog.Operator)
 	if !ok || d.Address().ClassID != ids.OperatorClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || d.Name() == "" || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
 	}
@@ -66,7 +66,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 			if d.Left != 0 {
 				signature = strconv.FormatUint(uint64(d.Left), 10) + "," + signature
 			}
-			if procedure.Signature != procedureSignature(signature) || procedure.Result != d.Result || procedure.RoutineKind != functionRoutine {
+			if procedure.Signature != catalog.ProcedureSignature(signature) || procedure.Result != d.Result || procedure.RoutineKind != catalog.FunctionRoutine {
 				return fmt.Errorf("stuntgres: invalid operator function signature")
 			}
 		}
@@ -98,7 +98,7 @@ func (e *Engine) initializeOperators() {
 	e.catalog.state.SetOperatorNames(seededOperatorNames)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
-		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}

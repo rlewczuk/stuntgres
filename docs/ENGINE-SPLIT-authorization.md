@@ -99,7 +99,7 @@ Remove them with a tool aware of `go/types` (§8 on broad rewrites).
   selection stay identical.
 - Absent and empty ACLs stay distinct. Default privileges stay
   creation-only.
-- Captured authorization stays paired with its exact `CatalogRead`. There is
+- Captured authorization stays paired with its exact `catalog.Read`. There is
   no cached ACL decision.
 - Zero, foreign and stale principals are rejected before any superuser
   shortcut.

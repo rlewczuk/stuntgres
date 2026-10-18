@@ -11,13 +11,13 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func foreignFunctionName(name ForeignFunctionName) (ForeignFunctionName, error) {
+func foreignFunctionName(name catalog.ForeignFunctionName) (catalog.ForeignFunctionName, error) {
 	if name.Schema == "" {
 		name.Schema = "public"
 	}
 	for _, part := range []string{name.Schema, name.Name} {
 		if part == "" || len(part) > 63 || !utf8.ValidString(part) || strings.IndexByte(part, 0) >= 0 {
-			return ForeignFunctionName{}, RegistrationError("invalid foreign procedure identifier")
+			return catalog.ForeignFunctionName{}, RegistrationError("invalid foreign procedure identifier")
 		}
 	}
 	return name, nil
@@ -62,7 +62,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	e.foreignWrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)
 	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	install := func(name ForeignFunctionName, p *foreignProcedure, result ids.OID, signature procedureSignature) error {
+	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {
 			oid, err := e.catalog.allocateOIDLocked()
@@ -70,7 +70,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 				return err
 			}
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
-			ns := &namespaceDescriptor{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
+			ns := &catalog.Namespace{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
 			e.catalog.state.SetDescriptor(namespace, ns)
 			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
 			if e.foreignNamespaces == nil {
@@ -86,18 +86,18 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 		if err != nil {
 			return err
 		}
-		d := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: functionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Foreign: p}
+		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: name.Name, Signature: signature, Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: result, Strict: true, Volatility: expr.Volatile, Foreign: p}
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(key, d.Address())
 		return nil
 	}
 	for _, def := range wrappers {
-		if err := install(def.HandlerName, &foreignProcedure{Name: def.HandlerName, Wrapper: def.Wrapper}, 3115, foreignHandlerSignature); err != nil {
+		if err := install(def.HandlerName, &catalog.ForeignProcedure{Name: def.HandlerName, Wrapper: def.Wrapper}, 3115, catalog.ForeignHandlerSignature); err != nil {
 			return err
 		}
 	}
 	for _, def := range validators {
-		if err := install(def.Name, &foreignProcedure{Name: def.Name, Validator: def.Validate}, 2278, foreignValidatorSignature); err != nil {
+		if err := install(def.Name, &catalog.ForeignProcedure{Name: def.Name, Validator: def.Validate}, 2278, catalog.ForeignValidatorSignature); err != nil {
 			return err
 		}
 	}

@@ -11,7 +11,7 @@ import (
 
 // databaseRights reads one captured catalog/role pair; callers own its coherence
 // and the engine mutex when observing live roots. It invokes no host callback.
-func databaseRights(ctx context.Context, view CatalogRead, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
+func databaseRights(ctx context.Context, view catalog.Read, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}

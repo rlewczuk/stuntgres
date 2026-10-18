@@ -14,7 +14,7 @@ import (
 
 // This fixture reuses the real partition/key/storage construction, then drives
 // the actual early-return handler rather than publishing a hand-built drop stage.
-func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, Descriptor, *catalogChanges) {
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, catalog.Descriptor, *catalogChanges) {
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
@@ -44,7 +44,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		// Honest predecessor plus a different selected private descriptor. This
 		// tests catalog authority, not SQL admission for transactional DB OWNER.
 		changes = newCatalogChanges()
-		database := *committed.(*databaseDescriptor)
+		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.originals[catalog.CurrentDatabaseAddress] = committed
@@ -152,7 +152,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 						t.Fatal("actual drop candidate could not be staged", executeErr)
 					}
 					candidate := message.scope.catalog
-					if candidate == nil || len(candidate.descriptors[root.Address].(*relationDescriptor).UniqueConstraints) != 0 || len(candidate.descriptors[leaf].(*relationDescriptor).UniqueConstraints) != 1 {
+					if candidate == nil || len(candidate.descriptors[root.Address].(*catalog.Relation).UniqueConstraints) != 0 || len(candidate.descriptors[leaf].(*catalog.Relation).UniqueConstraints) != 1 {
 						t.Fatal("actual handler did not stage recursive key/index deletion")
 					}
 					for address := range selected {
@@ -176,7 +176,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
-						index, ok := descriptor.(*relationDescriptor)
+						index, ok := descriptor.(*catalog.Relation)
 						if !ok || index.SQLIndex == nil {
 							continue
 						}
@@ -190,7 +190,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					return
 				}
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}

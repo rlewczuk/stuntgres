@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -329,7 +330,7 @@ func TestQueryCoreZeroWidth(t *testing.T) {
 		t.Fatal(present, err)
 	}
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	anonymous, err := anonymousResult([]ColumnDescriptor{{Name: "value", Usage: typ.Usage()}}, nil, 0)
+	anonymous, err := anonymousResult([]catalog.Column{{Name: "value", Usage: typ.Usage()}}, nil, 0)
 	if err != nil || anonymous.Rows == nil || len(anonymous.Rows.Schema()) != 1 {
 		t.Fatal(anonymous, err)
 	}

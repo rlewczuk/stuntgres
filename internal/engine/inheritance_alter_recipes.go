@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -9,7 +10,7 @@ import (
 // Column locality describes declaration provenance, not ownership of a default
 // or generation recipe. ONLY changes to a provider can leave a valid descendant
 // recipe that must be replayed without making its attribute local.
-func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribute int32, provenance inheritedColumn) (inheritedColumn, error) {
+func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribute int32, provenance catalog.InheritedColumn) (catalog.InheritedColumn, error) {
 	childDefault, hasDefault := child.Defaults[attribute]
 	childGeneration, generated := child.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
@@ -55,7 +56,7 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 // Inline redeclarations would change attislocal. These are the same supported
 // physical ALTER actions used by callers, before children/data observe recipes.
 // Captured-reference defaults retain the existing provider-dependent phase.
-func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog CatalogRead, deferDefaults bool, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog catalog.Read, deferDefaults bool, emit func(string) error) error {
 	if len(t.recipes) == 0 {
 		return nil
 	}
@@ -83,7 +84,7 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog Catalo
 	return nil
 }
 
-func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *relationDescriptor) bool {
+func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *catalog.Relation) bool {
 	if !raw.Only || len(raw.Name.Parts) != 2 || relation.Inheritance == nil {
 		return false
 	}
@@ -95,7 +96,7 @@ func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *relationDes
 	return !provenance.Local && len(provenance.Origins) != 0 && provenance.ExplicitDefault
 }
 
-func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
+func (t *dumpRelation) prepareInheritedRecipes(view catalog.Read) error {
 	graph := t.descriptor.Inheritance
 	if graph == nil {
 		return nil
@@ -112,7 +113,7 @@ func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
 		needed := !provenance.Local && (effective.ExplicitDefault || effective.ExplicitGeneration) || provenance.Local && (!provenance.ExplicitDefault && effective.ExplicitDefault || !provenance.ExplicitGeneration && effective.ExplicitGeneration)
 		if needed {
 			if t.recipes == nil {
-				t.recipes = make(map[int32]inheritedColumn)
+				t.recipes = make(map[int32]catalog.InheritedColumn)
 			}
 			t.recipes[attribute] = effective
 		}

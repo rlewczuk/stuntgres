@@ -49,7 +49,7 @@ func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*Operati
 	}
 	return op, close
 }
-func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation, *extensionDescriptor, func()) {
+func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation, *catalog.Extension, func()) {
 	t.Helper()
 	e := New()
 	owner, closeOwner := extensionTemporaryOperation(t, e, "postgres")
@@ -62,7 +62,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	return e, owner, installer, ext, closeOwner
 }
-func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *extensionDescriptor) *relationDescriptor {
+func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *catalog.Extension) *catalog.Relation {
 	t.Helper()
 	name := e.catalog.state.Get(ext.TargetNamespace).Name()
 	for _, q := range []string{
@@ -76,7 +76,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext
 	}
 	return e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_survivor"}))
 }
-func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) (*CatalogStage, *temporarySessionIndexes) {
+func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*CatalogStage, *temporarySessionIndexes) {
 	t.Helper()
 	base := e.CatalogRead()
 	targets, err := namespaceChildren(base, map[ids.ObjectAddress]bool{ext.TargetNamespace: true})
@@ -103,7 +103,7 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 	}
 	return stage, indexes
 }
-func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescriptor) {
+func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension) {
 	t.Helper()
 	namespace, ok := e.catalog.state.Namespace(ext.TargetNamespace)
 	if !ok {
@@ -155,7 +155,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	oldIndex := e.indexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+	replacement := stage.Descriptors[survivor.Address()].(*catalog.Relation)
 	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
@@ -320,7 +320,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
 	selected, err := e.lookupNamespaces(foreignAuth, qualified, installedFunctionLookup)
-	if err != nil || procedureInNamespaces(foreignAuth.catalog, selected, "unaccent", unaccentTextSignature) == nil {
+	if err != nil || procedureInNamespaces(foreignAuth.catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
 	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {

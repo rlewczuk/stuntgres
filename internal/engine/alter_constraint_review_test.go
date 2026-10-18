@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -168,7 +169,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 				if err != nil {
 					t.Fatal("later authorized CASCADE leaked into earlier RESTRICT", err)
 				}
-				candidate := stage.Descriptors[child.Address()].(*relationDescriptor)
+				candidate := stage.Descriptors[child.Address()].(*catalog.Relation)
 				if len(candidate.ForeignKeys) != 0 {
 					t.Fatal("authorized child dependency retained")
 				}
@@ -180,7 +181,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 				}
 				candidate := child
 				if d, present := stage.Descriptors[child.Address()]; present {
-					candidate = d.(*relationDescriptor)
+					candidate = d.(*catalog.Relation)
 				}
 				if !reflect.DeepEqual(candidate.ForeignKeys, child.ForeignKeys) {
 					t.Fatal("earlier CASCADE removed later RESTRICT dependency")

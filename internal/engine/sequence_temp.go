@@ -26,7 +26,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
 		for a, d := range auth.catalog.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
+			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				return a
 			}
 		}
@@ -34,7 +34,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	return ids.ObjectAddress{}
 }
 
-func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
+func ownTemporaryNamespace(auth AuthorizationView, ns *catalog.Namespace) bool {
 	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.Address()
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
@@ -93,11 +93,11 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.authorizationDomain.Principal(10)
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
-	toast := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
+	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
 	if c.originals == nil {
-		c.originals = make(map[ids.ObjectAddress]Descriptor)
-		c.descriptors = make(map[ids.ObjectAddress]Descriptor)
+		c.originals = make(map[ids.ObjectAddress]catalog.Descriptor)
+		c.descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
 		c.names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
 	e.catalogChangeLocked(c, ns.Address(), ns)
@@ -148,7 +148,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		e.mu.Lock()
 		base := e.catalog.read(e.catalog.state)
 		for _, d := range base.Descriptors() {
-			if _, ok := d.(*collationDescriptor); !ok {
+			if _, ok := d.(*catalog.Collation); !ok {
 				continue
 			}
 			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.token {
@@ -159,7 +159,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
 		for a, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == s.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
 				namespaces = append(namespaces, a)
 				owned[a] = true
 			}
@@ -231,7 +231,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.Descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
+		if index, ok := stage.Descriptors[address].(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -332,7 +332,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	e.mu.Lock()
 	if e.catalog.state != stage.Base.State() {
 		e.mu.Unlock()
-		return nil, CatalogConflict{}
+		return nil, catalog.Conflict{}
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
 	for address := range stage.Removals {
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		parents[address] = true
 	}
 	for address, descriptor := range next.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}

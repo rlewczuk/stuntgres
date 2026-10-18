@@ -87,7 +87,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(10)}
+		d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +178,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			chain := domainUnitType(t, view, "operator_chain")
 			next := catalog.CloneState(view.State())
 			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
-			for i, domain := range []*typeDescriptor{direct, chain} {
+			for i, domain := range []*catalog.Type{direct, chain} {
 				if !domain.SQLType.Concrete() || !domain.SQLType.Usage().Valid() || !sqltype.IsOperatorAlias(domain.SQLType.BaseType().ID()) {
 					t.Fatal("ordinary scalar domain invalidated", domain)
 				}
@@ -195,7 +195,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			if changed, err := reownDomainTypes(next, mapping, false); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
-			for i, original := range []*typeDescriptor{direct, chain} {
+			for i, original := range []*catalog.Type{direct, chain} {
 				domain := next.MustType(original.Address())
 				array := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.Array)})
 				if !domain.SQLType.Concrete() || domain.SQLType.ID() != sqltype.ID(60001+i) || array.SQLType.Concrete() || array.SQLType.Element() != domain.SQLType || array.SQLType.ID() != sqltype.ID(60003+i) || domain.Array != array.SQLType.ID() {

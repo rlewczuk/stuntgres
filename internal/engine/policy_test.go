@@ -13,7 +13,7 @@ import (
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
 // real binders, frozen presentation, provider validation and publication directly.
-func policyUnitFixture(t *testing.T) (*Engine, *Operation, func(), *relationDescriptor) {
+func policyUnitFixture(t *testing.T) (*Engine, *Operation, func(), *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -21,9 +21,9 @@ func policyUnitFixture(t *testing.T) (*Engine, *Operation, func(), *relationDesc
 	roleExecute(t, e, op, "CREATE TABLE helper(id INTEGER)")
 	ref := roleTableRef(t, e, "t")
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
-	return e, op, done, d.(*relationDescriptor)
+	return e, op, done, d.(*catalog.Relation)
 }
-func policyUnitBind(t *testing.T, e *Engine, op *Operation, d *relationDescriptor, condition string) (*policyExpression, error) {
+func policyUnitBind(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, condition string) (*policyExpression, error) {
 	t.Helper()
 	raw := statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.mu.Lock()
@@ -92,7 +92,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
-			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			owner.Columns = append([]catalog.Column(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
 			next.SetDescriptor(d.Address(), &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
@@ -142,7 +142,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []policyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+	next.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -180,7 +180,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
+	next.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -199,9 +199,9 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := imported.CatalogRead()
-	var copied *relationDescriptor
+	var copied *catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.Name() == "t" {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Name() == "t" {
 			copied = table
 			break
 		}
@@ -256,7 +256,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := catalog.CloneState(base.State())
 			attached := *owner
-			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+			attached.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 			state.SetDescriptor(owner.Address(), &attached)
 			base = base.WithState(state)
 			var target ids.ObjectAddress
@@ -291,7 +291,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			survivor, ok := stage.Descriptors[owner.Address()].(*relationDescriptor)
+			survivor, ok := stage.Descriptors[owner.Address()].(*catalog.Relation)
 			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}

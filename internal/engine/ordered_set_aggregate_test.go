@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
@@ -592,24 +593,24 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			b.queryAuth = &auth
 			// Resolve expectations and bind against this one coherent generation,
 			// not custom descriptor pointers retained from an external catalog read.
-			catalog := b.bindingCatalog()
+			catalogView := b.bindingCatalog()
 			id := tc.id
 			if tc.custom != nil {
 				id = tc.custom.ID()
 			}
-			input, ok := catalog.LookupType(id)
+			input, ok := catalogView.LookupType(id)
 			if !ok {
 				t.Fatal("binding input authority", id)
 			}
-			descriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+			descriptor, ok := catalogView.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 			if !ok {
 				t.Fatal("binding input owner")
 			}
-			inputOwner := descriptor.(*typeDescriptor)
+			inputOwner := descriptor.(*catalog.Type)
 			if inputOwner.SQLType != input {
 				t.Fatal("input owner/leaf generation", inputOwner, input)
 			}
-			namespace, ok := catalog.Descriptor(inputOwner.Namespace())
+			namespace, ok := catalogView.Descriptor(inputOwner.Namespace())
 			wantNamespace := "pg_catalog"
 			if tc.custom != nil {
 				wantNamespace = "public"
@@ -655,17 +656,17 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			}
 			call := b.aggregates[0]
 			argument := call.argument
-			if b.bindingCatalog().State() != catalog.State() || argument.ResultUsage().Type != input {
+			if b.bindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)
 			}
 			want := argument.ResultUsage()
 			want.Typmod = -1
 			if tc.array {
-				array, ok := catalog.LookupArray(input)
+				array, ok := catalogView.LookupArray(input)
 				if !ok || array.Element() != input || array.ID() != inputOwner.Array {
 					t.Fatal("catalog associated-array authority", array, input, inputOwner)
 				}
-				catalogLeaf, ok := catalog.LookupType(array.Element().ID())
+				catalogLeaf, ok := catalogView.LookupType(array.Element().ID())
 				if !ok || catalogLeaf != input {
 					t.Fatal("catalog array leaf generation", catalogLeaf, input)
 				}
@@ -676,11 +677,11 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if actual != want || provider.ResultUsage() != want || provider.InputType() != input {
 				t.Fatal("complete exact Usage/provider authority", actual, want, provider)
 			}
-			descriptor, ok = catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(actual.Type.ID())})
+			descriptor, ok = catalogView.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(actual.Type.ID())})
 			if !ok {
 				t.Fatal("actual result owner")
 			}
-			resultOwner := descriptor.(*typeDescriptor)
+			resultOwner := descriptor.(*catalog.Type)
 			if actual.Type != resultOwner.SQLType || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.Owner != inputOwner.Owner {
 				t.Fatal("result generation/namespace/principal authority", actual, resultOwner, inputOwner)
 			}

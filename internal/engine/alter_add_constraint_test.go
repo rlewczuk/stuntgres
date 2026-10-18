@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -42,7 +43,7 @@ func alterConstraintExecuteScope(t *testing.T, e *Engine, s *Session, q string) 
 	}
 	return scope, err
 }
-func alterConstraintDescriptor(t *testing.T, e *Engine, name string) *relationDescriptor {
+func alterConstraintDescriptor(t *testing.T, e *Engine, name string) *catalog.Relation {
 	t.Helper()
 	view := e.CatalogRead()
 	return view.MustRelation(catalogRef(t, e, view, name).Address)
@@ -74,7 +75,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 		t.Fatal("lost stable keys or incumbent group", next.UniqueConstraints)
 	}
 	added := next.UniqueConstraints[1]
-	index := stage.Descriptors[added.Index].(*relationDescriptor)
+	index := stage.Descriptors[added.Index].(*catalog.Relation)
 	if index.SQLIndex.Parent != next.Address() || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != added.OID {
 		t.Fatal("missing reciprocal real index", added, index)
 	}
@@ -142,7 +143,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 	if len(scope.alterForeignKeys) != 1 || scope.alterForeignKeys[0].target.Address != original.Address() || scope.alterForeignKeys[0].index != (ids.ObjectAddress{}) {
 		t.Fatal("invented preexisting self provider", scope.alterForeignKeys)
 	}
-	candidate := scope.catalog.descriptors[original.Address()].(*relationDescriptor)
+	candidate := scope.catalog.descriptors[original.Address()].(*catalog.Relation)
 	if len(candidate.ForeignKeys) != 1 || candidate.ForeignKeys[0].Index != candidate.UniqueConstraints[0].Index {
 		t.Fatal("FK did not bind completed real key", candidate)
 	}

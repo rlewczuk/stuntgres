@@ -45,7 +45,7 @@ func TestViewValidationReplacementAdmission(t *testing.T) {
 	original := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
 	callbackRan, admissionReleased := false, false
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() {
 		once.Do(func() {
 			callbackRan = true
 			e.catalog.Providers[ids.RelationClassID] = original
@@ -79,7 +79,7 @@ func TestViewValidationCancellationAtomicity(t *testing.T) {
 	defer cancel()
 	original := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
 	_, err := testExecute(e, ctx, statement(t, "CREATE VIEW v AS SELECT id FROM sentinel"), nil)
 	if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal(err, "partial catalog publication")

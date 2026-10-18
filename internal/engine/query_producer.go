@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func retainOccurrence(out *indexedStage, child *indexedStage, i int) {
 		out.cacheOccurrences = append(out.cacheOccurrences, child.orderOccurrence(i))
 	}
 }
-func producingStage(child *indexedStage, schema []ColumnDescriptor) indexedStage {
+func producingStage(child *indexedStage, schema []catalog.Column) indexedStage {
 	return indexedStage{source: child.source, schema: schema, selection: []int{}, cacheWidth: child.cacheWidth, pending: child.pending, finish: child.Close,
 		reset: func(ctx context.Context, out *indexedStage) (bool, error) {
 			position := child.position

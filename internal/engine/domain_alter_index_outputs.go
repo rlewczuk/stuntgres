@@ -5,10 +5,11 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, original, store *relationStorage) (*relationStorage, error) {
+func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *relationStorage) (*relationStorage, error) {
 	var versions []rowVersion
 	for i, row := range original.versions {
 		if err := ctx.Err(); err != nil {

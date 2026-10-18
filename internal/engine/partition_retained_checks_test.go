@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -11,9 +12,9 @@ import (
 )
 
 func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
-	e, catalog, root, leaf := hashPartitionUnitEngine(t)
+	e, view, root, leaf := hashPartitionUnitEngine(t)
 	typ := leaf.Columns[0].Usage.Type
-	root.Columns = append(root.Columns, ColumnDescriptor{Name: "payload", Usage: typ.Usage(), Nullable: true})
+	root.Columns = append(root.Columns, catalog.Column{Name: "payload", Usage: typ.Usage(), Nullable: true})
 	root.Attributes = append(root.Attributes, 2)
 	root.Index["payload"] = 1
 	root.AttributeHighWater = 2
@@ -21,7 +22,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	leaf.Columns = root.Columns
 	leaf.Attributes = root.Attributes
 	leaf.Index = root.Index
-	boolean, _ := catalog.LookupType(sqltype.Bool)
+	boolean, _ := view.LookupType(sqltype.Bool)
 	integer := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(typ, n)
 		if err != nil {
@@ -29,8 +30,8 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		}
 		return v
 	}
-	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
-		ref := catalog.Owner().Domain.Ref(catalog.Epoch(), leaf.Address())
+	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) catalog.CheckConstraint {
+		ref := view.Owner().Domain.Ref(view.Epoch(), leaf.Address())
 		ref.Address.SubID = leaf.Attributes[slot]
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: integer(n)}
@@ -39,17 +40,17 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 			t.Fatal(err)
 		}
 		expression := comparisonExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, left: column, right: literal, predicate: predicate}
-		return checkConstraint{OID: oid, Name: name, NotValid: true, Expression: expression, Dependencies: []expressionDependency{{Ref: ref}}}
+		return catalog.CheckConstraint{OID: oid, Name: name, NotValid: true, Expression: expression, Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}
 	}
-	leaf.CheckConstraints = []checkConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
+	leaf.CheckConstraints = []catalog.CheckConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
 	oldValues := []sqltype.Value{integer(1), integer(0)}
 	dead := rowVersion{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(99), integer(99)}}
 	live := rowVersion{row: 2, version: 2, born: 3, values: oldValues}
 	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}}
-	e.catalog.state = catalog.State()
+	e.catalog.state = view.State()
 	e.commitSeq = 3
 	e.storage = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
-	snapshot, err := e.captureIndexSnapshot(context.Background(), catalog, e.storage, nil, 3)
+	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage, nil, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if _, err := history.nextRow(context.Background(), &position, rowVersion{row: 9, version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: catalog}
+	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: view}
 	var policy partitionRetainedChecks
 	validate := func(values []sqltype.Value, want string) {
 		t.Helper()
@@ -119,14 +120,14 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// dependency cells still determine whether this old constraint is affected.
 	virtualLeaf := *leaf
 	sourceColumn := leaf.CheckConstraints[1].Expression.(comparisonExpression).left.(columnExpression)
-	virtualLeaf.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
+	virtualLeaf.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
 	virtualExpression := virtualCheck.Expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)
 	virtualColumn = virtualColumn.withGeneration(&virtualLeaf, 1, 0)
 	virtualExpression.left = virtualColumn
 	virtualCheck.Expression = virtualExpression
-	virtualLeaf.CheckConstraints = []checkConstraint{virtualCheck}
+	virtualLeaf.CheckConstraints = []catalog.CheckConstraint{virtualCheck}
 	virtualHistory := history
 	virtualHistory.relation = &virtualLeaf
 	virtualBefore := []sqltype.Value{integer(1), sqltype.Null(typ)}
@@ -163,7 +164,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, oldCast, newCast, false); err != nil || affected {
 		t.Fatal("domain identity-only remap revalidated an old NOT VALID check", affected, err)
 	}
-	regclass, _ := catalog.LookupType(sqltype.Regclass)
+	regclass, _ := view.LookupType(sqltype.Regclass)
 	oldReference, err := regclass.Input(evaluation.Context, "42", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -177,15 +178,15 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, beforeLiteral, afterLiteral, false); err != nil || !affected {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
-	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.Owner().Domain.Ref(catalog.Epoch(), leaf.Address())}
+	oidType, _ := view.LookupType(sqltype.Oid)
+	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: view.Owner().Domain.Ref(view.Epoch(), leaf.Address())}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}
 	// An actual changed stored literal selects and enforces only its CHECK,
 	// despite unchanged row cells and an unrelated old violating constraint.
 	literalLeaf := *leaf
-	literalLeaf.CheckConstraints = append([]checkConstraint(nil), leaf.CheckConstraints...)
+	literalLeaf.CheckConstraints = append([]catalog.CheckConstraint(nil), leaf.CheckConstraints...)
 	literalCheck := literalLeaf.CheckConstraints[1].Expression.(comparisonExpression)
 	changedConstant := literalCheck.right.(literalExpression)
 	changedConstant.value = integer(2)

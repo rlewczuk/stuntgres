@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
@@ -706,7 +707,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 	}
 	return out, nil
 }
-func appendFunctionStageRow(ctx context.Context, out *indexedStage, schema []ColumnDescriptor, row []sqltype.Value) error {
+func appendFunctionStageRow(ctx context.Context, out *indexedStage, schema []catalog.Column, row []sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

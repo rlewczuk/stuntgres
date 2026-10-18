@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -54,7 +55,7 @@ func probeForeignKeyIndex(root *logicalIndexRoot, compare func(logicalIndexEntry
 	return nil
 }
 
-func foreignKeyIndexOrder(ctx context.Context, index *relationDescriptor, comparisons []foreignKeyComparison, entry logicalIndexEntry, child []sqltype.Value, input sqltype.InputEnvironment) (int, error) {
+func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, entry logicalIndexEntry, child []sqltype.Value, input sqltype.InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -81,7 +82,7 @@ func foreignKeyIndexOrder(ctx context.Context, index *relationDescriptor, compar
 	return 0, nil
 }
 
-func findForeignKeyParent(ctx context.Context, index *relationDescriptor, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (rowVersion, logicalIndexEntry, error) {
+func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (rowVersion, logicalIndexEntry, error) {
 	// Statement-final overlays are not committed index entries. Their shadow
 	// identities hide replaced committed rows and earlier transaction versions.
 	overlay := rows

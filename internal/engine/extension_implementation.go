@@ -1,45 +1,47 @@
 package engine
 
+import "stuntgres/internal/engine/catalog"
+
 // Typed views of a member descriptor's extension implementation. Each returns
 // the implementation when it has that concrete type, and nil otherwise, so a
 // nil check still asks "was this installed by that extension".
 
-func unaccentProviderOf(d *procedureDescriptor) *unaccentProvider {
+func unaccentProviderOf(d *catalog.Procedure) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
-func intarrayProviderOf(d *procedureDescriptor) *intarrayProvider {
+func intarrayProviderOf(d *catalog.Procedure) *intarrayProvider {
 	p, _ := d.Implementation.(*intarrayProvider)
 	return p
 }
 
-func fuzzystrmatchProviderOf(d *procedureDescriptor) *fuzzystrmatchProvider {
+func fuzzystrmatchProviderOf(d *catalog.Procedure) *fuzzystrmatchProvider {
 	p, _ := d.Implementation.(*fuzzystrmatchProvider)
 	return p
 }
 
-func pgcryptoProviderOf(d *procedureDescriptor) *pgcryptoProvider {
+func pgcryptoProviderOf(d *catalog.Procedure) *pgcryptoProvider {
 	p, _ := d.Implementation.(*pgcryptoProvider)
 	return p
 }
 
-func intaggProviderOf(d *procedureDescriptor) *intaggProvider {
+func intaggProviderOf(d *catalog.Procedure) *intaggProvider {
 	p, _ := d.Implementation.(*intaggProvider)
 	return p
 }
 
-func uuidOsspProviderOf(d *procedureDescriptor) *uuidOsspProvider {
+func uuidOsspProviderOf(d *catalog.Procedure) *uuidOsspProvider {
 	p, _ := d.Implementation.(*uuidOsspProvider)
 	return p
 }
 
-func unaccentTemplateProviderOf(d *tsTemplateDescriptor) *unaccentProvider {
+func unaccentTemplateProviderOf(d *catalog.TSTemplate) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
-func unaccentDictionaryProviderOf(d *tsDictionaryDescriptor) *unaccentProvider {
+func unaccentDictionaryProviderOf(d *catalog.TSDictionary) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }

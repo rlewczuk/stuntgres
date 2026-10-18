@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ type truncateName struct {
 	namespace ids.ObjectAddress
 }
 type truncateGraphFence struct {
-	base      *catalogState
+	base      *catalog.State
 	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.
 	token     ids.SessionToken          // Descendant TEMP exclusion matches grant-time admission.
 	restart   bool
@@ -40,11 +41,11 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 		if fence.restart {
 			for address, generator := range fence.sequences {
 				if e.sequences[address] != generator {
-					return CatalogConflict{}
+					return catalog.Conflict{}
 				}
 			}
 			for address, descriptor := range current.Descriptors() {
-				d, ok := descriptor.(*relationDescriptor)
+				d, ok := descriptor.(*catalog.Relation)
 				if !ok || !truncateOwnsSequence(d, fence.targets) {
 					continue
 				}
@@ -55,7 +56,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 				// host edge. Its first committed predecessor is fenced by the
 				// ordinary originals check, including changes hidden by overlays.
 				if _, own := c.descriptors[address]; !own {
-					return CatalogConflict{}
+					return catalog.Conflict{}
 				}
 			}
 		}
@@ -63,19 +64,19 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 			if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
 				continue
 			}
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				continue
 			}
 			for _, fk := range d.ForeignKeys {
 				if fence.targets[fk.Target] != 0 {
-					return CatalogConflict{}
+					return catalog.Conflict{}
 				}
 			}
 			if d.Inheritance != nil || d.Membership != nil {
 				otherTemporary, err := truncateOtherTemporary(current, d, fence.token)
 				if err != nil {
-					return CatalogConflict{}
+					return catalog.Conflict{}
 				}
 				if otherTemporary {
 					continue
@@ -84,12 +85,12 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 			if d.Inheritance != nil {
 				for _, parent := range d.Inheritance.Parents {
 					if fence.targets[parent] != 0 {
-						return CatalogConflict{}
+						return catalog.Conflict{}
 					}
 				}
 			}
 			if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 	}
@@ -134,7 +135,7 @@ func (s *StatementScope) stageTruncate() error {
 			break
 		}
 		stage.querySources = append(stage.querySources, d)
-		if d.RelationKind == partitionedRelation {
+		if d.RelationKind == catalog.PartitionedRelation {
 			continue
 		}
 		if store == nil {
@@ -176,7 +177,7 @@ func (s *StatementScope) stageTruncate() error {
 		// Recheck closure against the same coherent catalog used to capture stores.
 		// SQL installation is blocked by selected AX; host replacement is fenced.
 		if len(truncateReferencers(auth.catalog, s.truncateSelected)) != 0 {
-			err = CatalogConflict{}
+			err = catalog.Conflict{}
 		}
 	}
 	var sequences map[ids.ObjectAddress]*sequenceGenerator
@@ -193,7 +194,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
-		if selected.relation.RelationKind != partitionedRelation {
+		if selected.relation.RelationKind != catalog.PartitionedRelation {
 			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -15,13 +16,13 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *Session, *Session, s
 	t.Helper()
 	e := New()
 	if edge == "procedure_wrapper" || edge == "validator_wrapper" || edge == "transitive_procedure_mapping" {
-		definition, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
+		definition, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		validator, err := ValidateForeignValidator(ForeignValidatorDefinition{
-			Name: ForeignFunctionName{Schema: "fdw_cap", Name: "validator"},
-			Validate: func(_ context.Context, _ ForeignObjectKind, options []ForeignOption) error {
+			Name: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "validator"},
+			Validate: func(_ context.Context, _ catalog.ForeignObjectKind, options []catalog.ForeignOption) error {
 				for _, option := range options {
 					if option.Name != "tag" {
 						return fmt.Errorf("unknown test provider option %q", option.Name)
@@ -113,9 +114,9 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 	return prepared
 }
 
-func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalogState) {
+func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalog.State) {
 	t.Helper()
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || err.Error() != "stuntgres: catalog publication conflict" {
 		t.Fatal("late incoming dependency did not reject retirement before publication", err)
 	}
@@ -258,7 +259,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, "BEGIN")
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, "BEGIN")
-		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *foreignDescriptor) error {
+		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 			next := *old
 			next.Wrapper = target
 			var err error
@@ -286,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
-		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
+		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
@@ -367,7 +368,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				t.Fatal("unrelated metadata change blocked or lost independent retirement", err)
 			}
 			server := e.catalog.state.MustForeign(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_unrelated_server"}))
-			if len(server.Options) != 1 || server.Options[0] != (ForeignOption{Name: "tag", Value: "changed"}) {
+			if len(server.Options) != 1 || server.Options[0] != (catalog.ForeignOption{Name: "tag", Value: "changed"}) {
 				t.Fatal("unrelated committed server revision was lost", server)
 			}
 		})
@@ -385,7 +386,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	// Exercise an actual provider-valid private catalog replacement. This is
 	// not a new SQL ALTER SERVER ... WRAPPER spelling: it tests the common
 	// publisher's final candidate override when the old incoming edge is gone.
-	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
+	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 		next := *old
 		next.Wrapper = survivor
 		var err error
@@ -435,7 +436,7 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *Session, prepare fu
 	return err
 }
 
-func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address ids.ObjectAddress, edit func(*CatalogStage, *foreignDescriptor) error) error {
+func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
 	t.Helper()
 	return fdwApplyLateUnitStage(t, e, session, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
 		e.mu.Lock()

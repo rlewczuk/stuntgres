@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 // Declarations use compatible typed NULL recipes only inside the dump/import
 // dependency stage. Every actual physical recipe is restored before CHECK/data.
 // This permits nonlocal children of parents whose captured recipes now differ.
-func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
+func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 	hasSeed := false
 	for i := range tables {
 		if tables[i].needsGenerationPlaceholders() {
@@ -78,7 +79,7 @@ func prepareGenerationPlaceholders(view CatalogRead, tables []dumpRelation) {
 
 // The actual dependency graph, not rows-first reconstruction, orders physical
 // recipes and local CHECK definers. Recursive ADD rebuilds real diamond merges.
-func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
+func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, declarations []dumpEventKey, tables []dumpRelation, nameReady func(ids.ObjectAddress) (dumpEventKey, bool, error)) error {
 	selected := false
 	for i := range tables {
 		if tables[i].recipePlaceholders {
@@ -180,7 +181,7 @@ func inheritanceRecipeEvents(ctx context.Context, view CatalogRead, graph map[du
 	return ctx.Err()
 }
 
-func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view catalog.Read, emit func(string) error) error {
 	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
 		if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists {
@@ -196,7 +197,7 @@ func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view Catalo
 	return nil
 }
 
-func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view catalog.Read, emit func(string) error) error {
 	for _, check := range orderedChecks(t.descriptor) {
 		if !t.deferredChecks[check.Name] || !dumpCheckDeclaration(view, t.descriptor, check) {
 			continue
@@ -221,7 +222,7 @@ type restoredGenerationRecipe struct {
 	attribute  int32
 	generation ids.OID
 	usage      sqltype.Usage
-	kind       generationKind
+	kind       catalog.GenerationKind
 }
 type restoredGenerationKey struct {
 	relation  ids.ObjectAddress
@@ -383,7 +384,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		return err
 	}
 	target, ok := auth.catalog.Relation(ref.Address)
-	if !ok || target.RelationKind != tableRelation || target.Partition != nil || target.Membership != nil {
+	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
 		return reject()
 	}
 	namespace, namespaceOK := auth.catalog.Namespace(target.Namespace())
@@ -416,7 +417,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	return reject()
 }
 
-func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress) bool {
+func inheritedRecipeConnected(view catalog.Read, target, start ids.ObjectAddress) bool {
 	if target == start {
 		return true
 	}
@@ -455,10 +456,10 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 	return false
 }
 
-func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
+func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil && len(table.Generations) != 0 {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil && len(table.Generations) != 0 {
 			if namespace, ok := view.Namespace(table.Namespace()); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
@@ -470,8 +471,8 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 	}
 	var tables []dumpRelation
 	for _, descriptor := range view.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.RelationKind != tableRelation || table.Partition != nil || table.Membership != nil {
+		table, ok := descriptor.(*catalog.Relation)
+		if !ok || table.RelationKind != catalog.TableRelation || table.Partition != nil || table.Membership != nil {
 			continue
 		}
 		if namespace, ok := view.Namespace(table.Namespace()); !ok || namespace.Temporary != (ids.SessionToken{}) {

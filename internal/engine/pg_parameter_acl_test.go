@@ -24,7 +24,7 @@ func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization
 	return e, op, reader
 }
 
-func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ParameterClassID}
 	d, ok := catalog.Relation(address)
@@ -34,7 +34,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*re
 	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog CatalogRead, roles authorization.Read) *querySource {
+func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, roles authorization.Read) *querySource {
 	t.Helper()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, roles, ref, d)
@@ -70,16 +70,16 @@ func pgParameterACLUnitEntries(t *testing.T, e *Engine, value sqltype.Value, wan
 
 func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgParameterACLUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgParameterACLUnitSource(t, e, view)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
+	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {
 		id := []sqltype.ID{26, 25, 1034}[i]
 		collation := []uint32{0, 950, 0}[i]
-		typ, _ := catalog.LookupType(id)
+		typ, _ := view.LookupType(id)
 		c := d.Columns[i]
 		if c.Name != name || c.Usage.Type != typ || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable != (i == 2) || !c.NullabilityKnown || c.OriginTable != 6243 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
@@ -93,23 +93,23 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 			t.Fatal("attribute", i, fact)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
-	ownedArray, ok := catalog.LookupArray(row.SQLType)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
+	ownedArray, ok := view.LookupArray(row.SQLType)
 	if !ok || d.RowType != 10097 || row.Array != 10096 || ownedArray != array.SQLType || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
+	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(view, d) != "r" || pgClassPersistence(view, d) != "p" {
 		t.Fatal("discovery")
 	}
-	class := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := e.pgClassRow(context.Background(), catalog, e.Roles(), class, d)
+	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	facts, err := e.pgClassRow(context.Background(), view, e.Roles(), class, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,11 +122,11 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		t.Fatal("pg_global", space, err)
 	}
 	for _, oid := range []ids.OID{6244, 6245, 6246, 6247} {
-		if _, exists := catalog.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); exists {
+		if _, exists := view.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); exists {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}
-	if rows := pgParameterACLUnitCapture(t, e, catalog, e.Roles()); rows.count() != 0 {
+	if rows := pgParameterACLUnitCapture(t, e, view, e.Roles()); rows.count() != 0 {
 		t.Fatal("pristine rows")
 	}
 }

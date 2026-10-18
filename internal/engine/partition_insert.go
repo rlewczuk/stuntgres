@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -13,10 +14,10 @@ import (
 )
 
 type partitionInsertState struct {
-	catalog     CatalogRead
+	catalog     catalog.Read
 	auth        AuthorizationView
-	target      *relationDescriptor
-	destination *relationDescriptor
+	target      *catalog.Relation
+	destination *catalog.Relation
 	layouts     map[ids.ObjectAddress]*inheritanceQuerySegment
 	physicalRow []sqltype.Value
 	namedRow    []sqltype.Value
@@ -29,13 +30,13 @@ type partitionInsertGroup struct {
 	unique *uniqueWriteBinding
 }
 
-func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *relationDescriptor) error {
+func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
 	if !hierarchyRelation(target) {
 		return nil
 	}
 	state := &partitionInsertState{catalog: auth.catalog, auth: auth, target: target}
-	var captureLayouts func(*relationDescriptor) error
-	captureLayout := func(d *relationDescriptor) error {
+	var captureLayouts func(*catalog.Relation) error
+	captureLayout := func(d *catalog.Relation) error {
 		if s.output.RegTS == nil && d.Partition != nil {
 			for _, key := range d.Partition.Keys {
 				if key.Usage.Type.ContainsRegTS() {
@@ -58,7 +59,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		return nil
 	}
-	captureLayouts = func(d *relationDescriptor) error {
+	captureLayouts = func(d *catalog.Relation) error {
 		if err := captureLayout(d); err != nil {
 			return err
 		}
@@ -81,7 +82,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		child = parent
 	}
-	if err := partitionPhysicalDescendants(auth.catalog, target, func(leaf *relationDescriptor) error {
+	if err := partitionPhysicalDescendants(auth.catalog, target, func(leaf *catalog.Relation) error {
 		if err := e.captureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
 		}
@@ -103,12 +104,12 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	}
 	destination := state.target
 	for destination.Partition != nil {
-		var values [32]partitionDatum
+		var values [32]catalog.PartitionDatum
 		key, err := partitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
 		if err != nil {
 			return err
 		}
-		var selected *relationDescriptor
+		var selected *catalog.Relation
 		for _, address := range destination.Partition.Children {
 			child := state.catalog.MustRelation(address)
 			if child.Membership.DefaultBound {
@@ -177,13 +178,13 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 	return nil
 }
 
-func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
+func (state *partitionInsertState) missingPartition(ctx context.Context, parent *catalog.Relation, key []catalog.PartitionDatum, output sqltype.OutputEnvironment) error {
 	ref := state.catalog.Owner().Domain.Ref(state.catalog.Epoch(), parent.Address())
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.Name())).(*sqlstate.Error)
 	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
-	decision, securityErr := rowSecurityDecision(state.auth, state.target, state.auth.state.CurrentUser, policyInsert, true)
+	decision, securityErr := rowSecurityDecision(state.auth, state.target, state.auth.state.CurrentUser, catalog.PolicyInsert, true)
 	if securityErr != nil {
 		return securityErr
 	}
@@ -254,7 +255,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	return err
 }
 
-func (state *partitionInsertState) rowFor(d *relationDescriptor, row []sqltype.Value) []sqltype.Value {
+func (state *partitionInsertState) rowFor(d *catalog.Relation, row []sqltype.Value) []sqltype.Value {
 	if segment := state.layouts[d.Address()]; segment != nil {
 		return segment.mapValues(row)
 	}

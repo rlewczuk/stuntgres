@@ -382,7 +382,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	}
 	bad := catalog.CloneState(view.State())
 	copy := *d
-	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
+	copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
 	copy.CheckConstraints[0].OID = d.Defaults[1].OID
 	bad.SetDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {

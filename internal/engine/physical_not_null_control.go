@@ -5,17 +5,18 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Map actual live relation/index addresses with the existing replacement map.
 // Archived removed identities retain their genuine source lifetime namespace.
-func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func remapPhysicalNotNullReferences(old, next *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	if len(old.PhysicalNotNull) == 0 {
 		return nil
 	}
 	next.PhysicalNotNull = maps.Clone(old.PhysicalNotNull)
-	supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
+	supports := make(map[*catalog.PhysicalPrimarySupport]*catalog.PhysicalPrimarySupport)
 	for attribute, proof := range old.PhysicalNotNull {
 		slot := old.IndexForAttribute(attribute)
 		if proof.Cause == nil || proof.Cause.Self != proof.Cause || slot < 0 || proof.Usage != old.Columns[slot].Usage {
@@ -54,9 +55,9 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 // Existing remapDefinitionOIDsLocked has already minted the actual final key
 // group. Reissue only the exact captured relation/attribute and that group;
 // neither this helper nor the certificate allocates a constraint or index.
-func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
+func (e *Engine) remapPhysicalNotNull(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || len(table.PhysicalNotNull) == 0 {
 			continue
 		}
@@ -67,13 +68,13 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 		if namespace.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		old, ok := previous[address].(*relationDescriptor)
+		old, ok := previous[address].(*catalog.Relation)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical not-null remap owner")
 		}
 		copy := *table
 		copy.PhysicalNotNull = maps.Clone(table.PhysicalNotNull)
-		supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
+		supports := make(map[*catalog.PhysicalPrimarySupport]*catalog.PhysicalPrimarySupport)
 		for attribute, proof := range table.PhysicalNotNull {
 			slot := table.IndexForAttribute(attribute)
 			if proof.Cause == nil || proof.Cause.Self != proof.Cause || slot < 0 || old.PhysicalNotNull[attribute].Cause != proof.Cause {
@@ -91,11 +92,11 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 				}
 				replacement := supports[support]
 				if replacement == nil {
-					keys := make([]physicalPrimaryKeyUsage, len(after.Attributes))
+					keys := make([]catalog.PhysicalPrimaryKeyUsage, len(after.Attributes))
 					for i, key := range after.Attributes {
-						keys[i] = physicalPrimaryKeyUsage{key, table.Columns[table.IndexForAttribute(key)].Usage}
+						keys[i] = catalog.PhysicalPrimaryKeyUsage{key, table.Columns[table.IndexForAttribute(key)].Usage}
 					}
-					replacement = &physicalPrimarySupport{Constraint: after.OID, Index: after.Index, Keys: keys}
+					replacement = &catalog.PhysicalPrimarySupport{Constraint: after.OID, Index: after.Index, Keys: keys}
 					supports[support] = replacement
 				}
 				proof.Support = replacement
@@ -110,7 +111,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 	return nil
 }
 
-func physicalOrdinaryNotNull(table *relationDescriptor) map[int32]bool {
+func physicalOrdinaryNotNull(table *catalog.Relation) map[int32]bool {
 	ordinary := make(map[int32]bool, len(table.NotNullConstraints))
 	for _, fact := range table.NotNullConstraints {
 		ordinary[fact.Attribute] = true

@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -53,7 +54,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	}
 	for _, command := range commands {
 		physical := command.binding.physicalBinding()
-		if physical.relation != nil && physical.relation.RelationKind != viewRelation {
+		if physical.relation != nil && physical.relation.RelationKind != catalog.ViewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
 				mode lock.Mode

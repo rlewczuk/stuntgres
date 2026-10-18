@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -18,22 +19,22 @@ type indexSnapshot struct {
 }
 
 type indexSnapshotSource struct {
-	index, parent *relationDescriptor
+	index, parent *catalog.Relation
 	store         relationStorage
 	root          *logicalIndexRoot
 	frontier      ids.CommitSeq
 }
 
 // captureIndexSnapshot captures the indexes of catalog, which e must own.
-func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
 	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.Owner() != e.catalog.owner() || catalog.State() == nil || e.catalog.state.Epoch() != catalog.Epoch() || frontier != e.commitSeq {
+	if view.Owner() == nil || view.Owner() != e.catalog.owner() || view.State() == nil || e.catalog.state.Epoch() != view.Epoch() || frontier != e.commitSeq {
 		return nil, ids.ErrCatalogReplaced
 	}
 	authority := e.catalog.state
@@ -49,9 +50,9 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		return e.indexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
-	for address, descriptor := range catalog.Descriptors() {
+	for address, descriptor := range view.Descriptors() {
 		if parents != nil {
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil || parents[index.SQLIndex.Parent] == nil {
 				continue
 			}
@@ -59,7 +60,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
+		if relation, ok := descriptor.(*catalog.Relation); ok && partitionNeedsRowHistory(view, relation) {
 			store := storage[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ids.ErrCatalogReplaced
@@ -69,11 +70,11 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 			}
 			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
 		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.Parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -89,7 +90,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.Address()) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.hash != nil) != (index.SQLIndex.Method == hashMethod) {
+		if (root.hash != nil) != (index.SQLIndex.Method == catalog.HashMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
@@ -198,13 +199,13 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
-func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	return snapshot.transportRows(ctx, next, storage, positions, false)
 }
 
 // Same-logical-ID domain generation changes retain every physical version and
 // produced key. Replacement's ordinary transport still compacts live rows.
-func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(snapshot.sources))
 	checkedParents := make(map[ids.ObjectAddress]bool)
 	collation := remappedCollationCapabilities(next, snapshot.mapping)
@@ -317,7 +318,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				row := store.versions[position]
 				entries = append(entries, logicalIndexEntry{keys: keys, row: row.row, version: row.version, position: position})
 			}
-			if index.SQLIndex.Method == btreeMethod {
+			if index.SQLIndex.Method == catalog.BtreeMethod {
 				if err := ordering.sort(ctx, entries); err != nil {
 					return nil, err
 				}

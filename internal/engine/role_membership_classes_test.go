@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -52,7 +53,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		typ, ok := d.(*typeDescriptor)
+		typ, ok := d.(*catalog.Type)
 		if !ok {
 			return e.SetObjectACL(context.Background(), ref, acl)
 		}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -55,7 +56,7 @@ type rowVersion struct {
 	base   ids.VersionID
 	values []sqltype.Value
 	// Private admission captures index readiness; committed rows clear this pin.
-	indexAdmission *catalogState
+	indexAdmission *catalog.State
 	indexOutputs   map[ids.ObjectAddress]indexRowOutput // Private, immutable produced index data.
 }
 
@@ -84,7 +85,7 @@ type transactionOwner struct {
 	frontier        ids.CommitSeq
 	roots           map[ids.ObjectAddress]transactionRoot
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
-	sequenceCatalog     *catalogState
+	sequenceCatalog     *catalog.State
 	catalog             *catalogChanges
 	savepoints          []savepointMark
 	accessedTemporary   bool
@@ -318,7 +319,7 @@ type StatementScope struct {
 	viewChanges                    *catalogChanges
 	indexMaintenance               *indexMaintenanceGrant
 	materializedRefresh            bool
-	materializedSources            []Descriptor
+	materializedSources            []catalog.Descriptor
 	materializedSourceView         *visibilityData
 	querySources                   []queryLeaf
 	foreignOwner                   *foreignScanOwner
@@ -333,8 +334,8 @@ type StatementScope struct {
 	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
-	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
-	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
+	inheritanceRelations           []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
+	inheritanceCatalog             catalog.Read // Immutable topology after the last grant/wait reconciliation.
 	inheritanceAlter               *inheritanceAlterState
 	consumedColumnDrops            map[*preparedDrop]struct{}
 	truncateRelations              []truncateRelation
@@ -354,10 +355,10 @@ type StatementScope struct {
 	implicit                       bool
 	input                          sqltype.InputEnvironment
 	domainEvaluation               *EvalContext
-	domainPreparedChecks           map[*typeDescriptor]domainCheckProgram
+	domainPreparedChecks           map[*catalog.Type]domainCheckProgram
 	partitionPrograms              map[partitionRoutineIdentity][]expr.Expr
 	routinePrograms                []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
-	domainInputCatalog             CatalogRead
+	domainInputCatalog             catalog.Read
 	statementStart                 time.Time
 	transactionStart               time.Time
 	timeoutRef                     ids.TxRef // admission projection for preparse ERROR timer retirement
@@ -386,10 +387,10 @@ type StatementScope struct {
 	foreignActionAuth           *AuthorizationView
 	foreignActionJobs           []foreignKeyJob
 	searchPathResults           [2]sqltype.Value
-	commentCatalog              CatalogRead
+	commentCatalog              catalog.Read
 	commentRoles                authorization.Read
 	deparseAuth                 AuthorizationView
-	visibilityCatalog           CatalogRead
+	visibilityCatalog           catalog.Read
 	visibilityDemand            bool
 	visibilityRelationPath      []ids.ObjectAddress
 	visibilityOtherPath         []ids.ObjectAddress
@@ -570,7 +571,7 @@ func (s *StatementScope) attachTransactionLocked() {
 	s.ownDeletes = t.deletes
 }
 
-func (s *StatementScope) ResolutionCatalog() CatalogRead {
+func (s *StatementScope) ResolutionCatalog() catalog.Read {
 	if err := s.active(); err != nil {
 		panic(err)
 	}
@@ -998,7 +999,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 
 // Both ordinary writes and initial catalog data reserve globally nonreused
 // identities. Engine.mu protects both checked counters; failed work may leave gaps.
-func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalogState) ([]rowVersion, error) {
+func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalog.State) ([]rowVersion, error) {
 	n := uint64(len(rows))
 	if n > ^uint64(0)-e.nextRow {
 		return nil, errors.New("stuntgres: row identity exhausted")

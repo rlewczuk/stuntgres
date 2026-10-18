@@ -5,12 +5,13 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func refreshUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
+func refreshUnitRelation(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
@@ -23,7 +24,7 @@ func refreshUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
 	return d
 }
 
-func refreshUnitRows(t *testing.T, d *relationDescriptor, count int) [][]sqltype.Value {
+func refreshUnitRows(t *testing.T, d *catalog.Relation, count int) [][]sqltype.Value {
 	t.Helper()
 	rows := make([][]sqltype.Value, count)
 	for i := range rows {
@@ -150,7 +151,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "frontier":
 				e.commitSeq = ids.CommitSeq(math.MaxUint64)
 			case "source":
-				stage.querySources = []Descriptor{&relationDescriptor{ObjectAddress: d.Address()}}
+				stage.querySources = []catalog.Descriptor{&catalog.Relation{ObjectAddress: d.Address()}}
 			case "role", "authorization":
 				op, done := roleOperation(t, e, "postgres")
 				defer done()
@@ -162,7 +163,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 					op.session.authorization.revision++
 				}
 			case "foreign_descriptor":
-				copy := *stage.Descriptors[d.Address()].(*relationDescriptor)
+				copy := *stage.Descriptors[d.Address()].(*catalog.Relation)
 				stage.Descriptors[d.Address()] = &copy
 			}
 			beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.Address()], e.commitSeq
@@ -219,7 +220,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("materialized provider rejected")
-			e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error {
+			e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error {
 				switch phase {
 				case "reject":
 					return sentinel

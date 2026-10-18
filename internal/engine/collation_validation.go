@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -9,16 +10,16 @@ import (
 
 // An immutable execution capability is not proof that its catalog identity is
 // still live. Stored plans must retain both authorities through publication.
-func validateUsageCollation(view CatalogRead, u sqltype.Usage) error {
+func validateUsageCollation(view catalog.Read, u sqltype.Usage) error {
 	return validateUsageCollationAt(view, nil, u)
 }
 
-func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqltype.Usage) error {
+func validateUsageCollationAt(view catalog.Read, reader definitionReader, u sqltype.Usage) error {
 	if u.Collation.ID == 0 {
 		return nil
 	}
 	descriptor, _ := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
-	d, ok := descriptor.(*collationDescriptor)
+	d, ok := descriptor.(*catalog.Collation)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")
 	}
@@ -31,7 +32,7 @@ func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqlty
 
 // Captured provider manifests may outlive a descriptor revision, but never
 // authorize a missing identity, an attribute address, or an unavailable provider.
-func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
+func validateCollationProvider(view catalog.Read, ref ids.ObjectRef) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
@@ -48,7 +49,7 @@ func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
 // Catalog-valued REGCOLLATION constants retain identity, not a comparison
 // capability. Other expressions and any actual use of this collation keep the
 // existing provider validation, even if the same OID also appears as an alias.
-func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node expr.Expr) error {
+func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, node expr.Expr) error {
 	err := validateCollationProvider(view, ref)
 	if err == nil {
 		return nil

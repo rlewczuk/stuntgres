@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -36,7 +37,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	table, ok := auth.catalog.Relation(created.Address)
-	if !ok || table.Inheritance == nil || table.RelationKind != tableRelation {
+	if !ok || table.Inheritance == nil || table.RelationKind != catalog.TableRelation {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
 	namespace, ok := auth.catalog.Namespace(table.Namespace())

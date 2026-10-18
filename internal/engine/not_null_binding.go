@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -10,9 +11,9 @@ import (
 )
 
 // Names are namespace-wide only when generated. Explicit names are relation-local.
-func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *relationDescriptor, reader ...definitionReader) map[string]bool {
+func constraintNames(read catalog.Read, namespace ids.ObjectAddress, candidate *catalog.Relation, reader ...definitionReader) map[string]bool {
 	names := make(map[string]bool)
-	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
+	descriptors := func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range read.Descriptors() {
 			if !yield(address, descriptor) {
 				return
@@ -26,12 +27,12 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *r
 		if candidate != nil && descriptor.Address() == candidate.Address() {
 			descriptor = candidate
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.ObjectNamespace == namespace {
+		if domain, ok := descriptor.(*catalog.Type); ok && domain.ObjectNamespace == namespace {
 			for _, constraint := range domain.DomainChecks {
 				names[constraint.Name] = true
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Namespace() == namespace {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Namespace() == namespace {
 			for _, constraint := range relation.NotNullConstraints {
 				names[constraint.Name] = true
 			}
@@ -54,7 +55,7 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *r
 
 // Explicit names are relation-local and span every admitted constraint kind.
 // Keep this allocation-free lookup shared by NN additions and FK attachment.
-func relationConstraintNameExists(d *relationDescriptor, name string) bool {
+func relationConstraintNameExists(d *catalog.Relation, name string) bool {
 	for _, c := range d.NotNullConstraints {
 		if c.Name == name {
 			return true
@@ -121,7 +122,7 @@ func generatedConstraintName(table, column, base string, used map[string]bool) s
 // LIKE contributes copied identities at its original table-element position.
 type createLikeConstraint struct {
 	Element int
-	notNullConstraint
+	catalog.NotNullConstraint
 }
 
 // Column-local structure is validated as CREATE reaches each typed column,
@@ -227,7 +228,7 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	return declaration, nil
 }
 
-func bindCreateColumnIndex(columns []ColumnDescriptor) (map[string]int, error) {
+func bindCreateColumnIndex(columns []catalog.Column) (map[string]int, error) {
 	index := make(map[string]int, len(columns))
 	for i, c := range columns {
 		if _, exists := index[c.Name]; exists {
@@ -241,17 +242,17 @@ func bindCreateColumnIndex(columns []ColumnDescriptor) (map[string]int, error) {
 	return index, nil
 }
 
-func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declarations []createColumnDeclaration, inherited []createLikeConstraint, uniques []createUniqueConstraint, index map[string]int) ([]notNullConstraint, error) {
+func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarations []createColumnDeclaration, inherited []createLikeConstraint, uniques []createUniqueConstraint, index map[string]int) ([]catalog.NotNullConstraint, error) {
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	// Retain first occurrence order while merging later declarations' names.
-	var constraints []notNullConstraint
+	var constraints []catalog.NotNullConstraint
 	merge := func(slot int, name string) error {
 		old := &declarations[slot]
 		if old.name != "" && name != "" && old.name != name {
 			return sqlError("42601", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, old.name, name))
 		}
 		if !old.notNull {
-			constraints = append(constraints, notNullConstraint{Attribute: int32(slot + 1)})
+			constraints = append(constraints, catalog.NotNullConstraint{Attribute: int32(slot + 1)})
 		}
 		old.notNull = true
 		if name != "" {
@@ -310,7 +311,7 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declar
 	return constraints, nil
 }
 
-func nameCreateNotNull(d *relationDescriptor, read CatalogRead) error {
+func nameCreateNotNull(d *catalog.Relation, read catalog.Read) error {
 	if len(d.NotNullConstraints) == 0 {
 		return nil
 	}

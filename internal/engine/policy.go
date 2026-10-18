@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -28,11 +29,11 @@ func policyOwnerNoun(stmt parser.Statement) string {
 	}
 }
 
-func policyClauses(command policyCommand, using, check parser.Expr, creating bool) error {
-	if command == policyInsert && using != nil {
+func policyClauses(command catalog.PolicyCommand, using, check parser.Expr, creating bool) error {
+	if command == catalog.PolicyInsert && using != nil {
 		return sqlError("42601", "only WITH CHECK expression allowed for INSERT")
 	}
-	if (command == policySelect || command == policyDelete) && check != nil {
+	if (command == catalog.PolicySelect || command == catalog.PolicyDelete) && check != nil {
 		if creating {
 			return sqlError("42601", "WITH CHECK cannot be applied to SELECT or DELETE")
 		}
@@ -41,14 +42,14 @@ func policyClauses(command policyCommand, using, check parser.Expr, creating boo
 	return nil
 }
 
-func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]policyRole, bool, error) {
+func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]catalog.PolicyRole, bool, error) {
 	if raw == nil {
-		return []policyRole{{Public: true}}, false, nil
+		return []catalog.PolicyRole{{Public: true}}, false, nil
 	}
-	roles := make([]policyRole, 0, len(raw))
+	roles := make([]catalog.PolicyRole, 0, len(raw))
 	for _, role := range raw {
 		if role.Public {
-			return []policyRole{{Public: true}}, len(raw) > 1, nil
+			return []catalog.PolicyRole{{Public: true}}, len(raw) > 1, nil
 		}
 		if role.Role.Name == "none" {
 			return nil, false, sqlError("42939", `role name "none" is reserved`)
@@ -57,7 +58,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]po
 		if err != nil {
 			return nil, false, err
 		}
-		roles = append(roles, policyRole{Ref: ref})
+		roles = append(roles, catalog.PolicyRole{Ref: ref})
 	}
 	return roles, false, nil
 }
@@ -66,7 +67,7 @@ func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statemen
 	var roles []parser.GrantGrantee
 	switch s := stmt.(type) {
 	case *parser.CreatePolicy:
-		if err := policyClauses(policyCommand(s.Command), s.Using, s.Check, true); err != nil {
+		if err := policyClauses(catalog.PolicyCommand(s.Command), s.Using, s.Check, true); err != nil {
 			return err
 		}
 		roles = s.Roles
@@ -89,20 +90,20 @@ func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statemen
 	return err
 }
 
-func policyIndex(d *relationDescriptor, name string) int {
-	return slices.IndexFunc(d.Policies, func(p policyDefinition) bool { return p.Name == name })
+func policyIndex(d *catalog.Relation, name string) int {
+	return slices.IndexFunc(d.Policies, func(p catalog.PolicyDefinition) bool { return p.Name == name })
 }
 
-func policyMissing(name string, d *relationDescriptor) error {
+func policyMissing(name string, d *catalog.Relation) error {
 	return sqlError("42704", fmt.Sprintf(`policy "%s" for table "%s" does not exist`, name, d.Name()))
 }
 
-func policyDuplicate(name string, d *relationDescriptor) error {
+func policyDuplicate(name string, d *catalog.Relation) error {
 	return sqlError("42710", fmt.Sprintf(`policy "%s" for table "%s" already exists`, name, d.Name()))
 }
 
-func validatePolicies(view CatalogRead, d *relationDescriptor) error {
-	if len(d.Policies) != 0 && d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
+func validatePolicies(view catalog.Read, d *catalog.Relation) error {
+	if len(d.Policies) != 0 && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: policies require a table")
 	}
 	for i, p := range d.Policies {
@@ -110,14 +111,14 @@ func validatePolicies(view CatalogRead, d *relationDescriptor) error {
 			return fmt.Errorf("stuntgres: invalid policy identity")
 		}
 		switch p.Command {
-		case policyAll, policySelect, policyInsert, policyUpdate, policyDelete:
+		case catalog.PolicyAll, catalog.PolicySelect, catalog.PolicyInsert, catalog.PolicyUpdate, catalog.PolicyDelete:
 		default:
 			return fmt.Errorf("stuntgres: invalid policy command")
 		}
-		if p.Command == policyInsert && p.Using != nil || (p.Command == policySelect || p.Command == policyDelete) && p.Check != nil {
+		if p.Command == catalog.PolicyInsert && p.Using != nil || (p.Command == catalog.PolicySelect || p.Command == catalog.PolicyDelete) && p.Check != nil {
 			return fmt.Errorf("stuntgres: invalid policy clauses")
 		}
-		for _, condition := range []policyPayload{p.Using, p.Check} {
+		for _, condition := range []catalog.PolicyPayload{p.Using, p.Check} {
 			if condition != nil {
 				if err := condition.Validate(view, d); err != nil {
 					return err

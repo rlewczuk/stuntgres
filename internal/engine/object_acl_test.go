@@ -18,10 +18,10 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
 	view = view.WithState(catalog.CloneState(view.State()))
 	view.State().SetDescriptor(relation.Address(), relation)
-	schema := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
+	schema := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
 	view.State().SetDescriptor(schema.Address(), schema)
 	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()
@@ -82,9 +82,9 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		// Use actual descriptor staging and the existing ACL publication seam;
 		// no sequence GRANT SQL or new producer is introduced by this inquiry.
 		engine := New()
-		catalog := engine.CatalogRead()
+		catalogView := engine.CatalogRead()
 		principal := engine.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		stage := engine.BeginCatalogStage(catalog)
+		stage := engine.BeginCatalogStage(catalogView)
 		options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -95,7 +95,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sequence.RelationKind, sequence.Sequence = sequenceRelation, &options
+		sequence.RelationKind, sequence.Sequence = catalog.SequenceRelation, &options
 		sequence.SequencePlanStamp = sequence.Revision()
 		if err := stage.Create(sequence); err != nil {
 			t.Fatal(err)

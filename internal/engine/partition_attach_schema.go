@@ -4,30 +4,31 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachKindError(d *relationDescriptor) error {
+func partitionAttachKindError(d *catalog.Relation) error {
 	kind := "relations"
 	switch d.RelationKind {
-	case tableRelation:
+	case catalog.TableRelation:
 		kind = "tables"
-	case viewRelation:
+	case catalog.ViewRelation:
 		kind = "views"
-	case materializedViewRelation:
+	case catalog.MaterializedViewRelation:
 		kind = "materialized views"
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		kind = "sequences"
-	case indexRelation:
+	case catalog.IndexRelation:
 		kind = "indexes"
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ATTACH PARTITION cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
-func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDescriptor) error {
-	if child.RelationKind != tableRelation && child.RelationKind != partitionedRelation {
+func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relation) error {
+	if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation {
 		return partitionAttachKindError(child)
 	}
 	for ancestor := parent; ancestor != nil; {
@@ -37,7 +38,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		if ancestor.Membership == nil {
 			break
 		}
-		ancestor, _ = catalog.Relation(ancestor.Membership.Parent)
+		ancestor, _ = view.Relation(ancestor.Membership.Parent)
 	}
 	if child.Membership != nil {
 		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.Name()))
@@ -48,11 +49,11 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if child.Inheritance != nil && len(child.Inheritance.Parents) != 0 {
 		return sqlError("42809", "cannot attach inheritance child as partition")
 	}
-	if inheritanceHasChildren(catalog, child.Address()) {
+	if inheritanceHasChildren(view, child.Address()) {
 		return sqlError("42809", "cannot attach inheritance parent as partition")
 	}
-	parentNamespace := catalog.MustNamespace(parent.Namespace())
-	childNamespace := catalog.MustNamespace(child.Namespace())
+	parentNamespace := view.MustNamespace(parent.Namespace())
+	childNamespace := view.MustNamespace(child.Namespace())
 	if parentNamespace.Temporary == (ids.SessionToken{}) && childNamespace.Temporary != (ids.SessionToken{}) {
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.Name()))
 	}
@@ -62,8 +63,8 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		}
 	}
 	// Existing FK execution boundaries precede publication.
-	for _, descriptor := range catalog.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+	for _, descriptor := range view.Descriptors() {
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -80,7 +81,7 @@ func samePartitionColumnUsage(a, b sqltype.Usage) bool {
 	return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation.ID == b.Collation.ID
 }
 
-func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent, child *relationDescriptor) (*relationDescriptor, error) {
+func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, child *catalog.Relation) (*catalog.Relation, error) {
 	for _, column := range child.Columns {
 		if _, ok := parent.Index[column.Name]; !ok {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}
@@ -117,7 +118,7 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 	for _, required := range parent.NotNullConstraints {
 		parentSlot := parent.IndexForAttribute(required.Attribute)
 		attribute := child.Attributes[in.targetSlots[parentSlot]]
-		at := slices.IndexFunc(child.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
+		at := slices.IndexFunc(child.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute })
 		if at >= 0 && !required.NotValid && child.NotNullConstraints[at].NotValid {
 			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.NotNullConstraints[at].Name, child.Name()))
 		}
@@ -126,12 +127,12 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		if required.NoInherit {
 			continue
 		}
-		at := slices.IndexFunc(child.CheckConstraints, func(c checkConstraint) bool { return c.Name == required.Name })
+		at := slices.IndexFunc(child.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == required.Name })
 		if at < 0 {
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
 		actual := child.CheckConstraints[at]
-		mapped, err := in.remap(required.Expression, child, catalog)
+		mapped, err := in.remap(required.Expression, child, view)
 		if err != nil {
 			return nil, err
 		}

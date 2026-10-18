@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ type caseBranch struct {
 	testPlan  sqltype.CoercionPlan
 	equality  sqltype.Comparison
 	testUsage sqltype.Usage
-	routine   *procedureDescriptor // Selected equality declaration, never captured permission.
+	routine   *catalog.Procedure // Selected equality declaration, never captured permission.
 }
 type caseExpression struct {
 	expr.Info
@@ -255,7 +256,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	info.Property = coercionProperties(input, plan)
 	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
 }
-func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *procedureDescriptor, error) {
+func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *catalog.Procedure, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
 	lt, rt, err := b.resolveComparisonTypes(raw, left.descriptor(), right.descriptor())
 	if err != nil {
@@ -326,7 +327,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Exp
 	args := make([]expr.Expr, len(operands))
 	var usage sqltype.Usage
 	var comparison sqltype.Comparison
-	var routine *procedureDescriptor
+	var routine *catalog.Procedure
 	missingOrdering := false
 	var err error
 	if raw.Kind == parser.NullIf {

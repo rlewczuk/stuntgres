@@ -11,12 +11,12 @@ import (
 
 // Independently project authoritative descriptors, then check both directions:
 // exact keys and members, no stale/nonoperator addresses and no duplicates.
-func assertOperatorIndex(t *testing.T, state *catalogState) {
+func assertOperatorIndex(t *testing.T, state *catalog.State) {
 	t.Helper()
-	want := make(map[operatorNameKey]map[ids.ObjectAddress]bool)
+	want := make(map[catalog.OperatorNameKey]map[ids.ObjectAddress]bool)
 	for address, descriptor := range state.Descriptors() {
-		if operator, ok := descriptor.(*operatorDescriptor); ok {
-			key := operatorNameKey{operator.Namespace(), operator.Name()}
+		if operator, ok := descriptor.(*catalog.Operator); ok {
+			key := catalog.OperatorNameKey{operator.Namespace(), operator.Name()}
 			if want[key] == nil {
 				want[key] = make(map[ids.ObjectAddress]bool)
 			}
@@ -61,17 +61,17 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 	}
 }
 
-func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *operatorDescriptor {
-	return &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Left: 23, Right: 23}
+func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *catalog.Operator {
+	return &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Left: 23, Right: 23}
 }
 
 func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
-	base := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
+	base := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
 	base.SetOperatorNames(catalog.RebuildOperatorNames(base.Descriptors()))
-	key := operatorNameKey{namespace, first.Name()}
+	key := catalog.OperatorNameKey{namespace, first.Name()}
 	// This unpublished fixture deliberately retains capacity and a sentinel
 	// outside its length: append must not overwrite a sibling's backing array.
 	backing := make([]ids.ObjectAddress, 4)
@@ -99,11 +99,11 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	if backing[1] != other.Address() {
 		t.Fatal("child append overwrote shared spare capacity")
 	}
-	untouched := operatorNameKey{namespace, other.Name()}
+	untouched := catalog.OperatorNameKey{namespace, other.Name()}
 	if &child.OperatorNames().Buckets[untouched][0] != &base.OperatorNames().Buckets[untouched][0] {
 		t.Fatal("untouched bucket copied")
 	}
-	for _, state := range []*catalogState{base, sibling, child, siblingChild} {
+	for _, state := range []*catalog.State{base, sibling, child, siblingChild} {
 		assertOperatorIndex(t, state)
 	}
 	// Multiple removals/inserts in one bucket must neither duplicate members
@@ -121,7 +121,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	movedRoot := e.stageRead(stage).State()
-	for _, state := range []*catalogState{base, child, siblingChild, movedRoot} {
+	for _, state := range []*catalog.State{base, child, siblingChild, movedRoot} {
 		assertOperatorIndex(t, state)
 	}
 }
@@ -136,12 +136,12 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 	}
 	base = e.stageRead(stage)
 	oldIndex := base.State().OperatorNames()
-	for _, update := range []func(*operatorDescriptor){
-		func(d *operatorDescriptor) { d.ObjectRevision++ },
-		func(d *operatorDescriptor) { d.Owner = e.authorizationDomain.Principal(10) },
-		func(d *operatorDescriptor) { d.Left, d.Right = 0, 20 },
-		func(d *operatorDescriptor) { d.Result, d.Function = 20, 463 },
-		func(d *operatorDescriptor) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
+	for _, update := range []func(*catalog.Operator){
+		func(d *catalog.Operator) { d.ObjectRevision++ },
+		func(d *catalog.Operator) { d.Owner = e.authorizationDomain.Principal(10) },
+		func(d *catalog.Operator) { d.Left, d.Right = 0, 20 },
+		func(d *catalog.Operator) { d.Result, d.Function = 20, 463 },
+		func(d *catalog.Operator) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
 	} {
 		previous := base.MustOperator(first.Address())
 		next := *previous
@@ -163,7 +163,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 		base = current
 	}
 	// A nonoperator stage must retain the exact membership root too.
-	namespace := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "unrelated", ObjectRevision: 1}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "unrelated", ObjectRevision: 1}
 	stage = e.BeginCatalogStage(base)
 	if err := stage.Create(namespace); err != nil {
 		t.Fatal(err)
@@ -290,11 +290,11 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	source, target := New(), New()
 	owner := source.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	namespace := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "imported_operators", ObjectRevision: 1, Owner: owner}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "imported_operators", ObjectRevision: 1, Owner: owner}
 	operator := indexUnitOperator(90001, namespace.Address(), "#~#")
 	operator.Owner = owner
 	stage := source.BeginCatalogStage(source.CatalogRead())
-	for _, descriptor := range []Descriptor{namespace, operator} {
+	for _, descriptor := range []catalog.Descriptor{namespace, operator} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
 		}
@@ -302,11 +302,11 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.catalog.state = source.stageRead(stage).State()
-	tempNamespace := &namespaceDescriptor{ObjectAddress: namespace.Address(), ObjectName: "pg_temp_operator_index", ObjectRevision: 1, Owner: target.authorizationDomain.Principal(10), Temporary: target.catalog.Domain.Session(99)}
+	tempNamespace := &catalog.Namespace{ObjectAddress: namespace.Address(), ObjectName: "pg_temp_operator_index", ObjectRevision: 1, Owner: target.authorizationDomain.Principal(10), Temporary: target.catalog.Domain.Session(99)}
 	temp := indexUnitOperator(operator.Address().ObjectID, tempNamespace.Address(), "#?#")
 	temp.Owner = tempNamespace.Owner
 	stage = target.BeginCatalogStage(target.CatalogRead())
-	for _, descriptor := range []Descriptor{tempNamespace, temp} {
+	for _, descriptor := range []catalog.Descriptor{tempNamespace, temp} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
 		}
@@ -345,7 +345,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if len(imported) != 1 || imported[0].Address() == operator.Address() || imported[0].Namespace() == namespace.Address() || next.Get(imported[0].Namespace()).Name() != namespace.Name() {
 		t.Fatal("imported operator/namespace collision not remapped", imported)
 	}
-	for _, state := range []*catalogState{next, source.catalog.state, retained, projection.State()} {
+	for _, state := range []*catalog.State{next, source.catalog.state, retained, projection.State()} {
 		assertOperatorIndex(t, state)
 	}
 }

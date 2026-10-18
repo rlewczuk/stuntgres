@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -23,7 +24,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			var oid ids.OID
-			var private *relationDescriptor
+			var private *catalog.Relation
 			for i, q := range []string{
 				"CREATE POLICY original ON policy_owner USING(nextval('policy_dependency')>0)",
 				"ALTER POLICY original ON policy_owner USING(id>0) WITH CHECK(nextval('policy_dependency')>0)",
@@ -32,7 +33,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				if _, err := m.step(statement(t, q)); err != nil {
 					t.Fatal(q, err)
 				}
-				private = s.transactions.catalog.descriptors[ownerRef.Address].(*relationDescriptor)
+				private = s.transactions.catalog.descriptors[ownerRef.Address].(*catalog.Relation)
 				if len(private.Policies) != 1 || private.Policies[0].OID == 0 {
 					t.Fatal("missing actual private policy identity", private.Policies)
 				}
@@ -63,7 +64,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			pruned, ok := stage.Descriptors[ownerRef.Address].(*relationDescriptor)
+			pruned, ok := stage.Descriptors[ownerRef.Address].(*catalog.Relation)
 			if !ok || len(pruned.Policies) != 0 || len(private.Policies) != 1 || private.Policies[0].OID != oid || len(owner.Policies) != 0 {
 				t.Fatal("closure mutated immutable private or committed policy root")
 			}
@@ -81,7 +82,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				if _, err := m.step(statement(t, "DROP SEQUENCE policy_dependency CASCADE")); err != nil {
 					t.Fatal(err)
 				}
-				candidate := s.transactions.catalog.descriptors[ownerRef.Address].(*relationDescriptor)
+				candidate := s.transactions.catalog.descriptors[ownerRef.Address].(*catalog.Relation)
 				if len(candidate.Policies) != 0 || s.transactions.catalog.descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
 					t.Fatal("private cascade omitted policy pruning or published early")
 				}

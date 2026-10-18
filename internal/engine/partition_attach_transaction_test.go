@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -82,7 +83,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 	t.Run("latest_validation_preserves_rr_and_owner_effects", func(t *testing.T) {
 		e := New()
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
-		child.RelationKind = tableRelation
+		child.RelationKind = catalog.TableRelation
 		partitionAttachUnitInstall(t, e, child)
 		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), child.Address())
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -163,7 +164,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			e := New()
 			parent := partitionAttachUnitRoot(t, e, "attach_tx_parent", 46210)
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
-			child.RelationKind = tableRelation
+			child.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
 			parent = e.catalog.state.MustRelation(parent.Address())
 			child = e.catalog.state.MustRelation(child.Address())

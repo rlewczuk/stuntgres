@@ -22,7 +22,7 @@ func TestTableCoreLikeColumnOrigins(t *testing.T) {
 	if !ok {
 		t.Fatal("missing clone descriptor")
 	}
-	for i, c := range d.(*relationDescriptor).Columns {
+	for i, c := range d.(*catalog.Relation).Columns {
 		if c.OriginTable != uint32(ref.Address.ObjectID) || c.OriginAttribute != int16(i+1) {
 			t.Fatal("incorrect clone column origin", c)
 		}
@@ -126,12 +126,12 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 	} {
 		t.Run(tc.identifier, func(t *testing.T) {
 			e := New()
-			var winner CatalogRead
+			var winner catalog.Read
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
 			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-				publishWinner: func(d Descriptor) {
+				Provider: e.catalog.Providers[ids.RelationClassID],
+				publishWinner: func(d catalog.Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE "+tc.identifier+"(id INT NOT NULL)")
 					run(t, e, "INSERT INTO "+tc.identifier+" VALUES(11)")

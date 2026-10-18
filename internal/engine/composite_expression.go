@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -426,7 +427,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	props.RowDependent = true
 	var typ *sqltype.Descriptor
 	descriptor, _ := b.definitionDescriptor(q.ref.Address)
-	if relation, ok := descriptor.(*relationDescriptor); ok && relation.RowType != 0 {
+	if relation, ok := descriptor.(*catalog.Relation); ok && relation.RowType != 0 {
 		typ, _ = b.definitionType(relation.RowType)
 	}
 	if typ == nil || !typ.Concrete() {

@@ -6,13 +6,14 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3079}
 	d, ok := e.catalog.state.Relation(a)
@@ -22,11 +23,11 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Ob
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
+func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
+	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
@@ -62,7 +63,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	d := pgExtensionUnitShape(t, e)
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
@@ -127,7 +128,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	for _, width := range []int{0, 7, 9} {
 		invalid := *d
-		invalid.Columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]catalog.Column, width)
 		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("malformed width", width, rows, err)
 		}
@@ -135,7 +136,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	foreign := New()
 	for i, c := range d.Columns {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
 		if rows, err := captureExtensionCatalog(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 			t.Fatal("foreign column", i, rows, err)
@@ -162,7 +163,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		t.Fatal("canceled capture", rows, err)
 	}
 	retained := &indexedStage{source: old, schema: d.Columns}
-	original := append([]ColumnDescriptor(nil), retained.Schema()...)
+	original := append([]catalog.Column(nil), retained.Schema()...)
 	for _, replace := range []func() error{
 		func() error { return e.Reset(context.Background()) },
 		func() error { _, err := replaceWithFreshCatalog(context.Background(), e); return err },

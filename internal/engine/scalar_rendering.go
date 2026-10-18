@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -13,7 +14,7 @@ import (
 // its stored form; this renderer owns quoting, literal transport and the
 // checks against engine state. Arguments render in order before the form is
 // assembled, so literal capture and dependencies follow the argument order.
-func (r scalarRenderer) rendering(ctx context.Context, view CatalogRead, spec expr.Rendering) (string, error) {
+func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec expr.Rendering) (string, error) {
 	replay := spec.Replay
 	if replay.RelationOnly && r.owner == nil {
 		return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -151,7 +152,7 @@ func templateSQL(pieces []expr.Piece, parts []string, word func(expr.Piece) (str
 
 // replayArgument renders one argument with the transport that keeps its type
 // on replay.
-func (r scalarRenderer) replayArgument(ctx context.Context, view CatalogRead, arg expr.RenderArg) (string, error) {
+func (r scalarRenderer) replayArgument(ctx context.Context, view catalog.Read, arg expr.RenderArg) (string, error) {
 	argRenderer := r
 	if arg.Transport == expr.TransportIntervalNulls {
 		argRenderer.uuidShiftIntervalNulls = true
@@ -170,7 +171,7 @@ func (r scalarRenderer) replayArgument(ctx context.Context, view CatalogRead, ar
 // transportDeclaration is the type a replayed argument is cast to, or "".
 // Literal transports leave arguments alone while CHECK rebinding transports
 // literals privately.
-func (r scalarRenderer) transportDeclaration(view CatalogRead, arg expr.RenderArg) (string, error) {
+func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderArg) (string, error) {
 	if arg.Transport == expr.TransportCast {
 		return catalogTypeDeclaration(view, arg.TransportType)
 	}

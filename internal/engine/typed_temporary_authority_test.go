@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					original := e.catalog.Providers[ids.RelationClassID]
 					defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 					called := false
-					var winner *catalogState
+					var winner *catalog.State
 					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						if called {
 							return
@@ -65,7 +66,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 							t.Fatal("persistent CREATE admitted changed consulted ACL", executeErr, finishErr)
 						}
 					} else {
-						var conflict CatalogConflict
+						var conflict catalog.Conflict
 						if executeErr != nil || !errors.As(finishErr, &conflict) {
 							t.Error("TEMP Finish admitted changed consulted ACL", executeErr, finishErr)
 						}
@@ -111,7 +112,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 	}
 }
 
-func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *typeDescriptor, ids.ObjectAddress) {
+func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *catalog.Type, ids.ObjectAddress) {
 	t.Helper()
 	e, owner, finishOwner, memberAddress := typedReviewACLFixture(t)
 	if member {
@@ -144,9 +145,9 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	defer roleExecute(t, e, reader, "ROLLBACK")
 	roleExecute(t, e, reader, "CREATE TEMP TABLE late OF pair")
 	private := reader.session.transactions.catalog
-	var relation *relationDescriptor
+	var relation *catalog.Relation
 	for _, d := range private.descriptors {
-		if table, ok := d.(*relationDescriptor); ok && table.Name() == "late" {
+		if table, ok := d.(*catalog.Relation); ok && table.Name() == "late" {
 			relation = table
 		}
 	}

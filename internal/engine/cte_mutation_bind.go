@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -23,10 +24,10 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == compositeRelation {
+		if b.relation.RelationKind == catalog.CompositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == indexRelation {
+		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "insert into")
 		}
 		binder.insertTarget = b.relation
@@ -40,7 +41,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -73,15 +74,15 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == compositeRelation {
+		if b.relation.RelationKind == catalog.CompositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == indexRelation {
+		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
 		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -131,18 +132,18 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, ids.ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == compositeRelation {
+		if b.relation.RelationKind == catalog.CompositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == indexRelation {
+		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if !b.relation.VirtualView && b.relation.RelationKind == catalogRelation && !guardedCatalogRelation(b.relation) {
+		if !b.relation.VirtualView && b.relation.RelationKind == catalog.CatalogRelation && !guardedCatalogRelation(b.relation) {
 			return b, tableKind(b.relation, "change")
 		}
 		if !b.relation.VirtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == tableRelation {
+			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}

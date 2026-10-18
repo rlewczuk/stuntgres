@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -12,26 +13,26 @@ import (
 // Immutable table metadata and row frontier captured by Dump under Engine.mu.
 type dumpRelation struct {
 	owner, schema, name string
-	columns             []ColumnDescriptor
+	columns             []catalog.Column
 	attributes          []int32
 	versions            []rowVersion
 	ends                *deletionRoot
 	frontier            ids.CommitSeq
 	comment             string
 	columnComments      map[int32]string
-	notNullConstraints  []notNullConstraint
-	defaults            map[int32]columnDefault
+	notNullConstraints  []catalog.NotNullConstraint
+	defaults            map[int32]catalog.ColumnDefault
 	deferredDefinitions map[int32]bool
-	descriptor          *relationDescriptor
-	recipes             map[int32]inheritedColumn
+	descriptor          *catalog.Relation
+	recipes             map[int32]catalog.InheritedColumn
 	deferredChecks      map[string]bool
 	recipePlaceholders  bool
 	recipeComponent     ids.ObjectAddress
-	identities          map[int32]columnIdentity
+	identities          map[int32]catalog.ColumnIdentity
 	identitySequences   map[ids.ObjectAddress]dumpSequence
 }
 
-func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
 	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 	for i, c := range t.columns {
 		definition, exists := t.defaults[t.attributes[i]]
@@ -53,7 +54,7 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog Catalog
 	return nil
 }
 
-func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
 	destination := partitionHashReplayTarget(catalog, t.descriptor)
 	qualified := quoteIdentifier(catalog.Get(destination.Namespace()).Name()) + "." + quoteIdentifier(destination.Name())
 	var line strings.Builder
@@ -125,7 +126,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 // Stored regclass values need the actual replay name, not merely the table's
 // type declaration. Reuse the ordinary scalar reference walker for arrays and
 // opaque owned values, and the same captured visibility frontier as emitRows.
-func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogRead, add func(ids.ObjectAddress) error) error {
+func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.Read, add func(ids.ObjectAddress) error) error {
 	for _, version := range t.versions {
 		if err := ctx.Err(); err != nil {
 			return err

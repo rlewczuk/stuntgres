@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
@@ -11,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func moreUnitExpression(t *testing.T, view CatalogRead) unnestExpression {
+func moreUnitExpression(t *testing.T, view catalog.Read) unnestExpression {
 	t.Helper()
 	m, _ := view.LookupType(sqltype.Int4Multirange)
 	r, _ := view.LookupType(sqltype.Int4Range)

@@ -522,7 +522,7 @@ no verification is claimed by this implementation note.
 Released operator metadata and callable routine declarations remain separate
 authorities. Supported seed `?(jsonb,text)` is operator3247 with result BOOL16
 and routine identity4047. Its real JSONB expression provider does not require
-a callable `procedureDescriptor` for4047. Seed validation checks the immutable
+a callable `catalog.Procedure` for4047. Seed validation checks the immutable
 released result/function facts and existing operand/result types; normal
 catalog ACL validation still checks its owner. Custom defined operators must
 instead have a genuine function descriptor with the exact ordered signature
@@ -713,7 +713,7 @@ predecessors; no allocation-count, wiring or timing unit replaces semantic proof
 
 The companion root-owned inheritance traversal remedy filters descriptor keys by
 RelationClassID before loading values in `inheritanceChildren`. Actual parent
-edges in the supplied CatalogRead, safe relation assertions and ObjectID sorting
+edges in the supplied `catalog.Read`, safe relation assertions and ObjectID sorting
 remain authoritative; `hasSubclasses` is not absence proof. It introduces no
 inheritance cache or new SQL capability. Existing diamond ordering and late
 staged/current-root admission witnesses remain its semantic guards.

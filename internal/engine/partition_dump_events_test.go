@@ -16,15 +16,15 @@ import (
 func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	for _, table := range []*relationDescriptor{f.root, f.leaf} {
-		table.Columns = append(slices.Clone(table.Columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
+	for _, table := range []*catalog.Relation{f.root, f.leaf} {
+		table.Columns = append(slices.Clone(table.Columns), catalog.Column{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.Attributes = append(slices.Clone(table.Attributes), 99)
 		table.AttributeHighWater = 99
 	}
 	other := *f.leaf
 	other.ObjectAddress.ObjectID = 90001
 	other.ObjectName = "unit_other"
-	other.Membership = &partitionMembership{Parent: f.root.Address()}
+	other.Membership = &catalog.PartitionMembership{Parent: f.root.Address()}
 	f.root.Partition.Children = []ids.ObjectAddress{other.Address(), f.leaf.Address()}
 	f.child.SQLIndex.PartitionParent = f.parent.Address()
 	good, goodDefinition := *f.parent, *f.parent.SQLIndex
@@ -42,17 +42,17 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	otherGood.ObjectName = "unit_other_good"
 	otherGood.SQLIndex = &otherDefinition
 	otherDefinition.Parent = other.Address()
-	for _, d := range []*relationDescriptor{&other, &good, &leafGood, &otherGood} {
+	for _, d := range []*catalog.Relation{&other, &good, &leafGood, &otherGood} {
 		f.view.State().SetDescriptor(d.Address(), d)
 		f.view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).SQLType
-	f.leaf.CheckConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, Expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
+	f.leaf.CheckConstraints = []catalog.CheckConstraint{{OID: 90005, Name: "unit_late", NotValid: true, Expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.Columns))
 	for i, column := range f.leaf.Columns {
 		values[i] = sqltype.Null(column.Usage.Type)
 	}
-	for _, reference := range []*relationDescriptor{f.parent, &good} {
+	for _, reference := range []*catalog.Relation{f.parent, &good} {
 		t.Run(reference.Name(), func(t *testing.T) {
 			rowValues := slices.Clone(values)
 			rowValues[len(rowValues)-1] = sqltype.String(regclass, strconv.FormatUint(uint64(reference.Address().ObjectID), 10))
@@ -62,7 +62,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			for _, table := range tables {
 				graph[dumpEventKey{oid: table.descriptor.Address().ObjectID}] = nil
 			}
-			for _, index := range []*relationDescriptor{f.parent, f.child, &good, &leafGood, &otherGood} {
+			for _, index := range []*catalog.Relation{f.parent, f.child, &good, &leafGood, &otherGood} {
 				graph[dumpEventKey{oid: index.Address().ObjectID}] = []dumpEventKey{{oid: index.SQLIndex.Parent.ObjectID}}
 				indices[index.Address().ObjectID] = len(indices)
 			}
@@ -98,7 +98,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 			} else {
 				before(leafMember, dumpEventKey{oid: f.leaf.Address().ObjectID, phase: dumpRows})
 			}
-			for _, child := range []*relationDescriptor{f.child, &leafGood, &otherGood} {
+			for _, child := range []*catalog.Relation{f.child, &leafGood, &otherGood} {
 				before(dumpEventKey{oid: child.Address().ObjectID, phase: dumpIndexAttachment}, dumpEventKey{oid: f.root.Address().ObjectID, phase: dumpTableCompletion})
 			}
 			if f.parent.SQLIndex.Valid || f.child.SQLIndex.PartitionParent != f.parent.Address() || !good.SQLIndex.Valid || leafGood.SQLIndex.PartitionParent != good.Address() || otherGood.SQLIndex.PartitionParent != good.Address() {

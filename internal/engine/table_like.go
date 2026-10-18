@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -62,8 +63,8 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 
 type createLikeInput struct {
 	ref         ids.ObjectRef
-	source      *relationDescriptor
-	sourceType  *typeDescriptor
+	source      *catalog.Relation
+	sourceType  *catalog.Type
 	offset      int
 	targetSlots []int
 	options     tableLikeMask
@@ -80,7 +81,7 @@ func (in createLikeInput) targetSlot(slot int) int {
 
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
 // references are never imported; row owners and stable attributes are mapped.
-func (in createLikeInput) rowMapper(destination *relationDescriptor, authority CatalogRead) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
+func (in createLikeInput) rowMapper(destination *catalog.Relation, authority catalog.Read) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
 	attributes := make(map[int32]int32, len(in.source.Attributes))
 	slots := make(map[int32]int, len(in.source.Attributes))
 	for slot, attribute := range in.source.Attributes {
@@ -103,20 +104,20 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}, slots
 }
 
-func (in *createLikeInput) remap(node expr.Expr, destination *relationDescriptor, authority CatalogRead) (expr.Expr, error) {
+func (in *createLikeInput) remap(node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.rowRef == nil {
 		in.rowRef, in.slots = in.rowMapper(destination, authority)
 	}
 	return remapScalarExpression(node, nil, in.rowRef, in.slots, nil)
 }
 
-func (s *CatalogStage) captureLikeSource(source Descriptor) {
+func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
 	if !slices.Contains(s.likeSources, source) {
 		s.likeSources = append(s.likeSources, source)
 	}
 }
 
-func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
+func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 	if len(s.likeSources) == 0 {
 		return nil
 	}
@@ -130,8 +131,8 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 				return ids.ErrCatalogReplaced
 			}
 		} else {
-			staged, ok := s.Descriptors[address].(*relationDescriptor)
-			captured, sourceOK := source.(*relationDescriptor)
+			staged, ok := s.Descriptors[address].(*catalog.Relation)
+			captured, sourceOK := source.(*catalog.Relation)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.
 			if !ok || !sourceOK || staged.Revision() != source.Revision() || staged.RelationKind != captured.RelationKind {
@@ -142,7 +143,7 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 	return nil
 }
 
-func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *relationDescriptor, inputs []createLikeInput) error {
+func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
 		stage.captureLikeSource(in.source)
@@ -178,7 +179,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
-					definition := columnDefault{Expression: node}
+					definition := catalog.ColumnDefault{Expression: node}
 					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
@@ -195,7 +196,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						}
 					}
 					if destination.Defaults == nil {
-						destination.Defaults = make(map[int32]columnDefault)
+						destination.Defaults = make(map[int32]catalog.ColumnDefault)
 					}
 					destination.Defaults[target] = definition
 					if destination.Inheritance != nil {
@@ -220,12 +221,12 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					if err != nil {
 						return err
 					}
-					definition := columnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
+					definition := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
 					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					if destination.Generations == nil {
-						destination.Generations = make(map[int32]columnGeneration)
+						destination.Generations = make(map[int32]catalog.ColumnGeneration)
 					}
 					destination.Generations[target] = definition
 				}
@@ -243,7 +244,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 	return nil
 }
 
-func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *relationDescriptor, inputs []createLikeInput) error {
+func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *catalog.Relation, inputs []createLikeInput) error {
 	names := make(map[string]bool)
 	ordinal := 0
 	for _, constraint := range destination.NotNullConstraints {
@@ -271,7 +272,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			if err != nil {
 				return err
 			}
-			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
+			definition := catalog.CheckConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
 			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
@@ -283,16 +284,16 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 				if provider, ok := auth.catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
-				definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
+				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 			}
 			destination.CheckConstraints = append(destination.CheckConstraints, definition)
 			if destination.Inheritance != nil {
-				destination.Inheritance.Checks[definition.Name] = inheritedConstraint{Local: true}
+				destination.Inheritance.Checks[definition.Name] = catalog.InheritedConstraint{Local: true}
 			}
 			names[old.Name] = true
 			ordinal++
 		}
 	}
-	slices.SortFunc(destination.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(destination.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,20 +13,20 @@ import (
 
 type createInheritanceInput struct {
 	ref    ids.ObjectRef
-	source *relationDescriptor
+	source *catalog.Relation
 }
 
-func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
+func inheritanceHasChildren(v catalog.Read, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
+		if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
 			return true
 		}
 	}
 	return false
 }
 
-func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
-	var children []*relationDescriptor
+func inheritanceChildren(v catalog.Read, parent ids.ObjectAddress) []*catalog.Relation {
+	var children []*catalog.Relation
 	for address := range v.Descriptors() {
 		if address.ClassID != ids.RelationClassID {
 			continue
@@ -35,7 +36,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 			children = append(children, d)
 		}
 	}
-	slices.SortFunc(children, func(a, b *relationDescriptor) int {
+	slices.SortFunc(children, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -46,7 +47,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 	})
 	return children
 }
-func inheritanceParticipant(v CatalogRead, d *relationDescriptor) bool {
+func inheritanceParticipant(v catalog.Read, d *catalog.Relation) bool {
 	return d.Inheritance != nil || inheritanceHasChildren(v, d.Address())
 }
 
@@ -58,7 +59,7 @@ func inheritanceTypeName(u sqltype.Usage) string {
 	}
 	return name
 }
-func inheritanceColumnConflict(view CatalogRead, old, next ColumnDescriptor, local bool) error {
+func inheritanceColumnConflict(view catalog.Read, old, next catalog.Column, local bool) error {
 	prefix := "inherited column"
 	if local {
 		prefix = "column"
@@ -77,7 +78,7 @@ func inheritanceColumnConflict(view CatalogRead, old, next ColumnDescriptor, loc
 }
 
 // Local duplicate detection precedes merging; LIKE remains a local copy, not an edge.
-func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []ColumnDescriptor, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]ColumnDescriptor, []createColumnDeclaration, []createLikeConstraint, error) {
+func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
 	if len(syntax.Parents) == 0 {
 		return columns, declarations, likeConstraints, nil
 	}
@@ -88,12 +89,12 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		}
 		localNames[c.Name] = true
 	}
-	var merged []ColumnDescriptor
+	var merged []catalog.Column
 	b.createLocalColumns = localNames
 	index := make(map[string]int)
 	seen := make(map[ids.ObjectAddress]bool)
 	generated := make(map[string]bool)
-	kinds := make(map[string]generationKind)
+	kinds := make(map[string]catalog.GenerationKind)
 	for _, name := range syntax.Parents {
 		ref, err := e.resolveReference(auth, name)
 		if err != nil {
@@ -105,7 +106,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, err
 		}
 		source := auth.catalog.MustRelation(ref.Address)
-		if source.RelationKind == compositeRelation {
+		if source.RelationKind == catalog.CompositeRelation {
 			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.Name())).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
 			return nil, nil, nil, d
@@ -116,10 +117,10 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if source.Membership != nil {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.Name()))
 		}
-		if source.RelationKind == foreignRelation {
+		if source.RelationKind == catalog.ForeignRelation {
 			return nil, nil, nil, sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
 		}
-		if source.RelationKind != tableRelation {
+		if source.RelationKind != catalog.TableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.Name()))
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
@@ -189,9 +190,9 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, diagnostic
 		}
 		if ok && generated[c.Name] && declarations[i].generation != nil {
-			kind := generationVirtual
+			kind := catalog.GenerationVirtual
 			if declarations[i].generation.Kind == "stored" {
-				kind = generationStored
+				kind = catalog.GenerationStored
 			}
 			if kinds[c.Name] != kind {
 				return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], kind)

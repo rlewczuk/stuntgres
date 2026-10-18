@@ -7,6 +7,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -593,7 +594,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				case "descriptor", "shape":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
-					replacement := *scope.lockedDescriptor.(*relationDescriptor)
+					replacement := *scope.lockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					if mode == "shape" {
 						replacement.Attributes = append([]int32(nil), replacement.Attributes...)

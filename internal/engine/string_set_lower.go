@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
@@ -135,7 +136,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	schema := append(querySchema(nil), root.Schema()...)
 	for _, expressions := range [][]expr.Expr{template.origins, template.scalars} {
 		for _, expression := range expressions {
-			schema = append(schema, ColumnDescriptor{Usage: expression.ResultUsage()})
+			schema = append(schema, catalog.Column{Usage: expression.ResultUsage()})
 		}
 	}
 	column := func(bound expr.Expr, slot int) expr.Expr {

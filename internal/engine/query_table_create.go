@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 
 // Source analysis and parameter import precede this destination-only phase.
 // Engine.mu is held. A skipped destination never enters executor admission.
-func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, s *parser.CreateQueryTable, b binding) (*CatalogStage, *relationDescriptor, bool, error) {
+func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, s *parser.CreateQueryTable, b binding) (*CatalogStage, *catalog.Relation, bool, error) {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
@@ -56,7 +57,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if len(schema) > 1600 {
 		return nil, nil, false, sqlError("54011", "tables can have at most 1600 columns")
 	}
-	columns := make([]ColumnDescriptor, len(schema))
+	columns := make([]catalog.Column, len(schema))
 	names := make(map[string]int, len(schema))
 	for i, column := range schema {
 		column.Nullable, column.NullabilityKnown = true, true
@@ -134,11 +135,11 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		return nil, nil, false, err
 	}
 	if s.Form == parser.CreateMaterializedView {
-		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, materializedViewRelation, false)
+		definition, err := e.freezeViewDefinitionLocked(auth, s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {
 			return nil, nil, false, err
 		}
-		d.RelationKind, d.View, d.Populated = materializedViewRelation, viewPayloadOf(definition), !s.NoData
+		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, viewPayloadOf(definition), !s.NoData
 	}
 	d.ACL = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
@@ -151,14 +152,14 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
-		d = stage.Descriptors[d.Address()].(*relationDescriptor)
+		d = stage.Descriptors[d.Address()].(*catalog.Relation)
 	}
 	return stage, d, false, nil
 }
 
 // Rows have already been finalized, typed and detached from query scratch. Only
 // this private stage owns them; identity gaps are allowed if publication fails.
-func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d *relationDescriptor, rows [][]sqltype.Value, ref ids.TxRef) error {
+func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d *catalog.Relation, rows [][]sqltype.Value, ref ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -198,8 +199,8 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
-		d, ok := s.Descriptors[address].(*relationDescriptor)
-		if !ok || !d.RelationKind.Stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		d, ok := s.Descriptors[address].(*catalog.Relation)
+		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {
@@ -242,7 +243,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 
 // The common SELECT pipeline has already planned and admitted this producer.
 // Engine.mu is held on entry; every outcome releases it. The caller owns discard.
-func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root LogicalNode, parameters []sqltype.Value, stage *CatalogStage, d *relationDescriptor) (Result, error) {
+func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root LogicalNode, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
 	ctx := scope.op.Context()
 	source, err := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
 	e.mu.Unlock()

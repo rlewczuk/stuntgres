@@ -4,6 +4,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -29,7 +30,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 			ref := catalogRef(t, e, base, "i")
 			old := base.MustRelation(ref.Address)
 			identities := maps.Clone(old.Identities)
-			columns := append([]ColumnDescriptor(nil), old.Columns...)
+			columns := append([]catalog.Column(nil), old.Columns...)
 			state, storage := e.catalog.state, e.storage[ref.Address]
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
@@ -48,7 +49,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := next.Identities[1]
-				sequence := stage.Descriptors[identity.Sequence].(*relationDescriptor)
+				sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
 				want := ref.Address
 				want.SubID = 1
 				if sequence.Sequence.Owned != want || !sequence.Sequence.Identity || stage.generators[identity.Sequence] == nil {

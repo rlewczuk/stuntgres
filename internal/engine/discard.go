@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -204,7 +205,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	base := auth.catalog
 	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == session.token {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == session.token {
 			owned[address] = true
 		}
 	}
@@ -290,7 +291,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 	return s.relationCursorPreflight(stage.Base, address, "DROP TABLE")
 }
 
-func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address ids.ObjectAddress, command string) error {
+func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.op.session
 	for _, cursor := range session.cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {

@@ -4,12 +4,13 @@ import (
 	"context"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) ([]ids.ObjectAddress, error) {
+func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition) ([]ids.ObjectAddress, error) {
 	var refs []ids.ObjectAddress
 	add := func(items []ids.ObjectAddress) {
 		for _, a := range items {
@@ -168,7 +169,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 	return refs, nil
 }
 
-func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress) bool {
+func ruleDepends(catalog catalog.Read, r ruleDefinition, target ids.ObjectAddress) bool {
 	for _, a := range r.references {
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
@@ -177,7 +178,7 @@ func ruleDepends(catalog CatalogRead, r ruleDefinition, target ids.ObjectAddress
 	return false
 }
 
-func ruleDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
+func ruleDependentLabels(catalog catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress) []supportedDependent {
 	return ruleDependentLabelsFrom(catalog, targets, path, catalog.Descriptors(), nil)
 }
 
@@ -188,20 +189,20 @@ func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) [
 	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
 }
 
-func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
+func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || slices.Contains(targets, d.Address()) {
 			continue
 		}
 		for _, r := range rulesOf(d) {
 			for _, target := range targets {
-				if ruleDepends(catalog, r, target) {
+				if ruleDepends(view, r, target) {
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
 					break
 				}
 			}
@@ -225,7 +226,7 @@ func (provider *dropProvider) ruleDependents(targets []ids.ObjectAddress, mode p
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}

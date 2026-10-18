@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 
 // resolveIntaggAggregate analyzes an int_array_aggregate call's operands, its
 // FILTER and its installed routine, and records the routine's identity.
-func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (expr.Expr, *procedureDescriptor, ids.ObjectRef, expr.Expr, error) {
+func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (expr.Expr, *catalog.Procedure, ids.ObjectRef, expr.Expr, error) {
 	operands, err := functions.AnalyzeIntaggArguments(b, call)
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
@@ -55,14 +56,14 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	return b.finishAggregate(raw, call, filter, info)
 }
 
-func sameIntaggIdentity(a *procedureDescriptor, ar ids.ObjectRef, b *procedureDescriptor, br ids.ObjectRef) bool {
+func sameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Procedure, br ids.ObjectRef) bool {
 	if ar != br || (a == nil) != (b == nil) {
 		return false
 	}
 	return a == nil || a.Address() == b.Address() && a.Revision() == b.Revision()
 }
 
-func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.ObjectRef, name string) error {
+func validateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
 	if proc == nil {
 		if ref != (ids.ObjectRef{}) {
 			return fmt.Errorf("stuntgres: missing installed intagg identity")
@@ -78,13 +79,13 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 
 // intaggIdentity records the installed intagg routine as a dependency, as
 // the engine binder always appended it, and returns its reference.
-func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.ObjectRef, error) {
+func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.ObjectRef, error) {
 	p := r.procedure
 	if intaggProviderOf(p) != stockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
-	r.binder.dependencies = append(r.binder.dependencies, expressionDependency{Ref: ref, Revision: p.Revision()})
+	r.binder.dependencies = append(r.binder.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
 	return p, ref, nil
 }
 

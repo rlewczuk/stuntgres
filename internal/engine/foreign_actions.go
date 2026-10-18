@@ -4,13 +4,14 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func sameForeignKeyDefinition(a, b foreignKeyConstraint) bool {
+func sameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
 	return a.OID == b.OID && a.Target == b.Target && a.Index == b.Index && a.Full == b.Full && a.UpdateAction == b.UpdateAction && a.DeleteAction == b.DeleteAction && slices.Equal(a.Attributes, b.Attributes) && slices.Equal(a.Referenced, b.Referenced) && slices.Equal(a.DeleteAttributes, b.DeleteAttributes)
 }
 
@@ -30,7 +31,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	auth.recaptureCatalog(auth.catalog)
 	relevant := false
 	for _, descriptor := range auth.catalog.Descriptors() {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -68,7 +69,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	for again {
 		again = false
 		for _, descriptor := range auth.catalog.Descriptors() {
-			child, ok := descriptor.(*relationDescriptor)
+			child, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				continue
 			}
@@ -96,7 +97,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	var jobs []foreignKeyJob
 	modes := make(map[ids.ObjectRef]lock.Mode)
 	for _, descriptor := range auth.catalog.Descriptors() {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -153,7 +154,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	return jobs, auth, nil
 }
 
-func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
+func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 	child, cok := view.Relation(job.child.Address())
 	parent, pok := view.Relation(job.parent.Address())
 	index, iok := view.Relation(job.index.Address())

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
@@ -78,7 +79,7 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 }
 
 func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
-	table := &relationDescriptor{}
+	table := &catalog.Relation{}
 	eval := &EvalContext{Context: context.Background()}
 	if allocations := testing.AllocsPerRun(100, func() {
 		constraint, err := validateCheckRow(table, nil, eval)

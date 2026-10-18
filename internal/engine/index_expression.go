@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor) *expressionBinder {
+func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder {
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
 	columns := make([]queryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
@@ -26,7 +27,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 // used by the enclosing CREATE or TYPE owner.
 // Ordering admission belongs to the caller's final selected class/collation,
 // not an expression-only default comparator.
-func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, raw parser.Expr, literals []literalExpression) (*derivedIndexKey, string, error) {
+func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []literalExpression) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.checkLiterals = literals
 	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})
@@ -52,7 +53,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if plannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
-	key := &derivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
+	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
 	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, "", err
 	}
@@ -70,7 +71,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	return key, label, nil
 }
 
-func indexKeyUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
+func indexKeyUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
 	usage, err := indexKeyBaseUsage(parent, key)
 	if err != nil {
 		return sqltype.Usage{}, err
@@ -78,7 +79,7 @@ func indexKeyUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, err
 	return indexKeyCollation(usage, key), nil
 }
 
-func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
+func indexKeyBaseUsage(parent *catalog.Relation, key catalog.IndexKey) (sqltype.Usage, error) {
 	if key.Derived != nil {
 		return key.Derived.Execution.ResultUsage(), nil
 	}
@@ -90,7 +91,7 @@ func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage,
 	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
 }
 
-func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
+func indexExpressionDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	if d.SQLIndex == nil {
 		return false
 	}

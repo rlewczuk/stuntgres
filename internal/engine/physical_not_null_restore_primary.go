@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -9,7 +10,7 @@ import (
 // Record the actual result of a named, qualified CREATE INDEX on a table freshly
 // created by this import. No generated name, eligibility rebinding or index
 // metadata is synthesized here; the ordinary provider already completed it.
-func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.CreateIndex, created map[ids.ObjectAddress]ids.ObjectRef) *relationDescriptor {
+func (e *Engine) capturePhysicalImportIndex(before catalog.Read, raw *parser.CreateIndex, created map[ids.ObjectAddress]ids.ObjectRef) *catalog.Relation {
 	if raw.Name.Text == "" || raw.IfNotExists || raw.Concurrent.Character != 0 || len(raw.Table.Parts) != 2 {
 		return nil
 	}
@@ -35,7 +36,7 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 	return index
 }
 
-func physicalImportedIndexMatches(source *relationDescriptor, constructor *physicalNotNullConstructor, current *relationDescriptor, primary *uniqueConstraint) bool {
+func physicalImportedIndexMatches(source *catalog.Relation, constructor *physicalNotNullConstructor, current *catalog.Relation, primary *catalog.UniqueConstraint) bool {
 	if source == nil || source.Address() != primary.Index || source.Name() != constructor.indexName || source.Namespace() != current.Namespace() || source.SQLIndex == nil || source.SQLIndex.Parent != current.Address() || source.SQLIndex.Constraint != nil || len(source.SQLIndex.Keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
 		return false
 	}
@@ -77,7 +78,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.RelationKind != tableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {
@@ -92,10 +93,10 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 	return &physicalNotNullConstructor{before: old, ref: ref, deferred: definition}, nil
 }
 
-func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, current *relationDescriptor) error {
+func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, current *catalog.Relation) error {
 	reject := func() error { return sqlError("0A000", restorePhysicalNotNullBoundary) }
 	definition := constructor.deferred
-	var primary *uniqueConstraint
+	var primary *catalog.UniqueConstraint
 	for i := range current.UniqueConstraints {
 		if current.UniqueConstraints[i].Primary == definition.Primary && current.UniqueConstraints[i].Name == definition.Name.Text {
 			primary = &current.UniqueConstraints[i]

@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -17,7 +18,7 @@ type regtypeConstant struct {
 	id         uint32
 	value      sqltype.Value
 	qualified  []ids.ObjectAddress
-	operands   []expressionDependency
+	operands   []catalog.ExpressionDependency
 	references []regObjectReference
 }
 type regtypeAnalysis struct {

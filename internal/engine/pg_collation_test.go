@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgCollationUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3456}
 	d, ok := catalog.Relation(address)
@@ -24,57 +24,57 @@ func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 
 func TestPGCollationShapeAndOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgCollationUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgCollationUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_collation" || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
+	if d.Name() != "pg_collation" || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
 		t.Fatal("catalog identity", d)
 	}
 	names := [...]string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}
 	typeIDs := [...]sqltype.ID{26, 19, 26, 26, 18, 16, 23, 25, 25, 25, 25, 25}
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950}
 	for i, column := range d.Columns {
-		typ, ok := catalog.LookupType(typeIDs[i])
+		typ, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i >= 7) || !column.NullabilityKnown || column.OriginTable != 3456 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Error("release attribute", i+1, column)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+	row, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 	if !ok {
 		t.Fatal("owned row type", d.RowType)
 	}
-	array, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+	array, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 	if !ok {
 		t.Fatal("owned row array", row.Array)
 	}
-	ownedRow, rowOK := catalog.LookupType(d.RowType)
-	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+	ownedRow, rowOK := view.LookupType(d.RowType)
+	ownedArray, arrayOK := view.LookupArray(ownedRow)
 	if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("relational row/array ownership", row, array)
 	}
 }
 
-func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
+func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySource {
 	t.Helper()
-	d, ref := pgCollationUnitSource(t, e, catalog)
+	d, ref := pgCollationUnitSource(t, e, view)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
-	capturedDescriptors, capturedNames := maps.Collect(catalog.State().Descriptors()), maps.Collect(catalog.State().Names())
+	capturedDescriptors, capturedNames := maps.Collect(view.State().Descriptors()), maps.Collect(view.State().Names())
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal("capture", rows, err)
 	}
 	count := 0
-	for _, descriptor := range catalog.Descriptors() {
-		if _, ok := descriptor.(*collationDescriptor); ok {
+	for _, descriptor := range view.Descriptors() {
+		if _, ok := descriptor.(*catalog.Collation); ok {
 			count++
 		}
 	}
@@ -91,7 +91,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 			t.Fatal("private ordered identity", id, previous, err)
 		}
 		previous = id
-		definition, ok := catalog.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
+		definition, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			t.Fatal("invented row", id)
 		}
@@ -129,14 +129,14 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 		}
 	}
 	unchanged := func() {
-		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(catalog.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(catalog.State().Names())) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(view.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(view.State().Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := capturePGCollation(ctx, catalog, ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := capturePGCollation(ctx, view, ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published partial source", got, err)
 	}
 	unchanged()
@@ -154,7 +154,7 @@ func TestPGCollationCapture(t *testing.T) {
 	c := collationUnitDefinition(e, 90000, "pgc_capture")
 	b := collationUnitDefinition(e, 90001, "pgc_empty_version")
 	b.Provider, b.Encoding, b.Collate, b.CType, b.Locale, b.Version, b.Semantics = "b", 6, nil, nil, catalog.CollationText("C.UTF-8"), catalog.CollationText(""), 811
-	for _, d := range []*collationDescriptor{c, b} {
+	for _, d := range []*catalog.Collation{c, b} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

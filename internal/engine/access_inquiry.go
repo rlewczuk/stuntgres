@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -170,7 +171,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		// Schema lookup belongs to this expression's user as well, not a rule or
 		// view's independent relation-authorization identity.
 		auth.state.CurrentUser = principal
-		var d *relationDescriptor
+		var d *catalog.Relation
 		if n.args[0].ResultUsage().Type.ID() == sqltype.Oid {
 			oid, failure := values[0].OID()
 			if failure != nil {

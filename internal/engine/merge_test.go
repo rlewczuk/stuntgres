@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,7 +43,7 @@ func TestMergeInsertBinding(t *testing.T) {
 }
 
 type mergeInsertTestCursor struct {
-	schema                []ColumnDescriptor
+	schema                []catalog.Column
 	rows                  [][]sqltype.Value
 	position, closed      int
 	nextError, closeError error
@@ -50,7 +51,7 @@ type mergeInsertTestCursor struct {
 	beforeClose           func()
 }
 
-func (c *mergeInsertTestCursor) Schema() []ColumnDescriptor { return c.schema }
+func (c *mergeInsertTestCursor) Schema() []catalog.Column { return c.schema }
 func (c *mergeInsertTestCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	if c.beforeNext != nil {
 		c.beforeNext()

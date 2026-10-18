@@ -16,12 +16,12 @@ import (
 
 // Algorithm snapshots clone real installed descriptors. The extra names/IDs
 // are private unit inputs, never published providers or public dictionary DDL.
-func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, AuthorizationView, []ids.ObjectAddress) {
+func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, catalog.Read, AuthorizationView, []ids.ObjectAddress) {
 	t.Helper()
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
 	view = view.WithState(catalog.CloneState(view.State()))
-	var installed *tsDictionaryDescriptor
+	var installed *catalog.TSDictionary
 	for _, address := range ext.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			installed = d
@@ -285,7 +285,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "reg_ts_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -329,7 +329,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 func TestRegTSStoredDependencyProviders(t *testing.T) {
 	e, _, extension := extensionUnitInstalled(t)
 	view := e.CatalogRead()
-	var dictionary *tsDictionaryDescriptor
+	var dictionary *catalog.TSDictionary
 	for _, address := range extension.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			dictionary = d
@@ -339,15 +339,15 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 		t.Fatal("real dictionary provider missing")
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.Address())
-	consumer := func(ref ids.ObjectRef) *relationDescriptor {
-		return &relationDescriptor{
+	consumer := func(ref ids.ObjectRef) *catalog.Relation {
+		return &catalog.Relation{
 			ObjectAddress:    ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			CheckConstraints: []checkConstraint{{Dependencies: []expressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
-			Defaults:         map[int32]columnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
-			Generations:      map[int32]columnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
+			CheckConstraints: []catalog.CheckConstraint{{Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
+			Defaults:         map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
+			Generations:      map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
-	for name, validate := range map[string]func(CatalogRead, *relationDescriptor) error{
+	for name, validate := range map[string]func(catalog.Read, *catalog.Relation) error{
 		"check":      validateCheckProviders,
 		"default":    validateDefaultProviders,
 		"generation": validateGenerationProviders,

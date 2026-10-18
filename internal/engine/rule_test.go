@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescriptor, *relationDescriptor) {
+func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	base := e.CatalogRead()
@@ -23,8 +23,8 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	if !ok {
 		t.Fatal("INT4 unavailable")
 	}
-	makeRelation := func(id ids.OID, name string) *relationDescriptor {
-		return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: tableRelation}
+	makeRelation := func(id ids.OID, name string) *catalog.Relation {
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: catalog.TableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := catalog.CloneState(e.catalog.state)
@@ -34,17 +34,17 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
 }
 
-func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
+func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {
 	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 }
-func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
+func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
 	if err != nil {
 		panic(err)
 	}
 	return literalExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
 }
-func ruleUnitInsert(e *Engine, d *relationDescriptor, id, v int64) ruleAction {
+func ruleUnitInsert(e *Engine, d *catalog.Relation, id, v int64) ruleAction {
 	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
 }
 
@@ -367,7 +367,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		op, done := roleOperation(t, f.e, "postgres")
 		defer done()
 		auth := f.authorization(t, op)
-		f.base.RelationKind, f.base.VirtualView = viewRelation, true
+		f.base.RelationKind, f.base.VirtualView = catalog.ViewRelation, true
 		f.base.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}})
 		viewOf(f.view).checkOption = viewCheckCascaded
 		project := viewOf(f.view).query.Root.(*projectNode)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -26,13 +27,13 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		}
 	}
 
-	catalog := e.CatalogRead()
-	regclass, _ := catalog.LookupType(sqltype.Regclass)
-	oid, _ := catalog.LookupType(sqltype.Oid)
-	boolean, _ := catalog.LookupType(sqltype.Bool)
+	view := e.CatalogRead()
+	regclass, _ := view.LookupType(sqltype.Regclass)
+	oid, _ := view.LookupType(sqltype.Oid)
+	boolean, _ := view.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
 	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, "10000")}
-	definition := columnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}
+	definition := catalog.ColumnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}
 	if !defaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
 	}
@@ -66,7 +67,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}
 	}
-	if defaultReplayDeferrable(columnDefault{}) {
+	if defaultReplayDeferrable(catalog.ColumnDefault{}) {
 		t.Fatal("missing definition admitted")
 	}
 }

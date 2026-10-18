@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
-func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
+func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
 		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
@@ -21,16 +22,16 @@ func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltyp
 	}, collations...)
 }
 
-func retagBoundTypesWithQuery(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func retagBoundTypesWithQuery(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -93,7 +94,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 				}
 			}
 			descriptor, _ := definitionDescriptorAt(view, reader, address)
-			current, ok := descriptor.(*procedureDescriptor)
+			current, ok := descriptor.(*catalog.Procedure)
 			if !ok || current.Name() != captured.Name() || current.Signature != captured.Signature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
 			}
@@ -194,7 +195,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		n.Info = info
 		if n.procedure != nil {
 			descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-			proc, ok := descriptor.(*procedureDescriptor)
+			proc, ok := descriptor.(*catalog.Procedure)
 			if !ok || intaggProviderOf(proc) != stockIntagg {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped intagg enumerator")
 			}
@@ -211,7 +212,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			return node, false, err
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Soundex function")
 		}
@@ -228,7 +229,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			return node, false, err
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Metaphone function")
 		}
@@ -245,7 +246,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			return node, false, err
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Levenshtein function")
 		}
@@ -258,7 +259,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		rebound = n
 	case installedUUIDOsspFunctionExpression:
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || uuidOsspProviderOf(proc) != stockUUIDOssp {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped uuid-ossp function")
 		}
@@ -273,7 +274,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 			return node, false, err
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || pgcryptoProviderOf(proc) != stockPgcrypto {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
 		}
@@ -287,20 +288,20 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 	case installedFunctionExpression:
 		n.Arg = child(n.Arg)
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
-		proc, ok := descriptor.(*procedureDescriptor)
+		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
 		}
-		var dict *tsDictionaryDescriptor
-		var tmpl *tsTemplateDescriptor
+		var dict *catalog.TSDictionary
+		var tmpl *catalog.TSTemplate
 		if unaccentProviderOf(proc) != nil {
 			descriptor, _ = definitionDescriptorAt(view, reader, proc.Dictionary)
-			dict, ok = descriptor.(*tsDictionaryDescriptor)
+			dict, ok = descriptor.(*catalog.TSDictionary)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
 			}
 			descriptor, _ = definitionDescriptorAt(view, reader, dict.Template)
-			tmpl, ok = descriptor.(*tsTemplateDescriptor)
+			tmpl, ok = descriptor.(*catalog.TSTemplate)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
 			}
@@ -1015,7 +1016,7 @@ func mapCompositeChildren(node expr.Composite, mapChild func(expr.Expr) (expr.Ex
 
 // retagEnvironment gives Retaggable nodes the retained descriptors, the stored
 // collation remap and collation derivation over the catalog view.
-func retagEnvironment(view CatalogRead, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations []collationRemapper) expr.Retag {
+func retagEnvironment(view catalog.Read, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations []collationRemapper) expr.Retag {
 	remap := func(ref sqltype.CollationRef) (sqltype.CollationRef, error) { return ref, nil }
 	if len(collations) != 0 && collations[0] != nil {
 		remap = collations[0]

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -443,12 +444,12 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
+func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (LogicalNode, error) {
 	var collation collationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
@@ -465,7 +466,7 @@ type viewQueryRemapper struct {
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*projectNode]LogicalNode
 	collation      collationRemapper
-	catalog        CatalogRead
+	catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*cteDefinition]*cteDefinition
 	mutation       func(*cteDefinition) (binding, error)
@@ -946,7 +947,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 
 // Ordinary descriptor renaming reowns only consumers of changed type
 // generations; replacement additionally remaps every imported object reference.
-func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	typ = recordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
@@ -1001,7 +1002,7 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		}
 	}
 	if d.Membership != nil {
-		for _, tuple := range [][]partitionDatum{d.Membership.Lower, d.Membership.Upper} {
+		for _, tuple := range [][]catalog.PartitionDatum{d.Membership.Lower, d.Membership.Upper} {
 			for _, datum := range tuple {
 				if datum.Kind == 0 {
 					changed = changed || datum.Value.Type() != typ(datum.Value.Type())
@@ -1024,20 +1025,20 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 	return changed
 }
 
-func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func (e *Engine) remapCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	return e.reownCatalogExpressions(next, mapping, false)
 }
 
 // Imported rules have identities outside the descriptor address map. Reserve
 // them before allocating replacements, including collisions with retained TEMP
 // objects and relation identities remapped earlier in the private candidate.
-func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
+func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 	const descriptorOID, ruleOID, claimedOID = uint8(1), uint8(2), uint8(4)
 	reserved := make(map[ids.OID]uint8, next.DescriptorCount())
-	var views []*relationDescriptor
+	var views []*catalog.Relation
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
-		if view, ok := descriptor.(*relationDescriptor); ok && view.View != nil {
+		if view, ok := descriptor.(*catalog.Relation); ok && view.View != nil {
 			if viewOf(view).rule == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}

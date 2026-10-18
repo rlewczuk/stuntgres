@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -34,13 +35,13 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		t.Fatal("missing actual bound declaration", captured, err)
 	}
 	address := ids.ObjectAddress{ids.ProcedureClassID, 4007, 0}
-	identity := routineIdentity{4007, ids.PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
+	identity := catalog.RoutineIdentity{4007, ids.PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
 	d := captured.Builtin
-	if d.Identity != identity || d.Kind != functionRoutine || d.Result != 3802 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
+	if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != 3802 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
 		t.Fatal("released full-IN declaration", d)
 	}
 	view := e.CatalogRead()
-	if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != identity.Name || captured.Signature != identity.Signature || captured.Result != 3802 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || view.Get(address) != captured {
+	if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != identity.Name || captured.Signature != identity.Signature || captured.Result != 3802 || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || view.Get(address) != captured {
 		t.Fatal("bound descriptor is not the owned released routine", captured)
 	}
 	for i, id := range []sqltype.ID{3802, 4072, 3802, 16} {
@@ -70,7 +71,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 		t.Fatal("current OID repaired missing original manifest")
 	}
-	checks := append([]expressionDependency(nil), b.dependencies...)
+	checks := append([]catalog.ExpressionDependency(nil), b.dependencies...)
 	for i := range checks {
 		if checks[i].Ref.Address == address {
 			checks[i].Revision++

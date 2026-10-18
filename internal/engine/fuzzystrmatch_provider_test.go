@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -61,7 +61,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if len(expected) != 0 {
 		t.Fatal("missing selected members", expected)
 	}
-	for _, d := range []Descriptor{ext, proc} {
+	for _, d := range []catalog.Descriptor{ext, proc} {
 		if err := (extensionCatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
@@ -82,15 +82,15 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if members != 10 {
 		t.Fatal("membership edges", members)
 	}
-	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.ObjectName = "text_soundex" }, func(p *procedureDescriptor) { p.Signature = "23" },
-		func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Volatility = expr.Stable },
-		func(p *procedureDescriptor) { p.Strict = false }, func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
-		func(p *procedureDescriptor) { p.Implementation = stockIntarray }, func(p *procedureDescriptor) {
-			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.ObjectName = "text_soundex" }, func(p *catalog.Procedure) { p.Signature = "23" },
+		func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Volatility = expr.Stable },
+		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = stockIntarray }, func(p *catalog.Procedure) {
+			p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.Address() }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
+		func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
+		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
 	} {
 		state := catalog.CloneState(e.catalog.state)
 		bad := *proc
@@ -218,7 +218,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("dependency", refs, err)
 	}
-	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{
+	consumer := &catalog.Relation{Generations: map[int32]catalog.ColumnGeneration{
 		1: {Expression: n, Dependencies: []ids.ObjectRef{n.ref}},
 	}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
@@ -227,7 +227,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	badRef := n.ref
 	badRef.Address.SubID = 1
 	invalid := *consumer
-	invalid.Generations = map[int32]columnGeneration{
+	invalid.Generations = map[int32]catalog.ColumnGeneration{
 		1: {Expression: n, Dependencies: []ids.ObjectRef{badRef}},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {

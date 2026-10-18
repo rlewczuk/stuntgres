@@ -2,26 +2,27 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 )
 
 type ForeignDataWrapperDefinition struct {
-	HandlerName ForeignFunctionName
-	Wrapper     ForeignDataWrapper
+	HandlerName catalog.ForeignFunctionName
+	Wrapper     catalog.ForeignDataWrapper
 }
 type ForeignValidatorDefinition struct {
-	Name     ForeignFunctionName
-	Validate func(context.Context, ForeignObjectKind, []ForeignOption) error
+	Name     catalog.ForeignFunctionName
+	Validate func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error
 }
 
 type ForeignImportRequest struct {
 	RemoteSchema, LocalSchema, Server, Role                string
-	WrapperOptions, ServerOptions, MappingOptions, Options []ForeignOption
+	WrapperOptions, ServerOptions, MappingOptions, Options []catalog.ForeignOption
 	Tables                                                 []string
 	Except                                                 bool
 }
 type ForeignColumnDefinition struct {
 	Name, Type string
-	Options    []ForeignOption
+	Options    []catalog.ForeignOption
 	NotNull    bool
 	Default    string
 	Check      string
@@ -29,7 +30,7 @@ type ForeignColumnDefinition struct {
 type ForeignTableDefinition struct {
 	Name    string
 	Columns []ForeignColumnDefinition
-	Options []ForeignOption
+	Options []catalog.ForeignOption
 	Checks  []string
 }
 type ForeignSchemaImporter interface {

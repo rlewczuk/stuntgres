@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+	b.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
@@ -27,9 +28,9 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TYPE operator_left_enum AS ENUM('a','b')")
 	run(t, e, "CREATE TYPE operator_right_enum AS ENUM('a','b')")
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	typ := func(id sqltype.ID) *sqltype.Descriptor {
-		d, ok := catalog.LookupType(id)
+		d, ok := view.LookupType(id)
 		if !ok {
 			t.Fatal("missing physical witness", id)
 		}
@@ -66,7 +67,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 			if len(row) != 15 || row[7] != tc.declaredLeft || row[8] != tc.declaredRight || row[9] != tc.declaredResult {
 				t.Fatal("released generic identity", tc, row)
 			}
-			identity := catalog.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: tc.oid})
+			identity := view.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: tc.oid})
 			if strconv.FormatUint(uint64(identity.Left), 10) != tc.declaredLeft || strconv.FormatUint(uint64(identity.Right), 10) != tc.declaredRight {
 				t.Fatal("identity became a concrete overload", identity)
 			}
@@ -94,8 +95,8 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 		})
 	}
 	var leftEnum, rightEnum *sqltype.Descriptor
-	for _, d := range catalog.Descriptors() {
-		if d, ok := d.(*typeDescriptor); ok {
+	for _, d := range view.Descriptors() {
+		if d, ok := d.(*catalog.Type); ok {
 			switch d.Name() {
 			case "operator_left_enum":
 				leftEnum = d.SQLType

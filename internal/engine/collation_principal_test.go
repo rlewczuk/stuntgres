@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -105,9 +106,9 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	assertOwner("C")
 	assertOwner("coll_bootstrap_capture")
-	for _, catalog := range []CatalogRead{beforeCatalog, e.CatalogRead()} {
-		d, _ := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
-		if d.(*collationDescriptor).Owner != bootstrap {
+	for _, view := range []catalog.Read{beforeCatalog, e.CatalogRead()} {
+		d, _ := view.Descriptor(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
+		if d.(*catalog.Collation).Owner != bootstrap {
 			t.Fatal("seed ownership mutated", d)
 		}
 	}

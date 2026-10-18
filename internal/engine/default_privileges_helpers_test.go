@@ -34,7 +34,7 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := catalog.CloneState(e.catalog.state)
-	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
+	namespace := &catalog.Namespace{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
 	next.SetDescriptor(schema, namespace)
 	next.BindName(catalog.DescriptorNameKey(namespace), schema)
 	e.catalog.state = next
@@ -103,14 +103,14 @@ func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorizat
 
 // defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *relationDescriptor {
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
 	f.e.mu.Lock()
-	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
+	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.ACL = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)

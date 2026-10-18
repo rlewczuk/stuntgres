@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -28,11 +29,11 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	branch := inheritanceLifecycleTable(e, 20008, "foreign_branch", f.Address())
 	branch.ObjectNamespace = peerNamespace
 	inheritanceLifecycleInstall(e, p, l, r, d, o, f, branch)
-	e.catalog.state.SetDescriptor(ownNamespace, &namespaceDescriptor{ObjectAddress: ownNamespace, Temporary: own})
-	e.catalog.state.SetDescriptor(peerNamespace, &namespaceDescriptor{ObjectAddress: peerNamespace, Temporary: peer})
+	e.catalog.state.SetDescriptor(ownNamespace, &catalog.Namespace{ObjectAddress: ownNamespace, Temporary: own})
+	e.catalog.state.SetDescriptor(peerNamespace, &catalog.Namespace{ObjectAddress: peerNamespace, Temporary: peer})
 	for range 2 {
 		var got []ids.ObjectAddress
-		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *relationDescriptor) error { got = append(got, d.Address()); return nil }); err != nil {
+		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *catalog.Relation) error { got = append(got, d.Address()); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		want := []ids.ObjectAddress{p.Address(), l.Address(), d.Address(), r.Address(), o.Address()}
@@ -42,10 +43,10 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	}
 }
 
-func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *relationDescriptor {
+func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *catalog.Relation {
 	d := inheritanceLifecycleTable(e, id, "layout")
 	for i, name := range names {
-		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
+		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: testUsage(e, sqltype.Int4)})
 		d.Attributes = append(d.Attributes, int32(i+1))
 		d.Index[name] = i
 	}
@@ -105,7 +106,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	e := New()
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
-	ref := func(d *relationDescriptor) ids.ObjectRef {
+	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}

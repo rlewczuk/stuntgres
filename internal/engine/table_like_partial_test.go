@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -38,9 +39,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	local := e.catalog.Domain.Ref(stage.Base.Epoch(), destination.Address())
 	local.Address.SubID = 4
-	var copied []*relationDescriptor
+	var copied []*catalog.Relation
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
@@ -82,7 +83,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			n, _ := sqltype.Integer(integer, 2)
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
 			evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
-			got, err := preparation.predicateMatches(&evaluation, destination, &indexDefinition{Predicate: predicate}, row, nil, nil)
+			got, err := preparation.predicateMatches(&evaluation, destination, &catalog.IndexDefinition{Predicate: predicate}, row, nil, nil)
 			want, _ := TruthOf(truth)
 			if err != nil || got != (want == True) {
 				t.Fatal("execution predicate retains source slot", got, want, err)
@@ -187,9 +188,9 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	var copied *relationDescriptor
+	var copied *catalog.Relation
 	for _, descriptor := range stage.Descriptors {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			copied = index
 		}
 	}
@@ -227,9 +228,9 @@ func TestTableLikePartialConstants(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer e.DiscardCatalogStage(stage)
-			var copied *relationDescriptor
+			var copied *catalog.Relation
 			for _, descriptor := range stage.Descriptors {
-				if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+				if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 					copied = index
 				}
 			}
@@ -287,9 +288,9 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		auth.recaptureCatalog(auth.catalog)
 	}
 	raw := statement(t, "CREATE INDEX private_partial ON private_source(k) WHERE active AND ('anchor'::regclass IS NOT NULL)").(*parser.CreateIndex)
-	var index *relationDescriptor
+	var index *catalog.Relation
 	if err == nil {
-		var predicate *indexPredicate
+		var predicate *catalog.IndexPredicate
 		predicate, err = e.bindIndexPredicate(op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
 			definition, columns, attributes, lookup, bindErr := e.bindIndexAttributes(op, sqltype.InputEnvironment{}, auth, source, raw)
@@ -306,7 +307,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(attributes)), Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
+						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(attributes)), Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 						err = stage.Create(index)
 					}
 				}

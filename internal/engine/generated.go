@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -41,17 +42,17 @@ func generationWriteError(column string, update bool) error {
 	return diagnostic
 }
 
-func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *relationDescriptor, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
+func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.generation != nil {
 			if d.Generations == nil {
-				d.Generations = make(map[int32]columnGeneration)
+				d.Generations = make(map[int32]catalog.ColumnGeneration)
 			}
-			kind := generationVirtual
+			kind := catalog.GenerationVirtual
 			if declaration.generation.Kind == "stored" {
-				kind = generationStored
+				kind = catalog.GenerationStored
 			}
-			d.Generations[d.Attributes[slot]] = columnGeneration{Kind: kind}
+			d.Generations[d.Attributes[slot]] = catalog.ColumnGeneration{Kind: kind}
 		}
 	}
 	if len(d.Generations) == 0 {
@@ -71,7 +72,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 	return nil
 }
 
-func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescriptor) queryNamespace {
+func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) queryNamespace {
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
@@ -82,7 +83,7 @@ func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescript
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relationDescriptor, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (columnGeneration, error) {
+func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (catalog.ColumnGeneration, error) {
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
 	b.generatedOwner = d
 	b.noParameters = true
@@ -92,64 +93,64 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
 	kind := d.Generations[d.Attributes[slot]].Kind
-	if kind == generationVirtual {
+	if kind == catalog.GenerationVirtual {
 		if err := virtualDestination(column); err != nil {
-			return columnGeneration{}, err
+			return catalog.ColumnGeneration{}, err
 		}
 	}
 	node, err := b.bind(expression, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
 	if err != nil {
-		return columnGeneration{}, err
+		return catalog.ColumnGeneration{}, err
 	}
 	analyzed := node
-	if kind == generationVirtual {
+	if kind == catalog.GenerationVirtual {
 		if err := virtualGenerationSecurity(analyzed); err != nil {
-			return columnGeneration{}, err
+			return catalog.ColumnGeneration{}, err
 		}
 	}
 	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
-		return columnGeneration{}, err
+		return catalog.ColumnGeneration{}, err
 	}
 	if !generationImmutable(node) {
-		return columnGeneration{}, sqlError("42P17", "generation expression is not immutable")
+		return catalog.ColumnGeneration{}, sqlError("42P17", "generation expression is not immutable")
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := domainCoercionInput(node, column.Usage)
 		info, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
 		if failure != nil {
-			return columnGeneration{}, failure
+			return catalog.ColumnGeneration{}, failure
 		}
 		plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if failure != nil {
 			diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
-			return columnGeneration{}, diagnostic
+			return catalog.ColumnGeneration{}, diagnostic
 		}
 		info.Property = coercionProperties(input, plan)
 		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
-			return columnGeneration{}, failure
+			return catalog.ColumnGeneration{}, failure
 		}
 		analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.Usage, sqltype.Assignment)
 		if failure != nil {
-			return columnGeneration{}, failure
+			return catalog.ColumnGeneration{}, failure
 		}
 		analyzedInfo.Property = coercionProperties(analyzedInput, analyzedPlan)
 		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
 	}
 	node, err = storageDestination(node, column.Usage, parser.Position{})
 	if err != nil {
-		return columnGeneration{}, err
+		return catalog.ColumnGeneration{}, err
 	}
 	analyzed, err = storageDestination(analyzed, column.Usage, parser.Position{})
 	if err != nil {
-		return columnGeneration{}, err
+		return catalog.ColumnGeneration{}, err
 	}
-	definition := columnGeneration{Kind: kind, Expression: analyzed, Planned: node}
+	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
 	_, err = (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
 	return definition, err
 }
@@ -258,7 +259,7 @@ func generationImmutable(node expr.Expr) bool {
 	return node.Properties().Volatility == expr.Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
 }
 
-func generationRecipeExpression(definition columnGeneration) expr.Expr {
+func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 	if definition.Expression != nil {
 		return definition.Expression
 	}
@@ -270,7 +271,7 @@ func generationRecipeExpression(definition columnGeneration) expr.Expr {
 // One execution owner uses one fixed generation program for this descriptor.
 // ALTER borrows its existing selected-slot vector; ordinary writes demand all
 // stored slots. Neither path admits unused recipes or checks rights per row.
-func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []int, consumer *relationDescriptor) ([]expr.Expr, error) {
+func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
 	program, prepared := c.preparedGenerations[d]
 	if prepared {
 		return program, nil
@@ -286,7 +287,7 @@ func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []
 			slot = selected[i]
 		}
 		definition, exists := d.Generations[d.Attributes[slot]]
-		if !exists || definition.Kind != generationStored {
+		if !exists || definition.Kind != catalog.GenerationStored {
 			continue
 		}
 		stored = true
@@ -315,14 +316,14 @@ func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []
 	}
 	if stored {
 		if c.preparedGenerations == nil {
-			c.preparedGenerations = make(map[*relationDescriptor][]expr.Expr)
+			c.preparedGenerations = make(map[*catalog.Relation][]expr.Expr)
 		}
 		c.preparedGenerations[d] = program
 	}
 	return program, nil
 }
 
-func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqltype.Value, c *EvalContext) error {
+func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *EvalContext) error {
 	if len(d.Generations) == 0 {
 		return ctx.Err()
 	}
@@ -339,7 +340,7 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 		if !ok {
 			continue
 		}
-		if definition.Kind == generationVirtual {
+		if definition.Kind == catalog.GenerationVirtual {
 			row[slot] = sqltype.Null(d.Columns[slot].Usage.Type)
 			continue
 		}
@@ -458,7 +459,7 @@ func generationHasTableOID(node expr.Expr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -470,11 +471,11 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		filtered := *descriptor
 		filtered.Generations = nil
 		for attribute, definition := range descriptor.Generations {
-			if definition.Kind != generationStored || !generationHasTableOID(definition.Planned) {
+			if definition.Kind != catalog.GenerationStored || !generationHasTableOID(definition.Planned) {
 				continue
 			}
 			if filtered.Generations == nil {
-				filtered.Generations = make(map[int32]columnGeneration)
+				filtered.Generations = make(map[int32]catalog.ColumnGeneration)
 			}
 			filtered.Generations[attribute] = definition
 		}
@@ -570,7 +571,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 	return ctx.Err()
 }
 
-func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error {
+func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 	for _, definition := range d.Generations {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
@@ -590,7 +591,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			relation, relationProvider := provider.(*relationDescriptor)
+			relation, relationProvider := provider.(*catalog.Relation)
 			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.Address().ClassID != ids.RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
@@ -598,7 +599,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				// Analyzed dependencies retain installed identity even when a
 				// branch is pruned. Surviving-tree immutability is checked
 				// separately; validate the actual procedure manifest here.
-				procedure, ok := provider.(*procedureDescriptor)
+				procedure, ok := provider.(*catalog.Procedure)
 				if !ok || ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}
@@ -618,7 +619,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 
 // The analyzed tree supplies provider-signature validation. The physical tree
 // independently validates its concrete usages and row/owner identities.
-func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.Expr) error {
+func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Expr) error {
 	if node == nil {
 		return nil
 	}
@@ -803,7 +804,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.E
 	}
 }
 
-func generationDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
+func generationDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 	for _, definition := range d.Generations {
 		for _, dependency := range definition.Dependencies {
 			address := dependency.Address

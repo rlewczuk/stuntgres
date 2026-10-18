@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -8,23 +9,23 @@ import (
 
 // Closure is physical-identity deduplication within one SQL occurrence. A foreign
 // session's temporary branch is not admitted, even through a persistent ancestor.
-func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, token ids.SessionToken, visit func(*relationDescriptor) error) error {
+func inheritanceQueryClosure(view catalog.Read, root *catalog.Relation, token ids.SessionToken, visit func(*catalog.Relation) error) error {
 	if err := visit(root); err != nil {
 		return err
 	}
-	children := inheritanceChildren(catalog, root.Address())
+	children := inheritanceChildren(view, root.Address())
 	if len(children) == 0 {
 		return nil
 	}
 	seen := map[ids.ObjectAddress]bool{root.Address(): true}
-	var walk func([]*relationDescriptor) error
-	walk = func(children []*relationDescriptor) error {
+	var walk func([]*catalog.Relation) error
+	walk = func(children []*catalog.Relation) error {
 		for _, child := range children {
 			if seen[child.Address()] {
 				continue
 			}
 			seen[child.Address()] = true
-			ns, ok := catalog.Namespace(child.Namespace())
+			ns, ok := view.Namespace(child.Namespace())
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
@@ -34,7 +35,7 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 			if err := visit(child); err != nil {
 				return err
 			}
-			if err := walk(inheritanceChildren(catalog, child.Address())); err != nil {
+			if err := walk(inheritanceChildren(view, child.Address())); err != nil {
 				return err
 			}
 		}
@@ -45,16 +46,16 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 
 // Called under Engine.mu. Stored views expose their named source's scan mode,
 // not a flattened set of leaves or the mode of an unrelated SQL occurrence.
-func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.SessionToken, visit func(queryLeaf) error) error {
+func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.SessionToken, visit func(queryLeaf) error) error {
 	var active []ids.ObjectAddress
 	var walk func(queryLeaf) error
 	walk = func(leaf queryLeaf) error {
-		d, ok := catalog.Relation(leaf.ref.Address)
-		if !ok || leaf.ref.Epoch != catalog.Epoch() {
+		d, ok := view.Relation(leaf.ref.Address)
+		if !ok || leaf.ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		leaf.relation = d
-		if d.RelationKind == viewRelation {
+		if d.RelationKind == catalog.ViewRelation {
 			for _, address := range active {
 				if address == d.Address() {
 					return nil
@@ -66,7 +67,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 				if child.analysisOnly {
 					continue
 				}
-				ref, err := storedViewUseReference(catalog, d, child.ref)
+				ref, err := storedViewUseReference(view, d, child.ref)
 				if err != nil {
 					return err
 				}
@@ -76,10 +77,10 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 			}
 			return nil
 		}
-		if d.RelationKind != tableRelation || leaf.only {
+		if d.RelationKind != catalog.TableRelation || leaf.only {
 			return visit(leaf)
 		}
-		return inheritanceQueryClosure(catalog, d, token, func(physical *relationDescriptor) error {
+		return inheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
 			child := leaf
 			child.ref.Address, child.relation = physical.Address(), physical
 			return visit(child)
@@ -126,16 +127,16 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 	}
 	for {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
+		view := e.privateCatalogLocked(s.owner.catalog)
 		for _, leaf := range s.inheritanceRelations {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, leaf); err != nil {
+			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, leaf); err != nil {
 				e.mu.Unlock()
 				return err
 			}
 		}
 		var pending []queryLeaf
-		err := inheritanceQueryLeaves(catalog, roots, s.op.session.token, func(leaf queryLeaf) error {
-			if leaf.relation.RelationKind != tableRelation {
+		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf queryLeaf) error {
+			if leaf.relation.RelationKind != catalog.TableRelation {
 				return nil
 			}
 			mode := lock.AccessShare
@@ -145,7 +146,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == catalog.TableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}
@@ -173,7 +174,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			return nil
 		})
 		if err == nil && len(pending) == 0 {
-			s.inheritanceCatalog = catalog
+			s.inheritanceCatalog = view
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -230,7 +231,7 @@ func sourceOnly(statement parser.Statement) bool {
 	return false
 }
 
-func (s *StatementScope) inheritanceRead(current CatalogRead) CatalogRead {
+func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
 	if s.inheritanceCatalog.State() != nil {
 		return s.inheritanceCatalog
 	}

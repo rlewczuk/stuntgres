@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
@@ -21,7 +22,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	var frontier ids.DefinitionRevision
 	provider := e.catalog.Providers[ids.RelationClassID]
 	defer func() { e.catalog.Providers[ids.RelationClassID] = provider }()
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 		once.Do(func() {
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
@@ -37,7 +38,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	_, err = e.Execute(op, stmt, 0, nil)
 	op.Done()
 	e.catalog.Providers[ids.RelationClassID] = provider
-	if err != (CatalogConflict{}) {
+	if err != (catalog.Conflict{}) {
 		t.Fatalf("source namespace authorization fence: %T %v", err, err)
 	}
 	if e.catalog.state.Get(ref.Address) != old || e.catalog.state.Get(q) != sequence || e.storage[ref.Address] != storage || e.catalog.nextRevision != frontier {
@@ -59,7 +60,7 @@ func TestAlterSchemaUnrelatedNamespacePublication(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	provider := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 		once.Do(func() { run(t, e, "CREATE SCHEMA unrelated") })
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
@@ -78,7 +79,7 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
 	source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-	original := make(map[ids.ObjectAddress]Descriptor)
+	original := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for _, name := range []string{"t", "q1", "q2"} {
 		a := NameAddressForTempMove(t, e, source, name)
 		original[a] = e.catalog.state.Get(a)
@@ -86,7 +87,7 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	provider := e.catalog.Providers[ids.RelationClassID]
 	var once sync.Once
 	var frontier ids.DefinitionRevision
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 		once.Do(func() {
 			run(t, e, "ALTER SCHEMA s1 RENAME TO renamed_source")
 			frontier = e.catalog.nextRevision
@@ -94,7 +95,7 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	}}
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE s1.t SET SCHEMA s2"), nil)
 	e.catalog.Providers[ids.RelationClassID] = provider
-	if err != (CatalogConflict{}) {
+	if err != (catalog.Conflict{}) {
 		t.Fatal("source rename fence", err)
 	}
 	for a, d := range original {

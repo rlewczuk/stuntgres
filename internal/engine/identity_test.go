@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -25,21 +26,21 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	if err := (relationProvider{}).Validate(read, old); err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*relationDescriptor){
-		func(d *relationDescriptor) {
+	for _, mutate := range []func(*catalog.Relation){
+		func(d *catalog.Relation) {
 			identity := d.Identities[1]
 			identity.Mode = parser.IdentityNone
 			d.Identities[1] = identity
 		},
-		func(d *relationDescriptor) {
+		func(d *catalog.Relation) {
 			identity := d.Identities[1]
 			identity.Sequence = ids.ObjectAddress{}
 			d.Identities[1] = identity
 		},
-		func(d *relationDescriptor) { d.Identities[99] = d.Identities[1] },
-		func(d *relationDescriptor) { d.Identities[1] = d.Identities[2] },
-		func(d *relationDescriptor) {
-			d.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		func(d *catalog.Relation) { d.Identities[99] = d.Identities[1] },
+		func(d *catalog.Relation) { d.Identities[1] = d.Identities[2] },
+		func(d *catalog.Relation) {
+			d.Columns = append([]catalog.Column(nil), d.Columns...)
 			d.Columns[0].Nullable = true
 		},
 	} {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -28,16 +29,16 @@ func partitionGeneratedError(_ error, pos parser.Position, name string) error {
 	return d
 }
 
-func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *relationDescriptor, raw *parser.PartitionKey, input sqltype.InputEnvironment) (*partitionDefinition, error) {
+func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *catalog.Relation, raw *parser.PartitionKey, input sqltype.InputEnvironment) (*catalog.PartitionDefinition, error) {
 	if raw == nil {
 		return nil, nil
 	}
 	if len(raw.Keys) == 0 || len(raw.Keys) > 32 {
 		return nil, sqlError("54011", "cannot partition using more than 32 columns")
 	}
-	definition := &partitionDefinition{Strategy: raw.Strategy, Keys: make([]partitionKeyEntry, len(raw.Keys))}
+	definition := &catalog.PartitionDefinition{Strategy: raw.Strategy, Keys: make([]catalog.PartitionKeyEntry, len(raw.Keys))}
 	for i, r := range raw.Keys {
-		key := partitionKeyEntry{}
+		key := catalog.PartitionKeyEntry{}
 		var usage sqltype.Usage
 		if r.Expression == nil {
 			slot, ok := d.Index[r.Column.Text]
@@ -85,7 +86,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}
-			key.Derived = &derivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
+			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
 			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.Derived.Dependencies}).sql(op.Context(), auth.catalog, node)
 			if err != nil {
 				return nil, err
@@ -93,9 +94,9 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			key.Label = text
 			usage = planned.ResultUsage()
 		}
-		method := btreeMethod
+		method := catalog.BtreeMethod
 		if raw.Strategy == parser.PartitionHash {
-			method = hashMethod
+			method = catalog.HashMethod
 		}
 		bound, err := e.bindIndexKey(op, auth, usage, r, method)
 		if err != nil {
@@ -124,8 +125,8 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 // preparePartitionBounds checks both arities before any expression demand.
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
-func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBound) (*partitionMembership, error) {
-	bound := &partitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
+func preparePartitionBounds(parent *catalog.Relation, raw parser.PartitionBound) (*catalog.PartitionMembership, error) {
+	bound := &catalog.PartitionMembership{Parent: parent.Address(), Strategy: parent.Partition.Strategy, DefaultBound: raw.Default}
 	if parent.Partition.Strategy == parser.PartitionHash {
 		if raw.Default {
 			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
@@ -155,14 +156,14 @@ func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBoun
 	if len(raw.Upper) != len(keys) {
 		return nil, sqlError("42P16", "TO must specify exactly one value per partitioning column")
 	}
-	bound.Lower, bound.Upper = make([]partitionDatum, len(keys)), make([]partitionDatum, len(keys))
+	bound.Lower, bound.Upper = make([]catalog.PartitionDatum, len(keys)), make([]catalog.PartitionDatum, len(keys))
 	return bound, nil
 }
 
 // bindPartitionDatum captures one datum's exact provider references under mu.
 // Its caller evaluates the returned tree only after this method releases mu;
 // transient sequence calls retain their ordinary RX/grant-time admission.
-func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key partitionKeyEntry) (expr.Expr, error) {
+func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -214,7 +215,7 @@ func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evalu
 			if err := evaluation.Context.Err(); err != nil {
 				return err
 			}
-			tuple[i] = partitionDatum{Kind: datum.Kind, Pos: datum.Pos}
+			tuple[i] = catalog.PartitionDatum{Kind: datum.Kind, Pos: datum.Pos}
 			if datum.Kind != 0 {
 				continue
 			}

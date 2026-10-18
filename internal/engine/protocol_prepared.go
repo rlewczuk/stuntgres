@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ type ProtocolStatement struct {
 	Empty, HasRows bool
 }
 type ProtocolPortalDescription struct {
-	Columns        []ColumnDescriptor
+	Columns        []catalog.Column
 	Formats        []int16
 	Context        ProtocolContext
 	Empty, HasRows bool
@@ -236,7 +237,7 @@ func missingProtocolPortal(name string) error {
 	return sqlError("34000", fmt.Sprintf("portal \"%s\" does not exist", name))
 }
 
-func protocolHasRows(stmt parser.Statement, columns []ColumnDescriptor) bool {
+func protocolHasRows(stmt parser.Statement, columns []catalog.Column) bool {
 	if columns != nil {
 		return true
 	}

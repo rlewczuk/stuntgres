@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -70,7 +71,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	cases := []struct {
 		name       string
-		consumer   *relationDescriptor
+		consumer   *catalog.Relation
 		ref        ids.ObjectRef
 		capability sqltype.CollationRef
 	}{

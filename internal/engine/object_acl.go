@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -202,7 +203,7 @@ func objectACLClass(class ids.OID) (hasACL, known bool) {
 	return false, false
 }
 
-func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization.ACLValue, error) {
+func rawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	if address.ClassID == 0 && address.ObjectID == 0 {
 		return authorization.ACLValue{}, nil
 	}
@@ -218,17 +219,17 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 	}
 	key := address
 	key.SubID = 0
-	d := catalog.Get(key)
+	d := view.Get(key)
 	if address.ClassID == ids.RelationClassID && address.SubID != 0 {
 		// AttrNumber is signed int16. Narrow only after choosing the column
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))
-		if relation, ok := d.(*relationDescriptor); ok && subid > 0 && relation.HasAttribute(subid) {
+		if relation, ok := d.(*catalog.Relation); ok && subid > 0 && relation.HasAttribute(subid) {
 			return relation.ColumnACL[subid], nil
 		}
 		return authorization.ACLValue{}, nil
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.ACLSyntheticDefault {
+	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
 		return authorization.ACLValue{}, nil
 	}
 	_, acl, _ := descriptorACL(d)

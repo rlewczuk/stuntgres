@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,7 +55,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
-	stage.indexParents = make(map[ids.ObjectAddress]*relationDescriptor, len(g.parents))
+	stage.indexParents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.parents))
 	for _, ref := range g.parents {
 		stage.indexParents[ref.Address] = g.descriptors[ref.Address]
 		stage.domainBases = append(stage.domainBases, g.descriptors[ref.Address])
@@ -66,7 +67,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, reindex := stmt.(*parser.Reindex); reindex {
-		stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(g.indexes))
+		stage.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(g.indexes))
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
@@ -138,24 +139,24 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 
 // Stage observations are checked against the exact current catalog before any
 // work is prepared. The publication loop also fences that catalog at install.
-func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
+func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	if (len(s.indexParents) > 0 || len(s.indexRebuilds) > 0 || len(s.indexSets) > 0) && current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for address, observed := range s.indexParents {
 		if current.Get(address) != observed {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for address, observed := range s.indexRebuilds {
 		if observed == nil || observed.SQLIndex == nil || current.Get(address) != observed || s.Base.Get(address) != observed {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	for parent, count := range s.indexSets {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
 			}
@@ -163,12 +164,12 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
 			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.Address() != parent || s.Base.Get(address) != d) {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			actual++
 		}
 		if actual != count {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil

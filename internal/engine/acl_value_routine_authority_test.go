@@ -81,16 +81,16 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
-			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
-			if declaration.Identity != identity || declaration.Kind != functionRoutine || declaration.Result != tc.result || !declaration.Strict || declaration.Volatility != tc.volatility || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Defaults != 0 || declaration.Variadic != 0 || declaration.Providers != tc.provider {
+			identity := catalog.RoutineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, catalog.ProcedureSignature(tc.signature)}
+			if declaration.Identity != identity || declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || !declaration.Strict || declaration.Volatility != tc.volatility || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Defaults != 0 || declaration.Variadic != 0 || declaration.Providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			selected := 0
-			var missing []expressionDependency
+			var missing []catalog.ExpressionDependency
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
@@ -112,7 +112,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original source/project authority", err)
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
@@ -120,7 +120,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, mode := range []string{"foreign", "epoch", "revision"} {
-				checks := append([]expressionDependency(nil), original...)
+				checks := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range checks {
 					if checks[i].Ref.Address == address {
 						switch mode {
@@ -159,7 +159,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.kind != call.kind || mapped.named != call.named || mapped.namespace != call.namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
 				t.Fatal("retag lost selected carrier contract", mapped, err)
 			}
-			for _, manifest := range [][]expressionDependency{original, nil, {}} {
+			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured original destination authority")
@@ -176,7 +176,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("incompatible current declaration admitted")
 			}
 			invalid := call
-			invalid.RoutineReference = (*procedureDescriptor)(nil)
+			invalid.RoutineReference = (*catalog.Procedure)(nil)
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed-nil selected descriptor admitted")
 			}

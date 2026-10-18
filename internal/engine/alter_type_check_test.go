@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(9,2,7)")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	oldChecks := append([]checkConstraint(nil), old.CheckConstraints...)
+	oldChecks := append([]catalog.CheckConstraint(nil), old.CheckConstraints...)
 	op, cleanup, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +93,7 @@ func TestAlterTypeCheckAtomicity(t *testing.T) {
 			if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
 				t.Fatal("published failed CHECK/NN candidate")
 			}
-			if err := validateChecks(e.CatalogRead(), old.(*relationDescriptor), map[string]bool{}); err != nil {
+			if err := validateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {
 				t.Fatal("damaged incumbent manifest", err)
 			}
 		})

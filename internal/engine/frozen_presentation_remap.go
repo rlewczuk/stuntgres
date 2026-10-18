@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
+func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
 	typ = recordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {
@@ -88,7 +89,7 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 	for offset, old := range original.sequenceRefs {
 		definition.sequenceRefs[offset] = ref(old)
 	}
-	definition.dependencies = append([]expressionDependency(nil), original.dependencies...)
+	definition.dependencies = append([]catalog.ExpressionDependency(nil), original.dependencies...)
 	for i := range definition.dependencies {
 		definition.dependencies[i].Ref = ref(definition.dependencies[i].Ref)
 		if definition.dependencies[i].Ref.Address.ClassID == ids.ProcedureClassID {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -63,7 +64,7 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	// A bad scalar identity is an error, never a fallback or partial source.
 	invalid := *currentDescriptor
-	invalid.Columns = append([]ColumnDescriptor(nil), currentDescriptor.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), currentDescriptor.Columns...)
 	invalid.Columns[5].Usage.Type = currentDescriptor.Columns[0].Usage.Type
 	if got, err := capturePGCursors(context.Background(), currentRef, &invalid, s.cursors); got != nil || err == nil {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
@@ -123,12 +124,12 @@ func TestPGCursorsSource(t *testing.T) {
 
 func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("invalid view identity", d)
 	}
 	wantNames := []string{"name", "statement", "is_holdable", "is_binary", "is_scrollable", "creation_time"}
@@ -137,7 +138,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("invalid view arity", d.Columns)
 	}
 	for i, column := range d.Columns {
-		owner, ok := catalog.LookupType(wantTypes[i])
+		owner, ok := view.LookupType(wantTypes[i])
 		if !ok || column.Name != wantNames[i] || column.Usage.Type != owner || column.Usage.Typmod != -1 || !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(pgCursorsOID) || column.OriginAttribute != int16(i+1) {
 			t.Fatal("invalid logical consumer descriptor", i, column)
 		}
@@ -151,48 +152,48 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if d.RowType != sqltype.ID(12079) {
 		t.Fatal("wrong cursor row type", d.RowType)
 	}
-	rowDescriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12079})
+	rowDescriptor, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12079})
 	if !ok {
 		t.Fatal("missing cursor row type")
 	}
-	row, ok := rowDescriptor.(*typeDescriptor)
+	row, ok := rowDescriptor.(*catalog.Type)
 	if !ok || row.OwningRelation != d.Address() || row.Array != sqltype.ID(12078) {
 		t.Fatal("cursor row ownership/array association", rowDescriptor)
 	}
-	arrayType, ok := catalog.LookupArray(row.SQLType)
+	arrayType, ok := view.LookupArray(row.SQLType)
 	if !ok || arrayType.ID() != sqltype.ID(12078) || arrayType.Element() != row.SQLType {
 		t.Fatal("cursor array does not resolve reciprocally", arrayType)
 	}
-	arrayDescriptor, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12078})
+	arrayDescriptor, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12078})
 	if !ok {
 		t.Fatal("missing cursor associated array")
 	}
-	array, ok := arrayDescriptor.(*typeDescriptor)
+	array, ok := arrayDescriptor.(*catalog.Type)
 	if !ok || array.SQLType != arrayType || array.OwningRelation != d.Address() {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}
-	for _, descriptor := range []Descriptor{row, array} {
-		if err := (typeProvider{}).Validate(catalog, descriptor); err != nil {
+	for _, descriptor := range []catalog.Descriptor{row, array} {
+		if err := (typeProvider{}).Validate(view, descriptor); err != nil {
 			t.Fatal(err)
 		}
 	}
 	invalidRow := *row
 	invalidRow.OwningRelation = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}
-	if err := (typeProvider{}).Validate(catalog, &invalidRow); err == nil {
+	if err := (typeProvider{}).Validate(view, &invalidRow); err == nil {
 		t.Fatal("cursor row type accepted another backing relation")
 	}
 	// Validator must reject a virtual table or a type descriptor from another
 	// engine, not just accept a superficially matching OID/schema.
 	invalid := *d
-	invalid.RelationKind = tableRelation
-	if err := (relationProvider{}).Validate(catalog, &invalid); err == nil {
+	invalid.RelationKind = catalog.TableRelation
+	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 		t.Fatal("virtual table accepted")
 	}
 	invalid = *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Timestamptz)
 	invalid.Columns[5].Usage.Type = foreign
-	if err := (relationProvider{}).Validate(catalog, &invalid); err == nil {
+	if err := (relationProvider{}).Validate(view, &invalid); err == nil {
 		t.Fatal("foreign timestamp owner accepted")
 	}
 }

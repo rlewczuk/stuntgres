@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ type inheritanceQuerySegment struct {
 
 // Graph validation establishes name/origin identity; live row layout still has
 // to be translated, because earlier parents may precede this named parent.
-func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
+func inheritanceQueryLayout(parent, child *catalog.Relation) ([]int, error) {
 	identity := len(parent.Columns) == len(child.Columns)
 	for i, column := range parent.Columns {
 		slot, ok := child.Index[column.Name]
@@ -36,8 +37,8 @@ func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
 	return layout, nil
 }
 
-func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
-	if leaf.only || !inheritanceHasChildren(catalog, leaf.ref.Address) {
+func captureInheritanceQueryPrefix(catalogView catalog.Read, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
+	if leaf.only || !inheritanceHasChildren(catalogView, leaf.ref.Address) {
 		return captureQueryPrefix(view, leaf.ref)
 	}
 	pin := view.Retain()
@@ -45,7 +46,7 @@ func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, le
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	source := &querySource{ref: leaf.ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
-	err := inheritanceQueryClosure(catalog, leaf.relation, token, func(physical *relationDescriptor) error {
+	err := inheritanceQueryClosure(catalogView, leaf.relation, token, func(physical *catalog.Relation) error {
 		child := leaf
 		child.ref.Address, child.relation = physical.Address(), physical
 		child.storage = view.read().generationAt(physical.Address())

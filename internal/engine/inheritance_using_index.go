@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -11,13 +12,13 @@ import (
 
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
-func captureUsingIndexDefinition(reader definitionReader, parent *relationDescriptor, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
+func captureUsingIndexDefinition(reader definitionReader, parent *catalog.Relation, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
 	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
 	descriptor, _ := reader.descriptor(address)
 	if descriptor == nil {
 		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
 	}
-	index, ok := descriptor.(*relationDescriptor)
+	index, ok := descriptor.(*catalog.Relation)
 	if !ok || index.SQLIndex == nil {
 		return usingIndexAttachment{}, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, raw.Index.Text))
 	}
@@ -28,7 +29,7 @@ func captureUsingIndexDefinition(reader definitionReader, parent *relationDescri
 	return usingIndexAttachment{syntax: raw, index: index, attributes: attributes}, nil
 }
 
-func captureUsingIndexDefinitions(reader definitionReader, parent *relationDescriptor, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
+func captureUsingIndexDefinitions(reader definitionReader, parent *catalog.Relation, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
 	var captured []usingIndexAttachment
 	for _, action := range actions {
 		if action.Action == parser.AddUsingIndex {
@@ -45,7 +46,7 @@ func captureUsingIndexDefinitions(reader definitionReader, parent *relationDescr
 // This is the incumbent USING INDEX NN constructor, shared by admission and
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definitionReader, parent *relationDescriptor, captured usingIndexAttachment) (*relationDescriptor, error) {
+func usingIndexNotNullCandidate(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
 	if !captured.syntax.Primary {
 		return parent, nil
 	}
@@ -69,15 +70,15 @@ func usingIndexNotNullCandidate(op *Operation, view CatalogRead, reader definiti
 }
 
 type usingIndexPreparation struct {
-	parent, next       *relationDescriptor
-	index, replacement *relationDescriptor
+	parent, next       *catalog.Relation
+	index, replacement *catalog.Relation
 	notice             sqlstate.Error
 	err                error
 }
 
 // Capture the actual physical attachment metadata once; only the stage adapter
 // installs its index name/backing link. No tuple/index build runs here.
-func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, reader definitionReader, parent *relationDescriptor, captured usingIndexAttachment) (*usingIndexPreparation, error) {
+func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
 	prepared := &usingIndexPreparation{parent: parent}
 	if !captured.notNullPrepared {
 		candidate, err := usingIndexNotNullCandidate(op, view, reader, parent, captured)
@@ -87,7 +88,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		parent = candidate
 	}
 	descriptor, present := reader.descriptor(captured.index.Address())
-	index, ok := descriptor.(*relationDescriptor)
+	index, ok := descriptor.(*catalog.Relation)
 	if !present || !ok || index.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -133,9 +134,9 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		prepared.err = err
 		return prepared, nil
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
+	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
 	next := *parent
-	next.UniqueConstraints = make([]uniqueConstraint, len(parent.UniqueConstraints)+1)
+	next.UniqueConstraints = make([]catalog.UniqueConstraint, len(parent.UniqueConstraints)+1)
 	copy(next.UniqueConstraints, parent.UniqueConstraints)
 	next.UniqueConstraints[len(parent.UniqueConstraints)] = constraint
 	if index.Revision() == ids.DefinitionRevision(^uint64(0)) {

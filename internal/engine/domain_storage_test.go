@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *relationDescriptor {
+func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, q).(*parser.CreateTable)
 	e.mu.Lock()
@@ -130,7 +130,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	next := catalog.CloneState(e.CatalogRead().State())
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
-	next.SetDescriptor(builtin, &typeDescriptor{SQLType: physical})
+	next.SetDescriptor(builtin, &catalog.Type{SQLType: physical})
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002}}
 	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {

@@ -23,8 +23,8 @@ type builtinRoutineKey struct {
 
 var builtinRoutineByDeclaration = indexBuiltinRoutineFormals()
 
-func indexBuiltinRoutineFormals() map[builtinRoutineKey]*builtinRoutineDeclaration {
-	byDeclaration := make(map[builtinRoutineKey]*builtinRoutineDeclaration, len(builtinRoutineDeclarations))
+func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineDeclaration {
+	byDeclaration := make(map[builtinRoutineKey]*catalog.BuiltinRoutineDeclaration, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		d := &builtinRoutineDeclarations[i]
 		key := builtinRoutineKey{name: d.Identity.Name}
@@ -48,11 +48,11 @@ func (e *Engine) initializeBuiltinRoutines() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	// Catalog pointers retain this engine-owned backing array. Immutable cells
 	// remain stable; later ACL/owner changes still publish ordinary COW records.
-	storage := make([]procedureDescriptor, len(builtinRoutineDeclarations))
+	storage := make([]catalog.Procedure, len(builtinRoutineDeclarations))
 	for i := range builtinRoutineDeclarations {
 		declaration := &builtinRoutineDeclarations[i]
 		d := &storage[i]
-		*d = procedureDescriptor{
+		*d = catalog.Procedure{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: declaration.Identity.Namespace},
 			ObjectRevision:  1, ObjectName: declaration.Identity.Name, Signature: declaration.Identity.Signature,
@@ -69,7 +69,7 @@ func (e *Engine) initializeBuiltinRoutines() {
 // declaration. Physical child usages are not substituted for declared formals.
 // Metadata borrows the already-owned immutable descriptor pointer; the existing
 // value dependency manifest separately owns the scoped lifetime reference.
-func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inputs []sqltype.ID) (*builtinRoutineDeclaration, error) {
+func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inputs []sqltype.ID) (*catalog.BuiltinRoutineDeclaration, error) {
 	if len(inputs) > 7 {
 		return nil, fmt.Errorf("stuntgres: unsupported builtin routine formal key")
 	}
@@ -101,7 +101,7 @@ func (b *expressionBinder) builtinRoutineReference(provider routineProvider, nam
 	return ref, err
 }
 
-func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaration *builtinRoutineDeclaration) (expr.Info, error) {
+func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaration *catalog.BuiltinRoutineDeclaration) (expr.Info, error) {
 	d, _, err := b.captureBuiltinRoutineDeclaration(declaration)
 	if err != nil {
 		return expr.Info{}, err
@@ -110,7 +110,7 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaratio
 	return info, nil
 }
 
-func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtinRoutineDeclaration) (*procedureDescriptor, ids.ObjectRef, error) {
+func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *catalog.BuiltinRoutineDeclaration) (*catalog.Procedure, ids.ObjectRef, error) {
 	view := b.bindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID}
 	d, ok := view.Procedure(address)

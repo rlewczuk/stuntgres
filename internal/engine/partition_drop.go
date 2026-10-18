@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
-func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDescriptor) error {
+func (stage *CatalogStage) removePartitionHierarchyLocked(relation *catalog.Relation) error {
 	return stageDropProvider(nil, stage, nil, nil, nil).removePartitionHierarchyLocked(relation)
 }
 
-func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationDescriptor) error {
+func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.Relation) error {
 	if relation.Partition != nil {
 		for _, address := range relation.Partition.Children {
 			ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)
@@ -28,11 +29,11 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationD
 	if provider.removed(address) {
 		return nil
 	}
-	parent, ok := provider.inputDescriptor(address).(*relationDescriptor)
+	parent, ok := provider.inputDescriptor(address).(*catalog.Relation)
 	if !ok || parent.Partition == nil {
 		return fmt.Errorf("stuntgres: missing partition parent")
 	}
-	if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
+	if staged, ok := provider.replacement(address).(*catalog.Relation); ok {
 		parent = staged
 	}
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
@@ -91,7 +92,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	return s.acquirePartitionDescendants(ref, lock.AccessExclusive)
 }
 
-func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) bool {
+func partitionDependsOn(relation *catalog.Relation, target ids.ObjectAddress) bool {
 	if relation.Partition == nil {
 		return false
 	}

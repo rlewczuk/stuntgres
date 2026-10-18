@@ -15,16 +15,16 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	base := f.e.CatalogRead()
-	key := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	record := base.State().DefaultACL(key)
 	next := catalog.CloneState(base.State())
-	next.OverlayDefaultACLs(next, map[defaultACLKey]*defaultACLRecord{key: nil})
+	next.OverlayDefaultACLs(next, map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: nil})
 	if next.DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("clone overlay mutated source")
 	}
 	stage := f.e.BeginCatalogStage(base)
-	stage.DefaultACLs = map[defaultACLKey]*defaultACLRecord{key: nil}
-	stage.DefaultReads = map[defaultACLKey]*defaultACLRecord{key: record}
+	stage.DefaultACLs = map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: nil}
+	stage.DefaultReads = map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: record}
 	staged := f.e.stageRead(stage)
 	if staged.State().DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("default-only stage lost tombstone")
@@ -63,7 +63,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f.e.mu.Lock()
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
-	key := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || private.State().DefaultACL(key) == nil || changes.roles == nil || changes.rolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
@@ -171,8 +171,8 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	f.grant(t, "tables", "insert", []string{"default_schema"})
-	global := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	scoped := defaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
+	global := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+	scoped := catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
 	old := f.e.CatalogRead()
 	record := old.State().DefaultACL(scoped)
 	stage := f.e.BeginCatalogStage(old)
@@ -238,7 +238,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.grant(t, "sequences", "usage", []string{"default_schema"})
-	if err := defaultUnitPublish(t, f.e, stale); err != (CatalogConflict{}) {
+	if err := defaultUnitPublish(t, f.e, stale); err != (catalog.Conflict{}) {
 		t.Fatal("new scoped key escaped schema retirement fence", err)
 	}
 }

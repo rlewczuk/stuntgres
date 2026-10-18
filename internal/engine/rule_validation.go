@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func validateRules(view CatalogRead, d *relationDescriptor) error {
+func validateRules(view catalog.Read, d *catalog.Relation) error {
 	if d.Rules == nil {
 		return nil
 	}
@@ -15,7 +16,7 @@ func validateRules(view CatalogRead, d *relationDescriptor) error {
 }
 
 // validateRuleList checks rules owned by d.
-func validateRuleList(view CatalogRead, d *relationDescriptor, rules []ruleDefinition) error {
+func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefinition) error {
 	previous := ""
 	for i, r := range rules {
 		if r.OID == 0 || r.Name == "" || i != 0 && strings.Compare(previous, r.Name) >= 0 {
@@ -62,7 +63,7 @@ func validateRuleList(view CatalogRead, d *relationDescriptor, rules []ruleDefin
 				return fmt.Errorf("stuntgres: missing rule dependency")
 			}
 			if address.SubID != 0 && address.SubID != -6 {
-				relation, ok := provider.(*relationDescriptor)
+				relation, ok := provider.(*catalog.Relation)
 				if !ok || !relation.HasAttribute(address.SubID) {
 					return fmt.Errorf("stuntgres: missing rule dependency attribute")
 				}

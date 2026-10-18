@@ -39,7 +39,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	e.mu.Lock()
 	integer, _ := view.LookupType(sqltype.Int4)
-	relation, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}}, nil)
+	relation, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
 	if err == nil {
 		err = e.stageRowTypeLocked(stage, relation)
 	}

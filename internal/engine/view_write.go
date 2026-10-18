@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -15,7 +16,7 @@ import (
 type viewWrite struct {
 	logical          binding
 	layers           []viewWriteLayer
-	base             *relationDescriptor
+	base             *catalog.Relation
 	ref              ids.ObjectRef
 	outputs          []expr.Expr
 	predicates       []expr.Expr
@@ -23,19 +24,19 @@ type viewWrite struct {
 	queryOccurrences map[viewWriteOccurrence]int
 }
 type viewWriteLayer struct {
-	relation       *relationDescriptor
+	relation       *catalog.Relation
 	ref            ids.ObjectRef
 	targets        []int
-	source         *relationDescriptor
+	source         *catalog.Relation
 	sourceRef      ids.ObjectRef
 	mainOccurrence int
 }
 type viewCheckGroup struct {
-	relation   *relationDescriptor
+	relation   *catalog.Relation
 	predicates []expr.Expr
 }
 
-func viewWriteError(d *relationDescriptor, operation, reason string) error {
+func viewWriteError(d *catalog.Relation, operation, reason string) error {
 	verb, hint := "update", "updating"
 	if operation == "insert" {
 		verb, hint = "insert into", "inserting into"
@@ -52,7 +53,7 @@ func viewWriteError(d *relationDescriptor, operation, reason string) error {
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf("cannot %s view %q", verb, d.Name()), Detail: reason, Hint: fmt.Sprintf("To enable %s the view, provide an INSTEAD OF %s trigger or an unconditional ON %s DO INSTEAD rule.", hint, command, command)}
 }
-func viewComputedWriteError(d *relationDescriptor, operation string, slot int) error {
+func viewComputedWriteError(d *catalog.Relation, operation string, slot int) error {
 	verb := "update"
 	if operation == "insert" {
 		verb = "insert into"
@@ -62,7 +63,7 @@ func viewComputedWriteError(d *relationDescriptor, operation string, slot int) e
 
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
 // query boundary and must not be mistaken for a top-level aggregate/window.
-func viewWriteShape(d *relationDescriptor) (*projectNode, *sourceNode, []expr.Expr, string) {
+func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr, string) {
 	q := viewOf(d).syntax
 	if q.Distinct != nil {
 		return nil, nil, nil, "Views containing DISTINCT are not automatically updatable."
@@ -137,7 +138,7 @@ func viewDirectColumn(expr expr.Expr) (columnExpression, bool) {
 	}
 	return columnExpression{}, false
 }
-func stableViewSlot(source *relationDescriptor, leaf viewLeaf, frozen int) (int, error) {
+func stableViewSlot(source *catalog.Relation, leaf viewLeaf, frozen int) (int, error) {
 	if frozen < 0 || frozen >= len(leaf.attributes) {
 		return 0, fmt.Errorf("stuntgres: invalid view write source slot")
 	}
@@ -155,7 +156,7 @@ func sameViewRelation(a, b ids.ObjectRef) bool {
 }
 
 func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	if b.relation == nil || b.relation.RelationKind != viewRelation {
+	if b.relation == nil || b.relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
 	operation := ""
@@ -180,7 +181,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		outputs[i] = columnExpression{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, slot: i}
 	}
 	cascaded := false
-	for d.RelationKind == viewRelation {
+	for d.RelationKind == catalog.ViewRelation {
 		match := false
 		for _, rule := range rulesOf(d) {
 			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
@@ -216,7 +217,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if err != nil {
 			return err
 		}
-		if source.RelationKind != tableRelation && source.RelationKind != viewRelation {
+		if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ViewRelation {
 			return viewWriteError(d, operation, "Views that do not select from a single table or view are not automatically updatable.")
 		}
 		direct := make([]int, len(project.expressions))
@@ -396,7 +397,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	return e.lowerViewWrite(b, auth, stmt)
 }
 
-func rewriteViewExpression(view CatalogRead, bound expr.Expr, recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(LogicalNode, func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error)) (expr.Expr, bool, error) {
+func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(LogicalNode, func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error)) (expr.Expr, bool, error) {
 	var mapper func(expr.Expr) (expr.Expr, bool, error)
 	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) {

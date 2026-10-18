@@ -9,7 +9,7 @@ import (
 
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
 	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {

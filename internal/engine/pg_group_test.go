@@ -7,12 +7,13 @@ import (
 	"math"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgGroupUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12008}
 	d, ok := e.catalog.state.Relation(address)
@@ -30,7 +31,7 @@ func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, logi
 	return ref
 }
 
-func pgGroupUnitRows(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
+func pgGroupUnitRows(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	if source == nil {
 		t.Fatal("missing capture")
@@ -91,7 +92,7 @@ func pgGroupUnitMembers(t *testing.T, row []sqltype.Value, want ...uint32) {
 func TestPGGroupDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgGroupUnitSource(t, e)
-	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
+	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
 		t.Fatal("descriptor shape")
 	}
 	for i, typ := range []sqltype.ID{sqltype.Name, sqltype.Oid, 1028} {
@@ -237,7 +238,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		view := *d
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.ObjectName, view.RelationKind, view.VirtualView = name, viewRelation, false
+		view.ObjectName, view.RelationKind, view.VirtualView = name, catalog.ViewRelation, false
 		attrs := slices.Clone(d.Attributes)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)

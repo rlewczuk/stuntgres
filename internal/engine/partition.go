@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func hierarchyRelation(d *relationDescriptor) bool { return d.Partition != nil || d.Membership != nil }
+func hierarchyRelation(d *catalog.Relation) bool { return d.Partition != nil || d.Membership != nil }
 
-func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) error {
+func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
-	if (d.Partition != nil) != (d.RelationKind == partitionedRelation) {
+	if (d.Partition != nil) != (d.RelationKind == catalog.PartitionedRelation) {
 		return invalid()
 	}
-	if d.Membership != nil && d.RelationKind != tableRelation && d.RelationKind != partitionedRelation {
+	if d.Membership != nil && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return invalid()
 	}
 	if p := d.Partition; p != nil {
@@ -32,7 +33,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if !key.Usage.Valid() || !key.Usage.Type.Concrete() {
 				return invalid()
 			}
-			if err := validateUsageCollation(catalog, key.Usage); err != nil {
+			if err := validateUsageCollation(view, key.Usage); err != nil {
 				return err
 			}
 			if key.Collation != 0 && key.Collation != key.Usage.Collation.ID {
@@ -66,7 +67,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 		seen := make(map[ids.ObjectAddress]bool, len(p.Children))
 		for i, a := range p.Children {
-			child, ok := catalog.Relation(a)
+			child, ok := view.Relation(a)
 			if !ok || seen[a] || child.Membership == nil || child.Membership.Parent != d.Address() {
 				return invalid()
 			}
@@ -79,7 +80,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.Children[:i] {
-					previous := catalog.MustRelation(earlier).Membership
+					previous := view.MustRelation(earlier).Membership
 					small, large := previous, child.Membership
 					if small.Modulus > large.Modulus {
 						small, large = large, small
@@ -98,7 +99,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.Children[:i] {
-					previous := catalog.MustRelation(earlier).Membership
+					previous := view.MustRelation(earlier).Membership
 					if previous.DefaultBound {
 						continue
 					}
@@ -124,12 +125,12 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 	}
 	if membership := d.Membership; membership != nil {
-		parent, ok := catalog.Relation(membership.Parent)
+		parent, ok := view.Relation(membership.Parent)
 		if !ok || parent.Partition == nil || !slices.Contains(parent.Partition.Children, d.Address()) || len(parent.Columns) != len(d.Columns) {
 			return invalid()
 		}
-		parentNamespace, parentExists := catalog.Namespace(parent.Namespace())
-		childNamespace, childExists := catalog.Namespace(d.Namespace())
+		parentNamespace, parentExists := view.Namespace(parent.Namespace())
+		childNamespace, childExists := view.Namespace(d.Namespace())
 		if !parentExists || !childExists || parentNamespace.Temporary != childNamespace.Temporary {
 			return invalid()
 		}
@@ -150,7 +151,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if len(membership.Lower) != len(parent.Partition.Keys) || len(membership.Upper) != len(parent.Partition.Keys) {
 				return invalid()
 			}
-			for _, tuple := range [2][]partitionDatum{membership.Lower, membership.Upper} {
+			for _, tuple := range [2][]catalog.PartitionDatum{membership.Lower, membership.Upper} {
 				var sentinel int8
 				for i, key := range parent.Partition.Keys {
 					v := tuple[i]
@@ -181,7 +182,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if ancestor.Membership == nil {
 				break
 			}
-			ancestor, ok = catalog.Relation(ancestor.Membership.Parent)
+			ancestor, ok = view.Relation(ancestor.Membership.Parent)
 			if !ok {
 				return invalid()
 			}
@@ -194,7 +195,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 // datums terminate comparison there; equal finite tuples terminate at the last
 // component. Callers needing PostgreSQL's equal-lower overlap position explicitly
 // select the first component instead.
-func comparePartitionTuple(ctx context.Context, keys []partitionKeyEntry, a, b []partitionDatum, input sqltype.InputEnvironment) (int, int, error) {
+func comparePartitionTuple(ctx context.Context, keys []catalog.PartitionKeyEntry, a, b []catalog.PartitionDatum, input sqltype.InputEnvironment) (int, int, error) {
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return 0, i, err
@@ -217,12 +218,12 @@ func comparePartitionTuple(ctx context.Context, keys []partitionKeyEntry, a, b [
 }
 
 type partitionEvaluatedKey struct {
-	values  []partitionDatum
+	values  []catalog.PartitionDatum
 	anyNull bool
 	hash    uint64
 }
 
-func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *EvalContext, buffer []partitionDatum) (partitionEvaluatedKey, error) {
+func partitionRowKey(d *catalog.Relation, row []sqltype.Value, evaluation *EvalContext, buffer []catalog.PartitionDatum) (partitionEvaluatedKey, error) {
 	keys := d.Partition.Keys
 	result := partitionEvaluatedKey{values: buffer[:len(keys)]}
 	for i, key := range keys {
@@ -239,7 +240,7 @@ func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *Eva
 				return partitionEvaluatedKey{}, err
 			}
 		}
-		result.values[i] = partitionDatum{Value: value}
+		result.values[i] = catalog.PartitionDatum{Value: value}
 		result.anyNull = result.anyNull || value.IsNull()
 		if d.Partition.Strategy == parser.PartitionHash && !value.IsNull() {
 			hashed, err := key.Hash.Hash(evaluation.Context, value, 0x7a5b22367996dcfd)
@@ -252,7 +253,7 @@ func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *Eva
 	return result, nil
 }
 
-func partitionRangeContains(ctx context.Context, keys []partitionKeyEntry, bound *partitionMembership, values []partitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
+func partitionRangeContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, values []catalog.PartitionDatum, anyNull bool, input sqltype.InputEnvironment) (bool, error) {
 	if anyNull {
 		return false, nil
 	}
@@ -264,7 +265,7 @@ func partitionRangeContains(ctx context.Context, keys []partitionKeyEntry, bound
 	return upper < 0, err
 }
 
-func partitionContains(ctx context.Context, keys []partitionKeyEntry, bound *partitionMembership, key partitionEvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
+func partitionContains(ctx context.Context, keys []catalog.PartitionKeyEntry, bound *catalog.PartitionMembership, key partitionEvaluatedKey, input sqltype.InputEnvironment) (bool, error) {
 	if bound.Strategy == parser.PartitionHash {
 		return key.hash%uint64(bound.Modulus) == uint64(bound.Remainder), ctx.Err()
 	}
@@ -273,8 +274,8 @@ func partitionContains(ctx context.Context, keys []partitionKeyEntry, bound *par
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
 // outlive an explicit sibling's publication or its atomic removal.
-func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *relationDescriptor, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
-	var buffer [32]partitionDatum
+func partitionAccepts(view catalog.Read, parent *catalog.Relation, child *catalog.Relation, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+	var buffer [32]catalog.PartitionDatum
 	key, err := partitionRowKey(parent, row, evaluation, buffer[:])
 	if err != nil {
 		return false, err
@@ -283,7 +284,7 @@ func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *re
 		return partitionContains(evaluation.Context, parent.Partition.Keys, child.Membership, key, evaluation.Input)
 	}
 	for _, a := range parent.Partition.Children {
-		sibling := catalog.MustRelation(a)
+		sibling := view.MustRelation(a)
 		if sibling.Membership.DefaultBound {
 			continue
 		}
@@ -295,7 +296,7 @@ func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *re
 	return true, nil
 }
 
-func partitionPhysicalDescendants(catalog CatalogRead, d *relationDescriptor, visit func(*relationDescriptor) error) error {
+func partitionPhysicalDescendants(catalog catalog.Read, d *catalog.Relation, visit func(*catalog.Relation) error) error {
 	if d.Partition == nil {
 		return visit(d)
 	}

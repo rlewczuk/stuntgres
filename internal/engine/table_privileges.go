@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ func (e *Engine) initializeTablePrivileges() error {
 		if i >= 6 {
 			usage.Typmod = 7
 		}
-		d.Columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
+		d.Columns[i] = catalog.Column{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
 		d.Index[name] = i
 		d.Attributes[i] = int32(i + 1)
 	}
@@ -42,11 +43,11 @@ func (e *Engine) initializeTablePrivileges() error {
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureTablePrivileges(ctx context.Context, view catalog.Read, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil || auth.engine.catalog.owner() != catalog.Owner() || auth.catalog.State() != catalog.State() || auth.roleRecord == nil || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || catalog.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.engine.catalog.owner() != view.Owner() || auth.catalog.State() != view.State() || auth.roleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
 	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
@@ -63,15 +64,15 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 	}
 	var granteeClosures map[authorization.PrincipalRef][]authorization.PrincipalRef
 	var rows [][]sqltype.Value
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && relation.RelationKind != viewRelation && relation.RelationKind != catalogRelation && relation.RelationKind != foreignRelation {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation && relation.RelationKind != catalog.ViewRelation && relation.RelationKind != catalog.CatalogRelation && relation.RelationKind != catalog.ForeignRelation {
 			continue
 		}
-		namespace := catalog.Get(relation.Namespace())
+		namespace := view.Get(relation.Namespace())
 		if namespace == nil {
 			return nil, fmt.Errorf("stuntgres: missing privilege namespace")
 		}

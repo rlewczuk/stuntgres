@@ -11,7 +11,7 @@ import (
 // install lock against captured authorities. No callbacks, source lock or external
 // I/O run here. ReplaceCatalog already projected its immutable source into private
 // maps, so principal remapping does not need another catalog clone.
-func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalogState, error) {
+func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, error) {
 	e.retainDatabaseLocked(state)
 	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
 	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
@@ -53,9 +53,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
-		case *databaseDescriptor, *tsTemplateDescriptor:
+		case *catalog.Database, *catalog.TSTemplate:
 			// Attachment authority is local; text search templates have no owner.
-		case *extensionDescriptor:
+		case *catalog.Extension:
 			n := *d
 			var err error
 			n.Owner, err = remap(d.Owner)
@@ -63,7 +63,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *foreignDescriptor:
+		case *catalog.ForeignObject:
 			n := *d
 			var err error
 			if d.Owner != (authorization.PrincipalRef{}) {
@@ -88,7 +88,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				state.BindName(catalog.DescriptorNameKey(&n), n.Address())
 			}
 			state.SetDescriptor(addr, &n)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, d.Seeded() || d.Foreign != nil)
@@ -100,7 +100,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *parameterDescriptor:
+		case *catalog.Parameter:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, true)
@@ -112,7 +112,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			installParameterGrant(state, &n)
-		case *tablespaceDescriptor:
+		case *catalog.Tablespace:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, true)
@@ -124,7 +124,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			n := *d
 			var err error
 			n.Owner, err = remap(d.Owner)
@@ -132,7 +132,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *typeDescriptor:
+		case *catalog.Type:
 			n := *d
 			var err error
 			seeded := d.OwningRelation == (ids.ObjectAddress{}) && !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && d.SQLType.Element().IsUserDefined())
@@ -145,7 +145,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *collationDescriptor:
+		case *catalog.Collation:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, d.Seeded())
@@ -153,7 +153,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *conversionDescriptor:
+		case *catalog.Conversion:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, d.Seeded())
@@ -161,7 +161,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *operatorDescriptor:
+		case *catalog.Operator:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, operatorSeeded(d))
@@ -169,7 +169,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *namespaceDescriptor:
+		case *catalog.Namespace:
 			n := *d
 			var err error
 			n.Owner, err = remap(d.Owner)
@@ -181,7 +181,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *relationDescriptor:
+		case *catalog.Relation:
 			n := *d
 			var err error
 			n.Owner, err = remap(d.Owner)
@@ -202,9 +202,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				}
 			}
 			if len(d.Policies) != 0 {
-				n.Policies = append([]policyDefinition(nil), d.Policies...)
+				n.Policies = append([]catalog.PolicyDefinition(nil), d.Policies...)
 				for i := range n.Policies {
-					n.Policies[i].Roles = append([]policyRole(nil), d.Policies[i].Roles...)
+					n.Policies[i].Roles = append([]catalog.PolicyRole(nil), d.Policies[i].Roles...)
 					for j := range n.Policies[i].Roles {
 						role := &n.Policies[i].Roles[j]
 						if role.Public {
@@ -223,7 +223,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 	}
 	if state.DefaultACLCount() != 0 {
-		next := make(map[defaultACLKey]*defaultACLRecord, state.DefaultACLCount())
+		next := make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, state.DefaultACLCount())
 		for key, record := range state.DefaultACLs() {
 			creator, err := remap(key.Creator)
 			if err != nil {
@@ -234,7 +234,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			key.Creator = creator
-			next[key] = &defaultACLRecord{ACL: value}
+			next[key] = &catalog.DefaultACLRecord{ACL: value}
 		}
 		state.SetDefaultACLs(next)
 	}

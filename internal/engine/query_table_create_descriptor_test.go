@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 	"testing"
 )
 
-func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
+func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	t.Helper()
 	e.mu.Lock()
 	oid, err := e.catalog.allocateOIDLocked()
@@ -25,7 +26,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &typeDescriptor{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -56,7 +57,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var stage *CatalogStage
-	var d *relationDescriptor
+	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
 		stage, d, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: query})
@@ -145,7 +146,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 	e := New()
 	domain := queryCreateDomain(t, e)
 	stage, d := queryCreateStage(t, e, "copy", 0)
-	stage.domainBases = []Descriptor{domain}
+	stage.domainBases = []catalog.Descriptor{domain}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +159,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 	}
 	queryCreatePublish(t, e, peer)
 	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"testing"
@@ -124,7 +125,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch fence", err)
 				}
-			} else if err != (CatalogConflict{}) {
+			} else if err != (catalog.Conflict{}) {
 				t.Fatal("final descriptor/storage fence", err)
 			}
 			if len(oldP.versions) != 2 || len(oldQ.versions) != 1 || oldP.truncateLineage != nil || oldQ.truncateLineage != nil {

@@ -25,54 +25,54 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
 }
-func sequenceKind(d *relationDescriptor) error {
+func sequenceKind(d *catalog.Relation) error {
 	if d == nil {
 		return fmt.Errorf("stuntgres: missing sequence descriptor")
 	}
-	if d.RelationKind != sequenceRelation {
-		if d.RelationKind == indexRelation {
+	if d.RelationKind != catalog.SequenceRelation {
+		if d.RelationKind == catalog.IndexRelation {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.Name()), Detail: "This operation is not supported for indexes."}
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.Name()), Detail: "This operation is not supported for tables."}
 	}
 	return nil
 }
-func tableKind(d *relationDescriptor, operation string) error {
-	if d.RelationKind == tableRelation || d.RelationKind == partitionedRelation {
+func tableKind(d *catalog.Relation, operation string) error {
+	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
 		return nil
 	}
-	if d.RelationKind == compositeRelation {
+	if d.RelationKind == catalog.CompositeRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for composite types."}
 	}
-	if d.RelationKind == materializedViewRelation && operation == "change" {
+	if d.RelationKind == catalog.MaterializedViewRelation && operation == "change" {
 		return sqlError("42809", fmt.Sprintf(`cannot change materialized view "%s"`, d.Name()))
 	}
 	if operation == "ADD COLUMN" {
 		kind := ""
 		switch d.RelationKind {
-		case viewRelation:
+		case catalog.ViewRelation:
 			kind = "views"
-		case materializedViewRelation:
+		case catalog.MaterializedViewRelation:
 			kind = "materialized views"
-		case indexRelation:
+		case catalog.IndexRelation:
 			kind = "indexes"
-		case sequenceRelation:
+		case catalog.SequenceRelation:
 			kind = "sequences"
 		}
 		if kind != "" {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.Name()), Detail: "This operation is not supported for " + kind + "."}
 		}
 	}
-	if d.RelationKind == materializedViewRelation {
+	if d.RelationKind == catalog.MaterializedViewRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for materialized views."}
 	}
-	if d.RelationKind == indexRelation {
+	if d.RelationKind == catalog.IndexRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.Name()), Detail: "This operation is not supported for indexes."}
 	}
-	if d.RelationKind == viewRelation {
+	if d.RelationKind == catalog.ViewRelation {
 		return sqlError("0A000", "view mutation is unsupported")
 	}
-	if d.RelationKind == catalogRelation {
+	if d.RelationKind == catalog.CatalogRelation {
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}
 	message := fmt.Sprintf(`cannot change sequence "%s"`, d.Name())
@@ -123,16 +123,16 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	e.markTemporaryAccessLocked(s, ref)
 	return nil
 }
-func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
+func (e *Engine) sequenceColumnsLocked() []catalog.Column {
 	view := e.catalog.read(e.catalog.state)
 	i, _ := view.LookupType(sqltype.Int8)
 	b, _ := view.LookupType(sqltype.Bool)
-	return []ColumnDescriptor{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
+	return []catalog.Column{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
 }
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
-func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *relationDescriptor, raw parser.ObjectName) (ids.ObjectAddress, error) {
+func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
 	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
 		return ids.ObjectAddress{}, nil
 	}
@@ -162,7 +162,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if !ok {
 		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
 	}
-	if r.RelationKind != tableRelation && r.RelationKind != partitionedRelation {
+	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
 		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.Name()))
 	}
 	if r.Owner != d.Owner {
@@ -180,7 +180,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	a.SubID = r.Attributes[slot]
 	return a, nil
 }
-func sequenceLinkedError(d *relationDescriptor, table *relationDescriptor, move bool) error {
+func sequenceLinkedError(d *catalog.Relation, table *catalog.Relation, move bool) error {
 	msg := fmt.Sprintf(`cannot change owner of sequence "%s"`, d.Name())
 	if move {
 		msg = "cannot move an owned sequence into another schema"
@@ -200,7 +200,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		var options sequenceOptions
+		var options catalog.SequenceOptions
 		var restart *int64
 		// Ordinary CREATE validates options before DefineRelation checks CREATE
 		// authority. IF NOT EXISTS checks the namespace before options or skip.
@@ -219,7 +219,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.catalog = e.privateCatalogLocked(changes)
 		auth.recaptureCatalog(auth.catalog)
-		if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
@@ -263,7 +263,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		columns := e.sequenceColumnsLocked()
-		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.state.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: sequenceRelation, Sequence: &options}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.state.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 		d.ACL = e.creationACLChangesLocked(changes, auth.catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
 		d.AttributeHighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
@@ -429,7 +429,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.catalog = e.privateCatalogLocked(changes)
 			auth.recaptureCatalog(auth.catalog)
-			if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+			if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 				auth.stagedTemporary = table.Address()
 			}
 			if err = auth.CheckCreate(ns); err != nil {
@@ -501,8 +501,8 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, er
 		}
 		d := auth.catalog.MustRelation(ref.Address)
-		if d.RelationKind != sequenceRelation {
-			if d.RelationKind == indexRelation {
+		if d.RelationKind != catalog.SequenceRelation {
+			if d.RelationKind == catalog.IndexRelation {
 				e.mu.Unlock()
 				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.Name()), Hint: "Use DROP INDEX to remove an index."}
 			}
@@ -563,7 +563,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for address := range checkStage.Removals {
@@ -572,7 +572,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			expected = original
 		}
 		if e.catalog.state.Get(address) != expected {
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 	}
 	for address, descriptor := range checkStage.Descriptors {
@@ -597,7 +597,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		delete(changes.generators, ref.Address)
 	}
 	for address, descriptor := range checkStage.Descriptors {
-		next, ok := descriptor.(*relationDescriptor)
+		next, ok := descriptor.(*catalog.Relation)
 		old, oldOK := auth.catalog.Relation(address)
 		if !ok || !oldOK {
 			continue
@@ -619,7 +619,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
-func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor) error {
+func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
 	err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	if err == nil {
 		return nil

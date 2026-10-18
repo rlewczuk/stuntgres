@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -41,7 +42,7 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 	panic("invalid view producer tree")
 }
 
-func openSourceStage(ctx context.Context, state *queryState, source *querySource, schema []ColumnDescriptor) (indexedStage, error) {
+func openSourceStage(ctx context.Context, state *queryState, source *querySource, schema []catalog.Column) (indexedStage, error) {
 	if source.input != nil {
 		child, err := openSourceStage(ctx, state, source.input, schema)
 		if err != nil {

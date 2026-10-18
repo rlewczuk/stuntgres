@@ -5,13 +5,14 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type domainValidationUse struct {
-	relation   *relationDescriptor
+	relation   *catalog.Relation
 	columns    []int
 	storage    *relationStorage
 	versions   []rowVersion
@@ -23,15 +24,15 @@ type domainValidationUse struct {
 // comparison. Unrelated declarations can publish without replaying CHECK truth.
 type domainValidationFence struct {
 	target          ids.ObjectAddress
-	objects         map[ids.ObjectAddress]Descriptor
+	objects         map[ids.ObjectAddress]catalog.Descriptor
 	uses            []domainValidationUse
 	path            []ids.ObjectAddress
-	reads           []*relationDescriptor
+	reads           []*catalog.Relation
 	allowContainers bool // Committed predecessors may be hidden by prior own DDL.
 }
 
-func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
-	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]Descriptor), path: path}
+func domainUsesAt(view catalog.Read, target ids.ObjectAddress, path []ids.ObjectAddress) (*domainValidationFence, error) {
+	fence := &domainValidationFence{target: target, objects: make(map[ids.ObjectAddress]catalog.Descriptor), path: path}
 	cache := make(map[sqltype.ID]sqltype.ID)
 	active := make(map[sqltype.ID]bool)
 	var contains func(sqltype.ID) (sqltype.ID, error)
@@ -84,19 +85,19 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	// Include unstored derived/container declarations as graph edges too. Their
 	// later storage cannot evade the final observation by retaining an old OID.
 	for address, d := range view.Descriptors() {
-		if _, ok := d.(*typeDescriptor); ok {
+		if _, ok := d.(*catalog.Type); ok {
 			if _, err := contains(sqltype.ID(address.ObjectID)); err != nil {
 				return nil, err
 			}
 		}
 	}
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	for _, d := range view.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok {
+		if relation, ok := d.(*catalog.Relation); ok {
 			relations = append(relations, relation)
 		}
 	}
-	slices.SortFunc(relations, func(a, b *relationDescriptor) int {
+	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -107,8 +108,8 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	})
 	var blocker error
 	for _, relation := range relations {
-		physical := relation.RelationKind == tableRelation || relation.RelationKind == materializedViewRelation
-		stored := physical || relation.RelationKind == partitionedRelation
+		physical := relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.MaterializedViewRelation
+		stored := physical || relation.RelationKind == catalog.PartitionedRelation
 		var columns []int
 		recorded := false
 		for i, column := range relation.Columns {
@@ -153,7 +154,7 @@ func domainGraphEqual(a, b *domainValidationFence) bool {
 	return a.target == b.target && maps.Equal(a.objects, b.objects)
 }
 
-func (f *domainValidationFence) current(view CatalogRead, storage map[ids.ObjectAddress]*relationStorage) bool {
+func (f *domainValidationFence) current(view catalog.Read, storage map[ids.ObjectAddress]*relationStorage) bool {
 	next, err := domainUsesAt(view, f.target, f.path)
 	if next == nil || err != nil && !f.allowContainers || !maps.Equal(f.objects, next.objects) {
 		return false
@@ -167,7 +168,7 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 	return true
 }
 
-func domainHistoricalViolation(view CatalogRead, relation *relationDescriptor, column int) error {
+func domainHistoricalViolation(view catalog.Read, relation *catalog.Relation, column int) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.Columns[column].Name, relation.Name())).(*sqlstate.Error)
 	diagnostic.Schema = view.Get(relation.Namespace()).Name()
 	diagnostic.Table, diagnostic.Column = relation.Name(), relation.Columns[column].Name

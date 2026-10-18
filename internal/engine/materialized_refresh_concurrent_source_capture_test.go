@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func concurrentSourceOuter(t *testing.T, e *Engine) *relationDescriptor {
+func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -169,7 +170,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}
-	stage.domainBases = []Descriptor{provider}
+	stage.domainBases = []catalog.Descriptor{provider}
 	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +191,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if _, strict := changes.originals[inner.Address()]; strict {
 		t.Fatal("source-only observation became strict predecessor")
 	}
-	for _, d := range []Descriptor{outer, index, gate, provider} {
+	for _, d := range []catalog.Descriptor{outer, index, gate, provider} {
 		if changes.originals[d.Address()] != d {
 			t.Fatal("strict target/index/ordinary/provider original lost", d.Address())
 		}
@@ -201,14 +202,14 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	// Even when the same MV has a source fence, an actual provider observation
 	// must retain strict predecessor authority; compatibility cannot replace it.
-	stage.domainBases = []Descriptor{provider, inner}
+	stage.domainBases = []catalog.Descriptor{provider, inner}
 	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
 		t.Fatal(err)
 	}
 	if changes.originals[inner.Address()] != inner {
 		t.Fatal("provider/source overlap lost strict original")
 	}
-	for _, d := range []Descriptor{outer, index, provider, inner} {
+	for _, d := range []catalog.Descriptor{outer, index, provider, inner} {
 		original := e.catalog.state.Get(d.Address())
 		e.catalog.state.RemoveDescriptor(d.Address())
 		err := e.catalogPreflightLocked(changes)

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -39,11 +40,11 @@ func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture boo
 	}
 }
 
-func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*relationDescriptor, *relationDescriptor) {
+func rangePartitionRetirementDescriptors(t *testing.T, view catalog.Read) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
-	var provider, root *relationDescriptor
-	for _, d := range catalog.Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok {
+	var provider, root *catalog.Relation
+	for _, d := range view.Descriptors() {
+		if r, ok := d.(*catalog.Relation); ok {
 			switch r.Name() {
 			case "rp_retire_provider":
 				provider = r
@@ -227,7 +228,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	peerDescriptors := make(map[ids.ObjectAddress]Descriptor)
+	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)
 	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
 	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for a, d := range base.Descriptors() {

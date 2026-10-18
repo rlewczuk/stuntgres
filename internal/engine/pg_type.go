@@ -16,7 +16,7 @@ var pgTypeColumnIDs = [...]sqltype.ID{26, 19, 26, 26, 21, 16, 18, 18, 16, 16, 18
 
 // Inventory evidence is separate from REGTYPE lookup and codec admission.
 // Every companion must be the captured element's canonical array generation.
-func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
+func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 	if d == nil || d.SQLType == nil {
 		return false
 	}
@@ -32,7 +32,7 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 	return ok
 }
 
-func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata, error) {
+func pgTypeFacts(catalog catalog.Read, d *catalog.Type) (sqltype.PGTypeMetadata, error) {
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {
@@ -89,11 +89,11 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalog.CatalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.Columns) != len(pgTypeColumnIDs) {
@@ -114,7 +114,7 @@ func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles auth
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if d, ok := descriptor.(*typeDescriptor); ok && pgTypeAdmitted(view, d) {
+		if d, ok := descriptor.(*catalog.Type); ok && pgTypeAdmitted(view, d) {
 			count++
 		}
 	}
@@ -125,7 +125,7 @@ func (e *Engine) capturePGType(ctx context.Context, view CatalogRead, roles auth
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		d, ok := descriptor.(*typeDescriptor)
+		d, ok := descriptor.(*catalog.Type)
 		if !ok || !pgTypeAdmitted(view, d) {
 			continue
 		}

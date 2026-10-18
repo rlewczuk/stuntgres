@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -10,10 +11,10 @@ import (
 // active-path recurrence, not repeated occurrences of a shared acyclic source.
 // The same current identity-bound graph supplies inherited visibility demand;
 // stored query markers describe only expressions local to that definition.
-func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error) {
+func validateViewReadGraph(view catalog.Read, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind == viewRelation {
+		if leaf.relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
@@ -23,9 +24,9 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 	}
 	active, done := make(map[ids.ObjectAddress]bool), make(map[ids.ObjectAddress]bool)
 	visibilityDemand := false
-	var visit func(*relationDescriptor) error
-	visit = func(d *relationDescriptor) error {
-		if d.RelationKind != viewRelation || done[d.Address()] {
+	var visit func(*catalog.Relation) error
+	visit = func(d *catalog.Relation) error {
+		if d.RelationKind != catalog.ViewRelation || done[d.Address()] {
 			return nil
 		}
 		if active[d.Address()] {
@@ -34,8 +35,8 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		active[d.Address()] = true
 		visibilityDemand = visibilityDemand || viewOf(d).query.visibilitySnapshot
 		for _, leaf := range viewOf(d).sources {
-			child, ok := catalog.Relation(leaf.ref.Address)
-			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
+			child, ok := view.Relation(leaf.ref.Address)
+			if !ok || !storedViewReferenceValid(view, d, leaf.ref) {
 				return ids.ErrCatalogReplaced
 			}
 			if err := visit(child); err != nil {
@@ -47,10 +48,10 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind != viewRelation {
+		if leaf.relation.RelationKind != catalog.ViewRelation {
 			continue
 		}
-		current, ok := catalog.Relation(leaf.relation.Address())
+		current, ok := view.Relation(leaf.relation.Address())
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}

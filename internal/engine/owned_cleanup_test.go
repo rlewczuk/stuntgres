@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -46,7 +47,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 }
 func TestDropOwnedPolicyTargets(t *testing.T) {
 	_, _, source, target, _ := ownershipUnitRoles()
-	old := []policyDefinition{{Name: "mixed", Roles: []policyRole{{Ref: source}, {Ref: target}, {Ref: source}}}, {Name: "last", Roles: []policyRole{{Ref: source}, {Ref: source}}}, {Name: "public", Roles: []policyRole{{Public: true}, {Ref: source}}}}
+	old := []catalog.PolicyDefinition{{Name: "mixed", Roles: []catalog.PolicyRole{{Ref: source}, {Ref: target}, {Ref: source}}}, {Name: "last", Roles: []catalog.PolicyRole{{Ref: source}, {Ref: source}}}, {Name: "public", Roles: []catalog.PolicyRole{{Public: true}, {Ref: source}}}}
 	before := []int{len(old[0].Roles), len(old[1].Roles), len(old[2].Roles)}
 	got, changed := ownedPolicies(old, map[authorization.PrincipalRef]bool{source: true})
 	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].Roles) != 1 || got[0].Roles[0].Ref != target || got[1].Name != "public" || len(got[1].Roles) != 1 || !got[1].Roles[0].Public {

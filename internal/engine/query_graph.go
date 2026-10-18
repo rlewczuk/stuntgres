@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -193,7 +194,7 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 // A type-only fast path must not retain an old routine identity carrier after
 // catalog reownership. Pointer comparison here requests metadata reconstruction;
 // it is never an ACL or lifetime admission decision.
-func queryRoutineCarriersChanged(view CatalogRead, node LogicalNode) bool {
+func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 	if node == nil || view.State() == nil {
 		return false
 	}

@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, signatureQualified, qualified bool) string {
+func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, signatureQualified, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -16,7 +17,7 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	var signature *procedureSignature
+	var signature *catalog.ProcedureSignature
 	if signatureQualified {
 		signature = &procedure.Signature
 	}
@@ -47,7 +48,7 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	return text.String()
 }
 
-func regprocSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
+func regprocSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return routineSpelling(view, path, id, false, false)
 }
 
@@ -94,7 +95,7 @@ func (r *finalRows) FormatRegprocedure(id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegprocOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -141,7 +142,7 @@ func captureRegprocOutputValue(rows *finalRows, view CatalogRead, path []ids.Obj
 
 // Catalog renderers use captured authority, never a live Rows lookup.
 type catalogRoutineOutput struct {
-	view      CatalogRead
+	view      catalog.Read
 	path      []ids.ObjectAddress
 	qualified bool
 }

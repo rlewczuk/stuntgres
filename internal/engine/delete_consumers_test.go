@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
@@ -155,7 +156,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		}
 		run(t, e, "DELETE FROM t WHERE a=1")
 		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: e.CatalogRead().Epoch()})
-		var conflict CatalogConflict
+		var conflict catalog.Conflict
 		if !errors.As(err, &conflict) {
 			t.Fatal("delete did not fence captured shape", err)
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -47,7 +48,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != tableRelation {
+	if !ok || old.RelationKind != catalog.TableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
 	}

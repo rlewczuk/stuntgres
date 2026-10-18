@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if !closedPgcryptoDefault(n) {
 			t.Fatal("closed installed crypto default rejected", v.name)
 		}
-		stored, err := binder.bindDefault(raw, ColumnDescriptor{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
+		stored, err := binder.bindDefault(raw, catalog.Column{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
 		if err != nil {
 			t.Fatal("installed crypto DEFAULT admission", v.name, err)
 		}
@@ -59,7 +60,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		}
 		foreign := n
 		proc := *n.procedure
-		proc.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
+		proc.Implementation = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4"}}
 		foreign.procedure = &proc
 		if closedPgcryptoDefault(foreign) {
 			t.Fatal("foreign crypto DEFAULT provider admitted")

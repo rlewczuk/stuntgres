@@ -11,16 +11,16 @@ import (
 // catalog. Readers retain the exact base captured for that cooking invocation.
 type inheritanceDefinitionEffect struct {
 	previous   *inheritanceDefinitionEffect
-	descriptor Descriptor
+	descriptor catalog.Descriptor
 	identity   *preparedIdentityDrop
 	drop       *preparedDrop
 }
 type inheritanceDefinitionObservations struct {
-	descriptors map[ids.ObjectAddress]Descriptor
+	descriptors map[ids.ObjectAddress]catalog.Descriptor
 	names       map[ids.NameKey]ids.ObjectAddress
 }
 type inheritanceDefinitionReader struct {
-	base         CatalogRead
+	base         catalog.Read
 	effects      *inheritanceDefinitionEffect
 	observations *inheritanceDefinitionObservations
 }
@@ -30,13 +30,13 @@ func (r inheritanceDefinitionReader) observe(address ids.ObjectAddress) {
 		return
 	}
 	if r.observations.descriptors == nil {
-		r.observations.descriptors = make(map[ids.ObjectAddress]Descriptor)
+		r.observations.descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
 	}
 	if _, seen := r.observations.descriptors[address]; !seen {
 		r.observations.descriptors[address] = r.base.Get(address)
 	}
 }
-func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
+func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	r.observe(address)
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.descriptor != nil && effect.descriptor.Address() == address {
@@ -86,11 +86,11 @@ func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
 	}
 	return ids.ObjectAddress{}
 }
-func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
+func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	// Enumeration alone does not authorize a new global invalidation fence. The
 	// selected provider's ordinary binding records its exact dependency identity.
 	r.observations = nil
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range r.base.Descriptors() {
 			if descriptor, present := r.descriptor(address); present && !yield(address, descriptor) {
 				return
@@ -113,7 +113,7 @@ func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (ind
 	}
 	return indexLayoutLineage{}, false
 }
-func (r *inheritanceDefinitionReader) appendDescriptor(descriptor Descriptor) {
+func (r *inheritanceDefinitionReader) appendDescriptor(descriptor catalog.Descriptor) {
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, descriptor: descriptor}
 }
 func (r *inheritanceDefinitionReader) appendDrop(drop *preparedDrop) {
@@ -122,7 +122,7 @@ func (r *inheritanceDefinitionReader) appendDrop(drop *preparedDrop) {
 func (r *inheritanceDefinitionReader) appendIdentity(identity *preparedIdentityDrop) {
 	r.effects = &inheritanceDefinitionEffect{previous: r.effects, identity: identity}
 }
-func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
+func (r inheritanceDefinitionReader) validate(view catalog.Read) error {
 	if view.Owner() != r.base.Owner() || view.Epoch() != r.base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -141,16 +141,16 @@ func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
 	}
 	return nil
 }
-func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address ids.ObjectAddress) *relationDescriptor {
+func (state *inheritanceAlterState) definitionRelation(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
 	if state.preparing {
 		descriptor, _ := state.definition.descriptor(address)
-		relation, _ := descriptor.(*relationDescriptor)
+		relation, _ := descriptor.(*catalog.Relation)
 		return relation
 	}
 	relation, _ := view.Relation(address)
 	return relation
 }
-func inheritanceMarkerPublication(old, current *relationDescriptor) bool {
+func inheritanceMarkerPublication(old, current *catalog.Relation) bool {
 	return old == current || current != nil && old != nil && !old.HasSubclasses && current.HasSubclasses && current.SubclassPredecessor == old && current.Revision() == current.SubclassPublication
 }
 

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -11,7 +12,7 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ids.
 	return stageOwnedExpressionDependencies(s.op.Context(), stage, targets, mode, s, changes, nil)
 }
 
-func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
+func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*catalog.Relation, *catalog.Relation) error) error {
 	return stageDropProvider(ctx, stage, scope, changes, project).ownedExpressionDependencies(targets, mode)
 }
 
@@ -21,8 +22,8 @@ func (provider *dropProvider) ownedExpressionDependencies(targets []ids.ObjectAd
 	// Include removed hierarchy owners, not unrelated removals staged by an
 	// earlier pass. Ordinary column projection retains its existing ordering.
 	for address, descriptor := range provider.removalDescriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.RelationKind != tableRelation || !inheritanceParticipant(provider.base, relation) {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.TableRelation || !inheritanceParticipant(provider.base, relation) {
 			continue
 		}
 		present := false
@@ -67,8 +68,8 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 		if replacement := provider.replacement(a); replacement != nil {
 			d = replacement
 		}
-		r, ok := d.(*relationDescriptor)
-		if !ok || r.RelationKind != sequenceRelation || r.Sequence.Owned == (ids.ObjectAddress{}) {
+		r, ok := d.(*catalog.Relation)
+		if !ok || r.RelationKind != catalog.SequenceRelation || r.Sequence.Owned == (ids.ObjectAddress{}) {
 			continue
 		}
 		owned := r.Sequence.Owned
@@ -92,23 +93,23 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 	}
 	return nil
 }
-func relationDiagnosticKind(r *relationDescriptor) string {
-	if r.RelationKind == foreignRelation {
+func relationDiagnosticKind(r *catalog.Relation) string {
+	if r.RelationKind == catalog.ForeignRelation {
 		return "foreign table"
 	}
-	if r.RelationKind == compositeRelation {
+	if r.RelationKind == catalog.CompositeRelation {
 		return "composite type"
 	}
-	if r.RelationKind == materializedViewRelation {
+	if r.RelationKind == catalog.MaterializedViewRelation {
 		return "materialized view"
 	}
-	if r.RelationKind == indexRelation {
+	if r.RelationKind == catalog.IndexRelation {
 		return "index"
 	}
-	if r.RelationKind == viewRelation {
+	if r.RelationKind == catalog.ViewRelation {
 		return "view"
 	}
-	if r.RelationKind == sequenceRelation {
+	if r.RelationKind == catalog.SequenceRelation {
 		return "sequence"
 	}
 	return "table"

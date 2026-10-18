@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -20,10 +21,10 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TYPE operator_provider_enum AS ENUM('a','b')")
 	run(t, e, "CREATE TYPE operator_provider_record AS (n INT)")
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	userType := func(name string) *sqltype.Descriptor {
-		for _, d := range catalog.Descriptors() {
-			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
+		for _, d := range view.Descriptors() {
+			if typ, ok := d.(*catalog.Type); ok && typ.Name() == name {
 				return typ.SQLType
 			}
 		}
@@ -63,7 +64,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		case 2249:
 			return record
 		}
-		d, _ := catalog.LookupType(id)
+		d, _ := view.LookupType(id)
 		return d
 	}
 	want := map[ids.OID][]string{}
@@ -131,7 +132,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-					b.relation = &relationDescriptor{Columns: []ColumnDescriptor{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+					b.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 					if left != nil {
 						b.relation.Columns[0].Usage = left.Usage()
 					}

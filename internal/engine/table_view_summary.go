@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 // DROP deliberately never clears this flag (PostgreSQL18 pg_class lazy flags).
 func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
@@ -21,8 +22,8 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 		if !staged {
 			descriptor = stage.Base.Get(address)
 		}
-		parent, ok := descriptor.(*relationDescriptor)
-		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
+		parent, ok := descriptor.(*catalog.Relation)
+		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if parent.HasIndexes {
@@ -52,23 +53,23 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 // belong to retained source snapshots. Normalize represented indexes into that
 // candidate without mutating source roots or clearing history-only true flags.
 // Structural index validation remains independent of this publication metadata.
-func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) error {
-	for _, descriptor := range catalog.Descriptors() {
+func normalizeReplacementIndexHistory(ctx context.Context, view catalog.Read) error {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.Parent)
-		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
+		parent, ok := view.Relation(index.SQLIndex.Parent)
+		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
 		if !parent.HasIndexes {
 			next := *parent
 			next.HasIndexes = true
-			catalog.State().SetDescriptor(parent.Address(), &next)
+			view.State().SetDescriptor(parent.Address(), &next)
 		}
 	}
 	return nil
@@ -84,39 +85,39 @@ func representedSummaryTable(oid ids.OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor, presentation viewPresentation) (*querySource, error) {
+func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, presentation viewPresentation) (*querySource, error) {
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, value) }
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		builtinTable := relation.RelationKind == catalogRelation && representedSummaryTable(relation.Address().ObjectID)
+		builtinTable := relation.RelationKind == catalog.CatalogRelation && representedSummaryTable(relation.Address().ObjectID)
 		builtinDefinition := ""
-		if relation.RelationKind == catalogRelation {
+		if relation.RelationKind == catalog.CatalogRelation {
 			builtinDefinition = representedSummaryViewDefinition(relation.Address().ObjectID)
 		}
 		if source.Address().ObjectID == 12003 {
-			if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation && !builtinTable {
+			if relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation && !builtinTable {
 				continue
 			}
 		} else if source.Address().ObjectID == 12006 {
-			if relation.RelationKind != materializedViewRelation {
+			if relation.RelationKind != catalog.MaterializedViewRelation {
 				continue
 			}
-		} else if relation.RelationKind != viewRelation && builtinDefinition == "" {
+		} else if relation.RelationKind != catalog.ViewRelation && builtinDefinition == "" {
 			continue
 		}
 		owner, err := roles.Descriptor(relation.Owner)
 		if err != nil {
 			return nil, err
 		}
-		schema := catalog.Get(relation.Namespace()).Name()
+		schema := view.Get(relation.Namespace()).Name()
 		if source.Address().ObjectID == 12003 {
 			tablespace := sqltype.Null(source.Columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.
@@ -134,7 +135,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 				renderer := newViewRenderer(viewOf(relation))
 				renderer.presentation = presentation
 				renderer.currentNames = true
-				definition, err = renderer.selectQuerySQL(ctx, catalog, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
+				definition, err = renderer.selectQuerySQL(ctx, view, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
 				if err != nil {
 					return nil, err
 				}

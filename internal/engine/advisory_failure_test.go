@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -61,7 +62,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		if _, err := e.ReplaceCatalog(context.Background(), nil, CatalogRead{}); err == nil {
+		if _, err := e.ReplaceCatalog(context.Background(), nil, catalog.Read{}); err == nil {
 			t.Fatal("invalid replacement accepted")
 		}
 		lockState = e.locks.Inspect()

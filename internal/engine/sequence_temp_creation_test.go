@@ -132,9 +132,9 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					assertTemporaryNamespacePair(t, e, a.token, ns.Address())
 					address := NameAddressForTempMove(t, e, ns.Address(), "created")
 					d := e.catalog.state.MustRelation(address)
-					want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
+					want := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
 					g := e.sequences[address]
-					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
+					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != catalog.SequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalogSnapshot.NamespaceGeneration()

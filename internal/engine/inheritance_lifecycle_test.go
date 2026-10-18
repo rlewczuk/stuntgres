@@ -15,14 +15,14 @@ import (
 
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
-func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Index: map[string]int{}}
+func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
-		table.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
+		table.Inheritance = &catalog.TableInheritance{Parents: parents, Columns: map[int32]catalog.InheritedColumn{}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 	}
 	return table
 }
-func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
+func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
@@ -71,12 +71,12 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []*relationDescriptor{p, left, right, leaf} {
+	for _, table := range []*catalog.Relation{p, left, right, leaf} {
 		if _, ok := stage.Removals[table.Address()]; !ok {
 			t.Fatal("missing descendant", table.Name())
 		}
 	}
-	for _, table := range []*relationDescriptor{other, sibling} {
+	for _, table := range []*catalog.Relation{other, sibling} {
 		if _, ok := stage.Removals[table.Address()]; ok {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
@@ -94,7 +94,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	for _, table := range []*relationDescriptor{p, c} {
+	for _, table := range []*catalog.Relation{p, c} {
 		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), table.Address())); err != nil {
 			t.Fatal(err)
 		}
@@ -155,10 +155,10 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			child.ObjectAddress.ObjectID++
 			child.ObjectName = "child"
 			child.OnCommit = actions.child
-			child.Inheritance = &tableInheritance{
+			child.Inheritance = &catalog.TableInheritance{
 				Parents: []ids.ObjectAddress{parent.Address()},
-				Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}},
-				Checks:  map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{},
+				Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}},
+				Checks:  map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{},
 			}
 			e.mu.Lock()
 			e.catalogChangeLocked(changes, child.Address(), &child)

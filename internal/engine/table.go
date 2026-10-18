@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -60,20 +61,20 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			continue
 		}
 		relation := auth.catalog.MustRelation(ref.Address)
-		if relation.RelationKind != tableRelation && relation.RelationKind != partitionedRelation {
-			if relation.RelationKind == indexRelation {
+		if relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation {
+			if relation.RelationKind == catalog.IndexRelation {
 				e.mu.Unlock()
 				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: "Use DROP INDEX to remove an index."}
 			}
 			e.mu.Unlock()
 			hint := "Use DROP SEQUENCE to remove a sequence."
-			if relation.RelationKind == viewRelation {
+			if relation.RelationKind == catalog.ViewRelation {
 				hint = "Use DROP VIEW to remove a view."
 			}
-			if relation.RelationKind == compositeRelation {
+			if relation.RelationKind == catalog.CompositeRelation {
 				hint = "Use DROP TYPE to remove a type."
 			}
-			if relation.RelationKind == materializedViewRelation {
+			if relation.RelationKind == catalog.MaterializedViewRelation {
 				hint = "Use DROP MATERIALIZED VIEW to remove a materialized view."
 			}
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.Name()), Hint: hint}

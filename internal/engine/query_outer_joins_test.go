@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,8 +25,8 @@ func TestQueryOuterJoinsMergedOriginsAndNullableFrames(t *testing.T) {
 				t.Fatal("lost preserved origin", schema)
 			}
 			join := query.Root.(*projectNode).child.(*joinNode)
-			beforeLeft := append([]ColumnDescriptor(nil), join.left.Schema()...)
-			beforeRight := append([]ColumnDescriptor(nil), join.right.Schema()...)
+			beforeLeft := append([]catalog.Column(nil), join.left.Schema()...)
+			beforeRight := append([]catalog.Column(nil), join.right.Schema()...)
 			if schema[1].OriginTable == 0 || schema[2].OriginTable == 0 {
 				t.Fatal("lost qualified originals", schema)
 			}
@@ -196,8 +197,8 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
-		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: lock.ForUpdate}}, firstMode: lock.ForUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {

@@ -5,17 +5,18 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *relationDescriptor) {
+func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *catalog.Relation) {
 	t.Helper()
-	columns := make([]ColumnDescriptor, width)
+	columns := make([]catalog.Column, width)
 	for i := range columns {
-		columns[i] = ColumnDescriptor{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
 	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
@@ -30,8 +31,8 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	return stage, d
 }
 
-func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
-	types := make(map[ids.ObjectAddress]Descriptor)
+func queryCreateTypes(e *Engine) map[ids.ObjectAddress]catalog.Descriptor {
+	types := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for address, descriptor := range e.CatalogRead().Descriptors() {
 		if address.ClassID == ids.TypeClassID {
 			types[address] = descriptor
@@ -40,7 +41,7 @@ func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
 	return types
 }
 
-func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]Descriptor) {
+func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]catalog.Descriptor) {
 	t.Helper()
 	got := queryCreateTypes(e)
 	if len(got) != len(want) {
@@ -53,7 +54,7 @@ func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]
 	}
 }
 
-func queryCreateAssertAbsent(t *testing.T, e *Engine, d *relationDescriptor) {
+func queryCreateAssertAbsent(t *testing.T, e *Engine, d *catalog.Relation) {
 	t.Helper()
 	view := e.CatalogRead()
 	if _, ok := view.Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {
@@ -174,7 +175,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
 				stage.initialTables[d.Address()].versions[0].values = nil
@@ -239,8 +240,8 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 			case "source_definition":
 				original := e.CatalogRead().Get(d.Namespace())
-				stage.querySources = []Descriptor{original}
-				next := *original.(*namespaceDescriptor)
+				stage.querySources = []catalog.Descriptor{original}
+				next := *original.(*catalog.Namespace)
 				next.ObjectRevision++
 				peer := e.BeginCatalogStage(e.CatalogRead())
 				if err = peer.Replace(&next); err != nil {
@@ -271,7 +272,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					t.Fatal(err)
 				}
 			default:
-				var conflict CatalogConflict
+				var conflict catalog.Conflict
 				if !errors.As(err, &conflict) {
 					t.Fatal(err)
 				}
@@ -294,18 +295,18 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 }
 
 type queryCreateProbeProvider struct {
-	CatalogProvider
+	catalog.Provider
 	e     *Engine
 	t     *testing.T
 	check func() error
 }
 
-func (p queryCreateProbeProvider) Validate(view CatalogRead, d Descriptor) error {
+func (p queryCreateProbeProvider) Validate(view catalog.Read, d catalog.Descriptor) error {
 	if !p.e.mu.TryLock() {
 		p.t.Fatal("definition callback under Engine.mu")
 	}
 	p.e.mu.Unlock()
-	if err := p.CatalogProvider.Validate(view, d); err != nil {
+	if err := p.Provider.Validate(view, d); err != nil {
 		return err
 	}
 	return p.check()

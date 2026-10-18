@@ -24,7 +24,7 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 	backing := view.MustRelation(source.Address())
 	childAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: "child"})
 	child := view.MustRelation(childAddress)
-	for _, relation := range []*relationDescriptor{backing, root, child} {
+	for _, relation := range []*catalog.Relation{backing, root, child} {
 		if len(relation.Columns) != 2 || relation.Columns[0].Name != "id" || relation.Columns[1].Name != "label" || relation.Columns[0].Usage.Type.ID() != sqltype.Int8 || relation.Columns[1].Usage.Type.ID() != sqltype.Text {
 			t.Fatal("actual publication lost parent/child shape", relation)
 		}

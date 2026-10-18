@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -141,7 +142,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
 	return auth.engine.lookupNamespacesSnapshot(auth, name, functionLookup)
 }
-func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (Descriptor, error) {
+func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (catalog.Descriptor, error) {
 	path, err := objectLookupPath(scope, names)
 	if err != nil {
 		return nil, err
@@ -307,7 +308,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			signature.WriteString(strconv.FormatUint(uint64(id), 10))
 			human[i] = regtypeSpelling(view, scope.deparsePath, id)
 		}
-		p, count := selectExactRoutine(view, path, names[len(names)-1], procedureSignature(signature.String()))
+		p, count := selectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
 		for i, name := range names {
 			spelling[i] = pgIdentifier(name)
@@ -421,7 +422,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if d == nil {
 			return missing("42P01", fmt.Sprintf("relation %q does not exist", strings.Join(relationNames, ".")))
 		}
-		relation := d.(*relationDescriptor)
+		relation := d.(*catalog.Relation)
 		if class == 1259 {
 			if !child {
 				actual := objectRelationKind(view, relation)
@@ -491,7 +492,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	// diagnostics. No descriptor or OID is manufactured to satisfy lookup.
 	return missing("42704", fmt.Sprintf("%s %q does not exist", kind, strings.Join(names, ".")))
 }
-func ownedAddressByName(d *relationDescriptor, class ids.OID, name string) ids.OID {
+func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
 		for _, x := range d.NotNullConstraints {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -54,7 +55,7 @@ func (b *expressionBinder) bindSearchShape(d *cteDefinition) error {
 			return err
 		}
 	}
-	d.schema = append(d.schema, ColumnDescriptor{Name: s.syntax.Sequence.Text, Usage: s.result.Usage()})
+	d.schema = append(d.schema, catalog.Column{Name: s.syntax.Sequence.Text, Usage: s.result.Usage()})
 	return nil
 }
 

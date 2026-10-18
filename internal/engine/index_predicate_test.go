@@ -15,7 +15,7 @@ import (
 
 type partialIndexFixture struct {
 	e             *Engine
-	parent, index *relationDescriptor
+	parent, index *catalog.Relation
 	predicate     columnExpression
 	store         *relationStorage
 }
@@ -25,13 +25,13 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: tableRelation, Attributes: []int32{10, 20}, AttributeHighWater: 20, Columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, Index: map[string]int{"k": 0, "active": 1}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20}, AttributeHighWater: 20, Columns: []catalog.Column{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, Index: map[string]int{"k": 0, "active": 1}}
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Address())
 	ref.Address.SubID = 20
 	column := columnExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 1, origin: ref}
-	predicate := &indexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
+	predicate := &catalog.IndexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
-	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: indexRelation, Columns: []ColumnDescriptor{parent.Columns[0]}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{Parent: parent.Address(), Method: btreeMethod, Ready: true, Valid: true, Live: true, Keys: []indexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
 	store := &relationStorage{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)
@@ -76,7 +76,7 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 		if err != nil || got != (i == 0 || i == 3 || i == 4) {
 			t.Fatal(i, got, err)
 		}
-		got, err = absent.predicateMatches(&evaluation, f.parent, &indexDefinition{}, row.values, nil, nil)
+		got, err = absent.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{}, row.values, nil, nil)
 		if err != nil || !got {
 			t.Fatal("absent predicate", got, err)
 		}
@@ -84,9 +84,9 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 	boolean := f.predicate.Usage.Type
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.Null(boolean)} {
 		node := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: value}
-		p := &indexPredicate{Definition: node, Execution: node}
+		p := &catalog.IndexPredicate{Definition: node, Execution: node}
 		preparation := indexExecutionPreparation{}
-		got, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{Predicate: p}, nil, nil, nil)
+		got, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil)
 		truth, _ := TruthOf(value)
 		if err != nil || got != (truth == True) {
 			t.Fatal(value, got, err)
@@ -116,7 +116,7 @@ func TestPartialIndexRootMembership(t *testing.T) {
 	}{{sqltype.Boolean(f.predicate.Usage.Type, true), 5}, {sqltype.Boolean(f.predicate.Usage.Type, false), 0}, {sqltype.Null(f.predicate.Usage.Type), 0}} {
 		node := literalExpression{Info: expr.Info{Usage: f.predicate.Usage}, value: tc.value}
 		def := *f.index.SQLIndex
-		def.Predicate = &indexPredicate{Definition: node, Execution: node}
+		def.Predicate = &catalog.IndexPredicate{Definition: node, Execution: node}
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
 		if err != nil || len(root.entries) != tc.count || len(root.membership) != tc.count {
 			t.Fatal("constant root", tc, root, err)
@@ -188,7 +188,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	failure := errors.New("qualifying key")
 	key := partialEvaluationWitness{Info: expr.Info{Usage: f.parent.Columns[0].Usage}, calls: &calls, failure: failure}
 	def := *f.index.SQLIndex
-	def.Keys = []indexKey{{Class: f.index.SQLIndex.Keys[0].Class, Derived: &derivedIndexKey{Definition: key, Execution: key}}}
+	def.Keys = []catalog.IndexKey{{Class: f.index.SQLIndex.Keys[0].Class, Derived: &catalog.DerivedIndexKey{Definition: key, Execution: key}}}
 	idx := *f.index
 	idx.SQLIndex = &def
 	f.e.catalog.state.SetDescriptor(idx.Address(), &idx)
@@ -213,7 +213,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	calls = 0
 	predicate := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, failure: failure}
 	def.Keys = f.index.SQLIndex.Keys
-	def.Predicate = &indexPredicate{Definition: predicate, Execution: predicate}
+	def.Predicate = &catalog.IndexPredicate{Definition: predicate, Execution: predicate}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("simple-key predicate not preflighted", calls, err)
 	}
@@ -232,9 +232,9 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
-	for _, p := range []*indexPredicate{nil, f.index.SQLIndex.Predicate} {
+	for _, p := range []*catalog.IndexPredicate{nil, f.index.SQLIndex.Predicate} {
 		preparation := indexExecutionPreparation{}
-		if _, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{Predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
+		if _, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}
@@ -500,7 +500,7 @@ func TestPartialIndexPredicateLifecycle(t *testing.T) {
 	// An unrelated earlier slot must detach and remap BOTH predicate trees.
 	parent = *f.parent
 	parent.Attributes = []int32{5, 10, 20}
-	parent.Columns = append([]ColumnDescriptor{f.parent.Columns[0]}, f.parent.Columns...)
+	parent.Columns = append([]catalog.Column{f.parent.Columns[0]}, f.parent.Columns...)
 	column := f.predicate
 	column.slot = 2
 	p := *f.index.SQLIndex.Predicate

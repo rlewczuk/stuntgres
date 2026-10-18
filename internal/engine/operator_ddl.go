@@ -103,7 +103,7 @@ func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw par
 	}
 	return id, e.checkOperatorArgumentUsage(auth, id)
 }
-func operatorInputName(v CatalogRead, left, right ids.OID, name parser.ObjectName) string {
+func operatorInputName(v catalog.Read, left, right ids.OID, name parser.ObjectName) string {
 	n := objectNameText(name)
 	if left != 0 {
 		t, _ := v.LookupType(sqltype.ID(left))
@@ -115,7 +115,7 @@ func operatorInputName(v CatalogRead, left, right ids.OID, name parser.ObjectNam
 	}
 	return n
 }
-func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s parser.OperatorSignature) (*operatorDescriptor, error) {
+func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s parser.OperatorSignature) (*catalog.Operator, error) {
 	left, err := e.operatorArgument(op, auth, s.Left)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	if err != nil {
 		return nil, err
 	}
-	key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, Left: left, Right: right, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text}
+	key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, Left: left, Right: right, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.ObjectNamespace = path.at(i)
 		a := auth.catalog.NameAddress(catalog.DescriptorNameKey(&key))
@@ -138,7 +138,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	}
 	return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.catalog, left, right, s.Name))
 }
-func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*procedureDescriptor, error) {
+func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
 	path, err := e.lookupNamespaces(auth, name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 			types[i] = t.DiagnosticName()
 		}
 	}
-	d := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, procedureSignature(strings.Join(ids, ",")))
+	d := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
 	if d == nil {
 		return nil, sqlError("42883", "function "+objectNameText(name)+"("+strings.Join(types, ", ")+") does not exist")
 	}
@@ -166,9 +166,9 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 
 // Both join signatures are legal, but neither wins over the other when both
 // exist. Inputs are lookup identities, not callable provider declarations.
-func operatorEstimatorVariant(name parser.ObjectName, five routineIdentity, fiveCount int, four routineIdentity, fourCount int) (routineIdentity, int, error) {
+func operatorEstimatorVariant(name parser.ObjectName, five catalog.RoutineIdentity, fiveCount int, four catalog.RoutineIdentity, fourCount int) (catalog.RoutineIdentity, int, error) {
 	if fiveCount != 0 && fourCount != 0 {
-		return routineIdentity{}, 0, sqlError("42725", "join estimator function "+objectNameText(name)+" has multiple matches")
+		return catalog.RoutineIdentity{}, 0, sqlError("42725", "join estimator function "+objectNameText(name)+" has multiple matches")
 	}
 	if fiveCount != 0 {
 		return five, fiveCount, nil
@@ -201,14 +201,14 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		return 0, err
 	}
 	n := name.Parts[len(name.Parts)-1].Text
-	signature := procedureSignature("2281,26,2281,23")
+	signature := catalog.ProcedureSignature("2281,26,2281,23")
 	builtin, superuser := true, false
 	if join {
 		signature = "2281,26,2281,21,2281"
 	}
 	identity, count := selectRoutine(auth.catalog, path, n, &signature)
 	if join {
-		four := procedureSignature("2281,26,2281,21")
+		four := catalog.ProcedureSignature("2281,26,2281,21")
 		alternate, other := selectRoutine(auth.catalog, path, n, &four)
 		identity, count, err = operatorEstimatorVariant(name, identity, count, alternate, other)
 		if err != nil {
@@ -225,7 +225,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	}
 	result := releasedOperatorEstimatorResult(identity.ID)
 	if d, ok := auth.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
-		if d.RoutineKind != functionRoutine {
+		if d.RoutineKind != catalog.FunctionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
 		result = d.Result
@@ -249,7 +249,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 func operatorOptionError(name string) error {
 	return sqlError("42P13", fmt.Sprintf(`operator attribute "%s" cannot be changed if it has already been set`, name))
 }
-func validateOperatorOptions(d *operatorDescriptor, comm, neg parser.ObjectName) error {
+func validateOperatorOptions(d *catalog.Operator, comm, neg parser.ObjectName) error {
 	// OperatorValidateParams completes binary eligibility before checking
 	// Boolean results, even when an earlier Boolean-only option is also set.
 	if d.Left == 0 {
@@ -392,7 +392,7 @@ func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter
 
 // collectOperatorOptions resolves surviving estimators and collects link names.
 // It changes only the caller's private descriptor, never the catalog stage.
-func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *operatorDescriptor, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
+func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *catalog.Operator, options []parser.OperatorOption, alter bool) (parser.ObjectName, parser.ObjectName, error) {
 	var comm, neg parser.ObjectName
 	var restriction, join *parser.OperatorOption
 	for i := range options {
@@ -456,13 +456,13 @@ func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *operatorDescr
 	}
 	return comm, neg, nil
 }
-func stageOperatorDescriptor(stage *CatalogStage, d *operatorDescriptor) error {
+func stageOperatorDescriptor(stage *CatalogStage, d *catalog.Operator) error {
 	if _, exists := stage.Base.Find(d.Address()); exists {
 		return stage.Replace(d)
 	}
 	if old := stage.Descriptors[d.Address()]; old != nil {
 		if catalog.DescriptorNameKey(old) != catalog.DescriptorNameKey(d) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		stage.Descriptors[d.Address()] = d
 		return nil
@@ -472,7 +472,7 @@ func stageOperatorDescriptor(stage *CatalogStage, d *operatorDescriptor) error {
 
 // resolveOperatorLink captures an exact peer once, including shell/owner checks.
 // Only CREATE may create a shell here; ALTER resolution never changes the stage.
-func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage, d *operatorDescriptor, name parser.ObjectName, negator, allowShell bool) (*operatorDescriptor, error) {
+func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage, d *catalog.Operator, name parser.ObjectName, negator, allowShell bool) (*catalog.Operator, error) {
 	if len(name.Parts) == 0 {
 		return nil, nil
 	}
@@ -496,8 +496,8 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		return nil, err
 	}
 	view := e.stageRead(stage)
-	var peer *operatorDescriptor
-	key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectName: symbol, Left: left, Right: right}
+	var peer *catalog.Operator
+	key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectName: symbol, Left: left, Right: right}
 	for i := range path.count() {
 		key.ObjectNamespace = path.at(i)
 		if found, ok := view.Operator(view.NameAddress(catalog.DescriptorNameKey(&key))); ok {
@@ -532,7 +532,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		if err != nil {
 			return nil, err
 		}
-		peer = &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: ns.Address, ObjectRevision: rev, ObjectName: symbol, Left: left, Right: right, Owner: auth.state.CurrentUser}
+		peer = &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: ns.Address, ObjectRevision: rev, ObjectName: symbol, Left: left, Right: right, Owner: auth.state.CurrentUser}
 		if err = stage.Create(peer); err != nil {
 			return nil, err
 		}
@@ -546,7 +546,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	return peer, nil
 }
 
-func checkOperatorLinkReplacement(d, peer *operatorDescriptor, negator bool) error {
+func checkOperatorLinkReplacement(d, peer *catalog.Operator, negator bool) error {
 	if peer == nil {
 		return nil
 	}
@@ -566,7 +566,7 @@ func checkOperatorLinkReplacement(d, peer *operatorDescriptor, negator bool) err
 
 // Stage by captured identity, reading the latest private peer so two link kinds
 // targeting the same operator retain each other's reciprocal updates.
-func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operatorDescriptor, negator bool) error {
+func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *catalog.Operator, negator bool) error {
 	if peer == nil {
 		return nil
 	}
@@ -680,7 +680,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
-	next := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.state.CurrentUser, Result: routine.Result, Function: routine.Address().ObjectID}
+	next := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.state.CurrentUser, Result: routine.Result, Function: routine.Address().ObjectID}
 	// DefineOperator resolves surviving estimators before OperatorCreate checks
 	// the name, parameter combinations, and only then duplicate/shell ownership.
 	comm, neg, err := e.collectOperatorOptions(auth, &next, s.Options, false)

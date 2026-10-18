@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -17,14 +18,14 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if err == nil {
 		scope.routineAuth = auth
 	}
-	var typ *typeDescriptor
-	var source *relationDescriptor
+	var typ *catalog.Type
+	var source *catalog.Relation
 	if err == nil {
 		var ref ids.ObjectRef
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
 			source = auth.catalog.MustRelation(ref.Address)
-			if source.RelationKind != compositeRelation {
+			if source.RelationKind != catalog.CompositeRelation {
 				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
 			} else {
 				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
@@ -72,7 +73,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	valid := e.catalog.state.Epoch() == auth.catalog.Epoch() && e.catalog.state.Get(source.Address()) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
-		return Result{}, CatalogConflict{}
+		return Result{}, catalog.Conflict{}
 	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
@@ -138,7 +139,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	for _, table := range targets {
 		var actions []typedColumnAction
 		var renames map[int32]string
-		var graph *tableInheritance
+		var graph *catalog.TableInheritance
 		view := e.stageRead(stage)
 		table = view.MustRelation(table.Address())
 		if table.OfType == typ.Address() {

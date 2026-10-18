@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func intaggUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -42,17 +42,17 @@ func TestIntaggProviderManifest(t *testing.T) {
 		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
-		for _, mutate := range []func(*procedureDescriptor){
-			func(p *procedureDescriptor) { p.ObjectName = "int_agg_state" }, func(p *procedureDescriptor) { p.Signature = "25" },
-			func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Strict = !p.Strict },
-			func(p *procedureDescriptor) { p.Volatility = expr.Stable }, func(p *procedureDescriptor) { p.ObjectRevision = 0 },
-			func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
-			func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-			func(p *procedureDescriptor) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
-			func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
-			func(p *procedureDescriptor) { p.Implementation = stockUnaccent }, func(p *procedureDescriptor) { p.Implementation = stockIntarray },
-			func(p *procedureDescriptor) {
-				p.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
+		for _, mutate := range []func(*catalog.Procedure){
+			func(p *catalog.Procedure) { p.ObjectName = "int_agg_state" }, func(p *catalog.Procedure) { p.Signature = "25" },
+			func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Strict = !p.Strict },
+			func(p *catalog.Procedure) { p.Volatility = expr.Stable }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
+			func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
+			func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
+			func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
+			func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch }, func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
+			func(p *catalog.Procedure) { p.Implementation = stockUnaccent }, func(p *catalog.Procedure) { p.Implementation = stockIntarray },
+			func(p *catalog.Procedure) {
+				p.Implementation = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 			},
 		} {
 			state := catalog.CloneState(e.catalog.state)
@@ -98,7 +98,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
 			installed := other.catalog.state.MustExtension(other.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
-			var member *procedureDescriptor
+			var member *catalog.Procedure
 			for _, address := range installed.Members {
 				if proc, ok := other.catalog.state.Procedure(address); ok {
 					member = proc

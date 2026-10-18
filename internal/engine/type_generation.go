@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Engine.mu is held. Reuse replacement's copy-on-change type/expression/value
 // reownership without changing OIDs, object references, or old catalog roots.
@@ -32,11 +35,11 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				return err
 			}
 			switch descriptor := descriptor.(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				copy := *descriptor
 				copy.ObjectRevision = revision
 				next.SetDescriptor(address, &copy)
-			case *relationDescriptor:
+			case *catalog.Relation:
 				copy := *descriptor
 				copy.ObjectRevision = revision
 				next.SetDescriptor(address, &copy)
@@ -52,8 +55,8 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		if descriptor == previous {
 			continue
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && (relation.RelationKind == tableRelation || relation.RelationKind == materializedViewRelation) {
-			old, _ := previous.(*relationDescriptor)
+		if relation, ok := descriptor.(*catalog.Relation); ok && (relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.MaterializedViewRelation) {
+			old, _ := previous.(*catalog.Relation)
 			columnsChanged := false
 			for i, column := range relation.Columns {
 				columnsChanged = columnsChanged || old.Columns[i].Usage.Type != column.Usage.Type
@@ -72,7 +75,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			}
 		}
 		if stage.domainAlter != nil {
-			if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
+			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
 					store := e.stageStorageLocked(stage, parent)

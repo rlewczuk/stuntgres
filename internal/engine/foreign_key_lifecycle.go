@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
-func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreignKeyConstraint) (string, error) {
+func (r pgRenderer) foreignKeyConstraintSQL(child *catalog.Relation, f catalog.ForeignKeyConstraint) (string, error) {
 	return r.foreignKeyConstraintSQLWithPrimary(child, f, false)
 }
 
 // Implicit primary references preserve the captured provider when its deferred
 // construction follows another UNIQUE over the same attributes.
-func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor, f foreignKeyConstraint, primary bool) (string, error) {
+func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *catalog.Relation, f catalog.ForeignKeyConstraint, primary bool) (string, error) {
 	view, path := r.view, r.path
 	parent, ok := view.Relation(f.Target)
 	if !ok {
@@ -118,7 +119,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*relationDescriptor); ok && len(d.ForeignKeys) != 0 {
+		if d, ok := descriptor.(*catalog.Relation); ok && len(d.ForeignKeys) != 0 {
 			present = true
 			break
 		}
@@ -199,7 +200,7 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 			continue
 		}
 		old := edge.relation
-		if replacement, ok := provider.replacement(old.Address()).(*relationDescriptor); ok {
+		if replacement, ok := provider.replacement(old.Address()).(*catalog.Relation); ok {
 			old = replacement
 		}
 		for i, f := range old.ForeignKeys {
@@ -207,7 +208,7 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 				continue
 			}
 			next := *old
-			next.ForeignKeys = make([]foreignKeyConstraint, 0, len(old.ForeignKeys)-1)
+			next.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.ForeignKeys)-1)
 			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
 			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
 			var err error
@@ -224,17 +225,17 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 	return nil
 }
 
-func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
+func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *catalog.Relation, transformations []columnTransformation) (*catalog.Relation, error) {
 	if len(transformations) == 0 {
 		return parent, nil
 	}
 	view := e.stageRead(stage)
 	for _, descriptor := range view.Descriptors() {
-		old, ok := descriptor.(*relationDescriptor)
+		old, ok := descriptor.(*catalog.Relation)
 		if !ok || len(old.ForeignKeys) == 0 {
 			continue
 		}
-		var next *relationDescriptor
+		var next *catalog.Relation
 		for i, f := range old.ForeignKeys {
 			affected := false
 			for _, change := range transformations {
@@ -291,11 +292,11 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 	return parent, nil
 }
 
-func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, address ids.ObjectAddress) error {
+func (s *StatementScope) acquireForeignKeyTypeProviders(view catalog.Read, address ids.ObjectAddress) error {
 	var refs []ids.ObjectRef
 	e := s.op.session.Engine()
 	for _, descriptor := range view.Descriptors() {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -328,7 +329,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 	return nil
 }
 
-func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.ObjectAddress) error {
+func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids.ObjectAddress) error {
 	auth, err := s.op.Authorization()
 	if err != nil {
 		return err
@@ -337,7 +338,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 	auth.recaptureCatalog(auth.catalog)
 	e := s.op.session.Engine()
 	for _, descriptor := range view.Descriptors() {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -372,7 +373,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStage) error {
 	var refs []ids.ObjectRef
 	for address, descriptor := range stage.Descriptors {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -419,7 +420,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	auth.recaptureCatalog(auth.catalog)
 	e.mu.Unlock()
 	for address, descriptor := range stage.Descriptors {
-		child, ok := descriptor.(*relationDescriptor)
+		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -41,9 +42,9 @@ func newCopyCursor(scope *StatementScope, b binding, o copyOptions, r io.Reader)
 	}
 	return c
 }
-func (c *copyCursor) Schema() []ColumnDescriptor { return nil }
-func (c *copyCursor) Close() error               { return nil }
-func (c *copyCursor) rowDefaults() []bool        { return c.defaults }
+func (c *copyCursor) Schema() []catalog.Column { return nil }
+func (c *copyCursor) Close() error             { return nil }
+func (c *copyCursor) rowDefaults() []bool      { return c.defaults }
 func (c *copyCursor) lineError(message string, hint string) error {
 	d := sqlError("22P04", message).(*sqlstate.Error)
 	d.Hint = hint

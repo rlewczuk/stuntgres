@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -22,7 +23,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 		return typ.DiagnosticName()
 	}
 	definition, _ := auth.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
-	descriptor, ok := definition.(*typeDescriptor)
+	descriptor, ok := definition.(*catalog.Type)
 	if !ok {
 		return typ.DiagnosticName()
 	}
@@ -220,7 +221,7 @@ func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) 
 }
 
 // Each frozen consumer supplies its own coherent catalog and input owners.
-func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func captureRetainedDefinitionInput(view catalog.Read, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	seen := make(map[*viewDefinition]bool)
 	var capture func(*viewDefinition) error
 	capture = func(definition *viewDefinition) error {
@@ -238,8 +239,8 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 			return failure
 		}
 		for _, source := range definition.sources {
-			relation, ok := catalog.Relation(source.ref.Address)
-			if ok && relation.RelationKind == viewRelation {
+			relation, ok := view.Relation(source.ref.Address)
+			if ok && relation.RelationKind == catalog.ViewRelation {
 				if err := capture(viewOf(relation)); err != nil {
 					return err
 				}
@@ -252,7 +253,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 
 // Retained write expressions are not rebound with the consuming statement.
 // Capture input authority and lazy naming without evaluating defaults or branches.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]columnGeneration, checks []checkConstraint) error {
+func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint) error {
 	var failure error
 	visit := func(node expr.Expr) {
 		if failure != nil {

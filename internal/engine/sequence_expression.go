@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -389,7 +390,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	for _, ns := range path {
 		if address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ids.ObjectAddress{}) {
 			descriptor, _ := r.auth.definitionDescriptor(address)
-			if _, ok := descriptor.(*relationDescriptor); !ok {
+			if _, ok := descriptor.(*catalog.Relation); !ok {
 				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
 			}
 			return uint32(address.ObjectID), nil

@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -21,9 +22,9 @@ type ForeignValueImporter func(context.Context, driver.Value, sqltype.Usage, sql
 type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnvironment) (driver.Value, error)
 
 type foreignQuerySource struct {
-	wrapper        ForeignDataWrapper
-	request        ForeignRequest
-	columns        []ColumnDescriptor
+	wrapper        catalog.ForeignDataWrapper
+	request        catalog.ForeignRequest
+	columns        []catalog.Column
 	importValue    ForeignValueImporter
 	exportValue    ForeignValueExporter
 	executions     []*foreignExecution
@@ -34,14 +35,14 @@ type foreignQuerySource struct {
 type foreignExecution struct {
 	owner         any
 	active, ended bool
-	scan          ForeignScan
-	plan          ForeignPlan
+	scan          catalog.ForeignScan
+	plan          catalog.ForeignPlan
 	slots         []int
 	planned       bool
 	closeError    error
 }
 
-func copyForeignRequest(request ForeignRequest) ForeignRequest {
+func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	request.Columns = slices.Clone(request.Columns)
 	for i := range request.Columns {
 		request.Columns[i].Options = slices.Clone(request.Columns[i].Options)
@@ -67,7 +68,7 @@ func copyForeignCells(cells []driver.Value) []driver.Value {
 
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
-func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *relationDescriptor, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
 	if mark.mode != 0 {
 		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
 	}
@@ -98,9 +99,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	request := ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	request := catalog.ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
 	for i, column := range relation.Columns {
-		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
+		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
 	request.RequiredAttributes, err = foreignRequiredAttributes(relation, uses)
 	if err != nil {
@@ -116,7 +117,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound
 // expression's base inputs belong in the external row layout.
-func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int32, error) {
+func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32, error) {
 	count := len(uses)
 	if uses == nil {
 		count = len(relation.Columns)
@@ -136,7 +137,7 @@ func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int3
 		if slot < 0 || slot >= len(relation.Attributes) {
 			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
 		}
-		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == generationVirtual {
+		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == catalog.GenerationVirtual {
 			walkBoundExpression(generation.Planned, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok {
 					add(column.slot)
@@ -150,7 +151,7 @@ func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int3
 }
 
 func finiteForeignNumber(n float64) bool { return n >= 0 && !math.IsNaN(n) && !math.IsInf(n, 0) }
-func foreignLayout(request ForeignRequest, attributes []int32) error {
+func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 	for i, attribute := range attributes {
 		valid := false
 		for _, column := range request.Columns {
@@ -175,7 +176,7 @@ func foreignLayout(request ForeignRequest, attributes []int32) error {
 	}
 	return nil
 }
-func (f *foreignQuerySource) plan(ctx context.Context, request ForeignRequest, execution *foreignExecution) error {
+func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRequest, execution *foreignExecution) error {
 	size, err := f.wrapper.GetForeignRelSize(ctx, copyForeignRequest(request))
 	if err != nil {
 		return err
@@ -223,8 +224,8 @@ func (f *foreignQuerySource) plan(ctx context.Context, request ForeignRequest, e
 	}
 	return nil
 }
-func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (ForeignScanParameters, error) {
-	var parameters ForeignScanParameters
+func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (catalog.ForeignScanParameters, error) {
+	var parameters catalog.ForeignScanParameters
 	export := func(values []sqltype.Value) ([]driver.Value, error) {
 		out := make([]driver.Value, len(values))
 		for i, value := range values {
@@ -263,7 +264,7 @@ func (execution *foreignExecution) end(ctx context.Context) error {
 		execution.closeError = execution.scan.EndForeignScan(context.WithoutCancel(ctx))
 		execution.scan = nil
 	}
-	execution.plan = ForeignPlan{}
+	execution.plan = catalog.ForeignPlan{}
 	execution.slots = nil
 	execution.owner = nil
 	return execution.closeError

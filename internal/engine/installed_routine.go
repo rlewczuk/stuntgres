@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -22,7 +23,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
-	var proc *procedureDescriptor
+	var proc *catalog.Procedure
 	if extension == functions.PgcryptoExtension {
 		for i := range path.count() {
 			namespace := path.at(i)
@@ -31,13 +32,13 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 			if text == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
 				return functions.CatalogBuiltin{}, nil
 			}
-			proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, text, procedureSignature(signature))
+			proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, text, catalog.ProcedureSignature(signature))
 			if proc != nil {
 				break
 			}
 		}
 	} else {
-		proc = procedureInNamespaces(auth.catalog, path, text, procedureSignature(signature))
+		proc = procedureInNamespaces(auth.catalog, path, text, catalog.ProcedureSignature(signature))
 	}
 	if proc == nil {
 		return nil, nil
@@ -67,8 +68,8 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 // through functions.Binder.InstalledRoutine.
 type installedExtensionRoutine struct {
 	binder    *expressionBinder
-	catalog   CatalogRead
-	procedure *procedureDescriptor
+	catalog   catalog.Read
+	procedure *catalog.Procedure
 }
 
 func (r installedExtensionRoutine) Validate() error {
@@ -98,7 +99,7 @@ func (r installedExtensionRoutine) Validate() error {
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
 	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
-	appended := expressionDependency{Ref: ref, Revision: p.Revision()}
+	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
 		if uuidOsspProviderOf(p) != stockUUIDOssp {
@@ -150,8 +151,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 // provider supplies the rules evaluation applies.
 func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref ids.ObjectRef) (expr.Expr, error) {
 	p := r.procedure
-	var dict *tsDictionaryDescriptor
-	var tmpl *tsTemplateDescriptor
+	var dict *catalog.TSDictionary
+	var tmpl *catalog.TSTemplate
 	if unaccentProviderOf(p) != nil {
 		var ok bool
 		dict, ok = r.catalog.TSDictionary(p.Dictionary)

@@ -21,9 +21,9 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, retained); err != nil {
 			t.Fatal(err)
 		}
-		global := defaultACLKey{Creator: target.owner, Class: authorization.DefaultTables}
-		scoped := defaultACLKey{Creator: target.owner, Schema: source.schema, Class: authorization.DefaultTypes}
-		for _, key := range []defaultACLKey{global, scoped} {
+		global := catalog.DefaultACLKey{Creator: target.owner, Class: authorization.DefaultTables}
+		scoped := catalog.DefaultACLKey{Creator: target.owner, Schema: source.schema, Class: authorization.DefaultTypes}
+		for _, key := range []catalog.DefaultACLKey{global, scoped} {
 			record := target.e.catalog.state.DefaultACL(key)
 			if record == nil {
 				t.Fatal("imported default missing", key)
@@ -34,7 +34,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 				}
 			}
 		}
-		if retained.State().DefaultACL(defaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}) == nil || retained.State().DefaultACL(global) != nil || target.e.roles != oldRolesPublication {
+		if retained.State().DefaultACL(catalog.DefaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}) == nil || retained.State().DefaultACL(global) != nil || target.e.roles != oldRolesPublication {
 			t.Fatal("replacement changed source or target role catalog")
 		}
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
@@ -65,8 +65,8 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		source := f.e.CatalogRead()
-		scoped := defaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
-		global := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+		scoped := catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
+		global := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 		projection, err := persistentReplacementCatalog(source)
 		if err != nil {
 			t.Fatal(err)
@@ -86,7 +86,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if err = f.apply(grant); err != nil {
 			t.Fatal(err)
 		}
-		tempKey := defaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultSequences}
+		tempKey := catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultSequences}
 		endSnapshot := f.e.CatalogRead()
 		f.op.Done()
 		f.op.session.RequestEnd(CleanClose)
@@ -119,10 +119,10 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		imported := target.e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"})
-		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Schema: imported, Class: authorization.DefaultTables}) == nil || target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Schema: target.schema, Class: authorization.DefaultTables}) != nil {
+		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: target.owner, Schema: imported, Class: authorization.DefaultTables}) == nil || target.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: target.owner, Schema: target.schema, Class: authorization.DefaultTables}) != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
-		if target.e.catalog.state.DefaultACL(defaultACLKey{Creator: target.owner, Class: authorization.DefaultSequences}) == nil {
+		if target.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: target.owner, Class: authorization.DefaultSequences}) == nil {
 			t.Fatal("foreign global policy lost")
 		}
 		// A source TEMP-only record is projected out even on a foreign import.
@@ -137,7 +137,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), source.e, source.e.catalog.read(tempSource)); err != nil {
 			t.Fatal(err)
 		}
-		if fresh.e.catalog.state.DefaultACLCount() != 1 || fresh.e.catalog.state.DefaultACL(defaultACLKey{Creator: fresh.owner, Class: authorization.DefaultSequences}) == nil || tempSource.DefaultACL(defaultACLKey{Creator: source.owner, Schema: source.schema, Class: authorization.DefaultTables}) == nil {
+		if fresh.e.catalog.state.DefaultACLCount() != 1 || fresh.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: fresh.owner, Class: authorization.DefaultSequences}) == nil || tempSource.DefaultACL(catalog.DefaultACLKey{Creator: source.owner, Schema: source.schema, Class: authorization.DefaultTables}) == nil {
 			t.Fatal("foreign TEMP policy/source filtering")
 		}
 	})

@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func rebindExclusionOperators(parent *relationDescriptor, definition *indexDefinition) ([]sqltype.ExclusionOperator, error) {
+func rebindExclusionOperators(parent *catalog.Relation, definition *catalog.IndexDefinition) ([]sqltype.ExclusionOperator, error) {
 	operators := make([]sqltype.ExclusionOperator, len(definition.Exclusion))
 	for i, operator := range definition.Exclusion {
 		usage, err := indexKeyUsage(parent, definition.Keys[i])
@@ -21,15 +22,15 @@ func rebindExclusionOperators(parent *relationDescriptor, definition *indexDefin
 	}
 	return operators, nil
 }
-func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
+func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catalog.Relation, transformations []columnTransformation) (*catalog.Relation, error) {
 	if len(parent.ExclusionConstraints) == 0 || len(transformations) == 0 {
 		return parent, nil
 	}
-	var next *relationDescriptor
+	var next *catalog.Relation
 	for i, old := range parent.ExclusionConstraints {
 		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
-			if current, exists := stage.Descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
+			if current, exists := stage.Descriptors[old.Index].(*catalog.Relation); exists && current.SQLIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
 			}
 		}
@@ -39,7 +40,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			continue
 		}
-		if replacement, ok := stage.Descriptors[old.Index].(*relationDescriptor); ok {
+		if replacement, ok := stage.Descriptors[old.Index].(*catalog.Relation); ok {
 			index = replacement
 		}
 		oldParent := stage.Base.MustRelation(parent.Address())
@@ -102,13 +103,13 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 
 // Imported values and definitions must capture the destination type descriptors.
 // The catalog replacement path invokes this after its existing expression remap.
-func rebindImportedExclusions(next *catalogState) error {
+func rebindImportedExclusions(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
-		parent, ok := descriptor.(*relationDescriptor)
+		parent, ok := descriptor.(*catalog.Relation)
 		if !ok || len(parent.ExclusionConstraints) == 0 {
 			continue
 		}
-		var replacement *relationDescriptor
+		var replacement *catalog.Relation
 		for i, constraint := range parent.ExclusionConstraints {
 			index, ok := next.Relation(constraint.Index)
 			if !ok || index.SQLIndex == nil {

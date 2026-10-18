@@ -509,8 +509,8 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			}
 		}()
 		e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-			CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-			publishWinner: func(Descriptor) {
+			Provider: e.catalog.Providers[ids.RelationClassID],
+			publishWinner: func(catalog.Descriptor) {
 				close(entered)
 				<-release
 				if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {

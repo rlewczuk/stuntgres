@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -17,14 +18,14 @@ type queryRowMark struct {
 	order int
 }
 
-func isPGSequencesRelation(relation *relationDescriptor) bool {
-	return relation.RelationKind == catalogRelation && relation.Address().ObjectID == 12048
+func isPGSequencesRelation(relation *catalog.Relation) bool {
+	return relation.RelationKind == catalog.CatalogRelation && relation.Address().ObjectID == 12048
 }
 
 // SQL marks remain intact for binding, admission and clause diagnostics.
 // The expanded pg_sequences view has no represented physical tuple to mark;
 // its admitted-row sequence helper locks are a separate execution obligation.
-func effectiveQueryRowMark(relation *relationDescriptor, mark queryRowMark) queryRowMark {
+func effectiveQueryRowMark(relation *catalog.Relation, mark queryRowMark) queryRowMark {
 	if isPGSequencesRelation(relation) {
 		return queryRowMark{}
 	}

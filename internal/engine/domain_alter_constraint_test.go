@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view CatalogRead, target ids.ObjectAddress) *domainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *domainValidationFence {
 	t.Helper()
 	f, err := domainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {
@@ -50,7 +51,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	prior := &EvalContext{}
 	evaluation.Input.DomainChecks = prior
 	selected := *child
-	selected.DomainChecks = []domainCheckConstraint{child.DomainChecks[1]}
+	selected.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[1]}
 	if err := evaluation.prepareOwnDomainChecks(&selected); err != nil {
 		t.Fatal("selected preparation initialized unrelated recipe", err)
 	}
@@ -69,7 +70,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 		}
 	}
 	unknown := *child
-	unknown.DomainChecks = []domainCheckConstraint{child.DomainChecks[2]}
+	unknown.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[2]}
 	if err := evaluation.prepareOwnDomainChecks(&unknown); err != nil {
 		t.Fatal(err)
 	}
@@ -235,17 +236,17 @@ func TestDomainAlterConstraintReplayEligibility(t *testing.T) {
 	provider := domainUnitType(t, view, "provider")
 	recipeStage := domainUnitStage(t, e, op, "CREATE DOMAIN public.recipe AS integer CONSTRAINT late CHECK(VALUE::public.provider>0)")
 	defer e.DiscardCatalogStage(recipeStage)
-	var check domainCheckConstraint
+	var check catalog.DomainCheckConstraint
 	for _, descriptor := range recipeStage.Descriptors {
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.SQLType.IsDomain() {
+		if domain, ok := descriptor.(*catalog.Type); ok && domain.SQLType.IsDomain() {
 			check = domain.DomainChecks[0]
 		}
 	}
 	check.NotValid = true
 	copy := *d
-	copy.DomainChecks = []domainCheckConstraint{check}
+	copy.DomainChecks = []catalog.DomainCheckConstraint{check}
 	graph := map[dumpEventKey][]dumpEventKey{{oid: d.Address().ObjectID}: nil, {oid: provider.Address().ObjectID}: {{oid: d.Address().ObjectID}}, {oid: 50002, phase: dumpRows}: {{oid: 50002}}, {oid: 50002}: nil, {oid: 50002, phase: dumpTableCompletion}: {{oid: 50002, phase: dumpRows}}}
-	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[ids.OID]*typeDescriptor{d.Address().ObjectID: &copy}); err != nil {
+	if err := domainInvalidDumpEvents(context.Background(), view, graph, map[ids.OID]*catalog.Type{d.Address().ObjectID: &copy}); err != nil {
 		t.Fatal(err)
 	}
 	late := dumpEventKey{oid: d.Address().ObjectID, phase: dumpDomainChecks}

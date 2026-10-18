@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -82,7 +83,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 	sessionSQL(t, destinationSession, `CREATE COLLATION aggregate_destination_anchor FROM pg_catalog."C"`)
 	sessionSQL(t, destinationSession, `CREATE COLLATION aggregate_destination_ascii FROM pg_catalog."C"`)
 	sourceView, destinationView := source.CatalogRead(), destination.CatalogRead()
-	capability := func(view CatalogRead, name string) sqltype.CollationRef {
+	capability := func(view catalog.Read, name string) sqltype.CollationRef {
 		t.Helper()
 		address := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
 		provider, ok := view.Collation(address)

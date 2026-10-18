@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGOperator(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -27,14 +28,14 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 		case 12, 13, 14:
 			id = sqltype.Regproc
 		}
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != column.Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign operator source type")
 		}
 	}
-	var definitions []*operatorDescriptor
-	for _, descriptor := range catalog.Descriptors() {
-		d, ok := descriptor.(*operatorDescriptor)
+	var definitions []*catalog.Operator
+	for _, descriptor := range view.Descriptors() {
+		d, ok := descriptor.(*catalog.Operator)
 		if !ok {
 			continue
 		}

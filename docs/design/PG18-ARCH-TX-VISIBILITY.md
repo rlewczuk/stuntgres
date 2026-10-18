@@ -59,7 +59,7 @@ type TransactionOwner interface {
 }
 func (op *Operation) Transactions() TransactionOwner
 func (scope *StatementScope) AcquireDataView() (*VisibilityView, error)
-func (scope *StatementScope) ResolutionCatalog() CatalogRead
+func (scope *StatementScope) ResolutionCatalog() catalog.Read
 func (scope *StatementScope) Writes() *WriteStage
 func (scope *StatementScope) Finish(err error) error
 ```
@@ -129,7 +129,7 @@ type VersionWrite struct {
 func (v *VisibilityView) Tx() TxRef
 func (v *VisibilityView) Command() CommandID
 func (v *VisibilityView) Frontier() CommitSeq
-func (v *VisibilityView) Catalog() CatalogRead
+func (v *VisibilityView) Catalog() catalog.Read
 func (v *VisibilityView) Scan(target DatabaseTarget, relation ObjectRef) (*VersionScan, error)
 func (s *VersionScan) Next() (VersionRef, []driver.Value, bool, error)
 func (s *VersionScan) Close()
@@ -147,7 +147,7 @@ A committed version is visible if born at or before the captured frontier and no
 
 READ COMMITTED data execution captures a fresh statement frontier; ordinary reads exclude commits after that capture. REPEATABLE READ and SERIALIZABLE retain the first required transaction data snapshot until full end, adding successful prior own writes. BEGIN alone captures none; snapshot-requiring analysis/preparation or invalidated Describe can be first (§3). Savepoint rollback restores private roots but does not reset that first snapshot, even if acquired after the mark. DML candidate reads use the data view; READ COMMITTED changed-predecessor waiting/recheck belongs to DML/LOCKING, not a promise that every DML read sees one globally unchanged state. Repeatable changed predecessors yield §11's serialization boundary; this is not SSI detection.
 
-Internal catalog resolution uses current coherently validated metadata plus the owner's private DDL overlay, not the transaction's data-isolation frontier. Explicit SQL catalog-row queries use the caller's data snapshot through `VisibilityView.Catalog`, plus prior own effects. Each supplied CatalogRead is coherent for its purpose and keeps owner/target/epoch authority; one store and SESSION resolution context remain. Thus a peer-created table can resolve in an older REPEATABLE READ transaction while its newly committed rows—and its catalog row in explicit SQL—remain invisible. Do not reuse a frozen SQL-catalog view for internal binding or use refreshed metadata to widen data visibility.
+Internal catalog resolution uses current coherently validated metadata plus the owner's private DDL overlay, not the transaction's data-isolation frontier. Explicit SQL catalog-row queries use the caller's data snapshot through `VisibilityView.Catalog`, plus prior own effects. Each supplied `catalog.Read` is coherent for its purpose and keeps owner/target/epoch authority; one store and SESSION resolution context remain. Thus a peer-created table can resolve in an older REPEATABLE READ transaction while its newly committed rows—and its catalog row in explicit SQL—remain invisible. Do not reuse a frozen SQL-catalog view for internal binding or use refreshed metadata to widen data visibility.
 
 This logical-version contract is not a universal PostgreSQL promise that all DDL preserves historical row visibility. TRUNCATE/table-rewriting ALTER TABLE have documented MVCC caveats (§13.6); their downstream consumers must specify those effects/locking before implementation rather than infer ordinary historic-version behavior from atomic publication.
 

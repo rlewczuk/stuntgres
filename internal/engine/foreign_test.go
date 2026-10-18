@@ -17,12 +17,12 @@ import (
 )
 
 func TestFDWOptionsTransform(t *testing.T) {
-	old := []ForeignOption{{"a", "1"}, {"b", "2"}}
+	old := []catalog.ForeignOption{{"a", "1"}, {"b", "2"}}
 	change := func(action, name, value string) parser.ForeignOption {
 		return parser.ForeignOption{Action: action, Name: parser.Identifier{Text: name}, Value: value}
 	}
 	got, err := transformForeignOptions(old, []parser.ForeignOption{change("set", "a", "3"), change("drop", "b", ""), change("add", "c", "4")})
-	if err != nil || !reflect.DeepEqual(got, []ForeignOption{{"a", "3"}, {"c", "4"}}) || !reflect.DeepEqual(old, []ForeignOption{{"a", "1"}, {"b", "2"}}) {
+	if err != nil || !reflect.DeepEqual(got, []catalog.ForeignOption{{"a", "3"}, {"c", "4"}}) || !reflect.DeepEqual(old, []catalog.ForeignOption{{"a", "1"}, {"b", "2"}}) {
 		t.Fatal(got, old, err)
 	}
 	for _, tc := range []struct {
@@ -44,7 +44,7 @@ func TestFDWOptionsTransform(t *testing.T) {
 		t.Fatal("empty validator list", got, err)
 	}
 	got, err = transformForeignOptions(nil, []parser.ForeignOption{change("add", "x", "1"), change("set", "x", "2"), change("drop", "x", ""), change("add", "x", "3")})
-	if err != nil || !reflect.DeepEqual(got, []ForeignOption{{"x", "3"}}) {
+	if err != nil || !reflect.DeepEqual(got, []catalog.ForeignOption{{"x", "3"}}) {
 		t.Fatal(got, err)
 	}
 }
@@ -53,16 +53,16 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	wrapper := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []ForeignOption{{"a", "1"}}}
-	server := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
+	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []catalog.ForeignOption{{"a", "1"}}}
+	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
-	mapping := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, ObjectRevision: 1, Server: server.Address(), MappedRole: owner, MappedName: "postgres"}
+	mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, ObjectRevision: 1, Server: server.Address(), MappedRole: owner, MappedName: "postgres"}
 	mapping.ObjectName = catalog.ForeignMappingName(server.Address(), owner)
-	public := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, ObjectRevision: 1, Server: server.Address()}
+	public := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, ObjectRevision: 1, Server: server.Address()}
 	public.ObjectName = catalog.ForeignMappingName(server.Address(), authorization.PrincipalRef{})
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	for _, d := range []*foreignDescriptor{wrapper, server, mapping, public} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server, mapping, public} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	e.mu.Lock()
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
-	for _, d := range []*foreignDescriptor{wrapper, server} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := foreignRef(auth, d)
 		for _, grantOptions := range []bool{false, true} {
 			rights, err := auth.Effective(ref, grantOptions)
@@ -117,7 +117,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if auth.state.CurrentUser == (authorization.PrincipalRef{}) {
 		t.Fatal("missing real predefined reader")
 	}
-	for _, d := range []*foreignDescriptor{wrapper, server} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := foreignRef(auth, d)
 		want := authorization.Privileges(0)
 		if d == server {
@@ -141,34 +141,34 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	alter := e.BeginCatalogStage(e.CatalogRead())
 	next := *wrapper
 	next.ObjectRevision++
-	next.Options = []ForeignOption{{"a", "candidate"}}
+	next.Options = []catalog.ForeignOption{{"a", "candidate"}}
 	if err = alter.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(alter)
-	if committed, _ := e.CatalogRead().Descriptor(wrapper.Address()); committed.(*foreignDescriptor).Options[0].Value != "1" {
+	if committed, _ := e.CatalogRead().Descriptor(wrapper.Address()); committed.(*catalog.ForeignObject).Options[0].Value != "1" {
 		t.Fatal("discard mutated committed options")
 	}
 }
 
 type fdwUnitWrapper struct {
-	paths    []ForeignPath
-	chosen   ForeignPath
+	paths    []catalog.ForeignPath
+	chosen   catalog.ForeignPath
 	scan     *fdwUnitScan
 	beginErr error
 }
 
-func (*fdwUnitWrapper) GetForeignRelSize(context.Context, ForeignRequest) (ForeignRelSize, error) {
-	return ForeignRelSize{Rows: 3}, nil
+func (*fdwUnitWrapper) GetForeignRelSize(context.Context, catalog.ForeignRequest) (catalog.ForeignRelSize, error) {
+	return catalog.ForeignRelSize{Rows: 3}, nil
 }
-func (w *fdwUnitWrapper) GetForeignPaths(context.Context, ForeignRequest, ForeignRelSize) ([]ForeignPath, error) {
+func (w *fdwUnitWrapper) GetForeignPaths(context.Context, catalog.ForeignRequest, catalog.ForeignRelSize) ([]catalog.ForeignPath, error) {
 	return w.paths, nil
 }
-func (w *fdwUnitWrapper) GetForeignPlan(_ context.Context, _ ForeignRequest, path ForeignPath) (ForeignPlan, error) {
+func (w *fdwUnitWrapper) GetForeignPlan(_ context.Context, _ catalog.ForeignRequest, path catalog.ForeignPath) (catalog.ForeignPlan, error) {
 	w.chosen = path
-	return ForeignPlan{Attributes: path.Attributes, Private: path.Private}, nil
+	return catalog.ForeignPlan{Attributes: path.Attributes, Private: path.Private}, nil
 }
-func (w *fdwUnitWrapper) BeginForeignScan(context.Context, ForeignRequest, ForeignPlan) (ForeignScan, error) {
+func (w *fdwUnitWrapper) BeginForeignScan(context.Context, catalog.ForeignRequest, catalog.ForeignPlan) (catalog.ForeignScan, error) {
 	return w.scan, w.beginErr
 }
 
@@ -179,14 +179,14 @@ type fdwUnitScan struct {
 	onEnd                   func(context.Context) error
 }
 
-func (s *fdwUnitScan) IterateForeignScan(context.Context) (ForeignRow, bool, error) {
+func (s *fdwUnitScan) IterateForeignScan(context.Context) (catalog.ForeignRow, bool, error) {
 	if s.position == 3 {
 		return nil, false, nil
 	}
 	s.position++
-	return ForeignRow{}, true, nil
+	return catalog.ForeignRow{}, true, nil
 }
-func (s *fdwUnitScan) ReScanForeignScan(context.Context, ForeignScanParameters) error {
+func (s *fdwUnitScan) ReScanForeignScan(context.Context, catalog.ForeignScanParameters) error {
 	s.rescans++
 	s.position = 0
 	return s.rescanErr
@@ -202,24 +202,24 @@ func (s *fdwUnitScan) EndForeignScan(ctx context.Context) error {
 
 func TestFDWRegistry(t *testing.T) {
 	var missing *fdwUnitWrapper
-	if _, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: missing}); err == nil {
+	if _, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: missing}); err == nil {
 		t.Fatal("typed nil admitted")
 	}
 	w := &fdwUnitWrapper{}
-	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
 	if err != nil || def.HandlerName.Schema != "public" {
 		t.Fatal(def, err)
 	}
-	if _, err = ValidateForeignValidator(ForeignValidatorDefinition{Name: ForeignFunctionName{Name: "validator"}}); err == nil {
+	if _, err = ValidateForeignValidator(ForeignValidatorDefinition{Name: catalog.ForeignFunctionName{Name: "validator"}}); err == nil {
 		t.Fatal("nil validator admitted")
 	}
 	e := New()
 	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)})
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
 	procedure := e.catalog.state.MustProcedure(address)
-	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != foreignHandlerSignature {
+	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != catalog.ForeignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
 	if err = e.catalog.Providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
@@ -230,13 +230,13 @@ func TestFDWRegistry(t *testing.T) {
 func TestFDWProcedureIdentity(t *testing.T) {
 	e := New()
 	w := &fdwUnitWrapper{}
-	def, _ := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	def, _ := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
 	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
+	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
-	wrapper := &foreignDescriptor{ObjectName: "wrapper", Handler: oldAddress}
+	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
@@ -265,11 +265,11 @@ func TestFDWProcedureIdentity(t *testing.T) {
 func TestFDWProcedureACLCOW(t *testing.T) {
 	e := New()
 	w := &fdwUnitWrapper{}
-	handler, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	handler, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Name: "handler"}, Wrapper: w})
 	if err != nil {
 		t.Fatal(err)
 	}
-	validator, err := ValidateForeignValidator(ForeignValidatorDefinition{Name: ForeignFunctionName{Name: "validator"}, Validate: func(context.Context, ForeignObjectKind, []ForeignOption) error { return nil }})
+	validator, err := ValidateForeignValidator(ForeignValidatorDefinition{Name: catalog.ForeignFunctionName{Name: "validator"}, Validate: func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error { return nil }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,8 +341,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 }
 
 func TestFDWPlanningSelection(t *testing.T) {
-	request := ForeignRequest{Columns: []ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
-	w := &fdwUnitWrapper{paths: []ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}
+	request := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
+	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}
 	f := &foreignQuerySource{wrapper: w}
 	execution := &foreignExecution{}
 	if err := f.plan(context.Background(), request, execution); err != nil {
@@ -351,7 +351,7 @@ func TestFDWPlanningSelection(t *testing.T) {
 	if w.chosen.Private != "first-cheapest" || execution.plan.Private != "first-cheapest" || !slices.Equal(execution.slots, []int{1}) {
 		t.Fatal(w.chosen, execution)
 	}
-	for _, paths := range [][]ForeignPath{nil, {{TotalCost: math.NaN(), Attributes: []int32{3}}}, {{TotalCost: 1, Attributes: []int32{1}}}, {{TotalCost: 1, Attributes: []int32{3, 3}}}, {{StartupCost: 2, TotalCost: 1, Attributes: []int32{3}}}} {
+	for _, paths := range [][]catalog.ForeignPath{nil, {{TotalCost: math.NaN(), Attributes: []int32{3}}}, {{TotalCost: 1, Attributes: []int32{1}}}, {{TotalCost: 1, Attributes: []int32{3, 3}}}, {{StartupCost: 2, TotalCost: 1, Attributes: []int32{3}}}} {
 		w.paths = paths
 		if err := f.plan(context.Background(), request, &foreignExecution{}); err == nil {
 			t.Fatal("invalid path admitted", paths)
@@ -364,7 +364,7 @@ func TestFDWScanState(t *testing.T) {
 	ctx := context.Background()
 	endFailure := errors.New("end outcome")
 	scan := &fdwUnitScan{endErr: endFailure}
-	w := &fdwUnitWrapper{paths: []ForeignPath{{}}, scan: scan}
+	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{}}, scan: scan}
 	source := &querySource{anonymous: [][]sqltype.Value{}, foreign: &foreignQuerySource{wrapper: w}}
 	owner := &foreignScanOwner{}
 	owner.add(source.foreign)
@@ -478,7 +478,7 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 	if got == syntax || got.Elements[0].Like == like || tableLikeOptions(got.Elements[0].Like.Options) != want || tableLikeOptions(like.Options) != likeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
 	}
-	relation := &relationDescriptor{Attributes: []int32{1, 4, 7}, Columns: make([]ColumnDescriptor, 3), Generations: map[int32]columnGeneration{7: {Kind: generationVirtual, Planned: columnExpression{slot: 0}}}}
+	relation := &catalog.Relation{Attributes: []int32{1, 4, 7}, Columns: make([]catalog.Column, 3), Generations: map[int32]catalog.ColumnGeneration{7: {Kind: catalog.GenerationVirtual, Planned: columnExpression{slot: 0}}}}
 	for _, tc := range []struct {
 		uses []int
 		want []int32

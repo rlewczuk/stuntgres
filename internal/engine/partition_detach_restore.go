@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -70,7 +71,7 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent.Address() && !index.SQLIndex.Valid && index.SQLIndex.Ready && index.SQLIndex.Live {
 			delete(records, ref.Address)
 			return nil

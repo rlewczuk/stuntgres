@@ -119,7 +119,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: parent.Namespace(), ObjectName: "summary_pending", ObjectRevision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: address, Live: true}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: parent.Namespace(), ObjectName: "summary_pending", ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: address, Live: true}}
 	if err := stage.Create(index); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	staged := stage.Descriptors[address].(*relationDescriptor)
+	staged := stage.Descriptors[address].(*catalog.Relation)
 	if staged.Name() != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}
@@ -151,8 +151,8 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 
 func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
+	catalogView := e.CatalogRead()
+	source := catalogView.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 	if source.RowType != sqltype.ID(12035) || len(source.Columns) != 8 {
 		t.Fatal("pg_tables rowtype/schema", source.RowType, source.Columns)
 	}
@@ -186,16 +186,16 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12007, "pg_roles", false},
 		{12008, "pg_group", false},
 	} {
-		relation, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
-		if !ok || relation.Name() != expected.name || relation.RelationKind != catalogRelation {
+		relation, ok := catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
+		if !ok || relation.Name() != expected.name || relation.RelationKind != catalog.CatalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
 		if representedSummaryTable(expected.oid) != expected.table || (representedSummaryViewDefinition(expected.oid) != "") == expected.table {
 			t.Fatalf("incorrect table/view classification for %s", expected.name)
 		}
 	}
-	for _, d := range catalog.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
+	for _, d := range catalogView.Descriptors() {
+		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
 			table := representedSummaryTable(relation.Address().ObjectID)
 			view := representedSummaryViewDefinition(relation.Address().ObjectID) != ""
 			if table && view {
@@ -204,7 +204,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
+	captured, err := e.captureTableViewSummary(context.Background(), catalogView, e.roleRead(catalogView, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -274,7 +274,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	base := e.CatalogRead()
 	address := roleTableRef(t, e, "summary_owned").Address
 	previous := base.MustRelation(address)
-	capture := func(catalog CatalogRead) []sqltype.Value {
+	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})

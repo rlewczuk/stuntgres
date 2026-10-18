@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -158,7 +159,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	}
 	owner := *column.virtualOwner
 	definition := owner.Generations[column.virtualAttribute]
-	owner.Generations = map[int32]columnGeneration{column.virtualAttribute: definition}
+	owner.Generations = map[int32]catalog.ColumnGeneration{column.virtualAttribute: definition}
 	missing := column
 	missing.virtualOwner = &owner
 	definition.Dependencies = nil
@@ -174,7 +175,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	// references or replace the original current-invoker authority.
 	local := evaluation
 	local.routineGraft = true
-	local.routineChecks = []expressionDependency{{}}
+	local.routineChecks = []catalog.ExpressionDependency{{}}
 	selectVirtualGenerationRecipe(&local, column.virtualOwner, column.virtualOwner.Generations[column.virtualAttribute])
 	if local.routineAuthority != authority || local.routineConsumer != column.virtualOwner ||
 		local.routineGraft || !local.routineRecipe || local.routineChecks != nil ||

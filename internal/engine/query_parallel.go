@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -35,14 +36,14 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 		source.scratch != nil || source.layout != nil || source.versions != nil || source.invocationLineage != nil {
 		return nil, nil, false
 	}
-	catalog := source.view.Catalog()
-	d, ok := catalog.Descriptor(source.ref.Address)
-	relation, table := d.(*relationDescriptor)
-	if !ok || !table || relation.RelationKind != tableRelation {
+	view := source.view.Catalog()
+	d, ok := view.Descriptor(source.ref.Address)
+	relation, table := d.(*catalog.Relation)
+	if !ok || !table || relation.RelationKind != catalog.TableRelation {
 		return nil, nil, false
 	}
-	ns, ok := catalog.Descriptor(relation.Namespace())
-	namespace, namespaceOK := ns.(*namespaceDescriptor)
+	ns, ok := view.Descriptor(relation.Namespace())
+	namespace, namespaceOK := ns.(*catalog.Namespace)
 	if !ok || !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return nil, nil, false
 	}

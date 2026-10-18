@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -156,7 +157,7 @@ func TestQuerySearchIdentity(t *testing.T) {
 		grouping = append(grouping, queryGrouping{})
 		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.mark.ResultUsage())
 		d.cycle = cycle
-		d.schema = append(d.schema, ColumnDescriptor{Usage: cycle.mark.ResultUsage()}, ColumnDescriptor{Usage: cycle.path.Usage()})
+		d.schema = append(d.schema, catalog.Column{Usage: cycle.mark.ResultUsage()}, catalog.Column{Usage: cycle.path.Usage()})
 		stage.node = &recursiveUnionNode{setNode: setNode{querySchema: d.schema, grouping: grouping}, definition: d, search: s, cycle: cycle}
 		stage.source.flat = append(append([]sqltype.Value(nil), second...), first...)
 		if index, err := stage.findTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
@@ -254,8 +255,8 @@ func TestQuerySearchSignature(t *testing.T) {
 		if !sameStatementResultUsage(left, right) || sameStatementUsage(left, right) || sameRecordUsage(left, right) {
 			t.Fatal("public/internal/parameter signatures conflated")
 		}
-		expected := StatementDescription{Results: []ColumnDescriptor{{Name: "seq", Usage: left}}}
-		actual := StatementDescription{Results: []ColumnDescriptor{{Name: "seq", Usage: right}}}
+		expected := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: left}}}
+		actual := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: right}}}
 		if err := checkStatementSignature(expected, actual); err != nil {
 			t.Fatal(err)
 		}
@@ -276,7 +277,7 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := StatementDescription{catalogOwner: New().catalog.owner(), Results: []ColumnDescriptor{{Name: "seq", Usage: d.search.result.Usage()}}}
+		expected := StatementDescription{catalogOwner: New().catalog.owner(), Results: []catalog.Column{{Name: "seq", Usage: d.search.result.Usage()}}}
 		actual := expected
 		actual.catalogOwner = New().catalog.owner()
 		if err := checkStatementSignature(expected, actual); err == nil {

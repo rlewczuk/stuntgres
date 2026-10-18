@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -181,7 +182,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	second.ObjectName = "a_other"
 	def := *f.index.SQLIndex
 	class, _ := sqltype.DefaultIndexClass(f.parent.Columns[1].Usage.Type)
-	def.Keys = []indexKey{{Attribute: 20, Class: class}}
+	def.Keys = []catalog.IndexKey{{Attribute: 20, Class: class}}
 	def.Predicate = nil
 	second.SQLIndex = &def
 	f.e.catalog.state.SetDescriptor(second.Address(), &second)
@@ -237,10 +238,10 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.ObjectAddress.ObjectID += ids.OID(i + 1)
 		index.ObjectName = []string{"mixed_a", "mixed_b"}[i]
 		definition := *f.index.SQLIndex
-		definition.Keys = []indexKey{{Derived: &derivedIndexKey{Definition: expression, Execution: expression, Attributes: f.parent.Attributes}, Class: class}, {Attribute: 10, Class: f.index.SQLIndex.Keys[0].Class, Desc: i == 1}}
+		definition.Keys = []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: expression, Execution: expression, Attributes: f.parent.Attributes}, Class: class}, {Attribute: 10, Class: f.index.SQLIndex.Keys[0].Class, Desc: i == 1}}
 		definition.Include = []int32{20}
 		index.SQLIndex = &definition
-		index.Columns = []ColumnDescriptor{f.parent.Columns[1], f.parent.Columns[0]}
+		index.Columns = []catalog.Column{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}
 		index.AttributeHighWater = 2
 		f.e.catalog.state.SetDescriptor(index.Address(), &index)

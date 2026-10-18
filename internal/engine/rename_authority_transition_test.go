@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"sync"
 	"testing"
@@ -82,7 +83,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	var once sync.Once
 	provider := e.catalog.Providers[ids.RelationClassID]
 	var frontier ids.DefinitionRevision
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() {
 		once.Do(func() {
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
@@ -96,7 +97,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE protected.t RENAME TO renamed"), 0, nil)
 	op.Done()
-	if err != (CatalogConflict{}) {
+	if err != (catalog.Conflict{}) {
 		t.Fatalf("namespace revision fence got %T %v, want CatalogConflict", err, err)
 	}
 	if e.catalog.state.Get(ns.Address) == oldNamespace || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.catalog.nextRevision != frontier || roleTableRef(t, e, "protected.t") != ref {

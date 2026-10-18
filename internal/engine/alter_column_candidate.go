@@ -6,26 +6,27 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // Stable attributes own defaults, ACLs, comments, constraints and dependency edges.
-func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, error) {
+func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, changes *catalogChanges) (*catalog.Relation, error) {
 	return dropColumnCandidate(scope.op.Context(), stage, old, ref, a, scope, changes, nil)
 }
 
-func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) (*relationDescriptor, error) {
+func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*catalog.Relation, *catalog.Relation) error) (*catalog.Relation, error) {
 	return ordinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
 }
 
-func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction) (*relationDescriptor, error) {
+func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction) (*catalog.Relation, error) {
 	ctx := provider.ctx
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
-	if old.RelationKind != compositeRelation && isSystemColumn(a.Column.Text) {
+	if old.RelationKind != catalog.CompositeRelation && isSystemColumn(a.Column.Text) {
 		return nil, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, a.Column.Text))
 	}
 	slot, exists := old.Index[a.Column.Text]
@@ -81,7 +82,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	if err := provider.replace(old); err != nil {
 		return nil, err
 	}
-	if old.RelationKind == compositeRelation {
+	if old.RelationKind == catalog.CompositeRelation {
 		if err := provider.compositeFieldChecks(old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
@@ -95,7 +96,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	}
 	// The dependency pass can prune surviving definitions on this same table.
 	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
-	old = provider.descriptor(ref.Address).(*relationDescriptor)
+	old = provider.descriptor(ref.Address).(*catalog.Relation)
 	next, err := dropColumnMetadata(ctx, provider.base, provider.descriptor, old, target, history)
 	if err != nil {
 		return nil, err
@@ -109,12 +110,12 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 	if err := provider.ownedExpressionDependencies([]ids.ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
-	return provider.descriptor(ref.Address).(*relationDescriptor), nil
+	return provider.descriptor(ref.Address).(*catalog.Relation), nil
 }
 
 // dropColumnMetadata cooks the stable-slot migration once. Dependency effects
 // supply the actual surviving provider descriptor and index identities.
-func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ids.ObjectAddress) Descriptor, old *relationDescriptor, target ids.ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
+func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(ids.ObjectAddress) catalog.Descriptor, old *catalog.Relation, target ids.ObjectAddress, history catalog.AttributeMetadata) (*catalog.Relation, error) {
 	slot := old.IndexForAttribute(target.SubID)
 	next := *old
 	if old.Foreign != nil {
@@ -125,10 +126,10 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 	}
 	next.DroppedAttributes = maps.Clone(old.DroppedAttributes)
 	if next.DroppedAttributes == nil {
-		next.DroppedAttributes = make(map[int32]attributeMetadata)
+		next.DroppedAttributes = make(map[int32]catalog.AttributeMetadata)
 	}
 	next.DroppedAttributes[history.Number] = history
-	next.Columns = make([]ColumnDescriptor, 0, len(old.Columns)-1)
+	next.Columns = make([]catalog.Column, 0, len(old.Columns)-1)
 	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
 	next.Index = make(map[string]int, len(old.Index)-1)
 	for i, column := range old.Columns {
@@ -157,7 +158,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 				break
 			}
 		}
-		index, ok := descriptor(constraint.Index).(*relationDescriptor)
+		index, ok := descriptor(constraint.Index).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
 		}
@@ -168,7 +169,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 	}
 	next.ExclusionConstraints = nil
 	for _, constraint := range old.ExclusionConstraints {
-		index, ok := descriptor(constraint.Index).(*relationDescriptor)
+		index, ok := descriptor(constraint.Index).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
@@ -210,7 +211,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 	if _, exists := old.Defaults[old.Attributes[slot]]; exists {
 		next.Defaults = nil
 		if len(old.Defaults) > 1 {
-			next.Defaults = make(map[int32]columnDefault, len(old.Defaults)-1)
+			next.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults)-1)
 			for attribute, definition := range old.Defaults {
 				if attribute != old.Attributes[slot] {
 					next.Defaults[attribute] = definition
@@ -224,7 +225,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 		for i, attribute := range next.Attributes {
 			slots[attribute] = i
 		}
-		next.Generations = make(map[int32]columnGeneration, len(old.Generations))
+		next.Generations = make(map[int32]catalog.ColumnGeneration, len(old.Generations))
 		for attribute, definition := range old.Generations {
 			if attribute == target.SubID {
 				continue
@@ -242,11 +243,11 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 			next.Generations[attribute] = definition
 		}
 	}
-	if err := refreshGenerationChecks(&next, catalog); err != nil {
+	if err := refreshGenerationChecks(&next, view); err != nil {
 		return nil, err
 	}
 	if _, exists := old.Identities[old.Attributes[slot]]; exists {
-		next.Identities = make(map[int32]columnIdentity, len(old.Identities)-1)
+		next.Identities = make(map[int32]catalog.ColumnIdentity, len(old.Identities)-1)
 		for attribute, identity := range old.Identities {
 			if attribute != old.Attributes[slot] {
 				next.Identities[attribute] = identity

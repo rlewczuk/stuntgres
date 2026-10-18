@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func virtualTypeRestriction(t *sqltype.Descriptor) (domain, user bool) {
 	return false, false
 }
 
-func virtualDestination(column ColumnDescriptor) error {
+func virtualDestination(column catalog.Column) error {
 	domain, user := virtualTypeRestriction(column.Usage.Type)
 	if domain {
 		return sqlError("0A000", fmt.Sprintf(`virtual generated column "%s" cannot have a domain type`, column.Name))
@@ -55,11 +56,11 @@ func virtualGenerationSecurity(node expr.Expr) error {
 // The retained plan reads a physical leaf window, preserving the named column's
 // ACL identity and the caller's context. Definitions themselves contain plain
 // current-row references; no query-specific window enters the catalog.
-func (e columnExpression) withGeneration(d *relationDescriptor, physical, start int) columnExpression {
+func (e columnExpression) withGeneration(d *catalog.Relation, physical, start int) columnExpression {
 	if d == nil {
 		return e
 	}
-	if definition, ok := d.Generations[d.Attributes[physical]]; ok && definition.Kind == generationVirtual {
+	if definition, ok := d.Generations[d.Attributes[physical]]; ok && definition.Kind == catalog.GenerationVirtual {
 		e.virtual = definition.Planned
 		e.virtualOwner = d
 		e.virtualAttribute = d.Attributes[physical]
@@ -71,19 +72,19 @@ func (e columnExpression) withGeneration(d *relationDescriptor, physical, start 
 
 // Generation recipes own their original references, independently of an outer
 // query or definer view. Selecting that provenance never changes the invoker.
-func selectVirtualGenerationRecipe(c *EvalContext, owner *relationDescriptor, definition columnGeneration) {
+func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, definition catalog.ColumnGeneration) {
 	c.routineRecipe, c.routineGraft = true, false
 	c.routineChecks = nil
 	c.routineReferences = definition.Dependencies
 	c.routineConsumer = owner
 }
 
-func (e columnExpression) admitVirtualGeneration(c *EvalContext, catalog CatalogRead) error {
+func (e columnExpression) admitVirtualGeneration(c *EvalContext, view catalog.Read) error {
 	if e.virtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
 	definition, ok := e.virtualOwner.Generations[e.virtualAttribute]
-	if !ok || definition.Kind != generationVirtual || definition.Planned == nil {
+	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return fmt.Errorf("stuntgres: missing original virtual generation")
 	}
 	recipe := *c
@@ -95,11 +96,11 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, catalog Catalog
 	if err != nil {
 		return err
 	}
-	return validateExpressionJoinExecution(&recipe, node, catalog)
+	return validateExpressionJoinExecution(&recipe, node, view)
 }
 
 // CHECK recipes belong to the completed destination, not a copied source.
-func refreshGenerationChecks(d *relationDescriptor, catalog CatalogRead) error {
+func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.CheckConstraints {
 		next, changed, err := mapBoundExpression(catalog, d.CheckConstraints[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)
@@ -133,8 +134,8 @@ func refreshGenerationChecks(d *relationDescriptor, catalog CatalogRead) error {
 	return nil
 }
 
-func logicalColumnValue(d *relationDescriptor, slot int, row []sqltype.Value, c *EvalContext) (sqltype.Value, error) {
-	if definition, ok := d.Generations[d.Attributes[slot]]; !ok || definition.Kind != generationVirtual {
+func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *EvalContext) (sqltype.Value, error) {
+	if definition, ok := d.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}
 	column := columnExpression{Info: expr.Info{Usage: d.Columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
@@ -157,7 +158,7 @@ func (e columnExpression) capturedGeneration(source *querySource, index int, cur
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}
 	definition, ok := logical.Generations[e.origin.Address.SubID]
-	if !ok || definition.Kind != generationVirtual || definition.Planned == nil {
+	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
 	}
 	selectVirtualGenerationRecipe(c, logical, definition)
@@ -170,15 +171,15 @@ func (e columnExpression) capturedGeneration(source *querySource, index int, cur
 	return definition.Planned, source.row(index), nil
 }
 
-func generationInheritanceError(column string, parent, child generationKind) error {
+func generationInheritanceError(column string, parent, child catalog.GenerationKind) error {
 	err := sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column of different kind`, column)).(*sqlstate.Error)
 	err.Detail = fmt.Sprintf("Parent column is %s, child column is %s.", parent.SQL(), child.SQL())
 	return err
 }
 
-func rejectVirtualIndexUses(parent *relationDescriptor, slots []int) error {
+func rejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
 	for _, slot := range slots {
-		if definition, ok := parent.Generations[parent.Attributes[slot]]; ok && definition.Kind == generationVirtual {
+		if definition, ok := parent.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
 			return sqlError("0A000", "indexes on virtual generated columns are not supported")
 		}
 	}

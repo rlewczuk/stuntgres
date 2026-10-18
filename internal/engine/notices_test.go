@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -115,8 +116,8 @@ func TestNoticesCommands(t *testing.T) {
 
 func TestNoticesPublicationConflict(t *testing.T) {
 	e := New()
-	var winner CatalogRead
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
+	var winner catalog.Read
+	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
 		run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
 		run(t, e, "INSERT INTO conflict_rows VALUES('winner')")
 		winner = e.CatalogRead()
@@ -150,10 +151,10 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var loser ids.ObjectAddress
-			var winner CatalogRead
+			var winner catalog.Read
 			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-				publishWinner: func(d Descriptor) {
+				Provider: e.catalog.Providers[ids.RelationClassID],
+				publishWinner: func(d catalog.Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
 					run(t, e, "INSERT INTO conflict_rows VALUES('winner')")
@@ -226,10 +227,10 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	wrapped := &noticeConflictContext{Context: op.ctx}
 	op.ctx = wrapped
 	var loser ids.ObjectAddress
-	var winner CatalogRead
+	var winner catalog.Read
 	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-		publishWinner: func(d Descriptor) {
+		Provider: e.catalog.Providers[ids.RelationClassID],
+		publishWinner: func(d catalog.Descriptor) {
 			loser = d.Address()
 			run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
 			run(t, e, "INSERT INTO conflict_rows VALUES('winner')")
@@ -345,7 +346,7 @@ func TestNoticesCapturedDefaults(t *testing.T) {
 
 func TestNoticesPublicationReplacement(t *testing.T) {
 	e := New()
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
+	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
 		if err := e.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -379,7 +380,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	roleExecute(t, e, op, "SET client_min_messages TO warning")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_reader")
 	skip := statement(t, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
-	var before CatalogRead
+	var before catalog.Read
 	withPublicSchemaUnitOwner(t, e, "notice_reader", func() {
 		if _, err := e.Describe(op, skip); err != nil {
 			t.Fatal("CREATE preparation", err)
@@ -444,14 +445,14 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			if !ok {
 				t.Fatal("public namespace missing")
 			}
-			prior, err := e.Roles().Descriptor(descriptor.(*namespaceDescriptor).Owner)
+			prior, err := e.Roles().Descriptor(descriptor.(*catalog.Namespace).Owner)
 			if err != nil {
 				t.Fatal(err)
 			}
-			var winner CatalogRead
+			var winner catalog.Read
 			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.catalog.Providers[ids.RelationClassID],
-				publishWinner: func(Descriptor) {
+				Provider: e.catalog.Providers[ids.RelationClassID],
+				publishWinner: func(catalog.Descriptor) {
 					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()

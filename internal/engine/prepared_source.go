@@ -3,13 +3,14 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Engine.mu protects the short registry snapshot. Rows own scalar datums and
 // never retain entries or session attachments.
-func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	rows := make([][]sqltype.Value, 0, len(e.prepared))
 	for _, entry := range e.prepared {
 		if err := ctx.Err(); err != nil {

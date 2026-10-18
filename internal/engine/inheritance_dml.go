@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -25,24 +26,24 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	e := s.op.session.Engine()
 	for {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
-		root, ok := catalog.Relation(s.lockedRef.Address)
+		view := e.privateCatalogLocked(s.owner.catalog)
+		root, ok := view.Relation(s.lockedRef.Address)
 		if !ok {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		if root.RelationKind != tableRelation {
+		if root.RelationKind != catalog.TableRelation {
 			e.mu.Unlock()
 			return nil
 		}
 		for _, target := range s.inheritedTargets {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, target); err != nil {
+			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, target); err != nil {
 				e.mu.Unlock()
 				return err
 			}
 		}
 		var pending []queryLeaf
-		err := inheritanceQueryClosure(catalog, root, s.op.session.token, func(child *relationDescriptor) error {
+		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -60,20 +61,20 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				var diagnostic *sqlstate.Error
 				noun := ""
 				switch d := member.(type) {
-				case *procedureDescriptor:
+				case *catalog.Procedure:
 					switch d.Signature {
-					case unaccentTextSignature:
+					case catalog.UnaccentTextSignature:
 						noun = "function unaccent(text)"
-					case unaccentDictionarySignature:
+					case catalog.UnaccentDictionarySignature:
 						noun = "function unaccent(regdictionary,text)"
-					case unaccentInitSignature:
+					case catalog.UnaccentInitSignature:
 						noun = "function unaccent_init(internal)"
-					case unaccentLexizeSignature:
+					case catalog.UnaccentLexizeSignature:
 						noun = "function unaccent_lexize(internal,internal,internal,internal)"
 					default:
 						t.Fatal("unexpected real procedure", d)
 					}
-				case *tsDictionaryDescriptor:
+				case *catalog.TSDictionary:
 					noun = "text search dictionary unaccent"
 				default:
 					t.Fatal("unexpected owned member", member)

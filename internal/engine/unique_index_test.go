@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -27,8 +28,8 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		t.Run(fmt.Sprintf("%s/%d", c.class, c.typ), func(t *testing.T) {
 			typ, _ := view.LookupType(c.typ)
 			class, _ := sqltype.LookupIndexClass(c.class)
-			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			definition := &indexDefinition{Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}
+			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
+			definition := &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}
 			if err := validateUniqueProviders(parent, definition, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -66,8 +67,8 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 		typ, _ := view.LookupType(id)
 		for _, name := range []string{"bpchar_ops", "bpchar_pattern_ops"} {
 			class, _ := sqltype.LookupIndexClass(name)
-			parent := &relationDescriptor{Attributes: []int32{1}, Columns: []ColumnDescriptor{{Usage: typ.Usage()}}}
-			if err := validateUniqueProviders(parent, &indexDefinition{Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
+			parent := &catalog.Relation{Attributes: []int32{1}, Columns: []catalog.Column{{Usage: typ.Usage()}}}
+			if err := validateUniqueProviders(parent, &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}, nil); err == nil {
 				t.Fatal("inconsistent hash provider accepted", id, name)
 			}
 		}

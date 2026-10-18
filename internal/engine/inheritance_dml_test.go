@@ -14,7 +14,7 @@ import (
 
 // These tests exercise physical identities and authority directly. SQL behavior
 // and PostgreSQL expectations belong to the public dual-mode definitions.
-func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx context.Context) (*StatementScope, func()) {
+func inheritanceDMLScope(t *testing.T, e *Engine, p *catalog.Relation, ctx context.Context) (*StatementScope, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, ctx)
 	if err != nil {
@@ -85,7 +85,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := func(d *relationDescriptor) ids.ObjectRef {
+	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}

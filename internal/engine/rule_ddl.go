@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -50,10 +51,10 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	if old.RelationKind == materializedViewRelation {
+	if old.RelationKind == catalog.MaterializedViewRelation {
 		return fail(sqlError("0A000", "rules on materialized views are not supported"))
 	}
-	if old.RelationKind != tableRelation && old.RelationKind != partitionedRelation && old.RelationKind != viewRelation {
+	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation && old.RelationKind != catalog.ViewRelation {
 		return fail(tableKind(old, "change"))
 	}
 	next := *old
@@ -62,7 +63,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	switch s := stmt.(type) {
 	case *parser.CreateRule:
 		if strings.EqualFold(s.Event, "SELECT") {
-			if old.RelationKind != viewRelation {
+			if old.RelationKind != catalog.ViewRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`relation "%s" cannot have ON SELECT rules`, old.Name()), Detail: "This operation is not supported for tables."})
 			}
 			if !s.Instead || len(s.Actions) == 0 {
@@ -100,7 +101,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				return fail(err)
 			}
 			temporary := viewOf(old).temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).invoker, viewOf(old).rule, viewRelation, temporary)
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).invoker, viewOf(old).rule, catalog.ViewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}

@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
 	source, ok := catalog.Relation(address)
@@ -23,7 +23,7 @@ func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relati
 	return source, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
+func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *querySource {
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
@@ -37,10 +37,10 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *queryS
 
 func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgDatabaseUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgDatabaseUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}
@@ -48,21 +48,21 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950, 0}
 	nulls := [...]bool{false, false, false, false, false, true, true, false, true, true, true, true, false, false, true, true, true, true}
 	for i, column := range d.Columns {
-		typ, ok := catalog.LookupType(typeIDs[i])
+		typ, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != nulls[i] || !column.NullabilityKnown || column.OriginTable != 1262 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
-	ownedRow, ok := catalog.LookupType(1248)
-	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
+	ownedRow, ok := view.LookupType(1248)
+	ownedArray, arrayOK := view.LookupArray(ownedRow)
 	if d.RowType != 1248 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10052 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -116,7 +116,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	unchanged()
 	foreign := New()
 	for _, tc := range []struct {
-		catalog CatalogRead
+		catalog catalog.Read
 		roles   authorization.Read
 		ref     ids.ObjectRef
 	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
@@ -126,7 +126,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	for i, column := range d.Columns {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
 		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
@@ -134,7 +134,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
-		invalid.Columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]catalog.Column, width)
 		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
@@ -219,7 +219,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(old, 10, false)
 	check(peer, 10, false)
 	retained := &indexedStage{source: old, schema: d.Columns}
-	schema := append([]ColumnDescriptor(nil), retained.Schema()...)
+	schema := append([]catalog.Column(nil), retained.Schema()...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

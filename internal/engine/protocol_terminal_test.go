@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	columns := []ColumnDescriptor{{Name: "v", Usage: typ}}
+	columns := []catalog.Column{{Name: "v", Usage: typ}}
 	rows := newFinalRows(columns, 1)
 	rows.values = []sqltype.Value{value}
 	disposals := 0
@@ -114,7 +115,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			defer scope.Finish(context.Canceled)
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			cancel(cause)
-			cursor := &copyCursor{scope: scope, binding: binding{relation: &relationDescriptor{ObjectName: "t"}}, number: 1, line: []byte("1"), lineValid: true}
+			cursor := &copyCursor{scope: scope, binding: binding{relation: &catalog.Relation{ObjectName: "t"}}, number: 1, line: []byte("1"), lineValid: true}
 			got := cursor.diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

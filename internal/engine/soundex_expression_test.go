@@ -69,21 +69,21 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if sameGroupExpression(n, other) {
 				t.Fatal("procedure identity collapsed")
 			}
-			consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
+			consumer := &catalog.Relation{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 				t.Fatal(err)
 			}
 			if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
 				t.Fatal(err)
 			}
-			for _, mutate := range []func(*procedureDescriptor){
-				func(p *procedureDescriptor) { p.Result = 1009 },
-				func(p *procedureDescriptor) { p.Signature = "23" },
-				func(p *procedureDescriptor) { p.ObjectName = "text_soundex" },
-				func(p *procedureDescriptor) {
-					p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+			for _, mutate := range []func(*catalog.Procedure){
+				func(p *catalog.Procedure) { p.Result = 1009 },
+				func(p *catalog.Procedure) { p.Signature = "23" },
+				func(p *catalog.Procedure) { p.ObjectName = "text_soundex" },
+				func(p *catalog.Procedure) {
+					p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
 				},
-				func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
+				func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 			} {
 				state := catalog.CloneState(e.catalog.state)
 				bad := *n.procedure
@@ -145,7 +145,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
-			consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
+			consumer := &catalog.Relation{ObjectAddress: address, Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 			next.SetDescriptor(address, consumer)
 			next.SetEpoch(next.Epoch() + 1)
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil {

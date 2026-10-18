@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -73,7 +74,7 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 	return preparedCompositeKey{offset: offset, kind: kind}
 }
 
-func (captured compositeOccurrence) validate(catalog CatalogRead) error {
+func (captured compositeOccurrence) validate(catalog catalog.Read) error {
 	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow && captured.kind != compositeSourceExpansion && captured.kind != compositeRecordArgument || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeRecordArgument && len(captured.attributes) != 0 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}

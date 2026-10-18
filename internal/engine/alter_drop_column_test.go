@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -61,13 +62,13 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 	zero.Rows.Close()
 }
 
-func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *relationDescriptor) {
+func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
-	next.Columns = append([]ColumnDescriptor(nil), old.Columns[0])
+	next.Columns = append([]catalog.Column(nil), old.Columns[0])
 	next.Attributes = []int32{1}
 	next.Index = map[string]int{"a": 0}
 	next.ColumnACL = nil
@@ -95,7 +96,7 @@ func TestAlterDropColumnStageRejectsConcurrentInsert(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO t VALUES(2,'two')")
 	change, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(change.Definitions) != 0 || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal(change, err)
 	}
@@ -227,12 +228,12 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 }
 
 type alterDropProvider struct {
-	CatalogProvider
+	catalog.Provider
 	callback func()
 }
 
-func (p alterDropProvider) Validate(v CatalogRead, d Descriptor) error {
-	if err := p.CatalogProvider.Validate(v, d); err != nil {
+func (p alterDropProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	if err := p.Provider.Validate(v, d); err != nil {
 		return err
 	}
 	p.callback()
@@ -296,7 +297,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != original {
 		t.Fatal(err)
 	}
-	maximum := *old.(*relationDescriptor)
+	maximum := *old.(*catalog.Relation)
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Replace(&maximum); err != nil {
@@ -342,7 +343,7 @@ func TestAlterDropColumnStageProviderFailureIsAtomic(t *testing.T) {
 	stage, ref, old := alterDropTestStage(t, e)
 	original := e.storage[ref.Address]
 	// Exercise the real provider's validation, not a fabricated callback error.
-	stage.Descriptors[ref.Address].(*relationDescriptor).Index["a"] = 9
+	stage.Descriptors[ref.Address].(*catalog.Relation).Index["a"] = 9
 	_, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil || err.Error() != "stuntgres: invalid relation column identity" || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != original {
 		t.Fatal(err)

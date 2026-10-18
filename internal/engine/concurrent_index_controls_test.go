@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -285,10 +286,10 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	sessionSQL(t, s, "ALTER TABLE array_component_temp RENAME TO retained_ci_temp")
 	sessionSQL(t, s, "INSERT INTO retained_ci_temp VALUES(1),(1)")
 	concurrentUnitError(t, s, "CREATE UNIQUE INDEX CONCURRENTLY retained_ci_temp_index ON retained_ci_temp(n)", "23505")
-	var original *relationDescriptor
+	var original *catalog.Relation
 	e.mu.Lock()
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.Name() == "retained_ci_temp_index" {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.Name() == "retained_ci_temp_index" {
 			namespace := e.catalog.state.MustNamespace(index.Namespace())
 			if namespace.Temporary == s.token {
 				original = index
@@ -343,7 +344,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address(): parent}
+			stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
@@ -365,7 +366,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if _, ok := err.(CatalogConflict); !ok {
+				if _, ok := err.(catalog.Conflict); !ok {
 					t.Fatal("stale detached source was published", err)
 				}
 			}

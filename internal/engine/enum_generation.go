@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -9,7 +10,7 @@ import (
 // Engine.mu and statement admission are held. Reuse the catalog's established
 // copy-on-change datum remapper for private writes and retained owner snapshots.
 // Logical row identities, end roots and commit frontiers are not rewritten.
-func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion, error) {
+func enumReownVersions(next *catalog.State, versions []rowVersion) ([]rowVersion, error) {
 	if len(versions) == 0 {
 		return versions, nil
 	}
@@ -24,7 +25,7 @@ func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion,
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
 	for a, rebound := range stage.rowShapes {
-		consumer, ok := stage.Descriptors[a].(*relationDescriptor)
+		consumer, ok := stage.Descriptors[a].(*catalog.Relation)
 		if !ok {
 			continue
 		}

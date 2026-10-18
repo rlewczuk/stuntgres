@@ -85,8 +85,8 @@ transaction catalog journal, and the validators that need engine services:
 relation, type, extension and procedure, operator and parameter validation
 (stored-SQL rendering, expression nodes, the operator inventory, settings
 definitions, extension implementations). Those register through the same
-`Provider` registry. The engine reaches the moved declarations through
-temporary aliases in `catalog_aliases.go` until step 5f removes them.
+`Provider` registry. The engine names the moved declarations directly
+(`catalog.Relation`, `catalog.Read`, ...); step 5f removed the aliases.
 
 ## Testing
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -21,9 +22,9 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	view := e.CatalogRead()
-	var source, destination *collationDescriptor
+	var source, destination *catalog.Collation
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*collationDescriptor); ok {
+		if d, ok := descriptor.(*catalog.Collation); ok {
 			if d.Name() == "ac_source" {
 				source = d
 			}

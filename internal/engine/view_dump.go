@@ -5,13 +5,14 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 // Standalone sequences are emitted before this graph. An identity sequence is
 // instead created by its owning table's inline declaration, so dependencies on
 // it must wait for that exact reciprocal owner, even after address remapping.
-func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids.OID, error) {
+func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OID, error) {
 	address.SubID = 0
 	if address.ClassID == ids.ProcedureClassID {
 		if _, builtin := routineByOID[address.ObjectID]; builtin {
@@ -22,14 +23,14 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
-	if extension, ok := object.(*extensionDescriptor); ok {
+	if extension, ok := object.(*catalog.Extension); ok {
 		namespace, ok := view.Namespace(extension.TargetNamespace)
 		if !ok || namespace.Temporary != (ids.SessionToken{}) {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
 		}
 		return extension.Address().ObjectID, nil
 	}
-	if operator, ok := object.(*operatorDescriptor); ok {
+	if operator, ok := object.(*catalog.Operator); ok {
 		if operatorSeeded(operator) {
 			return 0, nil
 		}
@@ -41,17 +42,17 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		}
 		return operator.Address().ObjectID, nil
 	}
-	if proc, ok := object.(*procedureDescriptor); ok {
+	if proc, ok := object.(*catalog.Procedure); ok {
 		ext, ok := view.Extension(proc.Extension)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
 		}
 		return ext.Address().ObjectID, nil
 	}
-	if dictionary, ok := object.(*tsDictionaryDescriptor); ok {
+	if dictionary, ok := object.(*catalog.TSDictionary); ok {
 		return dumpPredecessor(view, dictionary.Extension, consumer)
 	}
-	if typ, ok := object.(*typeDescriptor); ok {
+	if typ, ok := object.(*catalog.Type); ok {
 		if typ.SQLType.IsArray() {
 			return dumpPredecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.SQLType.Element().ID())}, consumer)
 		}
@@ -62,22 +63,22 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 			return typ.Address().ObjectID, nil
 		}
 	}
-	if typ, ok := object.(*typeDescriptor); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
+	if typ, ok := object.(*catalog.Type); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
 		object, exists = view.Descriptor(typ.OwningRelation)
 		if !exists {
 			return 0, fmt.Errorf("stuntgres: missing row type dump owner")
 		}
 	}
-	source, relation := object.(*relationDescriptor)
-	if !relation || source.RelationKind == catalogRelation {
+	source, relation := object.(*catalog.Relation)
+	if !relation || source.RelationKind == catalog.CatalogRelation {
 		return 0, nil
 	}
 	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes
 	// instead have a real CREATE + attachment graph node of their own.
-	if source.RelationKind == indexRelation && source.SQLIndex != nil && source.SQLIndex.Constraint != nil {
+	if source.RelationKind == catalog.IndexRelation && source.SQLIndex != nil && source.SQLIndex.Constraint != nil {
 		unique := source.SQLIndex.Constraint
 		parent, ok := view.Relation(source.SQLIndex.Parent)
-		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || parent.Namespace() != source.Namespace() || parent.Owner != source.Owner || unique.Index != source.Address() {
+		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Namespace() != source.Namespace() || parent.Owner != source.Owner || unique.Index != source.Address() {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
 		if !backingConstraintPresent(parent, source) {
@@ -94,7 +95,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 			source = parent
 		}
 	}
-	if source.RelationKind == sequenceRelation {
+	if source.RelationKind == catalog.SequenceRelation {
 		if !source.Sequence.Identity {
 			return 0, nil
 		}
@@ -102,7 +103,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.RelationKind != tableRelation || !table.HasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
+		if !ok || table.RelationKind != catalog.TableRelation || !table.HasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table
@@ -111,7 +112,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	if !exists || namespace.Temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
-	if source.Address() == consumer && source.RelationKind != viewRelation {
+	if source.Address() == consumer && source.RelationKind != catalog.ViewRelation {
 		return 0, nil
 	}
 	return source.Address().ObjectID, nil

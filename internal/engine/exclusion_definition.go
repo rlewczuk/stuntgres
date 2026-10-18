@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,10 +12,10 @@ import (
 	"unicode/utf8"
 )
 
-func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
+func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
-		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.RelationKind != catalog.TableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
 		d := index.SQLIndex
@@ -28,7 +29,7 @@ func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[
 
 // Caller uses the installed catalog stage and index binder; no alternate type,
 // expression, predicate or method provider is introduced by EXCLUDE.
-func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ExclusionConstraint, recurse bool) error {
+func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")
@@ -150,13 +151,13 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err != nil {
 		return err
 	}
-	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
+	c := catalog.ExclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	definition.Constraint = exclusionBacking(&c)
 	definition.Exclusion = operators
 	if err := partitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
-	index := &relationDescriptor{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
+	index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
 	for i := range columns {
 		index.Columns[i].Nullable = true
 		index.Columns[i].NullabilityKnown = true
@@ -182,7 +183,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	return nil
 }
 
-func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, s *parser.CreateTable) error {
+func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, s *parser.CreateTable) error {
 	for _, element := range s.Elements {
 		if element.Exclusion != nil {
 			if err := e.stageExclusion(op, input, auth, stage, parent, element.Exclusion, true); err != nil {
@@ -193,7 +194,7 @@ func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnviron
 	return nil
 }
 
-func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog CatalogRead) error {
+func exclusionDiagnostic(ctx context.Context, parent, index *catalog.Relation, key, existing []sqltype.Value, schema string, output sqltype.OutputEnvironment, allowed, building bool, catalog catalog.Read) error {
 	message := fmt.Sprintf(`conflicting key value violates exclusion constraint "%s"`, index.Name())
 	if building {
 		message = fmt.Sprintf(`could not create exclusion constraint "%s"`, index.Name())

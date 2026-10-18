@@ -1,16 +1,19 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // viewOf returns d's concrete view definition, or nil when d stores none.
-func viewOf(d *relationDescriptor) *viewDefinition {
+func viewOf(d *catalog.Relation) *viewDefinition {
 	v, _ := d.View.(*viewDefinition)
 	return v
 }
 
 // viewPayloadOf stores v as a payload; a nil definition stays a nil payload,
 // so d.view == nil keeps meaning "no stored definition".
-func viewPayloadOf(v *viewDefinition) viewPayload {
+func viewPayloadOf(v *viewDefinition) catalog.ViewPayload {
 	if v == nil {
 		return nil
 	}
@@ -38,7 +41,7 @@ func (v *viewDefinition) TemporaryConsumer() (ids.ObjectAddress, ids.SessionToke
 	return v.consumer, v.temporary
 }
 
-func (v *viewDefinition) CapturedReference(ref ids.ObjectRef) (Descriptor, bool) {
+func (v *viewDefinition) CapturedReference(ref ids.ObjectRef) (catalog.Descriptor, bool) {
 	d, ok := v.references[ref]
 	return d, ok
 }

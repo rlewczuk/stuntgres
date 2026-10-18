@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -13,7 +14,7 @@ const temporaryInheritanceReplacementError = "stuntgres: catalog replacement wit
 // Retained TEMP relations cannot substitute persistent inheritance or OF sources.
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || table.Inheritance == nil {
 			continue
 		}
@@ -36,13 +37,13 @@ func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
 
 // Copy only graph metadata. Stable attributes are relation-local and do not
 // change when a whole relation address is remapped.
-func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(inheritanceOrigin) ids.OID) *tableInheritance {
+func remapInheritance(graph *catalog.TableInheritance, address func(ids.ObjectAddress) ids.ObjectAddress, constraint func(catalog.InheritanceOrigin) ids.OID) *catalog.TableInheritance {
 	if graph == nil {
 		return nil
 	}
-	next := &tableInheritance{Parents: make([]ids.ObjectAddress, len(graph.Parents)), Columns: make(map[int32]inheritedColumn, len(graph.Columns)), Checks: make(map[string]inheritedConstraint, len(graph.Checks)), NotNull: make(map[int32]inheritedConstraint, len(graph.NotNull))}
-	origins := func(source []inheritanceOrigin) []inheritanceOrigin {
-		result := make([]inheritanceOrigin, len(source))
+	next := &catalog.TableInheritance{Parents: make([]ids.ObjectAddress, len(graph.Parents)), Columns: make(map[int32]catalog.InheritedColumn, len(graph.Columns)), Checks: make(map[string]catalog.InheritedConstraint, len(graph.Checks)), NotNull: make(map[int32]catalog.InheritedConstraint, len(graph.NotNull))}
+	origins := func(source []catalog.InheritanceOrigin) []catalog.InheritanceOrigin {
+		result := make([]catalog.InheritanceOrigin, len(source))
 		for i, origin := range source {
 			result[i] = origin
 			result[i].Constraint = constraint(origin)
@@ -50,7 +51,7 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 		}
 		return result
 	}
-	retired := func(source []retiredInheritanceOrigin) []retiredInheritanceOrigin {
+	retired := func(source []catalog.RetiredInheritanceOrigin) []catalog.RetiredInheritanceOrigin {
 		result := slices.Clone(source)
 		for i := range result {
 			result[i].Parent.Address = address(result[i].Parent.Address)
@@ -80,9 +81,9 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 // Definition identities can collide independently of relation addresses. Use
 // each parent's captured identity, never a global old-OID map (TEMP and imported
 // constraints can have the same old number).
-func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
+func remapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.ObjectAddress]catalog.Descriptor) error {
 	for address, descriptor := range next.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || table.Inheritance == nil {
 			continue
 		}
@@ -90,11 +91,11 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 			continue
 		}
 		var remapErr error
-		graph := remapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin inheritanceOrigin) ids.OID {
+		graph := remapInheritance(table.Inheritance, func(a ids.ObjectAddress) ids.ObjectAddress { return a }, func(origin catalog.InheritanceOrigin) ids.OID {
 			if origin.Constraint == 0 {
 				return 0
 			}
-			old, ok := previous[origin.Parent].(*relationDescriptor)
+			old, ok := previous[origin.Parent].(*catalog.Relation)
 			parent, exists := next.Relation(origin.Parent)
 			if !ok || !exists {
 				remapErr = fmt.Errorf("stuntgres: missing inheritance constraint parent")

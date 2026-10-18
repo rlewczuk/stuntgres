@@ -17,19 +17,19 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 		t.Run(fmt.Sprint(insertion), func(t *testing.T) {
 			e := New()
 			state := catalog.CloneState(e.catalog.state)
-			one := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
-			two := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
+			one := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
+			two := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
 			state.SetDescriptor(one.Address(), one)
 			state.SetDescriptor(two.Address(), two)
 			names := []string{"b.c", "z", "c"}
 			namespaces := []ids.ObjectAddress{one.Address(), one.Address(), two.Address()}
-			var tables, indexes [3]*relationDescriptor
+			var tables, indexes [3]*catalog.Relation
 			for _, i := range insertion {
 				tableAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(49010 + i)}
 				indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(49020 + i)}
-				tables[i] = &relationDescriptor{ObjectAddress: tableAddress, ObjectNamespace: namespaces[i], ObjectName: names[i] + "_table", Partition: &partitionDefinition{}, UniqueConstraints: []uniqueConstraint{{Name: names[i], Index: indexAddress}}}
-				indexes[i] = &relationDescriptor{ObjectAddress: indexAddress, ObjectNamespace: namespaces[i], ObjectName: names[i], SQLIndex: &indexDefinition{Parent: tableAddress}}
-				for _, d := range []*relationDescriptor{tables[i], indexes[i]} {
+				tables[i] = &catalog.Relation{ObjectAddress: tableAddress, ObjectNamespace: namespaces[i], ObjectName: names[i] + "_table", Partition: &catalog.PartitionDefinition{}, UniqueConstraints: []catalog.UniqueConstraint{{Name: names[i], Index: indexAddress}}}
+				indexes[i] = &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespaces[i], ObjectName: names[i], SQLIndex: &catalog.IndexDefinition{Parent: tableAddress}}
+				for _, d := range []*catalog.Relation{tables[i], indexes[i]} {
 					state.SetDescriptor(d.Address(), d)
 					state.BindName(catalog.DescriptorNameKey(d), d.Address())
 				}
@@ -44,7 +44,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				}
 			}
 			got := replay.finalRenameOrder()
-			want := []*relationDescriptor{indexes[0], indexes[1], indexes[2]}
+			want := []*catalog.Relation{indexes[0], indexes[1], indexes[2]}
 			if !slices.Equal(got, want) {
 				var actual []string
 				for _, index := range got {

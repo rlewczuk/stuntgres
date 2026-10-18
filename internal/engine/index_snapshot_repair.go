@@ -4,10 +4,11 @@ import (
 	"context"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func indexHasTableOID(index *indexDefinition) bool {
+func indexHasTableOID(index *catalog.IndexDefinition) bool {
 	if predicate := index.Predicate; predicate != nil && (generationHasTableOID(predicate.Definition) || generationHasTableOID(predicate.Execution)) {
 		return true
 	}
@@ -33,7 +34,7 @@ func (snapshot *indexSnapshot) needsOwnerRepair() bool {
 
 // Track only generated cells that can invalidate a captured index. False means
 // observed unchanged so far, not a missing dependency or a cached SQL result.
-func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.ObjectAddress]map[int32]bool {
+func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.ObjectAddress]map[int32]bool {
 	if snapshot == nil {
 		return nil
 	}
@@ -48,7 +49,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.Ob
 			continue
 		}
 		for attribute, generation := range parent.Generations {
-			if generation.Kind != generationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
+			if generation.Kind != catalog.GenerationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
 				continue
 			}
 			if changed == nil {

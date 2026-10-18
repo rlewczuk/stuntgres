@@ -3,6 +3,7 @@ package engine
 import (
 	"sort"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -16,11 +17,11 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}()
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, _ := catalog.Relation(s.lockedRef.Address)
-	hasView := d != nil && (d.RelationKind == viewRelation || s.materializedRefresh && d.RelationKind == materializedViewRelation)
+	catalogView := e.privateCatalogLocked(s.owner.catalog)
+	d, _ := catalogView.Relation(s.lockedRef.Address)
+	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedRefresh && d.RelationKind == catalog.MaterializedViewRelation)
 	for _, leaf := range s.querySources {
-		if leaf.relation.RelationKind == viewRelation {
+		if leaf.relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
@@ -31,7 +32,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}
 	seen := make(map[ids.ObjectRef]lock.Mode)
 	var refs []ids.ObjectRef
-	var retainedViews []*relationDescriptor
+	var retainedViews []*catalog.Relation
 	hasMaterializedSource := false
 	var visit func(ids.ObjectRef, lock.Mode) error
 	visit = func(ref ids.ObjectRef, mode lock.Mode) error {
@@ -40,13 +41,13 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			return nil
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
-		d, ok := catalog.Relation(ref.Address)
+		d, ok := catalogView.Relation(ref.Address)
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
 			return ids.ErrCatalogReplaced
 		}
 		if s.materializedRefresh && !visited {
 			s.materializedSources = append(s.materializedSources, d)
-			if ref != s.lockedRef && d.RelationKind == materializedViewRelation {
+			if ref != s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
 				hasMaterializedSource = true
 			}
 		}
@@ -61,7 +62,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
-		if d.RelationKind == viewRelation || s.materializedRefresh && ref == s.lockedRef && d.RelationKind == materializedViewRelation {
+		if d.RelationKind == catalog.ViewRelation || s.materializedRefresh && ref == s.lockedRef && d.RelationKind == catalog.MaterializedViewRelation {
 			if viewOf(d).temporary != (ids.SessionToken{}) {
 				for old := range viewOf(d).references {
 					if old.Epoch != e.catalog.state.Epoch() {
@@ -71,7 +72,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				}
 			}
 			for i, leaf := range viewOf(d).sources {
-				use, err := storedViewUseReference(catalog, d, leaf.ref)
+				use, err := storedViewUseReference(catalogView, d, leaf.ref)
 				if err != nil {
 					return err
 				}
@@ -81,7 +82,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			}
 			for _, dependency := range viewOf(d).dependencies {
 				if dependency.Ref.Address.ClassID == ids.RelationClassID {
-					child, err := storedViewUseReference(catalog, d, dependency.Ref)
+					child, err := storedViewUseReference(catalogView, d, dependency.Ref)
 					if err != nil {
 						return err
 					}
@@ -107,7 +108,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			if ref == s.lockedRef {
 				continue
 			}
-			relation := catalog.MustRelation(ref.Address)
+			relation := catalogView.MustRelation(ref.Address)
 			if relation.RelationKind.Stored() {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
@@ -115,7 +116,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		var physical []ids.ObjectRef
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.deparseAuth
-			collectAuth.recaptureCatalog(catalog)
+			collectAuth.recaptureCatalog(catalogView)
 			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, leaves, nil, s.op.session.token, queryRowMark{})
 		}
 		if err == nil {
@@ -135,17 +136,17 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog = e.privateCatalogLocked(s.owner.catalog)
+	catalogView = e.privateCatalogLocked(s.owner.catalog)
 	if s.materializedRefresh {
 		for _, observed := range s.materializedSources {
-			if !materializedSourceCurrent(s.materializedSourceView, observed, catalog.State(), e.privateStorageLocked(s.owner.catalog, observed.Address())) {
+			if !materializedSourceCurrent(s.materializedSourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.catalog, observed.Address())) {
 				return ids.ErrCatalogReplaced
 			}
 		}
 	}
 	for _, view := range retainedViews {
 		for ref := range viewOf(view).references {
-			if !storedViewReferenceValid(catalog, view, ref) {
+			if !storedViewReferenceValid(catalogView, view, ref) {
 				return ids.ErrCatalogReplaced
 			}
 		}

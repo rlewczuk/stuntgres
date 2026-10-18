@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -26,7 +27,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
-	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if op.restoreTableDestination {
@@ -136,7 +137,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err == nil {
 		scope.completed = true
 	}
-	if _, conflict := err.(CatalogConflict); conflict {
+	if _, conflict := err.(catalog.Conflict); conflict {
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
 		}
@@ -264,7 +265,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			shape.materializedConcurrent, shape.materializedContinuous = false, false
 		}
 		shape.replacement = rowShape.replacement
-		shape.relation, _ = stage.Descriptors[a].(*relationDescriptor)
+		shape.relation, _ = stage.Descriptors[a].(*catalog.Relation)
 		if shape.relation == nil {
 			// An index-expression-only domain generation changes executable
 			// index authority without changing its parent's column descriptor.
@@ -294,7 +295,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
-		if table, ok := d.(*relationDescriptor); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
+		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}

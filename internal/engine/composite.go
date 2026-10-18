@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -46,7 +47,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if len(s.Members) > 1600 {
 		return sqlError("54011", "tables can have at most 1600 columns")
 	}
-	columns := make([]ColumnDescriptor, len(s.Members))
+	columns := make([]catalog.Column, len(s.Members))
 	index := make(map[string]int, len(columns))
 	for i, member := range s.Members {
 		if err := op.Context().Err(); err != nil {
@@ -83,20 +84,20 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 			return err
 		}
 		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
-		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
 	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)
 	if err != nil {
 		return err
 	}
-	relation.RelationKind = compositeRelation
+	relation.RelationKind = catalog.CompositeRelation
 	if err := e.stageRowTypeLocked(stage, relation); err != nil {
 		return err
 	}
 	return stage.Create(relation)
 }
 
-func compositeOpenError(relation *relationDescriptor, pos parser.Position) error {
+func compositeOpenError(relation *catalog.Relation, pos parser.Position) error {
 	d := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), pos).(*sqlstate.Error)
 	d.Detail = "This operation is not supported for composite types."
 	return d
@@ -124,14 +125,14 @@ func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 
 // PostgreSQL protects physical row codecs even when the proposed SQL type is
 // unchanged. Find the real stored consumer, not an intermediate named wrapper.
-func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
+func rowRewriteError(view catalog.Read, source *catalog.Relation) error {
 	if source.RowType == 0 {
 		return nil
 	}
-	var consumer *relationDescriptor
+	var consumer *catalog.Relation
 	var column string
-	for _, descriptor := range catalog.Descriptors() {
-		table, ok := descriptor.(*relationDescriptor)
+	for _, descriptor := range view.Descriptors() {
+		table, ok := descriptor.(*catalog.Relation)
 		if !ok || !table.RelationKind.Stored() {
 			continue
 		}
@@ -145,7 +146,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	if consumer == nil {
 		return nil
 	}
-	if source.RelationKind == compositeRelation {
+	if source.RelationKind == catalog.CompositeRelation {
 		return sqlError("0A000", fmt.Sprintf(`cannot alter type "%s" because column "%s.%s" uses it`, source.Name(), consumer.Name(), column))
 	}
 	return sqlError("0A000", fmt.Sprintf(`cannot alter table "%s" because column "%s.%s" uses its row type`, source.Name(), consumer.Name(), column))

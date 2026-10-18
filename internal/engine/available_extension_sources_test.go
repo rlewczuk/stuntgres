@@ -6,12 +6,13 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
+func availableUnitSource(e *Engine, oid ids.OID) (*catalog.Relation, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 	return e.catalog.state.MustRelation(a), e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
@@ -29,7 +30,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if !d.VirtualView || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
+		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
 		if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -41,7 +42,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 				t.Fatal("column", i, c)
 			}
 			invalid := *d
-			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
@@ -58,7 +59,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		}
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
 			invalid := *d
-			invalid.Columns = make([]ColumnDescriptor, width)
+			invalid.Columns = make([]catalog.Column, width)
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
@@ -66,7 +67,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version any, installed bool) {
+func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, version any, installed bool) {
 	t.Helper()
 	comment := "text search dictionary that removes accents"
 	for _, oid := range []ids.OID{12081, 12085} {
@@ -155,9 +156,9 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	e := New()
 	d, _ := availableUnitSource(e, 12085)
 	empty, schema := "", "fixed_control_schema"
-	metadata := extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: &empty, Schema: &schema, Requires: []string{"first", "quote\"name", "comma,name"}}
+	metadata := catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: &empty, Schema: &schema, Requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
-	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
+	row, err := projectAvailableExtension("unaccent", metadata, &catalog.Extension{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 		t.Fatal("registry storage shared", stored)
 	}
 	empty, schema = "", "fixed_control_schema"
-	original := extensionControl{Version: "1.1", Comment: &empty, Schema: &schema, Requires: []string{"original"}}
+	original := catalog.ExtensionControl{Version: "1.1", Comment: &empty, Schema: &schema, Requires: []string{"original"}}
 	detached := original.Detached()
 	empty, schema, original.Requires[0] = "mutated", "mutated", "mutated"
 	if *detached.Comment != "" || *detached.Schema != "fixed_control_schema" || detached.Requires[0] != "original" {
@@ -248,7 +249,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 		t.Fatal("missing installed unaccent registry row")
 	}
 	values := append([]sqltype.Value(nil), installedRow...)
-	columns := append([]ColumnDescriptor(nil), d.Columns...)
+	columns := append([]catalog.Column(nil), d.Columns...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

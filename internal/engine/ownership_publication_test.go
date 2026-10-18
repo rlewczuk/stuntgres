@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDescriptor) {
+func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Namespace) {
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
 	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_guard", ObjectRevision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_guard", ObjectRevision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {
 		t.Fatal(err)

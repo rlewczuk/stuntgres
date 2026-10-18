@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -82,13 +83,13 @@ func (b indexWriteBatch) slice(first, last int) indexWriteBatch {
 // This is an already produced index membership/key, not a CHECK result. Only
 // immutable descriptor authority and physical index data cross publication.
 type indexRowOutput struct {
-	index  *relationDescriptor
+	index  *catalog.Relation
 	member bool
 	keys   []sqltype.Value
 	key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
 }
 
-func (r indexRowOutput) matches(index *relationDescriptor) bool {
+func (r indexRowOutput) matches(index *catalog.Relation) bool {
 	return r.index != nil && sameIndexKeySemantics(r.index, index)
 }
 
@@ -112,7 +113,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		if !output.matches(index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.SQLIndex.Method == hashMethod && output.member {
+		if index.SQLIndex.Method == catalog.HashMethod && output.member {
 			bound.scratch[0] = output.key
 			return true, bound.scratch, nil
 		}
@@ -127,7 +128,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	}
 	output := indexRowOutput{index: index, member: member}
 	if member {
-		if index.SQLIndex.Method == hashMethod {
+		if index.SQLIndex.Method == catalog.HashMethod {
 			if err := bound.fillKeys(r.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
@@ -146,7 +147,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	}
 	*shared = false
 	(*outputs)[index.Address()] = output
-	if index.SQLIndex.Method == hashMethod && member {
+	if index.SQLIndex.Method == catalog.HashMethod && member {
 		return true, bound.scratch, nil
 	}
 	return member, output.keys, nil
@@ -201,8 +202,8 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	return nil
 }
 
-func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *relationDescriptor, ordering *indexOrdering, hash *hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
-	if index.SQLIndex.Method != hashMethod {
+func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *catalog.Relation, ordering *indexOrdering, hash *hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
+	if index.SQLIndex.Method != catalog.HashMethod {
 		hash = nil
 	}
 	member, err := preparation.predicateMatches(evaluation, parent, index.SQLIndex, values, ordering, hash)
@@ -210,7 +211,7 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 	if err != nil || !member {
 		return output, err
 	}
-	if index.SQLIndex.Method == hashMethod {
+	if index.SQLIndex.Method == catalog.HashMethod {
 		err = preparation.prepareKeys(evaluation, parent, index.SQLIndex, nil, hash)
 	} else {
 		err = preparation.prepareKeys(evaluation, parent, index.SQLIndex, ordering, nil)
@@ -218,7 +219,7 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 	if err != nil {
 		return output, err
 	}
-	if index.SQLIndex.Method == hashMethod {
+	if index.SQLIndex.Method == catalog.HashMethod {
 		output.key, err = extractIndexKey(hash.slot, hash.expression, values, evaluation)
 	} else {
 		output.keys = make([]sqltype.Value, len(ordering.keys))
@@ -233,7 +234,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		if !output.matches(index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.SQLIndex.Method == hashMethod && output.member {
+		if index.SQLIndex.Method == catalog.HashMethod && output.member {
 			bound.scratch[0] = output.key
 			return true, bound.scratch, nil
 		}
@@ -262,7 +263,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		}
 		output := indexRowOutput{index: index, member: member}
 		if member {
-			if index.SQLIndex.Method == hashMethod {
+			if index.SQLIndex.Method == catalog.HashMethod {
 				if err := bound.fillKeys(row.values, bound.scratch, evaluation); err != nil {
 					return false, nil, err
 				}

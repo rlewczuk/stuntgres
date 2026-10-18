@@ -14,7 +14,7 @@ import (
 
 var builtinCollationVersion = "1"
 
-func collationActualVersion(d *collationDescriptor) (*string, error) {
+func collationActualVersion(d *catalog.Collation) (*string, error) {
 	if d.Provider == "d" {
 		return databaseCollationActualVersion()
 	}
@@ -27,7 +27,7 @@ func collationActualVersion(d *collationDescriptor) (*string, error) {
 	return nil, nil
 }
 
-func collationVersionWarning(op *Operation, d *collationDescriptor, view CatalogRead, actual *string) error {
+func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil
 	}
@@ -59,7 +59,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	d := collationDescriptor{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
+	d := catalog.Collation{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
 	from := s.From
 	options := make(map[string]*parser.CollationOption, len(s.Options))
 	for i := range s.Options {
@@ -323,7 +323,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 	return nil
 }
 
-func (e *Engine) findUtilityCollation(auth AuthorizationView, name parser.ObjectName) (*collationDescriptor, error) {
+func (e *Engine) findUtilityCollation(auth AuthorizationView, name parser.ObjectName) (*catalog.Collation, error) {
 	d, err := e.findCollation(auth, name)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 		copy := *diagnostic

@@ -3,11 +3,12 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-func ruleQueryFinalizer(view CatalogRead) func(LogicalNode) (LogicalNode, error) {
+func ruleQueryFinalizer(view catalog.Read) func(LogicalNode) (LogicalNode, error) {
 	var finalized map[LogicalNode]bool
 	return func(root LogicalNode) (LogicalNode, error) {
 		result, err := finalizeRuleQuery(view, root, finalized)
@@ -23,7 +24,7 @@ func ruleQueryFinalizer(view CatalogRead) func(LogicalNode) (LogicalNode, error)
 
 // Recover typed recipes from the existing schedule, then use the ordinary
 // finalizers. Cache numbers belong to a query frame, never to a grafted row.
-func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...map[LogicalNode]bool) (LogicalNode, error) {
+func finalizeRuleQuery(view catalog.Read, root LogicalNode, alreadyFinalized ...map[LogicalNode]bool) (LogicalNode, error) {
 	var finalized map[LogicalNode]bool
 	if len(alreadyFinalized) != 0 {
 		finalized = alreadyFinalized[0]

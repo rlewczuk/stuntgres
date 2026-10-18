@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -159,13 +160,13 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 					definition := *viewOf(&copy)
 					copy.View = &definition
 				case "columns":
-					copy.Columns = append([]ColumnDescriptor(nil), copy.Columns...)
+					copy.Columns = append([]catalog.Column(nil), copy.Columns...)
 				case "attributes":
 					copy.Attributes = append([]int32(nil), copy.Attributes...)
 				case "rowtype":
 					copy.RowType++
 				case "ordinary_table":
-					copy.RelationKind = tableRelation
+					copy.RelationKind = catalog.TableRelation
 				}
 				e.catalog.state.SetDescriptor(d.Address(), &copy)
 			}

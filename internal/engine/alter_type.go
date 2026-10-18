@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 type columnTransformation struct {
 	attribute    int32
 	expression   expr.Expr
-	dependencies []expressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
+	dependencies []catalog.ExpressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
 	rewrite      bool
 }
 
@@ -24,7 +25,7 @@ type alterTypePreparation struct {
 }
 
 // Phase-one lookup uses the statement-original descriptor, before ADD/DROP passes.
-func alterTypeColumn(original *relationDescriptor, name string) (int, error) {
+func alterTypeColumn(original *catalog.Relation, name string) (int, error) {
 	slot, ok := original.Index[name]
 	if !ok {
 		return 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, original.Name()))
@@ -34,7 +35,7 @@ func alterTypeColumn(original *relationDescriptor, name string) (int, error) {
 
 // Sequence AS uses admitted target usages, including the prefix retained when
 // transformation completion fails. It never visits an unadmitted later TYPE.
-func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, actions []parser.AlterTableAction, prepared []alterTypePreparation) (*CatalogStage, error) {
+func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, auth AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []alterTypePreparation) (*CatalogStage, error) {
 	var stage *CatalogStage
 	index := 0
 	for _, action := range actions {
@@ -64,7 +65,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 	return stage, nil
 }
 
-func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef) *queryNamespace {
+func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef) *queryNamespace {
 	columns := make([]queryColumn, len(original.Columns))
 	for i, column := range original.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
@@ -73,7 +74,7 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.Columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []expressionDependency, error) {
+func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
 	if action.Using == nil {
 		source := original.Index[action.Column.Text]
 		return columnExpression{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
@@ -95,7 +96,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 // Complete phase-one TYPE work against the immutable original row. The caller
 // holds Engine.mu; neither row evaluation nor candidate mutation belongs here.
 // suppliedUsage is used only by typed propagation of an already resolved type.
-func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (alterTypePreparation, error) {
+func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (alterTypePreparation, error) {
 	prepared, err := e.admitAlterTypeLocked(scope, op, auth, original, ref, a, suppliedUsage)
 	if err != nil {
 		return alterTypePreparation{}, err
@@ -105,7 +106,7 @@ func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *Operation, au
 
 // Admission resolves the target and binds USING once, before sequence AS.
 // Its raw expression is replaced by the completed storage transformation.
-func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (alterTypePreparation, error) {
+func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (alterTypePreparation, error) {
 	fail := func(err error) (alterTypePreparation, error) {
 		return alterTypePreparation{}, err
 	}
@@ -138,10 +139,10 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	prepared := alterTypePreparation{usage: usage, declaredDimensions: int16(len(a.TypeName.ArrayBounds))}
-	if original.RelationKind == compositeRelation {
+	if original.RelationKind == catalog.CompositeRelation {
 		return prepared, nil
 	}
-	if original.RelationKind == foreignRelation {
+	if original.RelationKind == catalog.ForeignRelation {
 		if a.Using != nil {
 			if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
 				return fail(err)
@@ -159,11 +160,11 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 }
 
 // Engine.mu remains held. No expression is evaluated during completion.
-func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, a parser.AlterTableAction, prepared alterTypePreparation) (alterTypePreparation, error) {
+func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, a parser.AlterTableAction, prepared alterTypePreparation) (alterTypePreparation, error) {
 	fail := func(err error) (alterTypePreparation, error) {
 		return alterTypePreparation{}, err
 	}
-	if original.RelationKind == compositeRelation || original.RelationKind == foreignRelation {
+	if original.RelationKind == catalog.CompositeRelation || original.RelationKind == catalog.ForeignRelation {
 		return prepared, nil
 	}
 	usage := prepared.usage
@@ -213,8 +214,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 }
 
 // Candidate-only mutation consumes the completed phase-one result.
-func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, original, next *relationDescriptor, ref ids.ObjectRef, a parser.AlterTableAction, prepared alterTypePreparation) (*relationDescriptor, columnTransformation, error) {
-	fail := func(err error) (*relationDescriptor, columnTransformation, error) {
+func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared alterTypePreparation) (*catalog.Relation, columnTransformation, error) {
+	fail := func(err error) (*catalog.Relation, columnTransformation, error) {
 		return nil, columnTransformation{}, err
 	}
 	slot, err := alterTypeColumn(next, a.Column.Text)
@@ -287,12 +288,12 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return fail(d)
 	}
 	usage := prepared.usage
-	if original.RelationKind == compositeRelation {
+	if original.RelationKind == catalog.CompositeRelation {
 		if usage == current && next.Columns[slot].DeclaredDimensions == prepared.declaredDimensions {
 			return next, columnTransformation{}, nil
 		}
 		replacement := *next
-		replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+		replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 		replacement.Columns[slot].Usage = usage
 		replacement.Columns[slot].DeclaredDimensions = prepared.declaredDimensions
 		return &replacement, columnTransformation{}, nil
@@ -304,7 +305,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return next, transformation, nil
 	}
 	replacement := *next
-	replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+	replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 	replacement.Columns[slot].Usage = usage
 	replacement.Columns[slot].DeclaredDimensions = dimensions
 	if usage == current {
@@ -340,7 +341,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		replacement.Defaults = make(map[int32]columnDefault, len(next.Defaults))
+		replacement.Defaults = make(map[int32]catalog.ColumnDefault, len(next.Defaults))
 		for id, d := range next.Defaults {
 			replacement.Defaults[id] = d
 		}
@@ -356,7 +357,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *relationStorage, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
 	if store.generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}

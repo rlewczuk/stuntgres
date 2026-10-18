@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -55,7 +56,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
+	if replacement, ok := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*catalog.Type); ok {
 		base.Type = replacement.SQLType
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
@@ -100,14 +101,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &typeDescriptor{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
@@ -149,11 +150,11 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	return nil
 }
 
-func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
+func typeDiagnosticNameAt(view catalog.Read, d *catalog.Type, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
-		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
-			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
+			return typeDiagnosticNameAt(view, element.(*catalog.Type), path) + "[]"
 		}
 	}
 	name := dependencyIdentifier(d.Name())
@@ -161,19 +162,19 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.Obj
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
+		if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
 			if address == d.Address() {
 				return name
 			}
 			break
 		}
 	}
-	return dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+	return dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
-func validateTypeProviders(view CatalogRead, d Descriptor) error {
+func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		if d.SQLType.IsDomain() {
 			base := d.SQLType.DomainBase()
 			if err := validateUsageCollation(view, base); err != nil {
@@ -181,23 +182,23 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 			}
 			actual, ok := view.LookupType(base.Type.ID())
 			if !ok || actual != base.Type {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 		if d.SQLType.IsArray() {
 			actual, ok := view.LookupType(d.SQLType.Element().ID())
 			if !ok || actual != d.SQLType.Element() {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
-	case *relationDescriptor:
+	case *catalog.Relation:
 		for _, c := range d.Columns {
 			if err := validateUsageCollation(view, c.Usage); err != nil {
 				return err
 			}
 			actual, ok := view.LookupType(c.Usage.Type.ID())
 			if !ok || actual != c.Usage.Type {
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 		}
 	}

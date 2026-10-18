@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,24 +11,24 @@ import (
 
 // Admission owns private overlays for this statement; committed immutable roots
 // are recaptured only after each key grant, including after peer outcome waits.
-func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, CatalogRead, error) {
+func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
-		return nil, CatalogRead{}, ids.ErrCatalogReplaced
+		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
 	parent, ok := view.Relation(ref.Address)
 	if !ok {
-		return nil, CatalogRead{}, errors.New("stuntgres: invalid unique parent")
+		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
 	}
 	return parent, view, nil
 }
 
 type uniqueBoundKey struct {
-	index        *relationDescriptor
-	parent       *relationDescriptor
+	index        *catalog.Relation
+	parent       *catalog.Relation
 	preparation  indexExecutionPreparation
 	ordering     indexOrdering
 	grouping     []sqltype.Grouping
@@ -35,8 +36,8 @@ type uniqueBoundKey struct {
 }
 type uniqueWriteBinding struct {
 	ref       ids.ObjectRef
-	parent    *relationDescriptor
-	catalog   *catalogState
+	parent    *catalog.Relation
+	catalog   *catalog.State
 	keys      []uniqueBoundKey
 	keySlots  []int
 	typeName  func(sqltype.ID) string
@@ -61,10 +62,10 @@ retry:
 		overlay.overlays = nil
 	}
 	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.State()}
-	var indexes []*relationDescriptor
-	var checkedNonunique []*relationDescriptor
+	var indexes []*catalog.Relation
+	var checkedNonunique []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Live {
 			continue
 		}
@@ -106,7 +107,7 @@ retry:
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -129,7 +130,7 @@ retry:
 			return nil, err
 		}
 		n := len(index.SQLIndex.Keys)
-		if index.SQLIndex.Method != gistMethod {
+		if index.SQLIndex.Method != catalog.GistMethod {
 			bound.grouping = make([]sqltype.Grouping, n)
 		}
 		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
@@ -138,7 +139,7 @@ retry:
 			if usageErr != nil {
 				return nil, usageErr
 			}
-			if index.SQLIndex.Method == gistMethod {
+			if index.SQLIndex.Method == catalog.GistMethod {
 				continue
 			}
 			// network_ops owns typed comparison but not generic grouping. Its
@@ -160,7 +161,7 @@ retry:
 		}
 		for _, index := range checkedNonunique {
 			bound := indexInsertionBinding{index: index, parent: parent}
-			if index.SQLIndex.Method == hashMethod {
+			if index.SQLIndex.Method == catalog.HashMethod {
 				bound.hash, err = bindHashIndex(parent, index.SQLIndex)
 			} else {
 				bound.ordering, err = bindIndexKeys(parent, index.SQLIndex)
@@ -305,11 +306,11 @@ func uniqueRowDeleted(id ids.RowID, roots ...*privateDeletionRoot) bool {
 // One real provider probe supplies ordinary violations, omission visibility and
 // exact conflict-update identity without scanning committed table payloads.
 type uniqueConflict struct {
-	parent, index *relationDescriptor
+	parent, index *catalog.Relation
 	key           []sqltype.Value
 	existing      []sqltype.Value
 	auth          AuthorizationView
-	view          CatalogRead
+	view          catalog.Read
 	schema        string
 	row           rowVersion
 	committed     bool

@@ -3,18 +3,19 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) prepareExclusionShape(original, parent *relationDescriptor, catalog CatalogRead, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []rowVersion, deletes *privateDeletionRoot) error {
 	if len(original.ExclusionConstraints)+len(parent.ExclusionConstraints) == 0 {
 		return nil
 	}
 	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.ExclusionConstraints))
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: catalog}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: view}
 	for _, c := range parent.ExclusionConstraints {
-		index, ok := catalog.Relation(c.Index)
+		index, ok := view.Relation(c.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing private exclusion index")
 		}
@@ -36,7 +37,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				if !output.member {
 					continue
 				}
-				if index.SQLIndex.Method == hashMethod {
+				if index.SQLIndex.Method == catalog.HashMethod {
 					if output.key.IsNull() {
 						continue
 					}
@@ -69,7 +70,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if catalog.Epoch() != e.catalog.state.Epoch() {
+	if view.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)

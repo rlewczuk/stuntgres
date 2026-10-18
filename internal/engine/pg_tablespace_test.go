@@ -6,12 +6,13 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*relationDescriptor, *querySource) {
+func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *querySource) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1213}
 	d, ok := e.catalog.state.Relation(address)
@@ -64,7 +65,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalogRelation || d.VirtualView || !representedSummaryTable(1213) {
+	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
 	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.AttributeHighWater != 5 {

@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func regObjectSpelling(view CatalogRead, path []ids.ObjectAddress, class, id ids.OID) string {
+func regObjectSpelling(view catalog.Read, path []ids.ObjectAddress, class, id ids.OID) string {
 	if id == 0 {
 		return "-"
 	}
@@ -49,7 +50,7 @@ func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegObjectOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegObjectOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegObject() {
 		return nil
 	}

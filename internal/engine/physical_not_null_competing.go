@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -19,7 +20,7 @@ func physicalSameAttributes(a, b []int32) bool {
 	return true
 }
 
-func physicalPermutedPrimary(table *relationDescriptor) *uniqueConstraint {
+func physicalPermutedPrimary(table *catalog.Relation) *catalog.UniqueConstraint {
 	if len(table.PhysicalNotNull) == 0 {
 		return nil
 	}
@@ -39,7 +40,7 @@ func physicalPermutedPrimary(table *relationDescriptor) *uniqueConstraint {
 
 // Reuse the existing eligible-index predicate. Only real providers competing
 // with a captured permuted self-FK's primary are ordered after that FK.
-func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (*relationDescriptor, bool, error) {
+func physicalCompetingIndexSource(view catalog.Read, index *catalog.Relation) (*catalog.Relation, bool, error) {
 	if index == nil || index.SQLIndex == nil {
 		return nil, false, nil
 	}
@@ -62,7 +63,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (
 	return source, true, nil
 }
 
-func emitPhysicalCompetingUniques(view CatalogRead, table *relationDescriptor, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
+func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
 	primary := physicalPermutedPrimary(table)
 	if primary == nil {
 		return nil
@@ -130,7 +131,7 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 			return reject()
 		}
 		attribute := old.Attributes[slot]
-		if !slices.ContainsFunc(provider.primary.Keys, func(key physicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
+		if !slices.ContainsFunc(provider.primary.Keys, func(key catalog.PhysicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
 			return reject()
 		}
 		for _, prior := range definition.Columns[:i] {

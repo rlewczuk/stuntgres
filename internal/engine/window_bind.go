@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -683,7 +684,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 	calls := make([]windowCall, 0, len(b.windowCalls))
 	specs := make([]boundWindowSpec, 0, len(b.windowCalls))
 	indices := make([]int, 0, len(b.windowCalls))
-	schema := append([]ColumnDescriptor(nil), root.Schema()...)
+	schema := append([]catalog.Column(nil), root.Schema()...)
 	for i, call := range preparedCalls {
 		if call.analysisOnly || aliases != nil && aliases[i] >= 0 {
 			continue
@@ -715,7 +716,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 		call.spec = boundWindowSpec{}
 		calls = append(calls, call)
 		indices = append(indices, index)
-		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), Nullable: call.expression.nullable, NullabilityKnown: true})
+		schema = append(schema, catalog.Column{Usage: call.expression.ResultUsage(), Nullable: call.expression.nullable, NullabilityKnown: true})
 	}
 	for i, owner := range aliases {
 		if owner >= 0 {
@@ -729,7 +730,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []expr.Expr, gro
 		return nil, err
 	}
 	if added := len(root.Schema()) - originalWidth; added != 0 {
-		schema = append(append([]ColumnDescriptor(nil), root.Schema()...), schema[originalWidth:]...)
+		schema = append(append([]catalog.Column(nil), root.Schema()...), schema[originalWidth:]...)
 		for _, call := range b.windowCalls {
 			call.expression.slot += added
 		}

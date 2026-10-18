@@ -17,15 +17,15 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	options.Persistence, options.Owned = "temporary", table.Address()
 	options.Owned.SubID = 1
-	sequence := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, ObjectNamespace: table.Namespace(), ObjectName: "owned", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, ObjectNamespace: table.Namespace(), ObjectName: "owned", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
-	index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, ObjectNamespace: table.Namespace(), ObjectName: "backing", ObjectRevision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: table.Address(), Keys: []indexKey{{Attribute: 1, Class: class}}}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, ObjectNamespace: table.Namespace(), ObjectName: "backing", ObjectRevision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}}}
 	peer := sessionStart(t, e, nil)
-	peerNamespace := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, ObjectName: "pg_temp_peer", ObjectRevision: 1, Owner: table.Owner, Temporary: peer.token}
+	peerNamespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, ObjectName: "pg_temp_peer", ObjectRevision: 1, Owner: table.Owner, Temporary: peer.token}
 	peerTable := *table
 	peerTable.ObjectAddress.ObjectID = 20006
 	peerTable.ObjectNamespace = peerNamespace.Address()
-	for _, d := range []Descriptor{sequence, index, peerNamespace, &peerTable} {
+	for _, d := range []catalog.Descriptor{sequence, index, peerNamespace, &peerTable} {
 		e.catalogChangeLocked(c, d.Address(), d)
 	}
 	e.catalog.state = e.privateCatalogLocked(c).State()
@@ -67,7 +67,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 
 // Setup binds an actual stored CHECK/manifest; assertions exercise the private
 // terminal stage and publication seams rather than repeat driver SQL scenarios.
-func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescriptor, *relationDescriptor, *relationDescriptor) {
+func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -87,7 +87,7 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescr
 	return e, op, owner, sequence, survivor
 }
 
-func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *relationDescriptor) *CatalogStage {
+func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
@@ -121,7 +121,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		if err := e.endTemporarySession(op.session); err != nil {
 			t.Fatal(err)
 		}
-		for _, original := range []*relationDescriptor{survivor, late} {
+		for _, original := range []*catalog.Relation{survivor, late} {
 			replacement := e.catalog.state.MustRelation(original.Address())
 			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(catalog.DescriptorNameKey(original)) != original.Address() {
 				t.Fatal("reprepare missed consumer or changed captured definition")
@@ -175,7 +175,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
-	replacement, ok := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+	replacement, ok := stage.Descriptors[survivor.Address()].(*catalog.Relation)
 	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
@@ -273,7 +273,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 						t.Fatal("ordinary maximum cascade accepted or mutated", err)
 					}
 				} else {
-					replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
+					replacement, ok := stage.Descriptors[consumer.Address()].(*catalog.Relation)
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
@@ -291,7 +291,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			} else {
 				_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 			}
-			replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
+			replacement, ok := stage.Descriptors[consumer.Address()].(*catalog.Relation)
 			if err != nil || !ok || replacement.Revision() != consumer.Revision()+1 {
 				t.Fatal("below-maximum cascade did not increment", err)
 			}

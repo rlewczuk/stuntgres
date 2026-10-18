@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -13,13 +14,13 @@ type viewWriteOccurrence struct {
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
+func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
 	project, ok := root.(*projectNode)
 	if !ok {
 		return rewriteQueryExpressions(root, rewrite)
 	}
 	var definition *viewDefinition
-	var consumer *relationDescriptor
+	var consumer *catalog.Relation
 	for _, layer := range w.layers {
 		if _, found := viewOf(layer.relation).queries[project.syntax]; found {
 			definition = viewOf(layer.relation)

@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 	storage := e.storage[ref.Address]
 	epoch := e.CatalogRead().Epoch()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	next := *old.(*relationDescriptor)
+	next := *old.(*catalog.Relation)
 	next.ObjectRevision++
 	next.Comment = "still eligible"
 	if err := stage.Replace(&next); err != nil {

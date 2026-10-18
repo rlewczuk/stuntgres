@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -28,12 +29,12 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 	}
 	views := []string{"pg_roles", "pg_group", "pg_user", "pg_cursors", "pg_locks", "pg_timezone_names", "pg_timezone_abbrevs", "pg_available_extensions", "pg_available_extension_versions", "pg_sequences", "pg_views", "pg_prepared_xacts", "pg_indexes", "pg_tables", "pg_matviews", "table_privileges"}
 	check := func() {
-		catalog := e.CatalogRead()
+		view := e.CatalogRead()
 		source := pgClassUnitSource(t, e)
 		roles := e.Roles()
-		project := func(d *relationDescriptor, want bool) {
+		project := func(d *catalog.Relation, want bool) {
 			t.Helper()
-			row, err := e.pgClassRow(context.Background(), catalog, roles, source, d)
+			row, err := e.pgClassRow(context.Background(), view, roles, source, d)
 			if err != nil {
 				t.Fatal(d.Name(), err)
 			}
@@ -43,17 +44,17 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			}
 		}
 		for _, fact := range tables {
-			d, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
-			if !ok || d.Name() != fact.name || d.RelationKind != catalogRelation {
+			d, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
+			if !ok || d.Name() != fact.name || d.RelationKind != catalog.CatalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
 			project(d, true)
 		}
 		for _, name := range views {
 			found := 0
-			for _, descriptor := range catalog.Descriptors() {
-				d, ok := descriptor.(*relationDescriptor)
-				if ok && d.Name() == name && d.RelationKind == catalogRelation {
+			for _, descriptor := range view.Descriptors() {
+				d, ok := descriptor.(*catalog.Relation)
+				if ok && d.Name() == name && d.RelationKind == catalog.CatalogRelation {
 					found++
 					project(d, false)
 				}
@@ -64,7 +65,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: tableRelation, Owner: e.authorizationDomain.Principal(10)}
+		ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: catalog.TableRelation, Owner: e.authorizationDomain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

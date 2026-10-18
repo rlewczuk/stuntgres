@@ -5,16 +5,17 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // These are package fixtures: SQL constructs physical descriptors through the
 // real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *Engine, name string) *relationDescriptor {
+func retiredUnitTable(t *testing.T, e *Engine, name string) *catalog.Relation {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok && r.Name() == name {
+		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {
 			return r
 		}
 	}
@@ -56,7 +57,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		t.Fatal("DROP changed retained physical OID, recipe, validity or NO INHERIT")
 	}
 	for _, pair := range []struct {
-		p           inheritedConstraint
+		p           catalog.InheritedConstraint
 		own, source ids.OID
 		check       bool
 	}{
@@ -81,7 +82,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pair := range []struct {
-		p      inheritedConstraint
+		p      catalog.InheritedConstraint
 		source ids.OID
 	}{
 		{bottom.Inheritance.NotNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
@@ -110,7 +111,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	final := retiredUnitTable(t, e, "c")
 	for _, pair := range []struct {
-		p      inheritedConstraint
+		p      catalog.InheritedConstraint
 		newOID ids.OID
 	}{
 		{final.Inheritance.NotNull[nn.Attribute], newNN}, {final.Inheritance.Checks[ck.Name], newCK},
@@ -152,7 +153,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	// certificate of an actual removed contributing column provider.
 	for _, bad := range []inheritanceAlterEvent{
 		{action: parser.AlterTableAction{Action: parser.DropConstraint}, retiredNotNull: p.NotNullConstraints, retiredChecks: p.CheckConstraints},
-		{action: action, attribute: 1, retiredNotNull: []notNullConstraint{{OID: p.NotNullConstraints[0].OID + 100000, Name: "nn", Attribute: 1}}},
+		{action: action, attribute: 1, retiredNotNull: []catalog.NotNullConstraint{{OID: p.NotNullConstraints[0].OID + 100000, Name: "nn", Attribute: 1}}},
 	} {
 		state.events[p.Address()] = []inheritanceAlterEvent{bad}
 		g := cloneInheritance(c.Inheritance)
@@ -165,13 +166,13 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	current := retiredUnitTable(t, e, "c")
 	view := e.CatalogRead()
 	provenance := current.Inheritance.NotNull[1]
-	for name, mutate := range map[string]func(*retiredInheritanceOrigin){
-		"own": func(h *retiredInheritanceOrigin) { h.Own++ }, "kind": func(h *retiredInheritanceOrigin) { h.Check = true },
-		"epoch": func(h *retiredInheritanceOrigin) { h.Parent.Epoch++ }, "foreign_owner": func(h *retiredInheritanceOrigin) {
+	for name, mutate := range map[string]func(*catalog.RetiredInheritanceOrigin){
+		"own": func(h *catalog.RetiredInheritanceOrigin) { h.Own++ }, "kind": func(h *catalog.RetiredInheritanceOrigin) { h.Check = true },
+		"epoch": func(h *catalog.RetiredInheritanceOrigin) { h.Parent.Epoch++ }, "foreign_owner": func(h *catalog.RetiredInheritanceOrigin) {
 			h.Parent = New().catalog.Domain.Ref(h.Parent.Epoch, h.Parent.Address)
 		},
-		"rank": func(h *retiredInheritanceOrigin) { h.Attribute = 2 }, "zero_lifetime": func(h *retiredInheritanceOrigin) { h.Lifetime = 0 },
-		"namespace": func(h *retiredInheritanceOrigin) { h.Archive = 1 }, "column": func(h *retiredInheritanceOrigin) { h.Column = "" },
+		"rank": func(h *catalog.RetiredInheritanceOrigin) { h.Attribute = 2 }, "zero_lifetime": func(h *catalog.RetiredInheritanceOrigin) { h.Lifetime = 0 },
+		"namespace": func(h *catalog.RetiredInheritanceOrigin) { h.Archive = 1 }, "column": func(h *catalog.RetiredInheritanceOrigin) { h.Column = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := provenance

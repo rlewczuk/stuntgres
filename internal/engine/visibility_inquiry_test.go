@@ -36,9 +36,9 @@ func TestVisibilityInquiryCollationSelection(t *testing.T) {
 	// name candidates, without admitting unsupported native collation DDL.
 	a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20001}
 	b := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	first := &collationDescriptor{OID: 1, ObjectName: "same", Encoding: -1}
-	second := &collationDescriptor{OID: 2, ObjectName: "same", Encoding: 6}
-	state := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
+	first := &catalog.Collation{OID: 1, ObjectName: "same", Encoding: -1}
+	second := &catalog.Collation{OID: 2, ObjectName: "same", Encoding: 6}
+	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, second.Address(): second}, map[ids.NameKey]ids.ObjectAddress{
 		{ClassID: ids.CollationClassID, Namespace: a, Name: "same"}: first.Address(),
 		{ClassID: ids.CollationClassID, Namespace: b, Name: "same"}: second.Address(),
 	})
@@ -71,12 +71,12 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	}
 	bad := *view.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
 	bad.Encoding = 8
-	if err := (collationProvider{}).Validate(view, &bad); err == nil {
+	if err := (catalog.CollationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("invalid fixed collation accepted")
 	}
 	conversion := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4402})
 	conversion.ObjectName = "made_up"
-	if err := (conversionProvider{}).Validate(view, &conversion); err == nil {
+	if err := (catalog.ConversionProvider{}).Validate(view, &conversion); err == nil {
 		t.Fatal("invalid conversion accepted")
 	}
 	sessionSQL(t, s, "CREATE TABLE t(id OID CHECK(pg_type_is_visible(id) IS NOT NULL))")
@@ -122,7 +122,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		})
 	}
 	broken := *relation
-	broken.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
+	broken.CheckConstraints = append([]catalog.CheckConstraint(nil), relation.CheckConstraints...)
 	broken.CheckConstraints[0].VisibilitySnapshot = false
 	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid capture manifest accepted")

@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func namespaceUnitSource(t *testing.T, e *Engine, c catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2615}
 	d, ok := c.Relation(a)
@@ -22,7 +22,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescr
 	}
 	return d, e.catalog.Domain.Ref(c.Epoch(), a)
 }
-func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
+func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource {
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
@@ -58,7 +58,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, _ := namespaceUnitSource(t, e, c)
-	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
+	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
@@ -226,7 +226,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
 	foreign := New()
-	reject := func(catalog CatalogRead, roles authorization.Read, r ids.ObjectRef, source *relationDescriptor) {
+	reject := func(catalog catalog.Read, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
 		rows, err := e.capturePGNamespace(context.Background(), catalog, roles, r, source)
@@ -254,14 +254,14 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	for _, width := range []int{0, 3, 5} {
 		next := catalog.CloneState(c.State())
 		invalid := *d
-		invalid.Columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]catalog.Column, width)
 		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
 		next := catalog.CloneState(c.State())
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
 		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
@@ -292,7 +292,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = catalog.CloneState(c.State())
-	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*databaseDescriptor)(nil))
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*catalog.Database)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	database := *c.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = e.Roles().LookupRef("pg_read_all_data")

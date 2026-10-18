@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -145,7 +146,7 @@ func TestQueryLimitCancellation(t *testing.T) {
 func TestQueryLimitMetadata(t *testing.T) {
 	for _, suffix := range []string{"LIMIT 0", "OFFSET 99", "OFFSET 1 LIMIT 2"} {
 		_, query, source := queryCoreFixture(t, "SELECT id,v FROM t "+suffix)
-		want := append([]ColumnDescriptor(nil), query.Root.Schema()...)
+		want := append([]catalog.Column(nil), query.Root.Schema()...)
 		rows, _, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if err != nil || !reflect.DeepEqual(rows.Schema(), want) {
 			t.Fatal(rows, err, want)

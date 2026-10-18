@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -10,13 +11,13 @@ import (
 // expressions, never row values or permission results; routinePrograms owns the
 // consumed graph for the existing wait/publication readmission fences.
 type partitionRoutineIdentity struct {
-	owner *relationDescriptor
+	owner *catalog.Relation
 	phase domainCheckIdentity
 	actor authorization.PrincipalRef
 	ri    bool
 }
 
-func evaluatePartitionRecipe(evaluation *EvalContext, owner *relationDescriptor, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
+func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1

@@ -96,7 +96,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	e := New()
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	d := &parameterDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, ObjectRevision: 2, ObjectName: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
+	d := &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, ObjectRevision: 2, ObjectName: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
 	candidate := catalog.CloneState(e.catalog.state)
 	installParameterGrant(candidate, d)
 	if candidate.Get(d.Address()) != d || candidate.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
@@ -127,11 +127,11 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 			if d == original || original.ACL.Explicit || !d.ACL.Explicit || len(d.ACL.Entries) != 2 || authorization.ACLRights(d.ACL, d.Owner, []authorization.PrincipalRef{reader}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege || !slices.Contains(descriptorReferences(d), reader) {
 				t.Fatal("wrong immutable tablespace ALL/options/dependencies", d.ACL)
 			}
-			if err := (tablespaceProvider{}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
+			if err := (catalog.TablespaceProvider{}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
 				t.Fatal(err)
 			}
 			copy := *d
-			if err := (tablespaceProvider{}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
+			if err := (catalog.TablespaceProvider{}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
 				t.Fatal("copied tablespace descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
@@ -156,7 +156,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 
 func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
-	capture := func(catalog CatalogRead) *querySource {
+	capture := func(catalog catalog.Read) *querySource {
 		t.Helper()
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"})
 		source := catalog.MustRelation(address)

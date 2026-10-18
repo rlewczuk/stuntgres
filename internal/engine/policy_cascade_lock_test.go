@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -33,7 +34,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						roleExecute(t, e, op, "CREATE POLICY retained ON "+name+" USING(keep>0)")
 					}
 					base := e.CatalogRead()
-					owners := []*relationDescriptor{
+					owners := []*catalog.Relation{
 						base.MustRelation(roleTableRef(t, e, "t").Address),
 						base.MustRelation(roleTableRef(t, e, "u").Address),
 					}
@@ -58,7 +59,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
 					projected := 0
-					project := func(old, next *relationDescriptor) error {
+					project := func(old, next *catalog.Relation) error {
 						projected++
 						if old != owners[0] || shape != "column_and_policy" || len(next.Columns) != 1 || next.Columns[0].Name != "keep" {
 							t.Fatal("policy lock target became a column projection", old.Name(), next.Columns)
@@ -76,7 +77,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						t.Fatal("wrong projection count", projected)
 					}
 					for _, old := range owners {
-						next, ok := stage.Descriptors[old.Address()].(*relationDescriptor)
+						next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
 						if !ok || len(next.Policies) != 1 || next.Policies[0].Name != "retained" {
 							t.Fatal("wrong surviving policy owner", old.Name(), next)
 						}

@@ -94,16 +94,16 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.Kind != functionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&jsonRoutineProvider == 0 {
+			if declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&jsonRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
 			if evaluation.catalog.Get(address) != captured {
 				t.Fatal("call did not borrow the original owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			selected := 0
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -157,13 +157,13 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, call, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dependency := range original {
 				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
@@ -171,7 +171,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, epoch := range []bool{false, true} {
-				stale := append([]expressionDependency(nil), original...)
+				stale := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range stale {
 					if stale[i].Ref.Address == address {
 						if epoch {
@@ -206,7 +206,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if mapped.Plan.BaseIndex() != tc.base || len(mapped.Args) != arity || mapped.Defined != call.Defined || mapped.Properties() != call.Properties() || mapped.SourcePosition() != call.SourcePosition() {
 				t.Fatal("foreign retag changed physical call contract", mapped)
 			}
-			for _, manifest := range [][]expressionDependency{original, nil, {}} {
+			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("foreign retag manufactured original destination manifest")
@@ -223,7 +223,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("incompatible declaration replacement admitted")
 			}
 			invalid := call
-			invalid.Info.RoutineReference = (*procedureDescriptor)(nil)
+			invalid.Info.RoutineReference = (*catalog.Procedure)(nil)
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil routine carrier admitted")
 			}
@@ -240,7 +240,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		ref := roleTableRef(t, e, "json_authority_recipe")
 		recipe := view.MustRelation(ref.Address)
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "json_to_record('{}'::json)")
-		original := append([]expressionDependency(nil), binder.dependencies...)
+		original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 		call := node.(functions.JSONRecord)
 		identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 		grafted, _, err := mapBoundExpression(view, call, identity, nil, recipe, nil)
@@ -313,8 +313,8 @@ func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 	// genuine constructor's validation; no alternate provider or fake call is used.
 	usage := b.typ(sqltype.Int4).Usage()
 	usage.Typmod = 0
-	column := ColumnDescriptor{Name: "base", Usage: usage}
-	b.queryNamespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []ColumnDescriptor{column}}
+	column := catalog.Column{Name: "base", Usage: usage}
+	b.queryNamespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT json_populate_record(base,'{}'::json)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.bindFunctionSource(raw)
 	if err == nil || err.Error() != "invalid JSON record plan" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -20,7 +21,7 @@ func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, rev
 	}
 	return &roleCatalog{root: root, revision: revision + 1}, nil
 }
-func ownedPolicies(policies []policyDefinition, sources map[authorization.PrincipalRef]bool) ([]policyDefinition, bool) {
+func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorization.PrincipalRef]bool) ([]catalog.PolicyDefinition, bool) {
 	needed := false
 	for _, policy := range policies {
 		for _, role := range policy.Roles {
@@ -30,7 +31,7 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 	if !needed {
 		return policies, false
 	}
-	out := make([]policyDefinition, 0, len(policies))
+	out := make([]catalog.PolicyDefinition, 0, len(policies))
 	for _, policy := range policies {
 		removed := 0
 		for _, role := range policy.Roles {
@@ -46,7 +47,7 @@ func ownedPolicies(policies []policyDefinition, sources map[authorization.Princi
 			continue
 		}
 		copy := policy
-		copy.Roles = make([]policyRole, 0, len(policy.Roles)-removed)
+		copy.Roles = make([]catalog.PolicyRole, 0, len(policy.Roles)-removed)
 		for _, role := range policy.Roles {
 			if role.Public || !sources[role.Ref] {
 				copy.Roles = append(copy.Roles, role)
@@ -95,8 +96,8 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 				changed = true
 			}
 		}
-		var policies []policyDefinition
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		var policies []catalog.PolicyDefinition
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			var different bool
 			policies, different = ownedPolicies(relation.Policies, sources)
 			changed = changed || different
@@ -109,30 +110,30 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 		switch old := descriptor.(type) {
-		case *databaseDescriptor:
+		case *catalog.Database:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *namespaceDescriptor:
+		case *catalog.Namespace:
 			next := *old
 			next.ACL = nextACL
 			next.ObjectRevision = revision
 			err = stage.Replace(&next)
-		case *typeDescriptor:
+		case *catalog.Type:
 			next := *old
 			next.ACL = nextACL
 			next.ACLSyntheticDefault = false
 			next.ObjectRevision = revision
 			err = stage.Replace(&next)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *foreignDescriptor:
+		case *catalog.ForeignObject:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *parameterDescriptor:
+		case *catalog.Parameter:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
@@ -140,11 +141,11 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			} else {
 				err = stage.Replace(&next)
 			}
-		case *tablespaceDescriptor:
+		case *catalog.Tablespace:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *relationDescriptor:
+		case *catalog.Relation:
 			next := *old
 			next.ACL = nextACL
 			next.ObjectRevision = revision
@@ -171,7 +172,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			}
 			record = staged
 		}
-		var next *defaultACLRecord
+		var next *catalog.DefaultACLRecord
 		if !sources[key.Creator] {
 			acl, changed, err := authorization.OwnedACL(ctx, roles, record.ACL, key.Creator, sources)
 			if err != nil {
@@ -181,16 +182,16 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 				continue
 			}
 			if !authorization.MatchesDefaultBaseline(acl, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{})) {
-				next = &defaultACLRecord{ACL: acl}
+				next = &catalog.DefaultACLRecord{ACL: acl}
 			}
 		}
 		// Creator ownership removes the entire actual record, including a
 		// stored empty global policy. Recipient cleanup uses the key baseline.
 		if stage.DefaultReads == nil {
-			stage.DefaultReads = make(map[defaultACLKey]*defaultACLRecord)
+			stage.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 		}
 		if stage.DefaultACLs == nil {
-			stage.DefaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+			stage.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 		}
 		stage.DefaultReads[key] = original
 		stage.DefaultACLs[key] = next
@@ -216,7 +217,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 		}
 	}
 	for address, descriptor := range stage.Descriptors {
-		next, ok := descriptor.(*relationDescriptor)
+		next, ok := descriptor.(*catalog.Relation)
 		original, existed := stage.Base.Relation(address)
 		if ok && existed && len(next.Policies) < len(original.Policies) {
 			return true
@@ -225,8 +226,8 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Column-owned sequences have their own real shared owner dependency.
 	// They are excluded from independent mutation roots, not from collection.
 	for _, descriptor := range stage.Base.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
-		if ok && relation.RelationKind == sequenceRelation && relation.Sequence != nil &&
+		relation, ok := descriptor.(*catalog.Relation)
+		if ok && relation.RelationKind == catalog.SequenceRelation && relation.Sequence != nil &&
 			relation.Sequence.Owned != (ids.ObjectAddress{}) && sources[relation.Owner] {
 			return true
 		}
@@ -272,7 +273,7 @@ func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
 	}
 	return current.root.ValidateDeletionCandidate(&next.root)
 }
-func (s *CatalogStage) roleRead(current *roleCatalog, catalog CatalogRead) authorization.Read {
+func (s *CatalogStage) roleRead(current *roleCatalog, catalog catalog.Read) authorization.Read {
 	if s.roleCandidate != nil {
 		return s.owner.roleRead(catalog, s.roleCandidate)
 	}

@@ -4,13 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // The relation admission owner has already checked ownership and acquired AX.
 // Only detached generation maps enter the shared ALTER candidate pipeline.
-func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction) (*relationDescriptor, int32, error) {
+func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
 	name := action.Column.Text
 	if isSystemColumn(name) {
 		return nil, 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, name))
@@ -28,7 +29,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.Name()))
 	}
-	if definition.Kind == generationVirtual {
+	if definition.Kind == catalog.GenerationVirtual {
 		message := ""
 		if action.Action == parser.DropExpression {
 			message = "ALTER TABLE / DROP EXPRESSION is not supported for virtual generated columns"

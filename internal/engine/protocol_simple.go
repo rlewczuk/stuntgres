@@ -2,6 +2,7 @@ package engine
 
 import (
 	"io"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -11,7 +12,7 @@ import (
 // wire portals. Released RETURNING/modifying-CTE/utility store strategies keep
 // their existing finalized rows and emit metadata when those rows are fetched.
 // The caller still owns Finish, notices and CommandComplete.
-func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe func([]ColumnDescriptor) error, row func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (result Result, err error) {
+func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe func([]catalog.Column) error, row func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (result Result, err error) {
 	s.protocolSimple = true
 	s.protocolSimpleStreaming = true
 	defer func() {

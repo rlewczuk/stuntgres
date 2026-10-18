@@ -4,20 +4,21 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
+func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) error {
 	switch d.Method {
-	case btreeMethod:
+	case catalog.BtreeMethod:
 		_, err := bindIndexOrdering(parent, d)
 		return err
-	case hashMethod:
+	case catalog.HashMethod:
 		_, err := bindHashIndex(parent, d)
 		return err
-	case gistMethod:
+	case catalog.GistMethod:
 		_, err := bindLogicalExclusionKeys(parent, d)
 		return err
 	default:
@@ -28,15 +29,15 @@ func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
 type hashIndexBinding struct {
 	slot       int
 	expression expr.Expr
-	derived    *derivedIndexKey
+	derived    *catalog.DerivedIndexKey
 	usage      sqltype.Usage
 	class      sqltype.IndexClass
 	provider   sqltype.IndexHash
 }
 
-func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBinding, error) {
+func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (hashIndexBinding, error) {
 	var b hashIndexBinding
-	if d.Method != hashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
+	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return b, fmt.Errorf("stuntgres: invalid hash index definition")
 	}
 	key := d.Keys[0]
@@ -107,7 +108,7 @@ func indexStorageIdentity(store *relationStorage) *relationStorage {
 	return store
 }
 
-func buildHashIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*logicalIndexRoot, error) {
+func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
@@ -178,10 +179,10 @@ func publicationSlot(p *rowPublication, i int) int {
 	return len(p.root) + i
 }
 
-func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old *logicalIndexRoot, p *rowPublication, reconstruct, materialize bool) (*logicalIndexRoot, error) {
+func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old *logicalIndexRoot, p *rowPublication, reconstruct, materialize bool) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
-	if d.Method != hashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
+	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return nil, fmt.Errorf("stuntgres: invalid hash merge definition")
 	}
 	var binding hashIndexBinding
@@ -382,7 +383,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 	return &logicalIndexRoot{hash: root}, ctx.Err()
 }
 
-func (r *hashIndexRoot) captureRowEntries(ctx context.Context, d *indexDefinition) error {
+func (r *hashIndexRoot) captureRowEntries(ctx context.Context, d *catalog.IndexDefinition) error {
 	if !d.IsExclusion() || !d.HasRuntimeDomainKeyConversion() {
 		return nil
 	}

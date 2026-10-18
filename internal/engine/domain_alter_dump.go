@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
 // Invalid domain CHECKs are post-data events. Their providers do not constrain
 // CREATE DOMAIN, which would invent cycles through a later table/derived type.
-func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*typeDescriptor) error {
+func domainInvalidDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpEventKey][]dumpEventKey, domains map[ids.OID]*catalog.Type) error {
 	var data []dumpEventKey
 	for event := range graph {
 		if event.phase == dumpTableCompletion {
@@ -53,7 +54,7 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 	return nil
 }
 
-func domainInvalidDumpStatement(ctx context.Context, view CatalogRead, domain *typeDescriptor) (string, error) {
+func domainInvalidDumpStatement(ctx context.Context, view catalog.Read, domain *catalog.Type) (string, error) {
 	qualified, err := catalogTypeDeclaration(view, domain.SQLType.Usage())
 	if err != nil {
 		return "", err
@@ -84,8 +85,8 @@ const restoreDomainOwnerBoundary = "restore accepts only immediately paired fres
 
 type restoredDomainOwner struct {
 	ref            ids.ObjectRef
-	domain         *typeDescriptor
-	namespace      *namespaceDescriptor
+	domain         *catalog.Type
+	namespace      *catalog.Namespace
 	owner, creator authorization.PrincipalRef
 }
 

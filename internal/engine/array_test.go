@@ -20,7 +20,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	defer done()
 	view := e.CatalogRead()
 	for _, descriptor := range view.Descriptors() {
-		if typ, ok := descriptor.(*typeDescriptor); ok {
+		if typ, ok := descriptor.(*catalog.Type); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
 			}
@@ -246,17 +246,17 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if storage[table.Address()] == original || original.versions[0].values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
 		t.Fatal("source payload/provider mutated")
 	}
-	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	descriptors := make(map[ids.ObjectAddress]catalog.Descriptor, next.DescriptorCount())
 	names := make(map[ids.NameKey]ids.ObjectAddress, next.NameCount())
 	for address, descriptor := range next.Descriptors() {
 		target := address
 		if mapped, ok := mapping[address]; ok {
 			target = mapped
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && target != address {
+		if relation, ok := descriptor.(*catalog.Relation); ok && target != address {
 			copy := *relation
 			copy.ObjectAddress = target
-			copy.Columns = append([]ColumnDescriptor(nil), relation.Columns...)
+			copy.Columns = append([]catalog.Column(nil), relation.Columns...)
 			for i := range copy.Columns {
 				copy.Columns[i].OriginTable = uint32(target.ObjectID)
 			}
@@ -274,7 +274,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	view := e.catalog.read(next)
 	for _, descriptor := range next.Descriptors() {
-		if typ, ok := descriptor.(*typeDescriptor); ok {
+		if typ, ok := descriptor.(*catalog.Type); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
 			}
@@ -301,7 +301,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 }
 
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
-func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *relationDescriptor) *relationDescriptor {
+func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	e.mu.Lock()
 	nsOID, err := e.catalog.allocateOIDLocked()
@@ -319,14 +319,14 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	if err != nil {
 		t.Fatal(err)
 	}
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, ObjectName: "pg_temp_array_component", ObjectRevision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, ObjectName: "pg_temp_array_component", ObjectRevision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
 	table := *prototype
 	table.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
 	table.ObjectNamespace = ns.Address()
 	table.ObjectName = "array_component_temp"
 	table.ObjectRevision = revision
 	table.RowType = 0
-	table.Columns = append([]ColumnDescriptor(nil), prototype.Columns...)
+	table.Columns = append([]catalog.Column(nil), prototype.Columns...)
 	for i := range table.Columns {
 		table.Columns[i].OriginTable = uint32(tableOID)
 	}
@@ -397,9 +397,9 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	replacement.storage[importedSource.Address()] = sourceStore
 	replacement.commitSeq = 1
 	replacement.mu.Unlock()
-	importedTypes := make(map[ids.ObjectAddress]*typeDescriptor)
+	importedTypes := make(map[ids.ObjectAddress]*catalog.Type)
 	for address, descriptor := range replacement.CatalogRead().Descriptors() {
-		if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.NamespaceName() != "" && typ.OwningRelation == (ids.ObjectAddress{}) {
+		if typ, ok := descriptor.(*catalog.Type); ok && typ.SQLType.NamespaceName() != "" && typ.OwningRelation == (ids.ObjectAddress{}) {
 			importedTypes[address] = typ
 		}
 	}

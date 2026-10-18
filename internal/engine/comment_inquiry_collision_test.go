@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,10 +14,10 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if err := stage.Create(&namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: owner, ObjectName: "collision", ObjectRevision: 1, Comment: "namespace candidate"}); err != nil {
+	if err := stage.Create(&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: owner, ObjectName: "collision", ObjectRevision: 1, Comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stage.Create(&relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: owner, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "collision", ObjectRevision: 1, Comment: "relation candidate", Columns: []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"a": 0}, Attributes: []int32{1}, AttributeHighWater: 1, ColumnComments: map[int32]string{1: "column excluded"}}); err != nil {
+	if err := stage.Create(&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: owner, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "collision", ObjectRevision: 1, Comment: "relation candidate", Columns: []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"a": 0}, Attributes: []int32{1}, AttributeHighWater: 1, ColumnComments: map[int32]string{1: "column excluded"}}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), stage)

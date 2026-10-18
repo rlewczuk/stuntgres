@@ -1,11 +1,14 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Engine.mu is held. Reuse the native snapshot scalar/key transport, retaining
 // every version and every produced predicate/expression result. ALTER must not
 // turn a metadata generation change into another CHECK or index truth event.
-func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ids.ObjectAddress]*relationStorage) error {
+func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*relationStorage) error {
 	for address, store := range stores {
 		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
@@ -19,7 +22,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	}
 	sourceRoots := make(map[ids.ObjectAddress]*logicalIndexRoot)
 	for address, descriptor := range stage.Base.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && sources[index.SQLIndex.Parent] != nil {
+		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && sources[index.SQLIndex.Parent] != nil {
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
 	}

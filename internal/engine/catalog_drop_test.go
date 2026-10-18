@@ -63,7 +63,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if _, ok := now.Descriptor(a.Address); ok || e.storage[a.Address] != nil {
 		t.Fatal("drop retained definition/storage")
 	}
-	for _, typ := range []*typeDescriptor{row, array} {
+	for _, typ := range []*catalog.Type{row, array} {
 		if _, exists := now.Descriptor(typ.Address()); exists || len(now.Lookup(catalog.DescriptorNameKey(typ))) != 0 {
 			t.Fatal("drop retained row/array identity", typ.Address())
 		}
@@ -114,7 +114,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "DROP TABLE a")
 	run(t, e, "CREATE TABLE a(id INT)")
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal(changes, err)
 	}
@@ -213,7 +213,7 @@ func TestCatalogDropChangedDescriptorAndUnrelatedRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal("changed ACL target lost", changes, err)
 	}
@@ -280,7 +280,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()
-	custom := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, ObjectName: "feature", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	custom := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, ObjectName: "feature", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err = stage.Create(custom); err != nil {
 		t.Fatal(err)

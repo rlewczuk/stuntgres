@@ -24,9 +24,9 @@ func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	}
 }
 
-func collationUnitDefinition(e *Engine, id ids.OID, name string) *collationDescriptor {
+func collationUnitDefinition(e *Engine, id ids.OID, name string) *catalog.Collation {
 	owner, _ := e.Roles().Lookup("postgres")
-	return &collationDescriptor{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
+	return &catalog.Collation{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
 }
 
 func TestCollationCatalogAuthority(t *testing.T) {
@@ -49,14 +49,14 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	if validateUsageCollation(base, usage) == nil {
 		t.Fatal("capability admitted without live identity")
 	}
-	for _, corrupt := range []func(*collationDescriptor){
-		func(d *collationDescriptor) { d.Semantics = 6411 }, func(d *collationDescriptor) { d.Provider = "i" },
-		func(d *collationDescriptor) { d.Encoding = 8 }, func(d *collationDescriptor) { d.Rules = catalog.CollationText("") },
-		func(d *collationDescriptor) { d.Version = catalog.CollationText("1") },
+	for _, corrupt := range []func(*catalog.Collation){
+		func(d *catalog.Collation) { d.Semantics = 6411 }, func(d *catalog.Collation) { d.Provider = "i" },
+		func(d *catalog.Collation) { d.Encoding = 8 }, func(d *catalog.Collation) { d.Rules = catalog.CollationText("") },
+		func(d *catalog.Collation) { d.Version = catalog.CollationText("1") },
 	} {
 		bad := *d
 		corrupt(&bad)
-		if err := (collationProvider{}).Validate(view, &bad); err == nil {
+		if err := (catalog.CollationProvider{}).Validate(view, &bad); err == nil {
 			t.Fatal("invalid descriptor admitted", bad)
 		}
 	}
@@ -133,18 +133,18 @@ func TestCollationDumpLosslessBootstrapSelection(t *testing.T) {
 			t.Fatal(err)
 		}
 		snapshot := e.stageRead(stage)
-		statements, err := collationDumpStatements(context.Background(), snapshot, e.Roles(), []*collationDescriptor{d})
+		statements, err := collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{d})
 		if err != nil || len(statements) != 1 || !strings.Contains(statements[0].sql, tc.fragment) {
 			t.Fatal(tc, statements, err)
 		}
 		bad := *d
 		bad.Encoding = 7
-		if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*collationDescriptor{&bad}); err == nil {
+		if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
 			t.Fatal("lossy encoding accepted")
 		}
 		if tc.provider == "b" && tc.locale != "C" {
 			bad.Encoding = -1
-			if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*collationDescriptor{&bad}); err == nil {
+			if _, err = collationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{&bad}); err == nil {
 				t.Fatal("Unicode provider encoding cannot be reproduced", tc)
 			}
 		}
@@ -168,10 +168,10 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "private", ObjectRevision: 1, Owner: actor.Ref}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "private", ObjectRevision: 1, Owner: actor.Ref}
 	d := collationUnitDefinition(e, 90001, "owned")
 	d.ObjectNamespace, d.Owner = ns.Address(), actor.Ref
-	for _, descriptor := range []Descriptor{ns, d} {
+	for _, descriptor := range []catalog.Descriptor{ns, d} {
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +199,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)
 	}
-	changed := stage.Descriptors[d.Address()].(*collationDescriptor)
+	changed := stage.Descriptors[d.Address()].(*catalog.Collation)
 	if changed.Owner != target.Ref || changed.OID != d.OID {
 		t.Fatal("owner transfer lost identity", changed)
 	}

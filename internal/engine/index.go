@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ type logicalIndexRoot struct {
 type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.IndexComparison
-	keys        []indexKey
+	keys        []catalog.IndexKey
 	derived     []expr.Expr
 }
 
@@ -42,14 +43,14 @@ func indexColumnLabel(name string, suffix int) string {
 	return name[:length] + tail
 }
 
-func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) (indexOrdering, error) {
-	if definition.Method != btreeMethod {
+func bindIndexOrdering(parent *catalog.Relation, definition *catalog.IndexDefinition) (indexOrdering, error) {
+	if definition.Method != catalog.BtreeMethod {
 		return indexOrdering{}, fmt.Errorf("stuntgres: non-btree ordering definition")
 	}
 	o := indexOrdering{slots: make([]int, len(definition.Keys)), comparisons: make([]sqltype.IndexComparison, len(definition.Keys)), keys: definition.Keys}
 	for i, key := range definition.Keys {
 		if key.Derived != nil {
-			if definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind {
+			if definition.Constraint != nil && definition.Constraint.Kind == catalog.UniqueBackingKind {
 				attribute, expression, err := indexCatalogKey(parent, key)
 				if err != nil {
 					return o, err
@@ -74,7 +75,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 				var exists bool
 				class, exists = sqltype.DefaultIndexClass(usage.Type)
 				if !exists {
-					return o, indexDefaultClassError(usage.Type.DiagnosticName(), btreeMethod)
+					return o, indexDefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 				}
 			}
 			o.comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
@@ -102,7 +103,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 			var exists bool
 			class, exists = sqltype.DefaultIndexClass(usage.Type)
 			if !exists {
-				return o, indexDefaultClassError(usage.Type.DiagnosticName(), btreeMethod)
+				return o, indexDefaultClassError(usage.Type.DiagnosticName(), catalog.BtreeMethod)
 			}
 		}
 		comparison, err := sqltype.BindIndexOrdering(usage, class)
@@ -113,7 +114,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 	}
 	return o, nil
 }
-func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error {
+func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	d := index.SQLIndex
 	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
@@ -122,11 +123,11 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
 	parent, ok := view.Relation(d.Parent)
-	if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
+	if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
 	if d.Constraint != nil {
-		if !backingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == uniqueBackingKind) {
+		if !backingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == catalog.UniqueBackingKind) {
 			return fmt.Errorf("stuntgres: orphan constraint backing index")
 		}
 	}
@@ -282,8 +283,8 @@ func (o indexOrdering) sort(ctx context.Context, entries []logicalIndexEntry) er
 	copy(entries, src)
 	return nil
 }
-func buildIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) (*logicalIndexRoot, error) {
-	if d.Method == hashMethod {
+func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, capture *indexBuildCapture) (*logicalIndexRoot, error) {
+	if d.Method == catalog.HashMethod {
 		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
 	entries, err := buildIndexEntries(evaluation, parent, d, store, capture)
@@ -293,7 +294,7 @@ func buildIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *inde
 	return newLogicalIndexRoot(d, entries), nil
 }
 
-func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) ([]logicalIndexEntry, error) {
+func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, capture *indexBuildCapture) ([]logicalIndexEntry, error) {
 	ctx := evaluation.Context
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
@@ -333,14 +334,14 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 			entries = append(entries, entry)
 		}
 	}
-	if d.Method == btreeMethod {
+	if d.Method == catalog.BtreeMethod {
 		if err := o.sort(ctx, entries); err != nil {
 			return nil, err
 		}
 	}
 	return entries, nil
 }
-func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
@@ -416,7 +417,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 		// No changed root to install; the publisher keeps its actual predecessor.
 		return nil, ctx.Err()
 	}
-	if d.Method == gistMethod {
+	if d.Method == catalog.GistMethod {
 		// Preserve immutable predecessor entries and cached produced keys.
 		// Validation needs the complete candidate membership even in PREPARE.
 		entries := make([]logicalIndexEntry, 0, len(old)+len(added))
@@ -530,8 +531,8 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Keys)+len(s.Include) > 32 {
 			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
 		}
-		if parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation {
-			if parent.RelationKind == indexRelation {
+		if parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation {
+			if parent.RelationKind == catalog.IndexRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.Name()), Detail: "This operation is not supported for indexes."})
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
@@ -550,12 +551,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			return fail(sqlError("0A000", "partial concurrent indexes are unsupported"))
 		}
 		if len(s.Options) != 0 {
-			method := btreeMethod
+			method := catalog.BtreeMethod
 			if s.Method == "hash" {
-				method = hashMethod
+				method = catalog.HashMethod
 			}
 			if s.Method == "gist" {
-				method = gistMethod
+				method = catalog.GistMethod
 			}
 			if err := validateIndexReloptions(s.Options, method, false); err != nil {
 				return fail(err)
@@ -627,7 +628,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginTable = uint32(oid)
 			columns[i].OriginAttribute = int16(i + 1)
 		}
-		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: indexRelation, SQLIndex: definition}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 		d.AttributeHighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
 			definition.Ready, definition.Valid = false, false
@@ -659,7 +660,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
-		if _, conflict := err.(CatalogConflict); conflict {
+		if _, conflict := err.(catalog.Conflict); conflict {
 			if contextErr := scope.op.Context().Err(); contextErr != nil {
 				return Result{}, contextErr
 			}

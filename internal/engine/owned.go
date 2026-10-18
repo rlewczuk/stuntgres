@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -43,7 +44,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 	}
 	return refs, protected, nil
 }
-func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
+func ownedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	var roots []ids.ObjectAddress
 	for a, d := range catalog.Descriptors() {
 		owner, _, _ := descriptorACL(d)
@@ -62,20 +63,20 @@ func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool
 
 // Ownership locks follow canonical associations, not generated names. Include
 // independent roots and their backing relations, indexes and owned sequences.
-func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
+func ownershipRelationLocks(view catalog.Read, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
-		switch d := catalog.Get(a).(type) {
-		case *relationDescriptor:
+		switch d := view.Get(a).(type) {
+		case *catalog.Relation:
 			group[a] = true
-		case *typeDescriptor:
+		case *catalog.Type:
 			if d.OwningRelation != (ids.ObjectAddress{}) {
 				group[d.OwningRelation] = true
 			}
 		}
 	}
-	for a, d := range catalog.Descriptors() {
-		r, ok := d.(*relationDescriptor)
+	for a, d := range view.Descriptors() {
+		r, ok := d.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -181,9 +182,9 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		for _, a := range roots {
 			var extension ids.ObjectAddress
 			switch d := auth.catalog.Get(a).(type) {
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				extension = d.Extension
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				extension = d.Extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
@@ -229,13 +230,13 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			// PostgreSQL's schema and generic collation handlers retain their
 			// own eligibility checks; relation/type bulk recursion does not SET.
 			switch d.(type) {
-			case *foreignDescriptor:
-				foreign := d.(*foreignDescriptor)
+			case *catalog.ForeignObject:
+				foreign := d.(*catalog.ForeignObject)
 				err = foreignOwnershipEligibility(auth, foreign, target)
 				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
-			case *namespaceDescriptor:
+			case *catalog.Namespace:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
@@ -243,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				if err == nil {
 					err = ownershipDatabaseCreate(auth)
 				}
-			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
+			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
@@ -256,7 +257,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				break
 			}
 			switch d.(type) {
-			case *procedureDescriptor, *operatorDescriptor, *tsDictionaryDescriptor:
+			case *catalog.Procedure, *catalog.Operator, *catalog.TSDictionary:
 				providersChanged = true
 			}
 		}

@@ -31,43 +31,43 @@ func TestRLSBaseDecision(t *testing.T) {
 	}
 	next := *d
 	next.Owner = owner
-	check := func(label string, p authorization.PrincipalRef, command policyCommand, proposed bool, want rlsDisposition) {
+	check := func(label string, p authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool, want rlsDisposition) {
 		t.Helper()
 		got, err := rowSecurityDecision(auth, &next, p, command, proposed)
 		if err != nil || got != want {
 			t.Fatalf("%s got %v,%v want %v", label, got, err, want)
 		}
 	}
-	check("disabled", member, policySelect, false, rlsUnrestricted)
+	check("disabled", member, catalog.PolicySelect, false, rlsUnrestricted)
 	next.RLSEnabled = true
-	check("owner", owner, policySelect, false, rlsUnrestricted)
-	check("inherited owner", reader, policySelect, false, rlsUnrestricted)
+	check("owner", owner, catalog.PolicySelect, false, rlsUnrestricted)
+	check("inherited owner", reader, catalog.PolicySelect, false, rlsUnrestricted)
 	next.RLSForced = true
-	check("forced owner", owner, policySelect, false, rlsDefaultDeny)
-	check("direct bypass", bypass, policySelect, false, rlsUnrestricted)
-	check("attribute not inherited", member, policySelect, false, rlsDefaultDeny)
-	check("direct superuser", d.Owner, policySelect, false, rlsUnrestricted)
-	next.Policies = []policyDefinition{{Permissive: false, Command: policyAll, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(using)}}
-	check("restrictive only", member, policySelect, false, rlsDefaultDeny)
+	check("forced owner", owner, catalog.PolicySelect, false, rlsDefaultDeny)
+	check("direct bypass", bypass, catalog.PolicySelect, false, rlsUnrestricted)
+	check("attribute not inherited", member, catalog.PolicySelect, false, rlsDefaultDeny)
+	check("direct superuser", d.Owner, catalog.PolicySelect, false, rlsUnrestricted)
+	next.Policies = []catalog.PolicyDefinition{{Permissive: false, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
+	check("restrictive only", member, catalog.PolicySelect, false, rlsDefaultDeny)
 	next.Policies[0].Permissive = true
-	next.Policies[0].Roles = []policyRole{{Ref: owner}}
-	check("role inapplicable", member, policySelect, false, rlsDefaultDeny)
-	check("inherited policy", reader, policySelect, false, rlsNeedsExpressions)
-	next.Policies[0].Roles = []policyRole{{Public: true}}
-	check("public constant is not a shortcut", member, policySelect, false, rlsNeedsExpressions)
-	check("ALL check falls back", member, policyInsert, true, rlsNeedsExpressions)
-	next.Policies[0].Command = policySelect
-	check("command inapplicable", member, policyInsert, true, rlsDefaultDeny)
-	got, err := rowSecurityGroups(auth, &next, member, policyUpdate, false, true)
+	next.Policies[0].Roles = []catalog.PolicyRole{{Ref: owner}}
+	check("role inapplicable", member, catalog.PolicySelect, false, rlsDefaultDeny)
+	check("inherited policy", reader, catalog.PolicySelect, false, rlsNeedsExpressions)
+	next.Policies[0].Roles = []catalog.PolicyRole{{Public: true}}
+	check("public constant is not a shortcut", member, catalog.PolicySelect, false, rlsNeedsExpressions)
+	check("ALL check falls back", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
+	next.Policies[0].Command = catalog.PolicySelect
+	check("command inapplicable", member, catalog.PolicyInsert, true, rlsDefaultDeny)
+	got, err := rowSecurityGroups(auth, &next, member, catalog.PolicyUpdate, false, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
 	next.Policies[0].Using = nil
-	check("omitted using", member, policySelect, false, rlsDefaultDeny)
-	next.Policies[0].Command = policyInsert
+	check("omitted using", member, catalog.PolicySelect, false, rlsDefaultDeny)
+	next.Policies[0].Command = catalog.PolicyInsert
 	next.Policies[0].Check = policyPayloadOf(using)
-	check("explicit check", member, policyInsert, true, rlsNeedsExpressions)
-	got, err = rowSecurityGroups(auth, &next, member, policyInsert, true, true)
+	check("explicit check", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
+	got, err = rowSecurityGroups(auth, &next, member, catalog.PolicyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("proposed SELECT conjunction", got, err)
 	}
@@ -165,7 +165,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *d
-	old.Policies = []policyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: policyAll, Roles: []policyRole{{Ref: d.Owner}}, Using: policyPayloadOf(expression), Check: policyPayloadOf(expression)}}
+	old.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Ref: d.Owner}}, Using: policyPayloadOf(expression), Check: policyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
 	next := rowSecurityFlags(&old, actions)
 	if next == &old || next.RLSEnabled || !next.RLSForced || old.RLSEnabled || old.RLSForced {
@@ -196,7 +196,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
-		copy, ok := descriptor.(*relationDescriptor)
+		copy, ok := descriptor.(*catalog.Relation)
 		if ok && copy.Name() == "t" {
 			if copy.RLSEnabled || !copy.RLSForced || len(copy.Policies) != 1 || policyExpressionOf(copy.Policies[0].Using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")

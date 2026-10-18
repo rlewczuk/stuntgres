@@ -3,11 +3,12 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
 type catalogOverlayIndex struct {
-	index, parent *relationDescriptor
+	index, parent *catalog.Relation
 	store         relationStorage
 }
 
@@ -31,14 +32,14 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	auth.recaptureCatalog(auth.catalog)
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
-		index, ok := d.(*relationDescriptor)
+		index, ok := d.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
 		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			e.mu.Unlock()
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		old, existed := stage.Base.Relation(parent.Address())
 		shape, replaced := c.storage[parent.Address()]
@@ -64,13 +65,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		store := e.privateStorageLocked(c, parent.Address())
 		if store == nil {
 			e.mu.Unlock()
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		if _, produced := stage.indexCandidates[a]; produced {
 			candidate, exists := c.indexCandidates[a]
 			if !exists || !candidate.matchesIndex(index, store) {
 				e.mu.Unlock()
-				return CatalogConflict{}
+				return catalog.Conflict{}
 			}
 			continue
 		}

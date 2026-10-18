@@ -6,13 +6,14 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgUserUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12014}
 	d, ok := e.catalog.state.Relation(address)
@@ -66,7 +67,7 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
+	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}
@@ -213,7 +214,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName = name
-		view.RelationKind = viewRelation
+		view.RelationKind = catalog.ViewRelation
 		view.VirtualView = false
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
@@ -272,7 +273,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
@@ -318,7 +319,7 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 	}
 	// Resolved attribute identity, not coincidental name spelling, chooses mask rejection.
 	renamed := *d
-	renamed.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	renamed.Columns = append([]catalog.Column(nil), d.Columns...)
 	renamed.Columns[6].Name = "alias"
 	if !reflect.DeepEqual(virtualViewWriteError(d, "update", []int{6}), virtualViewWriteError(&renamed, "update", []int{6})) {
 		t.Fatal("write diagnostic depends on text spelling")

@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionIndexCoverageComplete(view CatalogRead, index *relationDescriptor) bool {
+func partitionIndexCoverageComplete(view catalog.Read, index *catalog.Relation) bool {
 	return (&dropProvider{base: view}).partitionIndexCoverageComplete(index)
 }
 
-func (provider *dropProvider) partitionIndexCoverageComplete(index *relationDescriptor) bool {
-	table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*relationDescriptor)
+func (provider *dropProvider) partitionIndexCoverageComplete(index *catalog.Relation) bool {
+	table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
 	if !ok || table.Partition == nil {
 		return index.SQLIndex.Valid
 	}
@@ -24,7 +25,7 @@ func (provider *dropProvider) partitionIndexCoverageComplete(index *relationDesc
 			if provider.removed(address) {
 				continue
 			}
-			candidate, ok := provider.liveDescriptor(address).(*relationDescriptor)
+			candidate, ok := provider.liveDescriptor(address).(*catalog.Relation)
 			if ok && candidate.SQLIndex != nil && candidate.SQLIndex.PartitionParent == index.Address() && candidate.SQLIndex.Parent == child && candidate.SQLIndex.Valid {
 				found = true
 				break
@@ -52,11 +53,11 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 				continue
 			}
 			descriptor := provider.liveDescriptor(address)
-			index, ok := descriptor.(*relationDescriptor)
+			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.SQLIndex == nil {
 				continue
 			}
-			table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*relationDescriptor)
+			table, ok := provider.liveDescriptor(index.SQLIndex.Parent).(*catalog.Relation)
 			if !ok || table.Partition == nil {
 				continue
 			}
@@ -86,7 +87,7 @@ func (provider *dropProvider) partitionIndexValidity(promote ids.ObjectAddress) 
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
 }
 
-func partitionIndexPromotionPath(view CatalogRead, start, target ids.ObjectAddress) bool {
+func partitionIndexPromotionPath(view catalog.Read, start, target ids.ObjectAddress) bool {
 	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
 }
 
@@ -95,7 +96,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 		if start == target {
 			return true
 		}
-		index, ok := provider.liveDescriptor(start).(*relationDescriptor)
+		index, ok := provider.liveDescriptor(start).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return false
 		}
@@ -104,7 +105,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 	return false
 }
 
-func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *relationDescriptor) error {
+func partitionIndexAttachCheck(op *Operation, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -114,7 +115,7 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 		return diagnostic("55000", fmt.Sprintf(`Index "%s" is not an index on any partition of table "%s".`, child.Name(), table.Name()))
 	}
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && index.Address() != child.Address() && index.SQLIndex.PartitionParent == parent.Address() && index.SQLIndex.Parent == childTable.Address() {
 			return diagnostic("55000", fmt.Sprintf(`Another index is already attached for partition "%s".`, childTable.Name()))
 		}
@@ -140,7 +141,7 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
 	if parent.SQLIndex.Constraint != nil {
-		if child.SQLIndex.Constraint == nil || child.SQLIndex.Constraint.Kind != uniqueBackingKind {
+		if child.SQLIndex.Constraint == nil || child.SQLIndex.Constraint.Kind != catalog.UniqueBackingKind {
 			return diagnostic("42P17", fmt.Sprintf(`The index "%s" belongs to a constraint in table "%s" but no constraint exists for index "%s".`, parent.Name(), table.Name(), child.Name()))
 		}
 		if parent.SQLIndex.Constraint.Primary {
@@ -154,7 +155,7 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 	return nil
 }
 
-func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, parent, child *relationDescriptor) error {
+func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
 	view := e.stageRead(stage)
 	if err := partitionIndexAttachCheck(op, view, parent, child); err != nil {
 		return err
@@ -187,7 +188,7 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 	return e.stagePartitionIndexValidity(stage, parent.Address())
 }
 
-func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) error {
+func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) error {
 	d := index.SQLIndex
 	if table.Partition != nil && d.Valid && !partitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")
@@ -213,7 +214,7 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 		return fmt.Errorf("stuntgres: invalid partition index ancestry")
 	}
 	for _, descriptor := range view.Descriptors() {
-		other, ok := descriptor.(*relationDescriptor)
+		other, ok := descriptor.(*catalog.Relation)
 		if ok && other.Address() != index.Address() && other.SQLIndex != nil && other.SQLIndex.PartitionParent == d.PartitionParent && other.SQLIndex.Parent == table.Address() {
 			return fmt.Errorf("stuntgres: duplicate partition index ancestry")
 		}

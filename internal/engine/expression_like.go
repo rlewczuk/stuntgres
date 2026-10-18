@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -70,7 +71,7 @@ func (b *expressionBinder) collatedInfo(info expr.Info, inputs ...expr.Expr) (ex
 // Coercion inherits its child's authority except CoerceToDomain to a declared
 // nondefault collation. Targeting coercions move top-level COLLATE wrappers
 // outside their domain boundary; nested explicit authority is replaced here.
-func coercionInfo(view CatalogRead, info expr.Info, child expr.Expr) (expr.Info, error) {
+func coercionInfo(view catalog.Read, info expr.Info, child expr.Expr) (expr.Info, error) {
 	info.CollationExplicit = parser.Position{}
 	info.CollationConflict = false
 	info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
@@ -107,7 +108,7 @@ func (b *expressionBinder) coercionRoutineInfo(info expr.Info, child expr.Expr) 
 	return info, nil
 }
 
-func comparisonInfo(view CatalogRead, left, right expr.Expr) (expr.Info, error) {
+func comparisonInfo(view catalog.Read, left, right expr.Expr) (expr.Info, error) {
 	usage := left.ResultUsage()
 	if usage.Collation.ID == 0 {
 		usage = right.ResultUsage()
@@ -128,7 +129,7 @@ func (b *expressionBinder) comparisonInfo(left, right expr.Expr) (expr.Info, err
 // Collation identity is valid Usage metadata; indeterminacy is expression
 // state. Preserve both across collatable wrappers without inventing an invalid
 // stored collation or evaluating branches merely to choose their collation.
-func collatedInfo(view CatalogRead, info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
+func collatedInfo(view catalog.Read, info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 	if info.Usage.Collation.ID == 0 {
 		return info, nil
 	}

@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
-func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ruleAction, expression func(LogicalNode, expr.Expr) (string, error)) (string, error) {
+func ruleSourceColumnSQL(view catalog.Read, root LogicalNode, slot int, action ruleAction, expression func(LogicalNode, expr.Expr) (string, error)) (string, error) {
 	if root == nil || slot < 0 || slot >= len(root.Schema()) {
 		return "", fmt.Errorf("stuntgres: invalid rule source slot")
 	}

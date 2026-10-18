@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 
 // Capture from the statement's immutable role root, never from live engine roles.
 // Password verifiers are deliberately not consulted: the public value is constant.
-func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.Object
 
 // Target slots are already resolved by ordinary mutation binding. Readonly
 // rejection follows semantic analysis and does not depend on values or row demand.
-func virtualViewWriteError(d *relationDescriptor, operation string, targets []int) error {
+func virtualViewWriteError(d *catalog.Relation, operation string, targets []int) error {
 	if d.Address().ObjectID == 12008 {
 		return sqlError("0A000", "catalog source mutation is unsupported")
 	}

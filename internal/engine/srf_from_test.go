@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,9 +17,9 @@ func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
 	t.Helper()
 	n := &functionFromNode{calls: calls, frame: 1, ordinality: true}
 	for _, call := range calls {
-		n.querySchema = append(n.querySchema, ColumnDescriptor{Usage: call.ResultUsage()})
+		n.querySchema = append(n.querySchema, catalog.Column{Usage: call.ResultUsage()})
 	}
-	n.querySchema = append(n.querySchema, ColumnDescriptor{Name: "ordinality", Usage: seriesUnitType(t, sqltype.Int8).Usage()})
+	n.querySchema = append(n.querySchema, catalog.Column{Name: "ordinality", Usage: seriesUnitType(t, sqltype.Int8).Usage()})
 	return n
 }
 func srfFromUnitState() *queryState {

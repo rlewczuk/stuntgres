@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -10,15 +11,15 @@ import (
 // after constant computation, but its original lifetime still fences subsequent
 // admission after a wait. Values/providers are never replayed by readmit.
 type routineAdmission struct {
-	routine   *procedureDescriptor
+	routine   *catalog.Procedure
 	reference ids.ObjectRef
-	consumer  *relationDescriptor
+	consumer  *catalog.Relation
 	body      routineBodyContext
 	actor     authorization.PrincipalRef
 }
 type routineAdmissionProgram struct{ calls []routineAdmission }
 
-func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []expressionDependency, routine *procedureDescriptor) error {
+func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
 	var ref ids.ObjectRef
 	if c.routineReferences != nil {
 		for _, candidate := range c.routineReferences {
@@ -61,7 +62,7 @@ func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
 		if err := current.roles.ValidatePrincipal(call.actor); err != nil {
 			return err
 		}
-		dependency := [1]expressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
+		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(current, dependency[:], call.routine, call.consumer); err != nil {
 			return call.body.annotate(err)
 		}

@@ -18,22 +18,22 @@ import (
 // the destination overlays its exact current live TEMP objects after capture.
 // Keep the supplied published view immutable and use this private candidate for
 // provider validation and generator/storage capture as well as installation.
-func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
+func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	for _, descriptor := range view.Descriptors() {
-		if extension, ok := descriptor.(*extensionDescriptor); ok {
+		if extension, ok := descriptor.(*catalog.Extension); ok {
 			namespace, ok := view.Namespace(extension.TargetNamespace)
 			if !ok {
-				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
+				return catalog.Read{}, fmt.Errorf("stuntgres: extension namespace is missing")
 			}
 			if namespace.Temporary != (ids.SessionToken{}) {
-				return CatalogRead{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
+				return catalog.Read{}, fmt.Errorf("stuntgres: temporary extension installation is not portable")
 			}
 		}
 	}
 	next := catalog.CloneState(view.State())
-	operators := operatorIndexEdit{Index: view.State().OperatorNames()}
+	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
 	for a, d := range view.Descriptors() {
-		ns, isNamespace := d.(*namespaceDescriptor)
+		ns, isNamespace := d.(*catalog.Namespace)
 		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
 			operators.Replace(d, nil)
@@ -53,11 +53,11 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 
 // Called under source synchronization; generator scalars are detached from the
 // source, unlike immutable relation descriptors.
-func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]*sequenceGenerator, error) {
+func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress]*sequenceGenerator, error) {
 	result := make(map[ids.ObjectAddress]*sequenceGenerator)
 	for a, d := range view.Descriptors() {
-		r, ok := d.(*relationDescriptor)
-		if !ok || r.RelationKind != sequenceRelation {
+		r, ok := d.(*catalog.Relation)
+		if !ok || r.RelationKind != catalog.SequenceRelation {
 			continue
 		}
 		g := source.sequences[a]
@@ -72,7 +72,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
 	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
@@ -80,9 +80,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
 		return err
 	}
-	temporary := make(map[ids.ObjectAddress]Descriptor)
+	temporary := make(map[ids.ObjectAddress]catalog.Descriptor)
 	for a, d := range e.catalog.state.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			temporary[a] = d
 		}
 	}
@@ -96,7 +96,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for _, address := range children {
 		descriptor := e.catalog.state.Get(address)
-		if extension, ok := descriptor.(*extensionDescriptor); ok {
+		if extension, ok := descriptor.(*catalog.Extension); ok {
 			if imported, exists := next.LookupName(catalog.DescriptorNameKey(extension)); exists && next.Get(imported) != extension {
 				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.Name())
 			}
@@ -106,7 +106,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	// Persistent replacement cannot substitute imported domains for a live
 	// TEMP array's exact dependency identities. Fail before allocator/state work.
 	for _, descriptor := range temporary {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
@@ -176,7 +176,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 	}
 	for _, descriptor := range temporary {
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, column := range relation.Columns {
 				retainBuiltin(column.Usage.Type)
 			}
@@ -244,10 +244,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					address := ref.Address
 					address.SubID = 0
 					switch provider := e.catalog.state.Get(address).(type) {
-					case *typeDescriptor:
+					case *catalog.Type:
 						retainBuiltin(provider.SQLType)
-					case *relationDescriptor:
-						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
+					case *catalog.Relation:
+						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.
@@ -303,7 +303,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if err := remapCollision(address); err != nil {
 			return err
 		}
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
 			for _, helper := range proc.Aggregate.Helpers {
@@ -343,7 +343,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				next.SetDumpPriority(target, priority)
 			}
 			switch r := d.(type) {
-			case *namespaceDescriptor:
+			case *catalog.Namespace:
 				if target == a && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
@@ -351,14 +351,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.ObjectAddress = target
 				d = &n
-			case *collationDescriptor:
+			case *catalog.Collation:
 				n := *r
 				n.OID = target.ObjectID
 				if dest, ok := mapping[n.Namespace()]; ok {
 					n.ObjectNamespace = dest
 				}
 				d = &n
-			case *conversionDescriptor:
+			case *catalog.Conversion:
 				namespace, handler := r.Namespace(), r.Handler
 				if dest, ok := mapping[namespace]; ok {
 					namespace = dest
@@ -375,7 +375,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.OID, n.ObjectNamespace, n.Handler = target.ObjectID, namespace, handler
 				d = &n
-			case *operatorDescriptor:
+			case *catalog.Operator:
 				n := *r
 				n.ObjectAddress = target
 				move := func(class, id ids.OID) ids.OID {
@@ -393,8 +393,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				if n != *r {
 					d = &n
 				}
-			case *relationDescriptor:
-				if target == a && r.RelationKind == catalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
+			case *catalog.Relation:
+				if target == a && r.RelationKind == catalog.CatalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					if _, moved := mapping[r.Namespace()]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -409,10 +409,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 							return destination
 						}
 						return address
-					}, func(origin inheritanceOrigin) ids.OID { return origin.Constraint })
+					}, func(origin catalog.InheritanceOrigin) ids.OID { return origin.Constraint })
 				}
 				if target != a {
-					n.Columns = append([]ColumnDescriptor(nil), r.Columns...)
+					n.Columns = append([]catalog.Column(nil), r.Columns...)
 					for i := range n.Columns {
 						if n.Columns[i].OriginTable == uint32(a.ObjectID) {
 							n.Columns[i].OriginTable = uint32(target.ObjectID)
@@ -423,7 +423,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					n.ObjectNamespace = dest
 				}
 				if len(r.UniqueConstraints) != 0 {
-					n.UniqueConstraints = append([]uniqueConstraint(nil), r.UniqueConstraints...)
+					n.UniqueConstraints = append([]catalog.UniqueConstraint(nil), r.UniqueConstraints...)
 					for i := range n.UniqueConstraints {
 						if dest, ok := mapping[n.UniqueConstraints[i].Index]; ok {
 							n.UniqueConstraints[i].Index = dest
@@ -434,7 +434,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					return err
 				}
 				if len(r.ExclusionConstraints) != 0 {
-					n.ExclusionConstraints = append([]exclusionConstraint(nil), r.ExclusionConstraints...)
+					n.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), r.ExclusionConstraints...)
 					for i := range n.ExclusionConstraints {
 						if dest, ok := mapping[n.ExclusionConstraints[i].Index]; ok {
 							n.ExclusionConstraints[i].Index = dest
@@ -442,7 +442,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					}
 				}
 				if len(r.ForeignKeys) != 0 {
-					n.ForeignKeys = append([]foreignKeyConstraint(nil), r.ForeignKeys...)
+					n.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.ForeignKeys...)
 					for i := range n.ForeignKeys {
 						if dest, ok := mapping[n.ForeignKeys[i].Target]; ok {
 							n.ForeignKeys[i].Target = dest
@@ -480,7 +480,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					n.Sequence = &o
 				}
 				if len(r.Identities) != 0 {
-					n.Identities = make(map[int32]columnIdentity, len(r.Identities))
+					n.Identities = make(map[int32]catalog.ColumnIdentity, len(r.Identities))
 					for attribute, identity := range r.Identities {
 						if destination, ok := mapping[identity.Sequence]; ok {
 							identity.Sequence = destination
@@ -529,7 +529,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
-	operators := operatorIndexEdit{Index: next.OperatorNames()}
+	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
 	for a, d := range temporary {
 		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
@@ -543,7 +543,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	next.SetOperatorNames(operators.Index)
 	for address, descriptor := range temporary {
-		relation, ok := descriptor.(*relationDescriptor)
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || len(relation.Policies) == 0 && len(rulesOf(relation)) == 0 {
 			continue
 		}
@@ -569,7 +569,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		next.SetDescriptor(address, relation)
 	}
-	previous := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	previous := make(map[ids.ObjectAddress]catalog.Descriptor, next.DescriptorCount())
 	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
@@ -586,22 +586,22 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.Policies) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
 			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.Inheritance != nil {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Inheritance != nil {
 			if err := validateInheritance(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && relation.View != nil {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.View != nil {
 			if err := validateViewDefinition(e.catalog.read(next), relation); err != nil {
 				return err
 			}
@@ -632,7 +632,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 
 type dumpSequence struct {
 	owner, schema, name     string
-	options                 sequenceOptions
+	options                 catalog.SequenceOptions
 	state                   sequenceGenerator
 	comment                 string
 	ownedTable, ownedColumn string
@@ -723,7 +723,7 @@ func arrayDomainDependency(typ *sqltype.Descriptor) bool {
 	}
 	return typ.IsArray() && arrayDomainDependency(typ.Element())
 }
-func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
+func retainedArrayDependencies(source, target *catalog.State, typ *sqltype.Descriptor) bool {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 	old, ok := source.Type(address)
 	if !ok {
@@ -745,10 +745,10 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Only immutable bootstrap catalog sources have a persistent survivor route.
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
-func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
-	catalog := e.catalog.read(e.catalog.state)
+func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor) error {
+	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range temporary {
-		consumer, ok := descriptor.(*relationDescriptor)
+		consumer, ok := descriptor.(*catalog.Relation)
 		if !ok || consumer.View == nil {
 			continue
 		}
@@ -760,7 +760,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 				continue
 			}
 			if temporary[old.Namespace()] != nil {
-				if !storedViewReferenceValid(catalog, consumer, ref) {
+				if !storedViewReferenceValid(view, consumer, ref) {
 					return ids.ErrCatalogReplaced
 				}
 				continue
@@ -768,7 +768,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			fail := func() error {
 				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
 			}
-			if old != captured || old.RelationKind != catalogRelation || !pgDependPinned(catalog, address) {
+			if old != captured || old.RelationKind != catalog.CatalogRelation || !pgDependPinned(view, address) {
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
@@ -789,7 +789,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			}
 			namespace, ok := e.catalog.state.Namespace(old.Namespace())
 			other, candidateOK := next.Namespace(old.Namespace())
-			if !ok || !candidateOK || !pgDependPinned(catalog, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
+			if !ok || !candidateOK || !pgDependPinned(view, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
 				return fail()
 			}
 			next.SetDescriptor(address, old)

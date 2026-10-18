@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -13,9 +14,9 @@ import (
 // These snapshots distinguish container replacement from in-place mutation.
 // Values are copied only in this test fixture; production roots remain retained.
 type sequenceDeletePublicationSnapshot struct {
-	state                   *catalogState
-	catalog                 catalogState
-	descriptors             map[ids.ObjectAddress]Descriptor
+	state                   *catalog.State
+	catalog                 catalog.State
+	descriptors             map[ids.ObjectAddress]catalog.Descriptor
 	names                   map[ids.NameKey]ids.ObjectAddress
 	storageID, generatorsID uintptr
 	stores                  map[ids.ObjectAddress]*relationStorage
@@ -36,7 +37,7 @@ type sequenceDeletePublicationSnapshot struct {
 func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
 		state: e.catalog.state, catalog: *e.catalog.state,
-		descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
+		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
 		storageID:       uintptr(reflect.ValueOf(e.storage).UnsafePointer()),
 		generatorsID:    uintptr(reflect.ValueOf(e.sequences).UnsafePointer()),
 		stores:          make(map[ids.ObjectAddress]*relationStorage),
@@ -126,13 +127,13 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		}
 		var namespaces, temps int
 		for a, d := range tx.catalog.descriptors {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == s.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
 				namespaces++
 				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
-			if r, ok := d.(*relationDescriptor); ok && r.Name() == "first_temp" {
+			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
 				if tx.catalog.generators[a] == nil || s.Engine().sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")

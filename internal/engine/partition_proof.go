@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -45,7 +46,7 @@ func partitionProofOr(a, b *partitionProofGoal) *partitionProofGoal {
 
 // Tuple predicates are lexicographic. Infinite suffixes terminate the finite
 // prefix; they are not ordinary type infinity values.
-func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitionProofGoal {
+func partitionProofTuple(tuple []catalog.PartitionDatum, at int, greater bool) *partitionProofGoal {
 	datum := tuple[at]
 	if datum.Kind != 0 {
 		truth := datum.Kind < 0
@@ -72,7 +73,7 @@ func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitio
 	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, parent, relation *relationDescriptor, bound *partitionMembership, exclude bool) (bool, error) {
+func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent, relation *catalog.Relation, bound *catalog.PartitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
@@ -91,13 +92,13 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		var node expr.Expr
 		if key.Derived != nil {
 			var err error
-			node, err = in.remap(key.Derived.Definition, relation, catalog)
+			node, err = in.remap(key.Derived.Definition, relation, view)
 			if err != nil {
 				return false, err
 			}
 		} else {
 			slot := in.targetSlots[parent.IndexForAttribute(key.Attribute)]
-			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), relation.Address())
+			ref := view.Owner().Domain.Ref(view.Epoch(), relation.Address())
 			ref.Address.SubID = relation.Attributes[slot]
 			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
@@ -107,7 +108,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		keys[i] = node
 	}
 	proof := partitionProof{scope: scope, relation: relation, keys: keys[:len(parent.Partition.Keys)], entries: parent.Partition.Keys}
-	goalFor := func(membership *partitionMembership, complement bool) (*partitionProofGoal, bool) {
+	goalFor := func(membership *catalog.PartitionMembership, complement bool) (*partitionProofGoal, bool) {
 		if complement {
 			return partitionProofOr(partitionProofTuple(membership.Lower, 0, false), partitionProofTuple(membership.Upper, 0, true)), true
 		}
@@ -117,7 +118,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	nullAllowed := exclude || bound.DefaultBound
 	if bound.DefaultBound {
 		for _, address := range parent.Partition.Children {
-			child := catalog.MustRelation(address)
+			child := view.MustRelation(address)
 			if child.Membership.DefaultBound {
 				continue
 			}
@@ -142,9 +143,9 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 
 type partitionProof struct {
 	scope    *StatementScope
-	relation *relationDescriptor
+	relation *catalog.Relation
 	keys     []expr.Expr
-	entries  []partitionKeyEntry
+	entries  []catalog.PartitionKeyEntry
 }
 
 func partitionProofSame(a, b expr.Expr) bool {

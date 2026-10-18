@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -49,15 +50,15 @@ func setMultiplicity(operation string, all bool, left, right int) int {
 type setArm struct {
 	inner       indexedStage
 	expressions []expr.Expr
-	schema      []ColumnDescriptor
+	schema      []catalog.Column
 	row         []sqltype.Value
 }
 
-func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []ColumnDescriptor) (setArm, error) {
+func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []catalog.Column) (setArm, error) {
 	return openSetArmScratch(ctx, state, project, expressions, schema, nil)
 }
 
-func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []ColumnDescriptor, scratch []sqltype.Value) (setArm, error) {
+func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []catalog.Column, scratch []sqltype.Value) (setArm, error) {
 	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {

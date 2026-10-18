@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -8,13 +9,13 @@ import (
 // Binding runs under engine.mu. Candidate identity and definition are immutable;
 // source capture revalidates them rather than reopening names or substituting
 // prepared values. All candidates have RelationClassID and SubID zero.
-func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *relationDescriptor {
+func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
 	if b.queryAuth == nil {
 		return nil
 	}
-	var chosen *relationDescriptor
+	var chosen *catalog.Relation
 	for _, descriptor := range b.queryAuth.catalog.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue
 		}

@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	operand := func(child expr.Expr) (string, error) {
 		text, err := r.sql(ctx, view, child)
 		if err != nil {

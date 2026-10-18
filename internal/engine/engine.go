@@ -79,7 +79,7 @@ type Result struct {
 type binding struct {
 	ruleTemplate          bool
 	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
-	relation              *relationDescriptor
+	relation              *catalog.Relation
 	storage               *relationStorage
 	ref                   ids.ObjectRef
 	viewWrite             *viewWrite
@@ -111,17 +111,17 @@ type binding struct {
 	deleteSourceWidth     int
 	currentOf             string
 	returning             *boundReturning
-	dependencies          []expressionDependency
+	dependencies          []catalog.ExpressionDependency
 	parameters            ParameterInfo
 	expressions           [][]expr.Expr
 	insertRows            [][]parser.Expr
-	createColumns         []ColumnDescriptor
-	createNotNull         []notNullConstraint
+	createColumns         []catalog.Column
+	createNotNull         []catalog.NotNullConstraint
 	createColumnIndex     map[string]int
 	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
 	createLikes           []createLikeInput
-	createOfType          *typeDescriptor
+	createOfType          *catalog.Type
 	createInheritance     []createInheritanceInput
 	createLocalColumns    map[string]bool
 	defaults              []expr.Expr
@@ -157,7 +157,7 @@ func New() *Engine {
 
 // NewWithCatalogProviders registers feature-owned catalog providers before
 // installing the builtin namespace descriptors.
-func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
+func NewWithCatalogProviders(providers ...catalog.Provider) (*Engine, error) {
 	return newEngine(providers, nil, "", false)
 }
 
@@ -170,9 +170,9 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 	return e
 }
 
-func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
+func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{Domain: &ids.Domain{}, Providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
@@ -185,7 +185,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	if err := e.RegisterCatalogProvider(namespaceProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.NamespaceProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
@@ -194,14 +194,14 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(typeProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(collationProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.CollationProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.ConversionProvider{}); err != nil {
 		return nil, err
 	}
 	for _, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
-		if err := e.RegisterCatalogProvider(foreignCatalogProvider{class}); err != nil {
+		if err := e.RegisterCatalogProvider(catalog.ForeignCatalogProvider{class}); err != nil {
 			return nil, err
 		}
 	}
@@ -210,7 +210,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	if err := e.RegisterCatalogProvider(databaseProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.DatabaseProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
@@ -219,7 +219,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(parameterProvider{e.settingsDefinitions}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(tablespaceProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {
 		return nil, err
 	}
 	for _, extension := range []struct {
@@ -239,7 +239,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
+		d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
 			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -251,7 +251,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.ObjectRevision = 1
 		}
@@ -262,7 +262,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	for i := range catalog.BuiltinCollations {
-		d := new(collationDescriptor)
+		d := new(catalog.Collation)
 		*d = catalog.BuiltinCollations[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		e.catalog.state.SetDescriptor(d.Address(), d)
@@ -272,7 +272,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	e.initializeBuiltinRoutines()
 	e.initializeTablespaces()
 	for i := range catalog.BuiltinConversions {
-		d := new(conversionDescriptor)
+		d := new(catalog.Conversion)
 		*d = catalog.BuiltinConversions[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
@@ -300,7 +300,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	return e, nil
 }
-func (e *Engine) CatalogRead() CatalogRead {
+func (e *Engine) CatalogRead() catalog.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.catalog.read(e.catalog.state)
@@ -430,14 +430,14 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
+				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
 			b.regtypeConstants = append(b.regtypeConstants, command.binding.regtypeConstants...)
 		}
 	}
-	var results []ColumnDescriptor
+	var results []catalog.Column
 	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
 	}
@@ -539,7 +539,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
-		var columns []ColumnDescriptor
+		var columns []catalog.Column
 		declarations := make([]createColumnDeclaration, 0, len(s.Elements))
 		table := s.Name.Parts[len(s.Name.Parts)-1].Text
 		var inherited []createLikeConstraint
@@ -603,7 +603,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, sequenceOptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
-				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
+				columns = append(columns, catalog.Column{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
 				ref, err := e.resolveReference(auth, like.Name)
@@ -622,12 +622,12 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, err
 				}
 				source := auth.catalog.MustRelation(ref.Address)
-				if source.RelationKind != tableRelation && source.RelationKind != foreignRelation && source.RelationKind != viewRelation && source.RelationKind != compositeRelation {
+				if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ForeignRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.CompositeRelation {
 					kind := "relations of this kind"
-					if source.RelationKind == sequenceRelation {
+					if source.RelationKind == catalog.SequenceRelation {
 						kind = "sequences"
 					}
-					if source.RelationKind == indexRelation {
+					if source.RelationKind == catalog.IndexRelation {
 						kind = "indexes"
 					}
 					diagnostic := sqlError("42809", fmt.Sprintf(`relation "%s" is invalid in LIKE clause`, source.Name())).(*sqlstate.Error)
@@ -637,8 +637,8 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					}
 					return b, diagnostic
 				}
-				var sourceType *typeDescriptor
-				if source.RelationKind == compositeRelation {
+				var sourceType *catalog.Type
+				if source.RelationKind == catalog.CompositeRelation {
 					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
@@ -657,7 +657,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				for _, constraint := range source.NotNullConstraints {
 					for i, attribute := range source.Attributes {
 						if constraint.Attribute == attribute {
-							inherited = append(inherited, createLikeConstraint{Element: elementIndex, notNullConstraint: notNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
+							inherited = append(inherited, createLikeConstraint{Element: elementIndex, NotNullConstraint: catalog.NotNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
 							break
 						}
 					}
@@ -667,7 +667,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return strings.Compare(a.Name, b.Name)
 				})
 				for _, c := range source.Columns {
-					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
+					columns = append(columns, catalog.Column{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}
 			}
@@ -909,13 +909,13 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 	}
 	descriptor, exists := auth.definitionDescriptor(a)
-	d, valid := descriptor.(*relationDescriptor)
+	d, valid := descriptor.(*catalog.Relation)
 	if !exists || !valid {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.Namespace())
-		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.Temporary == auth.session.token {
+		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
@@ -935,7 +935,7 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw parser.Expr, sourceType *sqltype.Descriptor) error {
+func insertValueError(view catalog.Read, err error, column catalog.Column, raw parser.Expr, sourceType *sqltype.Descriptor) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err

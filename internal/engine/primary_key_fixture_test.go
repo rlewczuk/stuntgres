@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -29,7 +30,7 @@ func primaryKeyUnitInsert(a int64) *parser.Insert {
 
 // Exercise package entry points with independently built ASTs, not driver SQL.
 // The resulting descriptors, backing roots and ACL identities are real objects.
-func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *relationDescriptor, *relationDescriptor) {
+func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	admin, adminDone := roleOperation(t, e, "postgres")
@@ -55,7 +56,7 @@ func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *relationDescript
 	return e, owner, parent, index
 }
 
-func primaryKeyUnitRelation(t *testing.T, e *Engine, name string) *relationDescriptor {
+func primaryKeyUnitRelation(t *testing.T, e *Engine, name string) *catalog.Relation {
 	t.Helper()
 	address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
 	if !ok {

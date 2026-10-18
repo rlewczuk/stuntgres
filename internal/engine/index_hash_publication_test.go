@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -70,7 +71,7 @@ func TestHashIndexDerivedBatchFailureAndIndexSetFence(t *testing.T) {
 	before := indexMaintenanceCapture(e)
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("changed index set accepted old hash rebuild")
-	} else if _, ok := err.(CatalogConflict); !ok {
+	} else if _, ok := err.(catalog.Conflict); !ok {
 		t.Fatal(err)
 	}
 	indexMaintenanceUnchanged(t, e, before)

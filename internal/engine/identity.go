@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
-func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) error {
+func identitySequenceDropError(read catalog.Read, sequence *catalog.Relation) error {
 	address := sequence.Sequence.Owned
 	address.SubID = 0
 	table := read.MustRelation(address)
@@ -61,7 +62,7 @@ func generatedRelationName(table, column, baseLabel string, used func(string) bo
 }
 
 // Both reciprocal descriptors and initial generator belong to one CREATE stage.
-func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogStage, table *relationDescriptor, syntax *parser.CreateTable) error {
+func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogStage, table *catalog.Relation, syntax *parser.CreateTable) error {
 	for _, element := range syntax.Elements {
 		if element.Column == nil {
 			continue
@@ -146,12 +147,12 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 	return nil
 }
 
-func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
+func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
 	namespace := stage.Base.Get(table.Namespace())
 	if staged, ok := stage.Descriptors[table.Namespace()]; ok {
 		namespace = staged
 	}
-	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {
+	if namespace.(*catalog.Namespace).Temporary != (ids.SessionToken{}) {
 		options.Persistence = "temporary"
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -166,15 +167,15 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	options.Owned = table.Address()
 	options.Owned.SubID = table.Attributes[slot]
 	options.Identity = true
-	d := &relationDescriptor{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	d.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}
 	if table.Identities == nil {
-		table.Identities = make(map[int32]columnIdentity)
+		table.Identities = make(map[int32]catalog.ColumnIdentity)
 	}
-	table.Identities[table.Attributes[slot]] = columnIdentity{Mode: mode, Sequence: address}
+	table.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
 	if stage.generators == nil {
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}
@@ -189,7 +190,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
+func evaluateIdentityValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {

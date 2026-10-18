@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 	"testing"
 )
 
-func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*CatalogStage, *relationDescriptor, error) {
+func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*CatalogStage, *catalog.Relation, error) {
 	t.Helper()
 	syntax := statement(t, query).(*parser.CreateTable)
 	e.mu.Lock()
@@ -26,9 +27,9 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 		namespace = op.session.temporaryNamespace
 	}
 	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
-	var destination *relationDescriptor
+	var destination *catalog.Relation
 	if err == nil {
-		destination = stage.Descriptors[stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*relationDescriptor)
+		destination = stage.Descriptors[stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*catalog.Relation)
 	}
 	return stage, destination, err
 }
@@ -51,8 +52,8 @@ func TestTableLikeOptionMask(t *testing.T) {
 
 func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
-	source := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
-	destination := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
+	source := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
+	destination := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -120,7 +121,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(destination, source)
 	}
 	identity := destination.Identities[4]
-	sequence := stage.Descriptors[identity.Sequence].(*relationDescriptor)
+	sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
 	if identity.Sequence == source.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}

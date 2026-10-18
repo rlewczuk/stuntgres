@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -63,7 +64,7 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 	view := e.CatalogRead()
 	var maximum uint64
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*relationDescriptor); ok && table.Inheritance != nil {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil {
 			for _, p := range table.Inheritance.NotNull {
 				for _, history := range p.Retired {
 					maximum = max(maximum, history.Archive)
@@ -79,7 +80,7 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 	return maximum
 }
 
-func constraintAttributeKeys(table *relationDescriptor, expression expr.Expr) []int32 {
+func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
 	var keys []int32
 	walkBoundExpression(expression, func(node expr.Expr) {
 		if column, ok := node.(columnExpression); ok && column.origin.Address.ClassID == ids.RelationClassID && column.origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.origin.Address.SubID) {
@@ -89,7 +90,7 @@ func constraintAttributeKeys(table *relationDescriptor, expression expr.Expr) []
 	return keys
 }
 
-func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
+func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
 	table, ok := view.Relation(ref.Address)
 	if !ok || table.Inheritance == nil {
 		return
@@ -127,7 +128,7 @@ func (e *Engine) captureHistoricalFacts(refs map[ids.ObjectAddress]ids.ObjectRef
 	}
 }
 
-func retiredDeclarationNeeded(view CatalogRead, table *relationDescriptor, p inheritedConstraint, check, notValid bool) bool {
+func retiredDeclarationNeeded(view catalog.Read, table *catalog.Relation, p catalog.InheritedConstraint, check, notValid bool) bool {
 	if p.Local {
 		return true
 	}
@@ -161,7 +162,7 @@ func retiredDeclarationNeeded(view CatalogRead, table *relationDescriptor, p inh
 	return true
 }
 
-func dumpNotNullDeclaration(view CatalogRead, table *relationDescriptor, attribute int32) bool {
+func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribute int32) bool {
 	if table.Inheritance == nil {
 		return true
 	}
@@ -173,17 +174,17 @@ func dumpNotNullDeclaration(view CatalogRead, table *relationDescriptor, attribu
 	return false
 }
 
-func dumpCheckDeclaration(view CatalogRead, table *relationDescriptor, c checkConstraint) bool {
+func dumpCheckDeclaration(view catalog.Read, table *catalog.Relation, c catalog.CheckConstraint) bool {
 	return table.Inheritance == nil || retiredDeclarationNeeded(view, table, table.Inheritance.Checks[c.Name], true, c.NotValid)
 }
 
-func (t *dumpRelation) emitRetiredConstraints(view CatalogRead, checks bool, emit func(string) error, setOwner func(string) error) error {
+func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, emit func(string) error, setOwner func(string) error) error {
 	graph := t.descriptor.Inheritance
 	if graph == nil {
 		return nil
 	}
 	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
-	emitFact := func(name string, keys []int32, p inheritedConstraint, check, notValid bool) error {
+	emitFact := func(name string, keys []int32, p catalog.InheritedConstraint, check, notValid bool) error {
 		if len(p.Retired) == 0 {
 			return nil
 		}
@@ -279,7 +280,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		return reject()
 	}
 	var fact restoredHistoricalFact
-	var provenance inheritedConstraint
+	var provenance catalog.InheritedConstraint
 	if repair.check {
 		for _, c := range old.CheckConstraints {
 			if c.Name == repair.name {
@@ -309,7 +310,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 			return reject()
 		}
 	}
-	var records []retiredInheritanceOrigin
+	var records []catalog.RetiredInheritanceOrigin
 	nextArchives := maps.Clone(archives)
 	nextSources := maps.Clone(sources)
 	nextArchive := authority.nextArchive
@@ -333,7 +334,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 			archive = nextArchive
 			nextArchives[row.archive] = archive
 		}
-		record := retiredInheritanceOrigin{Parent: parent, Attribute: row.attribute, Column: row.column, Name: row.name, Constraint: row.constraint, Lifetime: row.lifetime, Archive: archive, Own: fact.oid, Check: fact.check, Replayed: true}
+		record := catalog.RetiredInheritanceOrigin{Parent: parent, Attribute: row.attribute, Column: row.column, Name: row.name, Constraint: row.constraint, Lifetime: row.lifetime, Archive: archive, Own: fact.oid, Check: fact.check, Replayed: true}
 		identity := retiredSourceIdentity{parent: parent, archive: archive, lifetime: row.lifetime, constraint: row.constraint}
 		description := retiredSourceDescription{column: row.column, name: row.name, attribute: row.attribute, check: row.check}
 		if previous, known := nextSources[identity]; known && previous != description {
@@ -388,7 +389,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 	return nil
 }
 
-func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEventKey, tables []dumpRelation) {
+func retiredConstraintEvents(view catalog.Read, events map[dumpEventKey][]dumpEventKey, tables []dumpRelation) {
 	for i := range tables {
 		table := tables[i].descriptor
 		graph := table.Inheritance

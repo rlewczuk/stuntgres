@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -37,7 +38,7 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 	return err
 }
 
-func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (expr.Expr, error) {
+func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (expr.Expr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.
 	previous := b.defaultConsumer
@@ -75,8 +76,8 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	return storageDestination(node, column.Usage, parser.Position{})
 }
 
-func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]columnDefault, error) {
-	var defaults map[int32]columnDefault
+func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
+	var defaults map[int32]catalog.ColumnDefault
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return nil, err
@@ -94,13 +95,13 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 		if structuralNull(node) {
 			continue
 		}
-		definition := columnDefault{Expression: node}
+		definition := catalog.ColumnDefault{Expression: node}
 		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
 		if defaults == nil {
-			defaults = make(map[int32]columnDefault)
+			defaults = make(map[int32]catalog.ColumnDefault)
 		}
 		defaults[int32(slot+1)] = definition
 	}
@@ -119,15 +120,15 @@ type scalarRenderer struct {
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
 	validation             bool
-	owner                  *relationDescriptor
+	owner                  *catalog.Relation
 	domainValue            *sqltype.Usage
 	dependencies           *[]ids.ObjectRef
 	commentSnapshot        *bool
 	visibilitySnapshot     *bool
 	catalogAliasReferences *bool
-	provenance             *relationDescriptor
+	provenance             *catalog.Relation
 	capturedManifest       []ids.ObjectRef
-	capturedChecks         []expressionDependency
+	capturedChecks         []catalog.ExpressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -139,17 +140,17 @@ type scalarRenderer struct {
 	uuidShiftIntervalNulls bool
 }
 
-func defaultSQL(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func defaultSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	return (scalarRenderer{}).sql(ctx, view, node)
 }
 
-func renderColumnDefault(ctx context.Context, view CatalogRead, node expr.Expr) (string, []ids.ObjectRef, error) {
+func renderColumnDefault(ctx context.Context, view catalog.Read, node expr.Expr) (string, []ids.ObjectRef, error) {
 	var dependencies []ids.ObjectRef
 	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
 	return text, dependencies, err
 }
 
-func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Expr) (string, error) {
+func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -393,8 +394,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			if !ok || !storedSequenceEpochValid(view, r.retainedConsumer(), n.ref, n.temporary) {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
 			}
-			sequence, ok := target.(*relationDescriptor)
-			if !ok || sequence.RelationKind != sequenceRelation {
+			sequence, ok := target.(*catalog.Relation)
+			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
 			}
 			r.record(n.ref)
@@ -428,7 +429,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		if n.RegclassRef != (ids.ObjectRef{}) {
 			ref := n.RegclassRef
 			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
-			_, relationOK := target.(*relationDescriptor)
+			_, relationOK := target.(*catalog.Relation)
 			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}
@@ -856,7 +857,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 	}
 }
 
-func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []expr.Expr) (string, error) {
+func (r scalarRenderer) functionSQL(ctx context.Context, view catalog.Read, name string, args []expr.Expr) (string, error) {
 	parts := make([]string, len(args))
 	for i, arg := range args {
 		text, err := r.sql(ctx, view, arg)

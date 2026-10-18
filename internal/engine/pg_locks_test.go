@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -47,28 +48,28 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID})
-	if !d.VirtualView || d.RelationKind != catalogRelation || d.RowType != 12075 {
+	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	for _, id := range []ids.OID{12075, 12074} {
-		typ := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+		typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.OwningRelation != d.Address() {
 			t.Fatal("type owner", typ)
 		}
-		if err := (typeProvider{}).Validate(catalog, typ); err != nil {
+		if err := (typeProvider{}).Validate(view, typ); err != nil {
 			t.Fatal(err)
 		}
 	}
-	rowType, _ := catalog.LookupType(12075)
-	array, _ := catalog.LookupArray(rowType)
+	rowType, _ := view.LookupType(12075)
+	array, _ := view.LookupArray(rowType)
 	if array.ID() != 12074 || array.Element() != rowType {
 		t.Fatal("reciprocal type identity")
 	}

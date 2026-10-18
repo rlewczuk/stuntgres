@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -31,7 +32,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			}
 			check := source.CheckConstraints[0]
 			originalChecks := slices.Clone(check.Dependencies)
-			indexes := []*relationDescriptor{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
+			indexes := []*catalog.Relation{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
 			sourceTrees := []expr.Expr{generations[3].Expression, generations[3].Planned, generations[4].Expression, generations[4].Planned, check.Expression, indexes[0].SQLIndex.Keys[0].Derived.Definition, indexes[0].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Keys[0].Derived.Definition, indexes[1].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Predicate.Definition, indexes[1].SQLIndex.Predicate.Execution}
 			rowRefs := func(nodes []expr.Expr) []ids.ObjectRef {
 				var refs []ids.ObjectRef
@@ -118,9 +119,9 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if !found {
 				t.Fatal("CHECK manifest lacks current local authority", copiedCheck.Dependencies)
 			}
-			var clonedIndexes []*relationDescriptor
+			var clonedIndexes []*catalog.Relation
 			for _, descriptor := range stage.Descriptors {
-				index, ok := descriptor.(*relationDescriptor)
+				index, ok := descriptor.(*catalog.Relation)
 				if !ok || index.SQLIndex == nil {
 					continue
 				}
@@ -244,7 +245,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	}
 	assertNode(destination.CheckConstraints[0].Expression)
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}

@@ -5,12 +5,13 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
+func pgIndexesUnitSource(t *testing.T, c catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12002}
 	d, ok := c.Relation(a)
@@ -19,7 +20,7 @@ func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.
 	}
 	return d, c.Owner().Domain.Ref(c.Epoch(), a)
 }
-func pgIndexesUnitCapture(t *testing.T, c CatalogRead, auth AuthorizationView) *querySource {
+func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) *querySource {
 	t.Helper()
 	d, ref := pgIndexesUnitSource(t, c)
 	s, err := capturePGIndexes(context.Background(), c, auth, ref, d)
@@ -55,7 +56,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
+	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
 		t.Fatal(d)
 	}
 	for i, col := range d.Columns {
@@ -194,7 +195,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	capture := func() (CatalogRead, AuthorizationView) {
+	capture := func() (catalog.Read, AuthorizationView) {
 		c := e.CatalogRead()
 		auth := catalogAuthorization(e, c)
 		auth.state.CurrentUser = reader.Ref

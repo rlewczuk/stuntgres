@@ -4,11 +4,12 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) Descriptor {
+func remapExtensionDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) catalog.Descriptor {
 	address := func(a ids.ObjectAddress) ids.ObjectAddress {
 		if next, ok := mapping[a]; ok {
 			return next
@@ -16,7 +17,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		return a
 	}
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		next := address(d.Extension)
 		if next == d.Extension {
 			return d
@@ -24,7 +25,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.Extension = next
 		return &n
-	case *relationDescriptor:
+	case *catalog.Relation:
 		var addresses []ids.ObjectAddress
 		for i, a := range d.AutoExtensions {
 			next := address(a)
@@ -42,7 +43,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.AutoExtensions = addresses
 		return &n
-	case *extensionDescriptor:
+	case *catalog.Extension:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.TargetNamespace = address(n.TargetNamespace)
@@ -63,7 +64,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 			return d
 		}
 		return &n
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
@@ -86,7 +87,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 			return d
 		}
 		return &n
-	case *tsTemplateDescriptor:
+	case *catalog.TSTemplate:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
@@ -94,7 +95,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n.Init = address(n.Init)
 		n.Lexize = address(n.Lexize)
 		return &n
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())

@@ -27,7 +27,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	count := 0
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
@@ -57,7 +57,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 				}
 			}
 		case "clone_a_idx":
-			if definition.Method != hashMethod || definition.Keys[0].Attribute != 3 || definition.Keys[0].Class.Name != "int4_ops" {
+			if definition.Method != catalog.HashMethod || definition.Keys[0].Attribute != 3 || definition.Keys[0].Class.Name != "int4_ops" {
 				t.Fatal("hash definition lost", definition)
 			}
 		default:
@@ -75,7 +75,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && e.indexRoots[index.Address()] == nil {
 			t.Fatal("new index has no actual published root", index.Name())
 		}
@@ -127,7 +127,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	count := 0
 	for _, descriptor := range stage.Descriptors {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}

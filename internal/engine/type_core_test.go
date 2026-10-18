@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -95,11 +96,11 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 	for _, usage := range []sqltype.Usage{{}, testUsage(e, sqltype.Unknown), testUsage(New(), sqltype.Int4), stale} {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
-		descriptor := &relationDescriptor{
+		descriptor := &catalog.Relation{
 			ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
 			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
 			ObjectName:      "invalid", ObjectRevision: 1,
-			Columns: []ColumnDescriptor{{Name: "id", Usage: usage}},
+			Columns: []catalog.Column{{Name: "id", Usage: usage}},
 			Index:   map[string]int{"id": 0}, Attributes: []int32{1},
 			AttributeHighWater: 1,
 		}

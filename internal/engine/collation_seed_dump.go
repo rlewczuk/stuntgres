@@ -11,14 +11,14 @@ import (
 
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
-func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
+func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read) ([]string, error) {
 	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
 	}
 	initialSchema := quoteIdentifier(catalogNamespace.Name())
 	type delta struct {
-		d                       *collationDescriptor
+		d                       *catalog.Collation
 		fixed, temporary, owner string
 	}
 	var changes []delta
@@ -86,10 +86,10 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 	return statements, nil
 }
 
-func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view CatalogRead) error {
+func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view catalog.Read) error {
 	var roots []ids.ObjectAddress
 	for a, d := range view.Descriptors() {
-		if _, ok := d.(*collationDescriptor); !ok {
+		if _, ok := d.(*catalog.Collation); !ok {
 			continue
 		}
 		if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {

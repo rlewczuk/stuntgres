@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -69,7 +70,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 				return nil, nil, err
 			}
 			d := auth.catalog.MustRelation(ref.Address)
-			if d.RelationKind != foreignRelation {
+			if d.RelationKind != catalog.ForeignRelation {
 				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
 			}
 			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
@@ -110,12 +111,12 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.state.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
-	d, ok := stage.Descriptors[stage.LookupName(key)].(*relationDescriptor)
+	d, ok := stage.Descriptors[stage.LookupName(key)].(*catalog.Relation)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}
-	d.RelationKind = foreignRelation
-	d.Foreign = &foreignTableDefinition{Server: server.Address(), Columns: make(map[int32][]ForeignOption)}
+	d.RelationKind = catalog.ForeignRelation
+	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
 	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
@@ -125,7 +126,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
 	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := foreignValidatorJob(stage, wrapper, ForeignTable, d.Foreign.Options)
+	job, err := foreignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,7 +138,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			return nil, nil, er
 		}
 		d.Foreign.Columns[attribute] = options
-		job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
+		job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 		if er != nil {
 			return nil, nil, er
 		}
@@ -171,7 +172,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		return Result{}, err
 	}
 	old := auth.catalog.MustRelation(ref.Address)
-	if old.RelationKind != foreignRelation {
+	if old.RelationKind != catalog.ForeignRelation {
 		e.mu.Unlock()
 		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.Name()))
 	}
@@ -242,7 +243,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				return Result{}, err
 			}
 			if action.Options != nil {
-				kind := ForeignTable
+				kind := catalog.ForeignTable
 				options := next.Foreign.Options
 				var attribute int32
 				if action.Column.Text != "" {
@@ -252,7 +253,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					}
 					attribute = next.Attributes[slot]
 					options = next.Foreign.Columns[attribute]
-					kind = ForeignAttribute
+					kind = catalog.ForeignAttribute
 				}
 				options, err = transformForeignOptions(options, action.Options)
 				if err != nil {
@@ -288,7 +289,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						return Result{}, er
 					}
 					if next.Defaults == nil {
-						next.Defaults = make(map[int32]columnDefault)
+						next.Defaults = make(map[int32]catalog.ColumnDefault)
 					}
 					next.Defaults[attribute] = definition
 				}
@@ -298,7 +299,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				return Result{}, fmt.Errorf("stuntgres: empty foreign table action")
 			}
 			a := *action.Ordinary
-			var candidate *relationDescriptor
+			var candidate *catalog.Relation
 			switch a.Action {
 			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
 				candidate, err = notNullCandidate(scope.op, auth.catalog, &next, a, notNullDirect)
@@ -338,7 +339,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 						attribute := candidate.Attributes[candidate.Index[a.Column.Text]]
 						candidate.Foreign.Columns[attribute] = options
-						job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
+						job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 						if er != nil {
 							return Result{}, er
 						}
@@ -367,7 +368,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			pendingChecks, err = captureAlterTypeChecks(scope.op, auth.catalog, old, &next, typeActions)
 		}
 		if err == nil && pass == 1 {
-			var rebound *relationDescriptor
+			var rebound *catalog.Relation
 			rebound, _, err = e.rebindAlterTypeChecks(scope, scope.op, auth, ref, &next, pendingChecks)
 			if err == nil {
 				next = *rebound

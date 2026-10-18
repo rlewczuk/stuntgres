@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -14,7 +15,7 @@ import (
 func TestArraySearchViewCoercions(t *testing.T) {
 	ctx := context.Background()
 	sourceEngine, targetEngine := New(), New()
-	publishCollation := func(e *Engine, id ids.OID, name string) *collationDescriptor {
+	publishCollation := func(e *Engine, id ids.OID, name string) *catalog.Collation {
 		d := collationUnitDefinition(e, id, name)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Create(d); err != nil {
@@ -107,7 +108,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []expr.Expr{outer, positions}, frame: b.frameID(), syntax: syntax}
 	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.viewLiterals, castUsages: b.viewCastUsages, collations: b.viewCollations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
-	render := func(view CatalogRead, definition *viewDefinition, target int, expression parser.Expr, want string) {
+	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
 		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{clause: viewTargetLiteral, target: target})
 		if err != nil || got != want {

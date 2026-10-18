@@ -55,7 +55,7 @@ func sequenceCreateRestartRow(t *testing.T, e *Engine, s *Session, name string, 
 	t.Helper()
 	r := sessionSQL(t, s, "SELECT * FROM "+name)
 	defer r.Rows.Close()
-	wantSchema := []ColumnDescriptor{
+	wantSchema := []catalog.Column{
 		{Name: "last_value", Usage: testUsage(e, sqltype.Int8), NullabilityKnown: true},
 		{Name: "log_cnt", Usage: testUsage(e, sqltype.Int8), NullabilityKnown: true},
 		{Name: "is_called", Usage: testUsage(e, sqltype.Bool), NullabilityKnown: true},
@@ -109,7 +109,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), "s")
 				d := e.catalog.state.MustRelation(ref.Address)
 				options := d.Sequence
-				want := sequenceOptions{SQLType: tc.typ, Increment: tc.increment, Min: tc.min, Max: tc.max, Start: tc.start, Cache: 1, Persistence: "logged"}
+				want := catalog.SequenceOptions{SQLType: tc.typ, Increment: tc.increment, Min: tc.min, Max: tc.max, Start: tc.start, Cache: 1, Persistence: "logged"}
 				if !reflect.DeepEqual(*options, want) || e.sequences[ref.Address].last != tc.initial || e.sequences[ref.Address].called || e.sequences[ref.Address].generation == 0 {
 					t.Fatal("configured START and initial uncalled state", options, e.sequences[ref.Address], want)
 				}
@@ -181,7 +181,7 @@ func TestSequenceCreateRestartCache(t *testing.T) {
 				}
 				ref := held.sequences.constants[0].ref
 				options := e.catalog.state.MustRelation(ref.Address).Sequence
-				want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: math.MaxInt64, Start: 5, Cache: 3, Persistence: persistence.catalog}
+				want := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: math.MaxInt64, Start: 5, Cache: 3, Persistence: persistence.catalog}
 				if !reflect.DeepEqual(*options, want) {
 					t.Fatal("persistence/configured options", options, want)
 				}

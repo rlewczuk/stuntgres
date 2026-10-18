@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescriptor) {
+func generatedUnitDescriptor(t *testing.T) (*Engine, catalog.Read, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	view := e.CatalogRead()
@@ -28,7 +28,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 			break
 		}
 	}
-	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: namespace, ObjectName: "g", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"a": 0, "b": 1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: namespace, ObjectName: "g", ObjectRevision: 1, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"a": 0, "b": 1}}
 	return e, view, d
 }
 
@@ -37,7 +37,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
-	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: node, Planned: node}}
+	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: node, Planned: node}}
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 
 func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored}}
+	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	columns := []queryColumn{{descriptor: d.Columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.Columns}
@@ -190,17 +190,17 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	if !definitionOIDUsed(d, definition.OID) {
 		t.Fatal("definition identity not reserved")
 	}
-	for _, mutate := range []func(*columnGeneration){
-		func(g *columnGeneration) { g.Kind = 0 },
-		func(g *columnGeneration) { g.Kind = generationKind(99) },
-		func(g *columnGeneration) { g.OID = 0 },
-		func(g *columnGeneration) { g.Dependencies = nil },
-		func(g *columnGeneration) { g.Planned = nil },
+	for _, mutate := range []func(*catalog.ColumnGeneration){
+		func(g *catalog.ColumnGeneration) { g.Kind = 0 },
+		func(g *catalog.ColumnGeneration) { g.Kind = catalog.GenerationKind(99) },
+		func(g *catalog.ColumnGeneration) { g.OID = 0 },
+		func(g *catalog.ColumnGeneration) { g.Dependencies = nil },
+		func(g *catalog.ColumnGeneration) { g.Planned = nil },
 	} {
 		bad := *d
 		replacement := definition
 		mutate(&replacement)
-		bad.Generations = map[int32]columnGeneration{2: replacement}
+		bad.Generations = map[int32]catalog.ColumnGeneration{2: replacement}
 		if err := (relationProvider{}).Validate(read, &bad); err == nil {
 			t.Fatal("invalid generated definition accepted")
 		}
@@ -215,7 +215,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
-	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: leaf, Planned: leaf}}
+	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}
@@ -239,7 +239,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
-	d.CheckConstraints = []checkConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
+	d.CheckConstraints = []catalog.CheckConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}

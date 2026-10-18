@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ type viewDefinition struct {
 	syntax            *parser.Select
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	sources           []viewLeaf
-	dependencies      []expressionDependency
+	dependencies      []catalog.ExpressionDependency
 	sequenceRefs      map[int]ids.ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
@@ -37,7 +38,7 @@ type viewDefinition struct {
 	rule              ids.OID
 	consumer          ids.ObjectAddress
 	temporary         ids.SessionToken
-	references        map[ids.ObjectRef]Descriptor
+	references        map[ids.ObjectRef]catalog.Descriptor
 	collations        map[viewLiteralPath]uint32
 	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
 }
@@ -109,7 +110,7 @@ func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
 	return nil
 }
 
-func checkViewOutputTypes(columns []ColumnDescriptor) error {
+func checkViewOutputTypes(columns []catalog.Column) error {
 	for _, column := range columns {
 		if column.Usage.Type.ID() == sqltype.Void {
 			return sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type void`, column.Name))
@@ -121,7 +122,7 @@ func checkViewOutputTypes(columns []ColumnDescriptor) error {
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
 // checks options first. The caller has already resolved the real destination.
-func checkViewOutputNames(columns []ColumnDescriptor, old *relationDescriptor) error {
+func checkViewOutputNames(columns []catalog.Column, old *catalog.Relation) error {
 	if len(columns) < 2 {
 		return nil
 	}
@@ -196,7 +197,7 @@ func viewOptions(options []parser.ViewOption) (barrier, invoker bool, mode viewC
 
 // Relation occurrences, including unused/join/subquery leaves, determine PG18
 // inference. Expression-only regclass/sequence dependencies deliberately do not.
-func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sources []queryLeaf) string {
+func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sources []queryLeaf) string {
 	if view.Persistence == "temporary" {
 		return "temporary"
 	}
@@ -251,7 +252,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
-	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
+	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
@@ -284,7 +285,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
 		auth.recaptureCatalog(auth.catalog)
-		if table, ok := scope.viewChanges.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := scope.viewChanges.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
 	}
@@ -306,7 +307,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
-	var old *relationDescriptor
+	var old *catalog.Relation
 	if address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
 		if !view.Replace {
 			e.mu.Unlock()
@@ -322,7 +323,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if old.RelationKind != viewRelation {
+		if old.RelationKind != catalog.ViewRelation {
 			e.mu.Unlock()
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a view`, name))
 		}
@@ -422,7 +423,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, viewRelation, scope.viewPersistence == "temporary")
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewPersistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -430,11 +431,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)
-		d.Columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
+		d.Columns = append([]catalog.Column(nil), b.query.Root.Schema()...)
 		d.Attributes = make([]int32, len(d.Columns))
 		copy(d.Attributes, old.Attributes)
 		d.Index = make(map[string]int, len(d.Columns))
@@ -504,7 +505,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	return Result{}, err
 }
 
-func checkViewPrefix(catalog CatalogRead, old, next []ColumnDescriptor) error {
+func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 	if len(next) < len(old) {
 		return sqlError("42P16", "cannot drop columns from view")
 	}

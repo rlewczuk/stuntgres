@@ -23,8 +23,8 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	hidden := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "hidden", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
-	collision := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, ObjectName: "__stuntgres_conversion_2", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	hidden := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "hidden", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	collision := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, ObjectName: "__stuntgres_conversion_2", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	first, second := conversionUnitDefinition(e, 90000, "a", true), conversionUnitDefinition(e, 90001, "b", true)
 	plain := conversionUnitDefinition(e, 90002, "plain", false)
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
@@ -32,7 +32,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	seedCollision := conversionUnitDefinition(e, 90003, "__stuntgres_conversion_seed_4519", false)
 	seedCollision.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	stage := e.BeginCatalogStage(view)
-	for _, d := range []Descriptor{hidden, collision, first, second, plain, seedCollision} {
+	for _, d := range []catalog.Descriptor{hidden, collision, first, second, plain, seedCollision} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	namespaces := make(map[string]bool)
 	for _, descriptor := range e.CatalogRead().Descriptors() {
-		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
+		if namespace, ok := descriptor.(*catalog.Namespace); ok {
 			namespaces[namespace.Name()] = true
 		}
 	}
@@ -69,7 +69,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	for _, descriptor := range current.Descriptors() {
-		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
+		if namespace, ok := descriptor.(*catalog.Namespace); ok {
 			if !namespaces[namespace.Name()] {
 				t.Fatal("unexpected replay namespace survived", namespace.Name())
 			}
@@ -95,7 +95,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	}
 	count := 0
 	for _, descriptor := range current.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace().ObjectID == ids.PublicNamespaceOID && d.Source == 6 && d.Destination == 8 && d.DefaultConversion {
+		if d, ok := descriptor.(*catalog.Conversion); ok && d.Namespace().ObjectID == ids.PublicNamespaceOID && d.Source == 6 && d.Destination == 8 && d.DefaultConversion {
 			count++
 		}
 	}
@@ -246,7 +246,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	invalid := *d
 	invalid.Handler = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90099}
 	bad.SetDescriptor(d.Address(), &invalid)
-	if err := (conversionProvider{}).Validate(source.catalog.read(bad), &invalid); err == nil {
+	if err := (catalog.ConversionProvider{}).Validate(source.catalog.read(bad), &invalid); err == nil {
 		t.Fatal("unavailable imported handler admitted")
 	}
 }

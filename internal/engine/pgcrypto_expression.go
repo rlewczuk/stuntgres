@@ -4,6 +4,7 @@ import (
 	"crypto/fips140"
 	"crypto/rand"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 
 type installedCryptoFunctionExpression struct {
 	functions.Pgcrypto
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 
@@ -37,7 +38,7 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
-func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
+func (n installedCryptoFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")
@@ -53,7 +54,7 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 	return n.Validate()
 }
 
-func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSignature {
+func cryptoExpressionSignature(n installedCryptoFunctionExpression) catalog.ProcedureSignature {
 	if n.Plan.Name() == "gen_random_bytes" {
 		if len(n.Args) == 1 && n.Args[0].ResultUsage().Type.ID() == sqltype.Int4 {
 			return "23"

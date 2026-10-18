@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"runtime"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -38,7 +39,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, build
 	}
 }
 
-func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*relationDescriptor, *logicalIndexRoot) {
+func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*catalog.Relation, *logicalIndexRoot) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -69,7 +70,7 @@ func concurrentUnitError(t *testing.T, s *Session, query, code string) error {
 	return err
 }
 
-func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *relationDescriptor) {
+func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *catalog.Relation) {
 	t.Helper()
 	e.mu.Lock()
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)

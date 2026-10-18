@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldRoles := e.Roles()
-	rows := newFinalRows([]ColumnDescriptor{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
+	rows := newFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
 	rows.values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
 	output := capturedACLItemOutput{owner: e, roles: oldRoles}

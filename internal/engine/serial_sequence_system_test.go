@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestSerialSequenceSystemColumns(t *testing.T) {
-	for _, kind := range []relationKind{tableRelation, sequenceRelation, catalogRelation, indexRelation, viewRelation} {
+	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.SequenceRelation, catalog.CatalogRelation, catalog.IndexRelation, catalog.ViewRelation} {
 		for _, column := range []string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid", "CTID", `"ctid"`, "ctid ", "oid", "absent"} {
 			t.Run(fmt.Sprintf("kind=%d/%s", kind, column), func(t *testing.T) {
 				f := serialSequenceUnitFixture(t)
@@ -22,7 +23,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 				value, err := f.node.Eval(f.context)
 				// Keep expectations independent of the production name helper.
 				system := column == "ctid" || column == "xmin" || column == "cmin" || column == "xmax" || column == "cmax" || column == "tableoid"
-				if system && kind != viewRelation {
+				if system && kind != catalog.ViewRelation {
 					if err != nil || !value.IsNull() || value.Type() != text {
 						t.Fatal("existing unowned system attribute", value, err)
 					}
@@ -39,7 +40,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	// A view can expose a declared column whose literal name happens to be a
 	// system spelling. Declared lookup must precede the kind-aware fallback.
 	f := serialSequenceUnitFixture(t)
-	f.table.RelationKind = viewRelation
+	f.table.RelationKind = catalog.ViewRelation
 	f.table.Columns[0].Name = "ctid"
 	delete(f.table.Index, "ID")
 	f.table.Index["ctid"] = 0

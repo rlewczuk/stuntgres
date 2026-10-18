@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -53,7 +54,7 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 // Validation checks immutable datum provenance without a role-liveness lookup:
 // dropped role IDs remain valid stored ACL data. Its text is discarded and is
 // never used for SQL replay, Dump, deparse or result presentation.
-type aclItemValidationOutput struct{ owner *catalogOwner }
+type aclItemValidationOutput struct{ owner *catalog.Owner }
 
 func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	if r.owner == nil || authority != r.owner.ACLAuthority {

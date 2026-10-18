@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -41,7 +42,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
 	}
-	var missing []expressionDependency
+	var missing []catalog.ExpressionDependency
 	for _, dependency := range original {
 		if dependency.Ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
 			missing = append(missing, dependency)
@@ -51,7 +52,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("body acquired lifetime from raw OID after its original ref was removed")
 	}
-	evaluation.routineChecks = []expressionDependency{}
+	evaluation.routineChecks = []catalog.ExpressionDependency{}
 	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("empty owning recipe borrowed another manifest")
 	}
@@ -100,10 +101,10 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sessionSQL(t, setup, "CREATE TABLE body_defaults(v integer DEFAULT bit_length('abc'))")
 	sessionSQL(t, setup, "CREATE VIEW body_view AS SELECT bit_length('abc') AS v")
 	type recipe struct {
-		consumer *relationDescriptor
+		consumer *catalog.Relation
 		node     expr.Expr
 		refs     []ids.ObjectRef
-		checks   []expressionDependency
+		checks   []catalog.ExpressionDependency
 	}
 	capture := func(e *Engine) []recipe {
 		view := e.CatalogRead()
@@ -132,7 +133,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	// Save actual source manifests and declaration provenance before remapping;
 	// no reconstructed/grafted expected recipe substitutes for the stored one.
 	originalRefs := append([]ids.ObjectRef(nil), original[0].refs...)
-	originalChecks := append([]expressionDependency(nil), original[1].checks...)
+	originalChecks := append([]catalog.ExpressionDependency(nil), original[1].checks...)
 	sourceCall, err := expressionRoutineDescriptor(original[0].node)
 	if err != nil || sourceCall == nil {
 		t.Fatal("missing original DEFAULT routine carrier", err)
@@ -190,7 +191,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				}
 			} else {
 				probe.routineReferences = nil
-				probe.routineChecks = []expressionDependency{}
+				probe.routineChecks = []catalog.ExpressionDependency{}
 				for _, dependency := range item.checks {
 					ref := dependency.Ref
 					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
@@ -229,7 +230,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		}
 		if i == 1 {
 			stale := evaluation
-			stale.routineChecks = append([]expressionDependency(nil), item.checks...)
+			stale.routineChecks = append([]catalog.ExpressionDependency(nil), item.checks...)
 			for j := range stale.routineChecks {
 				if stale.routineChecks[j].Ref.Address == call.Address() {
 					stale.routineChecks[j].Revision++
@@ -322,7 +323,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			}
 			for _, id := range test.calls {
 				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
-				var missing []expressionDependency
+				var missing []catalog.ExpressionDependency
 				for _, dependency := range binder.dependencies {
 					if dependency.Ref.Address != address {
 						missing = append(missing, dependency)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -31,8 +32,8 @@ func explicitLockMode(mode parser.TableLockMode) lock.Mode {
 	return 0
 }
 
-func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, mode lock.Mode) error {
-	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation && d.RelationKind != viewRelation {
+func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation, mode lock.Mode) error {
+	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ViewRelation {
 		return tableKind(d, "lock")
 	}
 	rights, err := auth.Effective(ref, false)
@@ -53,7 +54,7 @@ func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDes
 		return nil
 	}
 	kind := "table"
-	if d.RelationKind == viewRelation {
+	if d.RelationKind == catalog.ViewRelation {
 		kind = "view"
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
@@ -100,7 +101,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		}
 	}
 	e := s.op.session.Engine()
-	inspect := func() (*relationDescriptor, error) {
+	inspect := func() (*catalog.Relation, error) {
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -146,7 +147,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	if err != nil {
 		return err
 	}
-	if d.RelationKind != viewRelation {
+	if d.RelationKind != catalog.ViewRelation {
 		return nil
 	}
 	principal := d.Owner
@@ -156,18 +157,18 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	ancestors = append(ancestors, ref)
 	for _, source := range viewOf(d).sources {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
-		child, ok := catalog.Relation(source.ref.Address)
-		use, useErr := storedViewUseReference(catalog, d, source.ref)
+		view := e.privateCatalogLocked(s.owner.catalog)
+		child, ok := view.Relation(source.ref.Address)
+		use, useErr := storedViewUseReference(view, d, source.ref)
 		valid := ok && useErr == nil
 		e.mu.Unlock()
 		if !valid {
 			return ids.ErrCatalogReplaced
 		}
-		if child.RelationKind == materializedViewRelation {
+		if child.RelationKind == catalog.MaterializedViewRelation {
 			return tableKind(child, "lock")
 		}
-		if child.RelationKind != tableRelation && child.RelationKind != partitionedRelation && child.RelationKind != viewRelation {
+		if child.RelationKind != catalog.TableRelation && child.RelationKind != catalog.PartitionedRelation && child.RelationKind != catalog.ViewRelation {
 			continue
 		}
 		if err := s.acquireExplicitRelation(stmt, use, child.Name(), mode, policy, principal, invoker, ancestors, false); err != nil {

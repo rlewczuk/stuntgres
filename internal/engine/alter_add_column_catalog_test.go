@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -82,8 +83,8 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "old", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
-	next := &relationDescriptor{Columns: []ColumnDescriptor{{Name: "new", Usage: u}}, Attributes: []int32{2}, AttributeHighWater: 2}
+	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, AttributeHighWater: 2}
 	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
 	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}

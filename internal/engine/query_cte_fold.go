@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func cteMapExpression(view CatalogRead, expr expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+func cteMapExpression(view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
 	next, _, err := mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, leaf)
 	return next, err
 }
@@ -15,7 +16,7 @@ func cteMapExpression(view CatalogRead, expr expr.Expr, leaf func(expr.Expr) (ex
 // destination. LIMIT, window inputs, rowmarks and volatile/correlated predicates
 // are deliberately not commuted. The graph/schema and original expressions
 // remain immutable; each folded occurrence gets its own rewritten path.
-func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error) {
+func foldCTERestrictions(view catalog.Read, root LogicalNode) (LogicalNode, error) {
 	var rewrite func(expr.Expr) (expr.Expr, bool, error)
 	rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
 		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
@@ -73,7 +74,7 @@ func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error
 	})
 }
 
-func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate expr.Expr) (LogicalNode, expr.Expr, int, error) {
+func moveCTEPredicates(view catalog.Read, child LogicalNode, predicate expr.Expr) (LogicalNode, expr.Expr, int, error) {
 	moves := 0
 	var move func(expr.Expr) (expr.Expr, error)
 	move = func(predicate expr.Expr) (expr.Expr, error) {
@@ -117,7 +118,7 @@ func moveCTEPredicates(view CatalogRead, child LogicalNode, predicate expr.Expr)
 	return child, remaining, moves, err
 }
 
-func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate expr.Expr, offset int) (LogicalNode, bool, error) {
+func pushCTEOccurrence(view catalog.Read, node LogicalNode, predicate expr.Expr, offset int) (LogicalNode, bool, error) {
 	switch n := node.(type) {
 	case *derivedNode:
 		if n.cte == nil || !n.cte.folded() {
@@ -189,7 +190,7 @@ func pushCTEOccurrence(view CatalogRead, node LogicalNode, predicate expr.Expr, 
 	return node, false, nil
 }
 
-func pushCTEInput(view CatalogRead, node LogicalNode, predicate expr.Expr, frame uint32) (LogicalNode, bool, error) {
+func pushCTEInput(view catalog.Read, node LogicalNode, predicate expr.Expr, frame uint32) (LogicalNode, bool, error) {
 	unsafe := false
 	walkBoundExpression(predicate, func(expr expr.Expr) {
 		switch n := expr.(type) {

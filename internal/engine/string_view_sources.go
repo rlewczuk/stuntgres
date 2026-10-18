@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func viewFunctionFromAt(root LogicalNode, ordinal int, selected bool) *functionF
 	}
 	return viewFunctionFromAt(right, ordinal, selected)
 }
-func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog CatalogRead, raw *parser.FunctionTable, ns viewNamespace) (viewRenderFrom, error) {
+func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns viewNamespace) (viewRenderFrom, error) {
 	root := viewFunctionFromAt(viewFromRoot(v.query.Root), ns.ordinal, ns.node == viewRegexpNamespace)
 	if root == nil {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen string function source")

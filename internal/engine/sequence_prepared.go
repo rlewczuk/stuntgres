@@ -29,7 +29,7 @@ type sequencePathKey struct {
 	epoch                ids.CatalogEpoch
 	temp, prefix         ids.ObjectAddress
 	private              *catalogChanges
-	database             Descriptor
+	database             catalog.Descriptor
 }
 type sequencePathCache struct {
 	valid       bool
@@ -96,7 +96,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 		if ref.Epoch != auth.catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
 			d, ok := auth.catalog.Relation(ref.Address)
-			if !ok || constant.temporary != auth.session.token || d.RelationKind != sequenceRelation {
+			if !ok || constant.temporary != auth.session.token || d.RelationKind != catalog.SequenceRelation {
 				return false, ids.ErrCatalogReplaced
 			}
 			ns, ok := auth.catalog.Namespace(d.Namespace())

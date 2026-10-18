@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -285,7 +286,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if b.viewWrite != nil {
 		e.mu.Unlock()
-		if b.viewWrite.base.RelationKind != viewRelation {
+		if b.viewWrite.base.RelationKind != catalog.ViewRelation {
 			if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
 				return Result{}, err
 			}
@@ -355,7 +356,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.Expected != nil {
-		var results []ColumnDescriptor
+		var results []catalog.Column
 		if b.query != nil && !b.commandQuery {
 			results = b.query.Root.Schema()
 		}
@@ -503,7 +504,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 	var err error
 	var creationStage *CatalogStage
-	var creationDescriptor *relationDescriptor
+	var creationDescriptor *catalog.Relation
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
 		// CTAS is a utility after canonical analysis/import. NoData and an
 		// existing destination skip the internal SELECT planner entirely.
@@ -574,7 +575,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 
 // Shared by ordinary insertion and isolated native replacement. Validation does
 // not mutate row values; each caller supplies its existing disclosure authority.
-func validatePhysicalRowConstraints(relation *relationDescriptor, schema string, row []sqltype.Value, evaluation *EvalContext, detail func() (string, error)) error {
+func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, row []sqltype.Value, evaluation *EvalContext, detail func() (string, error)) error {
 	for j, column := range relation.Columns {
 		if column.Nullable {
 			continue

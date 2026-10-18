@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ type alterTablePreparation struct {
 // Engine.mu is held by the caller.
 // On completion error only, the result retains the admitted TYPE prefix for
 // sequence AS; that error-path result must never reach a descriptor candidate.
-func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, auth AuthorizationView, original *relationDescriptor, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
+func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
 	prepared := alterTablePreparation{actions: actions}
 	fail := func(err error) (alterTablePreparation, error) {
 		return alterTablePreparation{}, err
@@ -79,7 +80,7 @@ func validateAlterTablespaceMove(destination ids.ObjectRef) error {
 	return nil
 }
 
-func alterTableActionKind(original *relationDescriptor, action parser.AlterTableActionKind) error {
+func alterTableActionKind(original *catalog.Relation, action parser.AlterTableActionKind) error {
 	label := "ALTER COLUMN ... SET NOT NULL"
 	switch action {
 	case parser.SetTablespace:
@@ -116,9 +117,9 @@ func checkAlterTablespaceCreate(auth AuthorizationView, ref ids.ObjectRef) error
 	return auth.CheckCreate(ref)
 }
 
-func alterTablespaceKind(d *relationDescriptor) error {
+func alterTablespaceKind(d *catalog.Relation) error {
 	switch d.RelationKind {
-	case tableRelation, partitionedRelation, indexRelation, materializedViewRelation:
+	case catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation:
 		return nil
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action SET TABLESPACE cannot be performed on relation "%s"`, d.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(d))}

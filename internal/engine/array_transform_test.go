@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -49,7 +50,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		old := node.(functions.ArrayTransform)
-		render := func(call functions.ArrayTransform, view CatalogRead) string {
+		render := func(call functions.ArrayTransform, view catalog.Read) string {
 			s, err := defaultSQL(ctx, view, call)
 			if err != nil {
 				t.Fatal(err)

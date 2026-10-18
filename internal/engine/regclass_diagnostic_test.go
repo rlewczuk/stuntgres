@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -49,7 +50,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				if !ok {
 					t.Fatal("missing diagnostic fixture")
 				}
-				relation := descriptor.(*relationDescriptor)
+				relation := descriptor.(*catalog.Relation)
 				op, finish := roleOperation(t, e, "rr_diag_reader")
 				defer finish()
 				scope, err := e.StartStatement(op)
@@ -116,7 +117,7 @@ func TestRegclassPrimitiveDiagnosticAvoidsSnapshot(t *testing.T) {
 	}
 	defer scope.Finish(nil)
 	e.mu.Lock()
-	err = e.captureCheckCommentSnapshotLocked(scope, descriptor.(*relationDescriptor))
+	err = e.captureCheckCommentSnapshotLocked(scope, descriptor.(*catalog.Relation))
 	e.mu.Unlock()
 	if err != nil || scope.commentCatalog.State() != nil || scope.output.Regclass != nil {
 		t.Fatal("primitive row allocated output snapshot", err)

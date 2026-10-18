@@ -7,15 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func btreeRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *logicalIndexRoot) {
+func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *logicalIndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
 	index := e.catalog.state.MustRelation(ref.Address)
 	root := e.indexRoots[ref.Address]
-	if index.RelationKind != indexRelation || index.SQLIndex == nil || root == nil || e.storage[ref.Address] != nil {
+	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {

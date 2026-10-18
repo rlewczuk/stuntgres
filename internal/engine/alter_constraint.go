@@ -3,21 +3,22 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type preparedAddedChecks struct {
-	old, next *relationDescriptor
+	old, next *catalog.Relation
 	raw       []*parser.CheckConstraint
-	scans     []checkConstraint
+	scans     []catalog.CheckConstraint
 	ordinal   int
 }
 
 // Definition cooking is independent of stage ownership. Admission retains this
 // exact result; the sole physical pipeline installs it and scans rows once.
-func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, parent *relationDescriptor, raw []*parser.CheckConstraint) (preparedAddedChecks, error) {
+func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (preparedAddedChecks, error) {
 	prepared := preparedAddedChecks{old: parent, next: parent, raw: raw}
 	if len(raw) == 0 {
 		return prepared, nil
@@ -33,7 +34,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 			ordinal = c.Ordinal + 1
 		}
 	}
-	var inherited map[string]checkConstraint
+	var inherited map[string]catalog.CheckConstraint
 	if scope.inheritanceAlter != nil {
 		for _, a := range raw {
 			for _, c := range parent.CheckConstraints {
@@ -52,7 +53,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 					return prepared, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with non-inherited constraint on relation "%s"`, c.Name, parent.Name()))
 				}
 				if inherited == nil {
-					inherited = make(map[string]checkConstraint)
+					inherited = make(map[string]catalog.CheckConstraint)
 				}
 				inherited[c.Name] = c
 			}
@@ -71,7 +72,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 			}
 			provenance := next.Inheritance.Checks[check.Name]
 			before := parent.Inheritance.Checks[check.Name]
-			retained := slices.ContainsFunc(parent.CheckConstraints, func(old checkConstraint) bool { return old.Name == check.Name })
+			retained := slices.ContainsFunc(parent.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.Name == check.Name })
 			provenance.Local = retained && before.Local
 			next.Inheritance.Checks[check.Name] = provenance
 		}
@@ -95,7 +96,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	return prepared, nil
 }
 
-func (e *Engine) stageAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw []*parser.CheckConstraint, scans *[]checkConstraint) (*relationDescriptor, error) {
+func (e *Engine) stageAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
 	var prepared preparedAddedChecks
 	var err error
 	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.phaseZeroOnly {
@@ -126,7 +127,7 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *Operation, auth Aut
 
 // Fresh PK preparation observes statement-start NN validity, before DROP/SET
 // candidates can remove or validate it. New keys remain with the later binder.
-func verifyAlterPrimaryPrerequisites(parent *relationDescriptor, actions []parser.AlterTableAction) error {
+func verifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.AlterTableAction) error {
 	for _, action := range actions {
 		if action.Action != parser.AddUnique || !action.Unique.Primary {
 			continue
@@ -142,7 +143,7 @@ func verifyAlterPrimaryPrerequisites(parent *relationDescriptor, actions []parse
 	return nil
 }
 
-func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) error {
+func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) error {
 	for _, n := range parent.NotNullConstraints {
 		if (!n.NotValid && !n.NoInherit) || !slices.Contains(attributes, n.Attribute) {
 			continue
@@ -161,7 +162,7 @@ func verifyNotNullPKCompatible(parent *relationDescriptor, attributes []int32) e
 	return nil
 }
 
-func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.UniqueConstraint) (*relationDescriptor, error) {
+func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	if raw.Primary {
 		for _, c := range parent.UniqueConstraints {
 			if c.Primary {
@@ -180,7 +181,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 		for _, attribute := range definition.Attributes {
 			// Raw PRIMARY reuses an existing NN tuple without direct-ADD locality
 			// changes. USING INDEX's separate implied ADD NN remains unconditional.
-			if slices.ContainsFunc(parent.NotNullConstraints, func(constraint notNullConstraint) bool { return constraint.Attribute == attribute }) {
+			if slices.ContainsFunc(parent.NotNullConstraints, func(constraint catalog.NotNullConstraint) bool { return constraint.Attribute == attribute }) {
 				continue
 			}
 			column := parent.Columns[slices.Index(parent.Attributes, attribute)].Name
@@ -192,7 +193,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 	}
 	next := *parent
 	e.mu.Lock()
-	err = e.stageUniqueDefinitions(op, stage, &next, []createUniqueConstraint{{uniqueConstraint: definition}}, true)
+	err = e.stageUniqueDefinitions(op, stage, &next, []createUniqueConstraint{{UniqueConstraint: definition}}, true)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -200,7 +201,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 	return &next, nil
 }
 
-func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*relationDescriptor, error) {
+func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
 	next := *parent
 	next.ForeignKeys = slices.Clone(parent.ForeignKeys)
 	if err := stage.Replace(&next); err != nil {

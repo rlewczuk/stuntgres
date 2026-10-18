@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -44,7 +45,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 				case "metadata":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
-					replacement := *original.(*relationDescriptor)
+					replacement := *original.(*catalog.Relation)
 					e.catalog.state.SetDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.SetDescriptor(address, original) }
 				case "epoch":

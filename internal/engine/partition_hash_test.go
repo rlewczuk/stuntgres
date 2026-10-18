@@ -17,7 +17,7 @@ func TestHashPartitionBounds(t *testing.T) {
 			}
 			for r := range a {
 				for s := range b {
-					left, right := &partitionMembership{Modulus: a, Remainder: r}, &partitionMembership{Modulus: b, Remainder: s}
+					left, right := &catalog.PartitionMembership{Modulus: a, Remainder: r}, &catalog.PartitionMembership{Modulus: b, Remainder: s}
 					want := false
 					for slot := range b {
 						want = want || slot%a == r && slot%b == s
@@ -29,27 +29,27 @@ func TestHashPartitionBounds(t *testing.T) {
 			}
 		}
 	}
-	if !validHashPartitionBound(&partitionMembership{Modulus: 2147483647, Remainder: 2147483646}) {
+	if !validHashPartitionBound(&catalog.PartitionMembership{Modulus: 2147483647, Remainder: 2147483646}) {
 		t.Fatal("sparse maximum bound rejected")
 	}
-	for _, b := range []partitionMembership{{Modulus: 0}, {Modulus: 2, Remainder: 2}, {Modulus: 2, Remainder: -1}, {Modulus: 2, DefaultBound: true}, {Modulus: 2, Lower: []partitionDatum{{}}}} {
+	for _, b := range []catalog.PartitionMembership{{Modulus: 0}, {Modulus: 2, Remainder: 2}, {Modulus: 2, Remainder: -1}, {Modulus: 2, DefaultBound: true}, {Modulus: 2, Lower: []catalog.PartitionDatum{{}}}} {
 		if validHashPartitionBound(&b) {
 			t.Fatal("invalid hash bound accepted", b)
 		}
 	}
 }
 
-func hashPartitionUnitDescriptor(t *testing.T) (CatalogRead, *relationDescriptor, *relationDescriptor) {
+func hashPartitionUnitDescriptor(t *testing.T) (catalog.Read, *catalog.Relation, *catalog.Relation) {
 	_, catalog, root, leaf := hashPartitionUnitEngine(t)
 	return catalog, root, leaf
 }
 
 // hashPartitionUnitEngine is hashPartitionUnitDescriptor with the engine that
 // owns the returned view.
-func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescriptor, *relationDescriptor) {
+func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
-	catalog := catalog.CloneState(e.catalog.state)
+	snapshot := catalog.CloneState(e.catalog.state)
 	var typ *sqltype.Descriptor
 	for _, candidate := range sqltype.Builtins() {
 		if candidate.ID() == sqltype.Int4 {
@@ -62,35 +62,35 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescr
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "hash_root", RelationKind: partitionedRelation, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
+	root := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "hash_root", RelationKind: catalog.PartitionedRelation, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
 	leaf := *root
 	leaf.ObjectAddress.ObjectID++
 	leaf.ObjectName = "hash_leaf"
-	leaf.RelationKind = tableRelation
-	leaf.Membership = &partitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1}
-	root.Partition = &partitionDefinition{Strategy: parser.PartitionHash, Keys: []partitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.Address()}}
-	catalog.SetDescriptor(root.Address(), root)
-	catalog.SetDescriptor(leaf.Address(), &leaf)
-	return e, e.catalog.read(catalog), root, &leaf
+	leaf.RelationKind = catalog.TableRelation
+	leaf.Membership = &catalog.PartitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1}
+	root.Partition = &catalog.PartitionDefinition{Strategy: parser.PartitionHash, Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.Address()}}
+	snapshot.SetDescriptor(root.Address(), root)
+	snapshot.SetDescriptor(leaf.Address(), &leaf)
+	return e, e.catalog.read(snapshot), root, &leaf
 }
 
 func TestHashPartitionInvariants(t *testing.T) {
-	catalog, root, leaf := hashPartitionUnitDescriptor(t)
-	for _, d := range []*relationDescriptor{root, leaf} {
-		if err := validatePartitionDescriptor(catalog, d); err != nil {
+	view, root, leaf := hashPartitionUnitDescriptor(t)
+	for _, d := range []*catalog.Relation{root, leaf} {
+		if err := validatePartitionDescriptor(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
 	original := *leaf.Membership
-	for _, bad := range []partitionMembership{{Parent: root.Address(), Modulus: 1}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
+	for _, bad := range []catalog.PartitionMembership{{Parent: root.Address(), Modulus: 1}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
 		leaf.Membership = &bad
-		if err := validatePartitionDescriptor(catalog, root); err == nil {
+		if err := validatePartitionDescriptor(view, root); err == nil {
 			t.Fatal("invalid child accepted", bad)
 		}
 	}
 	leaf.Membership = &original
 	evaluation := EvalContext{Context: context.Background()}
-	var scratch [32]partitionDatum
+	var scratch [32]catalog.PartitionDatum
 	value, err := sqltype.Integer(root.Columns[0].Usage.Type, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -137,19 +137,19 @@ func TestHashPartitionRemap(t *testing.T) {
 }
 
 func TestHashPartitionIndexRepairTransport(t *testing.T) {
-	catalog, root, source := hashPartitionUnitDescriptor(t)
+	view, root, source := hashPartitionUnitDescriptor(t)
 	source.Membership.Modulus = 2
 	destination := *source
 	destination.ObjectAddress.ObjectID++
 	destination.ObjectName = "hash_destination"
-	destination.Membership = &partitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
+	destination.Membership = &catalog.PartitionMembership{Parent: root.Address(), Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
 	root.Partition.Children = append(root.Partition.Children, destination.Address())
-	catalog.State().SetDescriptor(destination.Address(), &destination)
+	view.State().SetDescriptor(destination.Address(), &destination)
 	class, _ := sqltype.DefaultIndexClass(source.Columns[0].Usage.Type)
-	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
-		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: parent.Name() + "_key", RelationKind: indexRelation,
-			SQLIndex: &indexDefinition{Parent: parent.Address(), Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
-		catalog.State().SetDescriptor(index.Address(), index)
+	makeIndex := func(parent *catalog.Relation, oid ids.OID) *catalog.Relation {
+		index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: parent.Name() + "_key", RelationKind: catalog.IndexRelation,
+			SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
+		view.State().SetDescriptor(index.Address(), index)
 		return index
 	}
 	sourceIndex := makeIndex(source, 25100)
@@ -167,7 +167,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
 		destinationIndex.Address(): {index: destinationIndex, parent: &destination, frontier: 1},
 	}}
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: catalog}
+	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: view}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
 	if err := snapshot.repair(evaluation.Context, &evaluation, storage, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {{row: 7, version: 11}: 0},
 	}
-	roots, err := snapshot.transport(evaluation.Context, catalog.State(), storage, positions)
+	roots, err := snapshot.transport(evaluation.Context, view.State(), storage, positions)
 	if err != nil {
 		t.Fatal(err)
 	}

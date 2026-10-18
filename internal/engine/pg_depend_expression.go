@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -12,7 +13,7 @@ import (
 // references are redundant with attributes only within that pass.
 type pgDependRefs struct {
 	ctx       context.Context
-	catalog   CatalogRead
+	catalog   catalog.Read
 	addresses map[ids.ObjectAddress]struct{}
 	err       error
 }
@@ -35,7 +36,7 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 		return
 	}
 	if address.SubID != 0 {
-		relation, ok := d.(*relationDescriptor)
+		relation, ok := d.(*catalog.Relation)
 		if !ok || address.SubID != -6 && !relation.HasAttribute(address.SubID) {
 			r.err = fmt.Errorf("stuntgres: missing dependency attribute")
 			return
@@ -186,13 +187,13 @@ func (r *pgDependRefs) finish() ([]ids.ObjectAddress, error) {
 	return out, nil
 }
 
-func pgDependExpressionRefs(ctx context.Context, catalog CatalogRead, expression expr.Expr) ([]ids.ObjectAddress, error) {
+func pgDependExpressionRefs(ctx context.Context, catalog catalog.Read, expression expr.Expr) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog}
 	r.expression(expression)
 	return r.finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog CatalogRead, query *BoundQuery) ([]ids.ObjectAddress, error) {
+func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, query *BoundQuery) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog}
 	if query != nil {
 		r.query(query.Root)

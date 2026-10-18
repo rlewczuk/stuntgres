@@ -9,12 +9,13 @@ import (
 	"reflect"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgOperatorUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2617}
 	d, ok := e.catalog.state.Relation(a)
@@ -40,7 +41,7 @@ func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
 	return rows[1:]
 }
 
-func pgOperatorUnitBag(t *testing.T, rows *querySource, source *relationDescriptor) map[uint32][]string {
+func pgOperatorUnitBag(t *testing.T, rows *querySource, source *catalog.Relation) map[uint32][]string {
 	t.Helper()
 	bag := map[uint32][]string{}
 	for _, row := range rows.anonymous {
@@ -90,7 +91,7 @@ func pgOperatorUnitBag(t *testing.T, rows *querySource, source *relationDescript
 
 func TestPGOperatorCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d, ref := pgOperatorUnitSource(t, e)
 	if d.RowType != 10009 || !d.HasIndexes || d.AttributeHighWater != 15 || d.Namespace().ObjectID != 11 || len(d.Columns) != 15 {
 		t.Fatal("relation facts", d)
@@ -107,7 +108,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		case 12, 13, 14:
 			id = sqltype.Regproc
 		}
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		c := d.Columns[i]
 		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2617 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
@@ -117,16 +118,16 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
-		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 			t.Fatal("row/array ownership", id, row)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,10 +155,10 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	rows.anonymous[0] = rows.anonymous[0][:15:15]
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:14]}} {
-		if got, err := capturePGOperator(context.Background(), catalog, ref, source); got != nil || err == nil {
+	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:14]}} {
+		if got, err := capturePGOperator(context.Background(), view, ref, source); got != nil || err == nil {
 			t.Fatal("invalid source accepted", got, err)
 		}
 	}
@@ -166,7 +167,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, c := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if got, err := capturePGOperator(c, catalog, ref, d); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := capturePGOperator(c, view, ref, d); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
 		}
 	}

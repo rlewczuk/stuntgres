@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -13,21 +14,21 @@ import (
 // An identity DROP owns its real grant-time sequence capture separately from
 // the table's phase input and the committed publication predecessor.
 type preparedIdentityDrop struct {
-	old      *relationDescriptor
+	old      *catalog.Relation
 	ref      ids.ObjectRef
-	next     *relationDescriptor
+	next     *catalog.Relation
 	drop     *preparedDrop
 	sequence ids.ObjectRef
-	original Descriptor
+	original catalog.Descriptor
 }
 
 type identityDropCapture struct {
 	sequence ids.ObjectRef
-	original Descriptor
+	original catalog.Descriptor
 }
 
-func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor, attribute int32) (*relationDescriptor, error) {
-	sequence, ok := descriptor.(*relationDescriptor)
+func identitySequenceDefinition(descriptor catalog.Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
+	sequence, ok := descriptor.(*catalog.Relation)
 	owned := table.Address()
 	owned.SubID = attribute
 	if !ok || sequence == nil || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
@@ -38,7 +39,7 @@ func identitySequenceDefinition(descriptor Descriptor, table *relationDescriptor
 
 // dropIdentityDefinition is the incumbent provider algorithm shared by ordinary
 // execution and immutable preparation. Only the execution sink owns a stage.
-func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDescriptor, action parser.AlterTableAction) (*relationDescriptor, identityDropCapture, error) {
+func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, identityDropCapture, error) {
 	var capture identityDropCapture
 	if isSystemColumn(action.Column.Text) {
 		return old, capture, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
@@ -101,7 +102,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 
 // The caller holds Engine.mu after the exact sequence's AX grant. This captures
 // existing immutable definitions only: no generator, scalar or stage is touched.
-func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, table *relationDescriptor, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
+func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, table *catalog.Relation, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
 	var capture identityDropCapture
 	fresh, err := e.authorizationLocked(provider.scope.op)
 	if err != nil {
@@ -139,7 +140,7 @@ func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) 
 	delete(stage.generators, address)
 }
 
-func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
+func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
@@ -165,7 +166,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	return &preparedIdentityDrop{old: old, ref: ref, next: next, drop: drop, sequence: capture.sequence, original: capture.original}, nil
 }
 
-func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, prepared *preparedIdentityDrop, old *relationDescriptor, ref ids.ObjectRef) (*relationDescriptor, error) {
+func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
 	if err := scope.active(); err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	}
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		if stage.identityOriginals == nil {
-			stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
+			stage.identityOriginals = make(map[ids.ObjectAddress]catalog.Descriptor)
 		}
 		if _, captured := stage.identityOriginals[prepared.sequence.Address]; !captured {
 			stage.identityOriginals[prepared.sequence.Address] = prepared.original
@@ -199,7 +200,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 
 // delta reports only real effects. The caller's linked reader owns authentic
 // fallback and resolution observations, never this preparation's input reader.
-func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (Descriptor, bool, bool) {
+func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (catalog.Descriptor, bool, bool) {
 	if address == prepared.ref.Address {
 		return prepared.next, true, true
 	}
@@ -216,7 +217,7 @@ func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (Descript
 	return nil, false, false
 }
 
-func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
+func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if descriptor, present, handled := prepared.delta(address); handled {
 		return descriptor, present
 	}
@@ -225,8 +226,8 @@ func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (Des
 func (prepared *preparedIdentityDrop) lookup(key ids.NameKey) ids.ObjectAddress {
 	return prepared.drop.lookup(key)
 }
-func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
-	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
+func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range prepared.drop.descriptors() {
 			if descriptor, present := prepared.descriptor(address); present && !yield(address, descriptor) {
 				return

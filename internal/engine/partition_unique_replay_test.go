@@ -6,22 +6,23 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDescriptor, *relationDescriptor, *parser.AlterTable) {
+func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
 	t.Helper()
 	e := New().restoreStage()
 	root := partitionAttachUnitRoot(t, e, "unique_replay_root", 47200)
 	mid := partitionAttachUnitRoot(t, e, "unique_replay_mid", 47201)
 	leaf := inheritanceUnitRelation(e, "unique_replay_leaf", 47202, "k")
-	leaf.RelationKind = tableRelation
+	leaf.RelationKind = catalog.TableRelation
 	e.mu.Lock()
-	for _, table := range [3]*relationDescriptor{root, mid, leaf} {
+	for _, table := range [3]*catalog.Relation{root, mid, leaf} {
 		table.Columns[0].Nullable = false
-		table.NotNullConstraints = []notNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
+		table.NotNullConstraints = []catalog.NotNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
 		table.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
@@ -33,16 +34,16 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDe
 	e.mu.Unlock()
 	root.Partition.Children = []ids.ObjectAddress{mid.Address()}
 	root.Partition.DefaultChild = mid.Address()
-	mid.Membership = &partitionMembership{Parent: root.Address(), DefaultBound: true}
+	mid.Membership = &catalog.PartitionMembership{Parent: root.Address(), DefaultBound: true}
 	mid.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 	mid.Partition.DefaultChild = leaf.Address()
-	leaf.Membership = &partitionMembership{Parent: mid.Address(), DefaultBound: true}
+	leaf.Membership = &catalog.PartitionMembership{Parent: mid.Address(), DefaultBound: true}
 	class, _ := sqltype.DefaultIndexClass(mid.Columns[0].Usage.Type)
-	index := func(table *relationDescriptor, id ids.OID, name string, parent ids.ObjectAddress, valid bool) *relationDescriptor {
+	index := func(table *catalog.Relation, id ids.OID, name string, parent ids.ObjectAddress, valid bool) *catalog.Relation {
 		columns := slices.Clone(table.Columns)
 		columns[0].OriginTable = uint32(id)
 		columns[0].OriginAttribute = 1
-		return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: indexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{Parent: table.Address(), PartitionParent: parent, Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), PartitionParent: parent, Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
 	}
 	ri := index(root, 47203, "unique_replay_root_plain", ids.ObjectAddress{}, false)
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.Address(), true)
@@ -193,7 +194,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	var tables []dumpRelation
 	indices := make(map[ids.OID]int)
 	for _, descriptor := range view.Descriptors() {
-		r, ok := descriptor.(*relationDescriptor)
+		r, ok := descriptor.(*catalog.Relation)
 		if !ok || r.Address().ObjectID < 47200 || r.Address().ObjectID > 47205 {
 			continue
 		}
@@ -211,7 +212,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	graph[dumpEventKey{oid: local.Address().ObjectID}] = []dumpEventKey{{oid: mid.Address().ObjectID}}
 	indices[local.Address().ObjectID] = len(indices)
 	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()

@@ -13,11 +13,11 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	f.grant(t, "types", "usage", nil)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	table := defaultUnitTable(t, f, stage, "dependent", f.owner)
-	row := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}].(*typeDescriptor)
+	row := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}].(*catalog.Type)
 	if !authorization.MatchesDefaultBaseline(row.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(row, f.reader, nil) {
 		t.Fatal("dependent rowtype consumed TYPES defaults")
 	}
-	array := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*typeDescriptor)
+	array := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*catalog.Type)
 	if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 		t.Fatal("dependent array consumed TYPES defaults")
 	}
@@ -27,15 +27,15 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	composite.ObjectAddress.ObjectID = 20020
 	composite.ObjectName = "standalone"
 	composite.RowType = 0
-	composite.RelationKind = compositeRelation
+	composite.RelationKind = catalog.CompositeRelation
 	f.e.mu.Lock()
 	err := f.e.stageRowTypeLocked(stage, &composite)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	row = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.RowType)}].(*typeDescriptor)
-	array = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*typeDescriptor)
+	row = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.RowType)}].(*catalog.Type)
+	array = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*catalog.Type)
 	if !descriptorRoleDependencies(row, f.reader, nil) || descriptorRoleDependencies(array, f.reader, nil) || !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) {
 		t.Fatal("standalone/associated ACL distinction")
 	}
@@ -50,7 +50,7 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	if f.e.catalog.state.DefaultACLCount() != 6 || old.State().DefaultACLCount() != 0 {
 		t.Fatal("six stored classes/source immutability")
 	}
-	first := f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines})
+	first := f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines})
 	alias := defaultUnitStatement("routines", "all", []string{"default_owner"}, nil, []string{"default_reader"})
 	alias.Revoke = true
 	if err := f.apply(alias); err != nil {
@@ -70,7 +70,7 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)
 	}
-	record := f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects})
+	record := f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects})
 	if record == nil || !record.ACL.Explicit || len(record.ACL.Entries) != 0 {
 		t.Fatal("stored empty lost", record)
 	}
@@ -95,7 +95,7 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 	if err := f.apply(current); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.catalog.state.DefaultACL(defaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
+	if f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
 		t.Fatal("omitted creator not current")
 	}
 	roles := cloneRoleFixture(f.e.roles)

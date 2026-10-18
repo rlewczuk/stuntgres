@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
@@ -11,7 +12,7 @@ import (
 // Retained TEMP definitions keep their original row-reference epoch across a
 // persistent replacement. Compare at current row authority without changing
 // either descriptor or remapping external provider references.
-func sameInheritedExpression(mapped, child expr.Expr, d *relationDescriptor, v CatalogRead) bool {
+func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v catalog.Read) bool {
 	if sameGroupExpression(mapped, child) {
 		return true
 	}
@@ -20,13 +21,13 @@ func sameInheritedExpression(mapped, child expr.Expr, d *relationDescriptor, v C
 	return err == nil && sameGroupExpression(mapped, current)
 }
 
-func validateInheritance(v CatalogRead, d *relationDescriptor) error {
+func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 	graph := d.Inheritance
 	if graph == nil {
 		return nil
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid table inheritance graph") }
-	if d.RelationKind != tableRelation || len(graph.Parents) == 0 || len(graph.Columns) != len(d.Columns) {
+	if d.RelationKind != catalog.TableRelation || len(graph.Parents) == 0 || len(graph.Columns) != len(d.Columns) {
 		return invalid()
 	}
 	childNS, ok := v.Namespace(d.Namespace())
@@ -36,7 +37,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	seen := make(map[ids.ObjectAddress]bool, len(graph.Parents))
 	for _, address := range graph.Parents {
 		parent, ok := v.Relation(address)
-		if !ok || parent.Address() != address || parent.RelationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.Address() {
+		if !ok || parent.Address() != address || parent.RelationKind != catalog.TableRelation || address.SubID != 0 || seen[address] || address == d.Address() {
 			return invalid()
 		}
 		seen[address] = true
@@ -88,14 +89,14 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				return invalid()
 			}
 			target := d.Attributes[mapper.targetSlots[sourceSlot]]
-			if !slices.ContainsFunc(graph.NotNull[target].Origins, func(origin inheritanceOrigin) bool {
+			if !slices.ContainsFunc(graph.NotNull[target].Origins, func(origin catalog.InheritanceOrigin) bool {
 				return origin.Parent == parentAddress && origin.Constraint == constraint.OID && origin.Attribute == constraint.Attribute
 			}) {
 				return invalid()
 			}
 		}
 		for _, constraint := range parent.CheckConstraints {
-			if !constraint.NoInherit && !slices.ContainsFunc(graph.Checks[constraint.Name].Origins, func(origin inheritanceOrigin) bool {
+			if !constraint.NoInherit && !slices.ContainsFunc(graph.Checks[constraint.Name].Origins, func(origin catalog.InheritanceOrigin) bool {
 				return origin.Parent == parentAddress && origin.Constraint == constraint.OID
 			}) {
 				return invalid()
@@ -114,7 +115,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 	}
 	for attribute, provenance := range graph.NotNull {
-		child := slices.IndexFunc(d.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
+		child := slices.IndexFunc(d.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute })
 		if child < 0 || !provenance.Local && provenance.Count() == 0 {
 			return invalid()
 		}
@@ -128,7 +129,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			}
 			origins[origin.Parent] = true
 			parent := v.MustRelation(origin.Parent)
-			found := slices.ContainsFunc(parent.NotNullConstraints, func(c notNullConstraint) bool {
+			found := slices.ContainsFunc(parent.NotNullConstraints, func(c catalog.NotNullConstraint) bool {
 				return c.OID == origin.Constraint && c.Attribute == origin.Attribute && c.OID != d.NotNullConstraints[child].OID
 			})
 			if !found {
@@ -142,7 +143,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 	}
 	for name, provenance := range graph.Checks {
-		child := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
+		child := slices.IndexFunc(d.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == name })
 		if child < 0 || !provenance.Local && provenance.Count() == 0 || d.CheckConstraints[child].NoInherit && provenance.Count() != 0 {
 			return invalid()
 		}
@@ -156,7 +157,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			}
 			origins[origin.Parent] = true
 			parent := v.MustRelation(origin.Parent)
-			source := slices.IndexFunc(parent.CheckConstraints, func(c checkConstraint) bool {
+			source := slices.IndexFunc(parent.CheckConstraints, func(c catalog.CheckConstraint) bool {
 				return c.OID == origin.Constraint && c.Name == name && !c.NoInherit && c.OID != d.CheckConstraints[child].OID
 			})
 			if source < 0 {
@@ -185,8 +186,8 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	// An explicit DFS validates imported/internal candidates as well as CREATE.
 	visiting := make(map[ids.ObjectAddress]bool)
 	visited := make(map[ids.ObjectAddress]bool)
-	var visit func(*relationDescriptor) bool
-	visit = func(current *relationDescriptor) bool {
+	var visit func(*catalog.Relation) bool
+	visit = func(current *catalog.Relation) bool {
 		if visiting[current.Address()] {
 			return false
 		}

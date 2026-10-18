@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) AuthorizationView {
+func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) AuthorizationView {
 	t.Helper()
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
@@ -24,7 +24,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 	return auth
 }
 
-func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
+func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth AuthorizationView) (*querySource, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
@@ -57,7 +57,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	for _, change := range []func(*AuthorizationView){
 		func(a *AuthorizationView) { a.engine = New() },
 		func(a *AuthorizationView) { a.roleRecord = nil },
-		func(a *AuthorizationView) { a.pairedCatalog = CatalogRead{} },
+		func(a *AuthorizationView) { a.pairedCatalog = catalog.Read{} },
 		func(a *AuthorizationView) { a.roles = New().roles.root.Read(authorization.PrincipalRef{}) },
 		func(a *AuthorizationView) { a.state.CurrentUser = authorization.PrincipalRef{} },
 	} {
@@ -103,7 +103,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := catalog.CloneState(f.e.catalog.state)
 	typ, _ := (f.e.catalog.read(state)).LookupType(sqltype.Int4)
-	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, ObjectNamespace: f.schema, ObjectName: "dtp_unit", Owner: f.owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, ACL: authorization.ACLValue{Explicit: true}, Attributes: []int32{1, 3, 4}, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, ColumnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.SetDescriptor(relation.Address(), relation)
 	view := f.e.catalog.read(state)
 	auth := dtpUnitAuthority(t, f, view)

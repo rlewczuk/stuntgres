@@ -51,7 +51,7 @@ func (r *domainReplayNames) arrayName(key ids.NameKey) ids.NameKey {
 	return key
 }
 
-func (r *domainReplayNames) reserve(d *typeDescriptor) error {
+func (r *domainReplayNames) reserve(d *catalog.Type) error {
 	key := catalog.DescriptorNameKey(d)
 	if incumbent := r.occupied[key]; incumbent != 0 {
 		element := r.elements[incumbent]
@@ -66,7 +66,7 @@ func (r *domainReplayNames) reserve(d *typeDescriptor) error {
 	return nil
 }
 
-func (r *domainReplayNames) associate(d *typeDescriptor) {
+func (r *domainReplayNames) associate(d *catalog.Type) {
 	if d.Array == 0 {
 		return
 	}
@@ -75,7 +75,7 @@ func (r *domainReplayNames) associate(d *typeDescriptor) {
 	r.arrays[d.SQLType.ID()], r.elements[d.Array] = d.Array, d.SQLType.ID()
 }
 
-func defaultDomainACL(d *typeDescriptor) bool {
+func defaultDomainACL(d *catalog.Type) bool {
 	if !d.ACLSyntheticDefault || !d.ACL.Explicit {
 		return false
 	}
@@ -102,11 +102,11 @@ func defaultDomainACL(d *typeDescriptor) bool {
 
 // Catalog rendering resolves the captured namespace, including renamed schemas;
 // the immutable codec never consults a mutable engine to format a domain name.
-func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
+func catalogTypeDeclaration(view catalog.Read, u sqltype.Usage) (string, error) {
 	return catalogTypeDeclarationAt(view, nil, u)
 }
 
-func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqltype.Usage) (string, error) {
+func catalogTypeDeclarationAt(view catalog.Read, reader definitionReader, u sqltype.Usage) (string, error) {
 	if u.Type.IsArray() {
 		array, ok := definitionArrayAt(view, reader, u.Type.Element())
 		if !ok || array != u.Type || !u.Valid() {
@@ -124,7 +124,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 		return u.Declaration()
 	}
 	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
-	if !ok || descriptor.(*typeDescriptor).SQLType != u.Type || !u.Valid() {
+	if !ok || descriptor.(*catalog.Type).SQLType != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
 	namespace, ok := definitionDescriptorAt(view, reader, descriptor.Namespace())
@@ -136,7 +136,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 
 // Column declarations retain syntactic rank separately from array type identity.
 // A copied rank-zero array uses its catalog name, without adding bracket syntax.
-func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string, error) {
+func catalogColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
 	declaration, err := catalogTypeDeclaration(view, column.Usage)
 	if err != nil || !column.Usage.Type.IsArray() {
 		return declaration, err
@@ -172,7 +172,7 @@ func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string
 	return alias, nil
 }
 
-func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *domainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
@@ -236,15 +236,15 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
-func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpression) (string, error) {
+func catalogLiteralSQL(ctx context.Context, view catalog.Read, n literalExpression) (string, error) {
 	return catalogLiteralWithACL(ctx, view, n, aclItemContextFormatter(ctx))
 }
 
-func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
+func catalogLiteralWithACL(ctx context.Context, view catalog.Read, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	return catalogLiteralWithACLAt(ctx, view, nil, n, aclOutput)
 }
 
-func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader definitionReader, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
+func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader definitionReader, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	u := n.ResultUsage()
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
@@ -378,7 +378,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 }
 
 type catalogRegclassOutput struct {
-	view       CatalogRead
+	view       catalog.Read
 	path       []ids.ObjectAddress
 	definition definitionReader
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -21,7 +22,7 @@ func checkReview2SchemaAbsent(t *testing.T, e *Engine) {
 		if d.Address().ClassID == ids.NamespaceClassID && d.Name() == "checked" {
 			t.Fatal("failed inline CREATE published its schema")
 		}
-		if r, ok := d.(*relationDescriptor); ok && (r.Name() == "earlier" || r.Name() == "t") {
+		if r, ok := d.(*catalog.Relation); ok && (r.Name() == "earlier" || r.Name() == "t") {
 			t.Fatal("failed inline CREATE published a table", r.Name())
 		}
 	}

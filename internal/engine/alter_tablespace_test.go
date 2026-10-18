@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -67,13 +68,13 @@ func TestAlterTablespacePreparation(t *testing.T) {
 	if _, err := prepare([]parser.AlterTableAction{added, addedType, action("missing")}); !errors.As(err, &movement) || movement.Code != "42703" {
 		t.Fatal(err)
 	}
-	for _, kind := range []relationKind{tableRelation, partitionedRelation, indexRelation, materializedViewRelation} {
-		if err := alterTablespaceKind(&relationDescriptor{RelationKind: kind}); err != nil {
+	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.PartitionedRelation, catalog.IndexRelation, catalog.MaterializedViewRelation} {
+		if err := alterTablespaceKind(&catalog.Relation{RelationKind: kind}); err != nil {
 			t.Fatal(kind, err)
 		}
 	}
-	for _, kind := range []relationKind{viewRelation, sequenceRelation, foreignRelation} {
-		err := alterTablespaceKind(&relationDescriptor{ObjectName: "t", RelationKind: kind})
+	for _, kind := range []catalog.RelationKind{catalog.ViewRelation, catalog.SequenceRelation, catalog.ForeignRelation} {
+		err := alterTablespaceKind(&catalog.Relation{ObjectName: "t", RelationKind: kind})
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "42809" || got.Detail == "" {
 			t.Fatal(kind, err)
@@ -224,7 +225,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pair := range []struct {
-		old  *relationDescriptor
+		old  *catalog.Relation
 		want int64
 	}{{parent, 11}, {child, 21}} {
 		current := e.CatalogRead().MustRelation(pair.old.Address())

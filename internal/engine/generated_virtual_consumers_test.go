@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -165,7 +166,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	}
 	state := &queryState{source: source, virtualReads: true}
 	stage := indexedStage{
-		source: source, schema: []ColumnDescriptor{d.Columns[1]},
+		source: source, schema: []catalog.Column{d.Columns[1]},
 		expressions: []expr.Expr{column}, retain: true,
 		permutation: []int{2, 0, 1},
 		evaluation:  EvalContext{Scope: 1, Frame: 1, query: state},

@@ -5,16 +5,17 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `48f850e68`.
+Last verified against `master` at `b99d84bdf`.
 
 ## Next ready sub-steps
 
-- **5f** — catalog aliases removed (needs 5e ✓) *(broad rewrite)*.
+- **5g** — optional `catalog.Relation` regrouping (needs 5f ✓) *(needs
+  user approval)*.
 - **6a** — `storageStore` state ownership (needs 5e ✓) *(broad rewrite in
   practice, like 5a)*.
 - **B0** — `access` refined and approved, no code changes (needs 5e ✓).
 
-They may run in parallel on separate branches, except that 5f and 6a are
+They may run in parallel on separate branches, except that 5g and 6a are
 broad rewrites and must not run alongside each other or another broad
 rewrite (§8).
 
@@ -132,8 +133,10 @@ rewrite (§8).
     `CatalogStage` (`eb68d288b`, `fa79f1917`, `0f3bad42b`, `eb612a052`,
     `3b5d2b883`, `943e7a42d`, then the docs commit) *(racecheck skipped at
     user request; targeted RACE=1 runs passed)*
-  - [ ] 5f — Aliases removed *(broad rewrite)*
-  - [ ] 5g — Optional `relationDescriptor` regrouping *(needs user approval)*
+  - [x] 5f — Aliases removed (`2772419e7`, `c4b8068fc`, `0b9103f6d`,
+    `69fb93a49`, `353528e2d`, `78ec4daeb`, then the docs commit)
+    *(racecheck skipped at user request)*
+  - [ ] 5g — Optional `catalog.Relation` regrouping *(needs user approval)*
 - [ ] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
   - [ ] 6a — `storageStore` state ownership
   - [ ] 6b — `storage` created and types moved

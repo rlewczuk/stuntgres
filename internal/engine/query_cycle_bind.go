@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -111,7 +112,7 @@ func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
 	if err != nil {
 		return err
 	}
-	d.schema = append(d.schema, ColumnDescriptor{Name: c.syntax.Mark.Text, Usage: c.mark.ResultUsage()}, ColumnDescriptor{Name: c.syntax.Path.Text, Usage: c.path.Usage()})
+	d.schema = append(d.schema, catalog.Column{Name: c.syntax.Mark.Text, Usage: c.mark.ResultUsage()}, catalog.Column{Name: c.syntax.Path.Text, Usage: c.path.Usage()})
 	return nil
 }
 func cycleNameError(d *cteDefinition) error {

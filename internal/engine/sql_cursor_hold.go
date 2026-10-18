@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -112,13 +113,13 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 			default:
 				continue
 			}
-			var descriptor Descriptor
+			var descriptor catalog.Descriptor
 			descriptor, err = auth.object(dependency.Ref)
 			if err != nil {
 				break
 			}
 			if descriptor.Revision() != dependency.Revision {
-				err = CatalogConflict{}
+				err = catalog.Conflict{}
 				break
 			}
 		}
@@ -218,7 +219,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 
 // Live producer output retains DECLARE interpretation. Exported output instead
 // uses the ordinary current-catalog capture seam at each stored FETCH.
-func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog CatalogRead) error {
+func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog.Read) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)

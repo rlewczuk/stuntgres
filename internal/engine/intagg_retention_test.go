@@ -11,10 +11,10 @@ import (
 )
 
 // These are actual private binding/freezing/staging calls, not SQL execution.
-func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *namespaceDescriptor, name, call string) *relationDescriptor {
+func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *catalog.Namespace, name, call string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.Name()+"."+call+" AS v").(*parser.CreateView)
-	stage, consumer, err := func() (*CatalogStage, *relationDescriptor, error) {
+	stage, consumer, err := func() (*CatalogStage, *catalog.Relation, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		auth, err := e.authorizationLocked(op)
@@ -37,11 +37,11 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, rule, viewRelation, true)
+		definition, err := e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, rule, catalog.ViewRelation, true)
 		if err != nil {
 			return nil, nil, err
 		}
-		d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 		definition.consumer = d.Address()
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {
@@ -68,7 +68,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 	defer done()
 	namespace := intarrayUnitTemporaryNamespace(t, e, op)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", namespace.Name()))
-	consumers := []*relationDescriptor{
+	consumers := []*catalog.Relation{
 		intaggUnitTemporaryView(t, e, op, namespace, "ia_unit_retained_aggregate", "int_array_aggregate(2)"),
 		intaggUnitTemporaryView(t, e, op, namespace, "ia_unit_retained_enum", "int_array_enum('{2,2,NULL}')"),
 	}

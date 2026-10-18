@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -13,8 +14,8 @@ import (
 )
 
 type pgRenderer struct {
-	view               CatalogRead
-	relation           *relationDescriptor
+	view               catalog.Read
+	relation           *catalog.Relation
 	pretty             bool
 	path               []ids.ObjectAddress
 	output             sqltype.OutputEnvironment
@@ -39,7 +40,7 @@ func (r pgRenderer) identifier(name string) string {
 	return pgIdentifier(name)
 }
 
-func (r pgRenderer) attribute(relation *relationDescriptor, attr int32) (string, error) {
+func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, error) {
 	text, err := deparseAttribute(relation, attr)
 	if err == nil && r.output.QuoteAllIdentifiers && !strings.HasPrefix(text, "\"") {
 		text = quoteIdentifier(text)

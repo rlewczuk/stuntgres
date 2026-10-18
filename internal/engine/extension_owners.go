@@ -31,34 +31,34 @@ type extensionOwnerRecord struct {
 	Members []extensionMemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *extensionDescriptor) (string, error) {
+func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Extension) (string, error) {
 	owner, err := roles.Descriptor(ext.Owner)
 	if err != nil {
 		return "", err
 	}
-	ns, ok := catalog.Namespace(ext.TargetNamespace)
+	ns, ok := view.Namespace(ext.TargetNamespace)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
 	record := extensionOwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
 	for _, a := range ext.Members {
-		d := catalog.Get(a)
+		d := view.Get(a)
 		var member extensionMemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
 			if intarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
 			principal = d.Owner
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			member = extensionMemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
-		case *typeDescriptor:
+		case *catalog.Type:
 			member = extensionMemberOwner{Kind: "type", Name: d.Name()}
 			principal = d.Owner
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			continue
 		default:
 			return "", fmt.Errorf("stuntgres: missing extension owner member")
@@ -187,7 +187,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			valid := false
 			switch record.Name {
 			case "unaccent":
-				valid = member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
+				valid = member.Name == "unaccent" && (member.Signature == string(catalog.UnaccentTextSignature) || member.Signature == string(catalog.UnaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(catalog.UnaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(catalog.UnaccentLexizeSignature)
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "intagg":
@@ -203,7 +203,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				valid = member.Name == "uuid_generate_v4" && member.Signature == ""
 			}
 			if record.Name == "fuzzystrmatch" {
-				valid = fuzzystrmatchResult(member.Name, procedureSignature(member.Signature)) != 0
+				valid = fuzzystrmatchResult(member.Name, catalog.ProcedureSignature(member.Signature)) != 0
 			}
 			if !valid {
 				return invalid()
@@ -283,7 +283,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
@@ -298,14 +298,14 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					candidate.SetDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
 					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref

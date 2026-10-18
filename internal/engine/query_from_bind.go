@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 const queryTargetLeaf = -2
 
 type queryColumn struct {
-	descriptor     ColumnDescriptor
+	descriptor     catalog.Column
 	slot           int
 	leaf, physical int // -1 identifies a computed merged value.
 	cteScan        *derivedNode
@@ -32,7 +33,7 @@ type queryQualifier struct {
 type queryNamespace struct {
 	columns                   []queryColumn
 	qualifiers                []queryQualifier
-	frame                     []ColumnDescriptor
+	frame                     []catalog.Column
 	values                    bool // Synthetic VALUES names retain PostgreSQL spelling hints.
 	identityValuesOrderDemand []bool
 }
@@ -63,13 +64,13 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 	return queryNamespace{
 		columns:    append(append([]queryColumn(nil), left.columns...), right.columns...),
 		qualifiers: append(append([]queryQualifier(nil), left.qualifiers...), right.qualifiers...),
-		frame:      append(append([]ColumnDescriptor(nil), left.frame...), right.frame...),
+		frame:      append(append([]catalog.Column(nil), left.frame...), right.frame...),
 	}, nil
 }
 
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) expr.Expr {
 	var origin ids.ObjectRef
-	var relation *relationDescriptor
+	var relation *catalog.Relation
 	if c.cteScan != nil {
 		c.cteScan.demand[c.physical] = true
 	}
@@ -225,7 +226,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.RelationKind == tableRelation {
+			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.RelationKind == catalog.TableRelation {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
@@ -398,10 +399,10 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, futureCTEError(err, b.queryLockAdmission.futureCTE[n])
 		}
 		relation, _ := b.queryAuth.definitionRelation(ref.Address)
-		if relation.RelationKind == compositeRelation {
+		if relation.RelationKind == catalog.CompositeRelation {
 			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
-		if relation.RelationKind == indexRelation {
+		if relation.RelationKind == catalog.IndexRelation {
 			if b.deleteUsingSources {
 				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
@@ -409,7 +410,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.Name()))
 		}
-		if relation.RelationKind == viewRelation {
+		if relation.RelationKind == catalog.ViewRelation {
 			if err := b.captureRetainedViewInput(viewOf(relation)); err != nil {
 				return nil, queryNamespace{}, err
 			}
@@ -669,7 +670,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						info.Property = coercionProperties(input, plan)
 						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
 					}
-					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
+					column = queryColumn{descriptor: catalog.Column{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.merges = append(join.merges, value)
 					ns.frame = append(ns.frame, column.descriptor)
 				}
@@ -820,7 +821,7 @@ func functionFromCaptures(root LogicalNode) []functionCorrelation {
 // Descendants with no free captures have already satisfied/normalized their
 // own dependencies and must not be rebased again. Ordinary join expressions
 // retain their independent output-row layout.
-func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
+func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
 	captures := functionFromCaptures(root)
 	needed := false
 	for _, capture := range captures {
@@ -945,7 +946,7 @@ func functionColumnDefinitionMessage(call expr.Expr) string {
 
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
-	schema := make([]ColumnDescriptor, 0, len(calls))
+	schema := make([]catalog.Column, 0, len(calls))
 	oldClause := b.aggregateClause
 	b.aggregateClause = "FROM"
 	defer func() { b.aggregateClause = oldClause }()
@@ -1004,18 +1005,18 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if node.ResultUsage().Type.BaseType().IsComposite() {
 			for j := range functionFromCallWidth(node) {
 				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
-				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
+				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
 			if out := functionScalarOutName(node); out != "" {
 				name = out
 			}
-			schema = append(schema, ColumnDescriptor{Name: name, Usage: node.ResultUsage()})
+			schema = append(schema, catalog.Column{Name: name, Usage: node.ResultUsage()})
 		}
 
 	}
 	if ordinality {
-		schema = append(schema, ColumnDescriptor{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -89,7 +90,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.
 // The stable case borrows the entire published group without allocating.
-func (g *quoteCaptureCandidate) prune(view CatalogRead) {
+func (g *quoteCaptureCandidate) prune(view catalog.Read) {
 	valid := func(origin quoteOrigin) bool {
 		if origin.owner == (ids.ObjectRef{}) {
 			return true

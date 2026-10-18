@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -51,8 +52,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 	for _, typ := range []*sqltype.Descriptor{row, array, domain} {
 		consumer := *table
 		consumer.OfType = ids.ObjectAddress{}
-		consumer.RelationKind = materializedViewRelation
-		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
+		consumer.RelationKind = catalog.MaterializedViewRelation
+		consumer.Columns = []catalog.Column{{Name: "v", Usage: typ.Usage()}}
 		state := *before.State()
 		state.CloneDescriptors()
 		state.SetDescriptor(table.Address(), &consumer)
@@ -65,7 +66,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
 		e.DiscardCatalogStage(stage)
-		consumer.RelationKind = viewRelation
+		consumer.RelationKind = catalog.ViewRelation
 		if err := rowRewriteError(view, source); err != nil {
 			t.Fatal("nonstored view blocked", err)
 		}
@@ -92,7 +93,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	next := stage.Descriptors[original.Address()].(*typeDescriptor)
+	next := stage.Descriptors[original.Address()].(*catalog.Type)
 	if len(next.DomainChecks) != 1 || next.DomainChecks[0].Name != "keep_check" || next.DomainChecks[0].OID != original.DomainChecks[1].OID || next.SQLType.ID() != original.SQLType.ID() || next.SQLType.DomainBase() != original.SQLType.DomainBase() {
 		t.Fatal("wrong owner or constraint pruned")
 	}
@@ -113,10 +114,10 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.Descriptors[original.Address()].(*typeDescriptor).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
+	if len(stage.Descriptors[original.Address()].(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
 		t.Fatal("last removal mutated surviving capture")
 	}
-	if stage.Descriptors[original.Address()].(*typeDescriptor).SQLType.HasDomainChecks() {
+	if stage.Descriptors[original.Address()].(*catalog.Type).SQLType.HasDomainChecks() {
 		t.Fatal("empty CHECK owner retained codec authority")
 	}
 }
@@ -136,8 +137,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, original := range []*relationDescriptor{left, right, child} {
-		pruned := stage.Descriptors[original.Address()].(*relationDescriptor)
+	for _, original := range []*catalog.Relation{left, right, child} {
+		pruned := stage.Descriptors[original.Address()].(*catalog.Relation)
 		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
 			t.Fatal("diamond owner pruning lost", original.Name())
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
-	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
+	child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
 	e.catalog.state = inheritanceUnitView(e, parent).State()
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
@@ -74,7 +75,7 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	}
 	replacement := *parent
 	replacement.ObjectRevision++
-	for _, current := range []CatalogRead{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
+	for _, current := range []catalog.Read{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
 		if err := stage.validateLikeSources(current); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("stale parent capture accepted", err)
 		}

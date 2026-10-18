@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func regtypeSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID) string {
+func regtypeSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
 	return regtypeSpellingMode(view, path, id, false)
 }
 
 // Machine object identities qualify nonspecial SQL type names, including the
 // canonical temporary namespace alias, without changing ordinary regtype output.
-func regtypeSpellingMode(view CatalogRead, path []ids.ObjectAddress, id ids.OID, qualified bool) string {
+func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -89,7 +90,7 @@ func (r *finalRows) FormatRegtype(id uint32) (string, error) {
 	return text, nil
 }
 
-func captureRegtypeOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureRegtypeOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() {
 		return nil
 	}
@@ -125,7 +126,7 @@ func captureRegtypeOutputValue(rows *finalRows, view CatalogRead, path []ids.Obj
 }
 
 type catalogRegtypeOutput struct {
-	view CatalogRead
+	view catalog.Read
 	path []ids.ObjectAddress
 }
 

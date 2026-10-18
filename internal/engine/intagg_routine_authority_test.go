@@ -47,20 +47,20 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name, text, signature string
-		kind                  routineKind
+		kind                  catalog.RoutineKind
 		result                ids.OID
 		strict                bool
 	}{
-		{"aggregate", "int_array_aggregate(v)", "23", aggregateRoutine, 1007, false},
-		{"enum", "int_array_enum('{1,NULL,2}'::integer[])", "1007", functionRoutine, 23, true},
-		{"enum_null", "int_array_enum(NULL::integer[])", "1007", functionRoutine, 23, true},
-		{"enum_parameter", "int_array_enum($1::integer[])", "1007", functionRoutine, 23, true},
+		{"aggregate", "int_array_aggregate(v)", "23", catalog.AggregateRoutine, 1007, false},
+		{"enum", "int_array_enum('{1,NULL,2}'::integer[])", "1007", catalog.FunctionRoutine, 23, true},
+		{"enum_null", "int_array_enum(NULL::integer[])", "1007", catalog.FunctionRoutine, 23, true},
+		{"enum_parameter", "int_array_enum($1::integer[])", "1007", catalog.FunctionRoutine, 23, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.text)
-			var captured *procedureDescriptor
+			var captured *catalog.Procedure
 			var ref ids.ObjectRef
-			aggregate := tc.kind == aggregateRoutine
+			aggregate := tc.kind == catalog.AggregateRoutine
 			if aggregate {
 				if len(binder.aggregates) != 1 {
 					t.Fatal("missing actual aggregate")
@@ -107,10 +107,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || intaggProviderOf(captured) != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || intaggProviderOf(captured) != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dep := range original {
 				if dep.Ref.Address == ref.Address {
@@ -146,12 +146,12 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
 				probe := evaluation
-				deps := append([]expressionDependency(nil), original...)
+				deps := append([]catalog.ExpressionDependency(nil), original...)
 				switch mode {
 				case "nil":
 					deps = nil
 				case "empty":
-					deps = []expressionDependency{}
+					deps = []catalog.ExpressionDependency{}
 				case "missing":
 					deps = deps[:0]
 					for _, dep := range original {
@@ -183,12 +183,12 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if err := admit(&probe, node, ref); err == nil {
 				t.Fatal("foreign engine became original authority")
 			}
-			for _, mutate := range []func(*procedureDescriptor){
-				func(d *procedureDescriptor) { d.Implementation = nil },
-				func(d *procedureDescriptor) {
-					d.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
+			for _, mutate := range []func(*catalog.Procedure){
+				func(d *catalog.Procedure) { d.Implementation = nil },
+				func(d *catalog.Procedure) {
+					d.Implementation = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 				},
-				func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
+				func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 			} {
 				auth := *evaluation.routineAuthority
 				auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
@@ -307,7 +307,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := admitRoutineCall(&probe, relocated, false, false); err == nil {
 						t.Fatal("retag manufactured original manifest")
 					}
-					deps := append([]expressionDependency(nil), original...)
+					deps := append([]catalog.ExpressionDependency(nil), original...)
 					for i := range deps {
 						deps[i].Ref = remap(deps[i].Ref)
 					}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // Preserve the prepared source manifest. Only frozen presentation loses a
 // constructor's erased outer identity, and only when no executable occurrence
 // still needs that identity. The ordinary pg_depend expression owner decides.
-func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDependency, error) {
+func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
 	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
@@ -49,12 +50,12 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 	if len(erased) == 0 {
 		return b.dependencies, nil
 	}
-	refs := pgDependRefs{ctx: context.Background(), catalog: catalog}
+	refs := pgDependRefs{ctx: context.Background(), catalog: view}
 	refs.query(b.query.Root)
 	if refs.err != nil {
 		return nil, refs.err
 	}
-	dependencies := make([]expressionDependency, 0, len(b.dependencies))
+	dependencies := make([]catalog.ExpressionDependency, 0, len(b.dependencies))
 	for _, dependency := range b.dependencies {
 		address := dependency.Ref.Address
 		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
@@ -112,7 +113,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 	return nil
 }
 
-func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog CatalogRead, path viewLiteralPath, fields []string) (string, error) {
+func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
 	for i, text := range fields {
 		key := path
 		key.argument = i + 1

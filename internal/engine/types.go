@@ -15,9 +15,9 @@ import (
 
 type StatementDescription struct {
 	Parameters ParameterInfo
-	Results    []ColumnDescriptor
+	Results    []catalog.Column
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
-	catalogOwner *catalogOwner
+	catalogOwner *catalog.Owner
 	catalogEpoch ids.CatalogEpoch
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.
@@ -67,8 +67,8 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 type typeProvider struct{}
 
 func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
-func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
-	t, ok := descriptor.(*typeDescriptor)
+func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) error {
+	t, ok := descriptor.(*catalog.Type)
 	if !ok || t.SQLType == nil || t.SQLType.ID() == 0 {
 		return fmt.Errorf("stuntgres: invalid type descriptor")
 	}
@@ -100,15 +100,15 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
 		}
 		if !t.SQLType.IsArray() && (relation.RowType != t.SQLType.ID() || relation.Name() != t.Name()) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 		if t.SQLType.IsArray() && relation.RowType != t.SQLType.Element().ID() {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	if t.SQLType.IsUserDefined() || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined() {
 		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	if t.SQLType.IsComposite() {
@@ -144,7 +144,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
 		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-		if !exists || owner.(*typeDescriptor).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).Owner != t.Owner {
+		if !exists || owner.(*catalog.Type).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*catalog.Type).Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
 	}
@@ -426,9 +426,9 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 }
 
 // Existing row-bearing relations reserve their reciprocal type identity.
-func relationTypeNameOccupied(view CatalogRead, namespace ids.ObjectAddress, name string) bool {
+func relationTypeNameOccupied(view catalog.Read, namespace ids.ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) {
-		if relation, ok := view.Relation(address); ok && (relation.RelationKind == tableRelation || relation.RelationKind == partitionedRelation || relation.RelationKind == viewRelation || relation.RelationKind == compositeRelation) {
+		if relation, ok := view.Relation(address); ok && (relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.CompositeRelation) {
 			return true
 		}
 	}

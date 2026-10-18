@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -90,7 +91,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			}
 			// This existing visitor checks child definition SELECT records and
 			// applicable row marks under each child's owner/original invoker.
-			if relation.RelationKind == viewRelation {
+			if relation.RelationKind == catalog.ViewRelation {
 				if err := authority.checkViewRowMarks(relation, mark, invoker); err != nil {
 					return err
 				}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -16,8 +17,8 @@ import (
 // transformed in demand order; every Eval occurs outside Engine.mu.
 type pendingPartitionDefinition struct {
 	stage                  *CatalogStage
-	parent, child          *relationDescriptor
-	bound                  *partitionMembership
+	parent, child          *catalog.Relation
+	bound                  *catalog.PartitionMembership
 	rawBounds              parser.PartitionBound
 	auth                   AuthorizationView
 	view                   *VisibilityView
@@ -41,7 +42,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	for _, observed := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}
-	var parent *relationDescriptor
+	var parent *catalog.Relation
 	if syntax.PartitionOf != nil {
 		parentAuth, err := e.partitionParentAuthorization(op, auth, syntax)
 		if err != nil {
@@ -73,7 +74,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
 	address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
-	child := stage.Descriptors[address].(*relationDescriptor)
+	child := stage.Descriptors[address].(*catalog.Relation)
 	keyAuth := auth
 	keyAuth.catalog = e.stageRead(stage)
 	keyAuth.recaptureCatalog(keyAuth.catalog)
@@ -88,7 +89,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			}
 		}
 		child.Partition = partition
-		child.RelationKind = partitionedRelation
+		child.RelationKind = catalog.PartitionedRelation
 	}
 	pending := &pendingPartitionDefinition{stage: stage, parent: parent, child: child, auth: auth}
 	if parent != nil {
@@ -105,7 +106,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 		if !pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 			defaultRelation := auth.catalog.MustRelation(parent.Partition.DefaultChild)
-			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *relationDescriptor) error {
+			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *catalog.Relation) error {
 				ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), leaf.Address())
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
@@ -141,13 +142,13 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	for _, constraint := range p.child.UniqueConstraints {
-		index := p.stage.Descriptors[constraint.Index].(*relationDescriptor)
+		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range p.child.ExclusionConstraints {
-		index := p.stage.Descriptors[constraint.Index].(*relationDescriptor)
+		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
@@ -167,7 +168,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if err := p.validateBounds(scope); err != nil {
 			return err
 		}
-		catalog := p.stage.Base
+		view := p.stage.Base
 		if err := p.checkOverlap(scope); err != nil {
 			return err
 		}
@@ -176,7 +177,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		}
 		evaluation.catalog, evaluation.routineAuthority = p.auth.catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
-			leaf, ok := catalog.Relation(ref.Address)
+			leaf, ok := view.Relation(ref.Address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
@@ -193,7 +194,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 				return err
 			}
 			for i := range source.count() {
-				var values [32]partitionDatum
+				var values [32]catalog.PartitionDatum
 				key, err := partitionRowKey(p.parent, mapping.mapValues(source.row(i)), &evaluation, values[:0])
 				if err != nil {
 					source.close()
@@ -206,9 +207,9 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 				}
 				if contains {
 					source.close()
-					defaultRelation := catalog.MustRelation(p.parent.Partition.DefaultChild)
+					defaultRelation := view.MustRelation(p.parent.Partition.DefaultChild)
 					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.Name())).(*sqlstate.Error)
-					diagnostic.Schema, diagnostic.Table = catalog.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
+					diagnostic.Schema, diagnostic.Table = view.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
 					return diagnostic
 				}
 			}
@@ -244,7 +245,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	return nil
 }
 
-func partitionTupleSQL(ctx context.Context, tuple []partitionDatum) (string, error) {
+func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (string, error) {
 	var text strings.Builder
 	for i, datum := range tuple {
 		if i > 0 {
@@ -318,8 +319,8 @@ func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error
 // partitionBoundary is a statement-local projection of the one immutable child
 // topology. Tuples and descriptors are referenced, not copied or persisted.
 type partitionBoundary struct {
-	tuple    []partitionDatum
-	relation *relationDescriptor
+	tuple    []catalog.PartitionDatum
+	relation *catalog.Relation
 	lower    bool
 }
 

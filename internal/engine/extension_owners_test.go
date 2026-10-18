@@ -61,7 +61,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 	intagg, intaggExt := intaggUnitInstalled(t)
 	for _, installed := range []struct {
 		e   *Engine
-		ext *extensionDescriptor
+		ext *catalog.Extension
 	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}} {
 		metadata, err := extensionOwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)
 		if err != nil {
@@ -162,13 +162,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	call := bound.(installedCryptoFunctionExpression)
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
-	consumer := &relationDescriptor{
+	consumer := &catalog.Relation{
 		ObjectAddress: address,
-		Defaults:      map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
-		Generations: map[int32]columnGeneration{2: {
-			Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref},
+		Defaults:      map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
+		Generations: map[int32]catalog.ColumnGeneration{2: {
+			Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref},
 		}},
-		SQLIndex: &indexDefinition{Keys: []indexKey{{Derived: &derivedIndexKey{
+		SQLIndex: &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{
 			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}

@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func collationName(view CatalogRead, id uint32) string {
+func collationName(view catalog.Read, id uint32) string {
 	if view.State() != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
 			return d.Name()
@@ -23,7 +23,7 @@ func collationName(view CatalogRead, id uint32) string {
 	return ""
 }
 
-func collationSQLName(view CatalogRead, id uint32) string {
+func collationSQLName(view catalog.Read, id uint32) string {
 	if view.State() != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
 			return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
@@ -35,7 +35,7 @@ func collationSQLName(view CatalogRead, id uint32) string {
 	return ""
 }
 
-func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*collationDescriptor, error) {
+func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*catalog.Collation, error) {
 	path, err := e.lookupNamespaces(auth, raw, collationLookup)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 	for i := range path.count() {
 		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: name})
 		descriptor, _ := auth.definitionDescriptor(a)
-		if d, ok := descriptor.(*collationDescriptor); ok {
+		if d, ok := descriptor.(*catalog.Collation); ok {
 			one := [1]collationCandidate{{a, d.Encoding}}
 			if selectCollation(one[:], 6) != (ids.ObjectAddress{}) {
 				return d, nil

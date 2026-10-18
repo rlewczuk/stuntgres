@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 type ruleCommandScratch struct {
 	mutation   statementMutation
 	ref        ids.ObjectRef
-	descriptor Descriptor
+	descriptor catalog.Descriptor
 	storage    *relationStorage
 	viewWrite  *viewWrite
 	sources    []queryLeaf
@@ -40,7 +41,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.quoteCaptures = c.quotes
 }
 
-func bindingRuleRelation(b binding) *relationDescriptor {
+func bindingRuleRelation(b binding) *catalog.Relation {
 	return b.physicalBinding().relation
 }
 

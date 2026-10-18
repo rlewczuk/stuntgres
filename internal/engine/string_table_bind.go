@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -350,7 +351,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", call.Pos)
 		}
 		calls[i] = bound
-		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: bound.ResultUsage()}
+		schema[i] = catalog.Column{Name: "string_to_table", Usage: bound.ResultUsage()}
 		if b.noParameters || b.materializedDefinition {
 			if err := b.captureViewLiterals(call, bound, viewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
@@ -358,7 +359,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		}
 	}
 	if raw.Ordinality {
-		schema = append(schema, ColumnDescriptor{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, col := range schema {

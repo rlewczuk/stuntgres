@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -263,7 +264,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if !ok {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
-			d.Columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			d.Columns[i] = catalog.Column{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if spec.oid == pgTypeOID {
 				d.Columns[i].Nullable = i >= 29
 				if i == 29 || i == 30 {
@@ -371,12 +372,12 @@ func (e *Engine) initializeCatalogSources() error {
 	return e.initializeDataTypePrivileges()
 }
 
-func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *relationDescriptor {
+func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]ColumnDescriptor, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
-func (e *Engine) registerCatalogSource(d *relationDescriptor) {
+func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 	initializeCatalogAttributes(d)
 	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
 		row := e.catalog.state.MustType(address)
@@ -391,15 +392,15 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if source.Address().ObjectID == pgTypeOID {
-		return e.capturePGType(ctx, catalog, roles, ref, source)
+		return e.capturePGType(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == pgAttributeOID {
-		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
+		return e.capturePGAttribute(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == ids.ParameterClassID {
-		return e.capturePGParameterACL(ctx, catalog, roles, ref, source)
+		return e.capturePGParameterACL(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 2964 {
 		if err := ctx.Err(); err != nil {
@@ -410,68 +411,68 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return &querySource{ref: ref, anonymous: [][]sqltype.Value{}}, nil
 	}
 	if source.Address().ObjectID == 2615 {
-		return e.capturePGNamespace(ctx, catalog, roles, ref, source)
+		return e.capturePGNamespace(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 1262 {
-		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
+		return e.capturePGDatabase(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 1213 {
-		return e.capturePGTablespace(ctx, catalog, roles, ref, source)
+		return e.capturePGTablespace(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 3079 || source.Address().ObjectID == 1255 || source.Address().ObjectID == 3764 || source.Address().ObjectID == 3600 {
-		return captureExtensionCatalog(ctx, catalog, ref, source)
+		return captureExtensionCatalog(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 3456 {
-		return capturePGCollation(ctx, catalog, ref, source)
+		return capturePGCollation(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2607 {
-		return capturePGConversion(ctx, catalog, ref, source)
+		return capturePGConversion(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2605 {
-		return capturePGCast(ctx, catalog, ref, source)
+		return capturePGCast(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgLanguageOID {
-		return capturePGLanguage(ctx, catalog, ref, source)
+		return capturePGLanguage(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgAggregateOID {
-		return capturePGAggregate(ctx, catalog, ref, source)
+		return capturePGAggregate(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2616 {
-		return capturePGOpclass(ctx, catalog, ref, source)
+		return capturePGOpclass(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgAMOID {
-		return capturePGAM(ctx, catalog, ref, source)
+		return capturePGAM(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgRangeOID {
-		return capturePGRange(ctx, catalog, ref, source)
+		return capturePGRange(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2617 {
-		return capturePGOperator(ctx, catalog, ref, source)
+		return capturePGOperator(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 3501 {
-		return capturePGEnum(ctx, catalog, ref, source)
+		return capturePGEnum(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2606 {
-		return capturePGConstraint(ctx, catalog, ref, source)
+		return capturePGConstraint(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2224 {
-		return capturePGSequence(ctx, catalog.State(), nil, ref, source)
+		return capturePGSequence(ctx, view.State(), nil, ref, source)
 	}
 	if source.Address().ObjectID == 2609 {
-		return capturePGDescription(ctx, catalog, ref, source)
+		return capturePGDescription(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 12001 {
 		return e.capturePreparedSourceLocked(ctx, ref, source)
 	}
 	if source.Address().ObjectID == 2608 {
-		return capturePGDepend(ctx, catalog, ref, source)
+		return capturePGDepend(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 12000 || source.Address().ObjectID == 12003 {
-		return e.captureTableViewSummary(ctx, catalog, roles, ref, source, viewPresentation{})
+		return e.captureTableViewSummary(ctx, view, roles, ref, source, viewPresentation{})
 	}
-	var relations []*relationDescriptor
-	for _, descriptor := range catalog.Descriptors() {
-		if relation, ok := descriptor.(*relationDescriptor); ok {
+	var relations []*catalog.Relation
+	for _, descriptor := range view.Descriptors() {
+		if relation, ok := descriptor.(*catalog.Relation); ok {
 			relations = append(relations, relation)
 		}
 	}
@@ -519,7 +520,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
 		case 1259:
-			row, err := e.pgClassRow(ctx, catalog, roles, source, relation)
+			row, err := e.pgClassRow(ctx, view, roles, source, relation)
 			if err != nil {
 				return nil, err
 			}
@@ -541,7 +542,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescriptor, name string, attribute int32, check bool) (bool, int64) {
+func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation, name string, attribute int32, check bool) (bool, int64) {
 	if graph := table.Inheritance; graph != nil {
 		provenance, exists := graph.NotNull[attribute]
 		if check {

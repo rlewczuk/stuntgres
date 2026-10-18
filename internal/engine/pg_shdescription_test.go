@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2396}
 	d, ok := e.catalog.state.Relation(address)
@@ -121,7 +121,7 @@ func pgShDescriptionUnitRole(e *Engine, state *roleCatalog, id uint64, name, tex
 	return ref
 }
 
-func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Read, catalog CatalogRead, id uint32, want *string) {
+func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Read, catalog catalog.Read, id uint32, want *string) {
 	t.Helper()
 	oidUsage, nameUsage, textUsage := testUsage(e, sqltype.Oid), testUsage(e, sqltype.Name), testUsage(e, sqltype.Text)
 	oid, err := sqltype.OIDValue(oidUsage.Type, id)
@@ -151,7 +151,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 func TestPGShDescriptionDescriptor(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
+	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -236,10 +236,10 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	d, ref := pgShDescriptionUnitSource(t, e)
 	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
-	catalog := catalog.CloneState(e.catalog.state)
+	snapshot := catalog.CloneState(e.catalog.state)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	catalog.SetDescriptor(local, &relationDescriptor{ObjectAddress: local, Comment: "local collision"})
-	read := e.catalog.read(catalog)
+	snapshot.SetDescriptor(local, &catalog.Relation{ObjectAddress: local, Comment: "local collision"})
+	read := e.catalog.read(snapshot)
 	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -304,7 +304,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view := *d
 		view.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		view.ObjectName, view.RelationKind = name, viewRelation
+		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)
@@ -363,7 +363,7 @@ func TestPGShDescriptionCanceledCapture(t *testing.T) {
 		t.Fatal("in-loop cancellation published partial source", captured, err, inLoop.calls)
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
 	captured, err = capturePGShDescription(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid)
 	if captured != nil || err == nil {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -37,9 +38,9 @@ func newCopyBinaryCursor(s *StatementScope, b binding, r io.Reader) *copyBinaryC
 	}
 	return c
 }
-func (c *copyBinaryCursor) Schema() []ColumnDescriptor { return nil }
-func (c *copyBinaryCursor) Close() error               { return nil }
-func (c *copyBinaryCursor) rowDefaults() []bool        { return c.defaults }
+func (c *copyBinaryCursor) Schema() []catalog.Column { return nil }
+func (c *copyBinaryCursor) Close() error             { return nil }
+func (c *copyBinaryCursor) rowDefaults() []bool      { return c.defaults }
 func (c *copyBinaryCursor) readFixed(n int) ([]byte, error) {
 	_, err := io.ReadFull(c.reader, c.scratch[:n])
 	return c.scratch[:n], err

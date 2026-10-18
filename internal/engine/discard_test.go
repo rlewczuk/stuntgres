@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -288,9 +289,9 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	sessionSQL(t, s, "CREATE TEMP TABLE discard_overlay(v int)")
 	sessionSQL(t, s, "INSERT INTO discard_overlay VALUES(7)")
 	namespace := s.temporaryNamespace
-	var relation *relationDescriptor
+	var relation *catalog.Relation
 	for _, d := range e.catalog.state.Descriptors() {
-		if r, ok := d.(*relationDescriptor); ok && r.Name() == "discard_overlay" {
+		if r, ok := d.(*catalog.Relation); ok && r.Name() == "discard_overlay" {
 			relation = r
 		}
 	}
@@ -342,9 +343,9 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		sessionSQL(t, s, `CREATE TABLE discard_survivor(id int,v text COLLATE pg_temp.discard_collation)`)
 		sessionSQL(t, s, `INSERT INTO discard_survivor VALUES(7,'a')`)
 		namespace := s.temporaryNamespace
-		var survivor *relationDescriptor
+		var survivor *catalog.Relation
 		for _, d := range e.catalog.state.Descriptors() {
-			if r, ok := d.(*relationDescriptor); ok && r.Name() == "discard_survivor" {
+			if r, ok := d.(*catalog.Relation); ok && r.Name() == "discard_survivor" {
 				survivor = r
 			}
 		}
@@ -375,14 +376,14 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				sessionSQL(t, s, "CREATE TABLE discard_private_survivor(id int,v text COLLATE pg_temp.discard_private_coll)")
 				sessionSQL(t, s, "INSERT INTO discard_private_survivor VALUES(7,'a')")
 				sessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
-				var survivor *relationDescriptor
+				var survivor *catalog.Relation
 				var providerAddress, indexAddress ids.ObjectAddress
 				for a, d := range e.catalog.state.Descriptors() {
 					switch d.Name() {
 					case "discard_private_survivor":
 						// The associated composite type has the same name; it must
 						// not overwrite the actual relation selected earlier.
-						if r, ok := d.(*relationDescriptor); ok {
+						if r, ok := d.(*catalog.Relation); ok {
 							survivor = r
 						}
 					case "discard_private_coll":

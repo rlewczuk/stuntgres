@@ -4,14 +4,15 @@ import (
 	"context"
 	"sort"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
-	var definitions []*conversionDescriptor
-	for _, descriptor := range catalog.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok {
+func capturePGConversion(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+	var definitions []*catalog.Conversion
+	for _, descriptor := range view.Descriptors() {
+		if d, ok := descriptor.(*catalog.Conversion); ok {
 			definitions = append(definitions, d)
 		}
 	}

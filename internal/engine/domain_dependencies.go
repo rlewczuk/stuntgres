@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,8 +18,8 @@ type domainDependency struct {
 	oid                   ids.OID
 	ordinal               int32
 	label                 string
-	relation              *relationDescriptor
-	domain                *typeDescriptor
+	relation              *catalog.Relation
+	domain                *catalog.Type
 	column                string
 	automatic             bool
 }
@@ -39,7 +40,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	for changed := true; changed; {
 		changed = false
 		for a, d := range provider.inputDescriptors() {
-			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]) {
+			if t, ok := d.(*catalog.Type); ok && !domains[a] && (t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]) {
 				domains[a] = true
 				changed = true
 			}
@@ -47,8 +48,8 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	droppedColumns := make(map[ids.ObjectAddress]bool)
 	for a, d := range provider.inputDescriptors() {
-		r, ok := d.(*relationDescriptor)
-		if !ok || r.RelationKind != tableRelation && r.RelationKind != partitionedRelation && r.RelationKind != compositeRelation && r.RelationKind != foreignRelation {
+		r, ok := d.(*catalog.Relation)
+		if !ok || r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.CompositeRelation && r.RelationKind != catalog.ForeignRelation {
 			continue
 		}
 		for i, c := range r.Columns {
@@ -71,11 +72,11 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if relation, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && relation.RowType != 0 {
+		if relation, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && relation.RowType != 0 {
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
 			}
-			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*typeDescriptor)
+			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*catalog.Type)
 			if !ok || row.OwningRelation != relation.Address() {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
@@ -87,7 +88,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 			}
 		}
-		if relation, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && relation.Partition != nil {
+		if relation, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && relation.Partition != nil {
 			for _, child := range relation.Partition.Children {
 				if provider.removed(child) {
 					if err := visit(child, root); err != nil {
@@ -106,7 +107,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			// Owned indexes are closure roots even if an earlier pass already
 			// staged their removal. Their external consumers still need pruning,
 			// just like consumers of owned row types and associated arrays.
-			if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.Parent == target {
+			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == target {
 				direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true, relation: index})
 				continue
 			}
@@ -115,19 +116,19 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			}
 			if target.ClassID == ids.NamespaceClassID && descriptor.Namespace() == target && ownershipRoot(provider.base, descriptor) {
 				edge := domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)}
-				edge.relation, _ = descriptor.(*relationDescriptor)
+				edge.relation, _ = descriptor.(*catalog.Relation)
 				direct = append(direct, edge)
 				continue
 			}
 			switch d := descriptor.(type) {
-			case *operatorDescriptor:
+			case *catalog.Operator:
 				for _, dependency := range operatorDependencyAddresses(provider.base, d) {
 					if dependency == target {
 						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 						break
 					}
 				}
-			case *foreignDescriptor:
+			case *catalog.ForeignObject:
 				for _, dependency := range foreignDependencyAddresses(d) {
 					if dependency == (ids.ObjectAddress{}) {
 						continue
@@ -137,24 +138,24 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						break
 					}
 				}
-			case *extensionDescriptor:
+			case *catalog.Extension:
 				if d.TargetNamespace == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *tsTemplateDescriptor:
+			case *catalog.TSTemplate:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *typeDescriptor:
-				if replacement, ok := provider.replacement(a).(*typeDescriptor); ok {
+			case *catalog.Type:
+				if replacement, ok := provider.replacement(a).(*catalog.Type); ok {
 					d = replacement
 				}
 				if !domains[a] {
@@ -173,14 +174,14 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *relationDescriptor:
-				if replacement, ok := provider.replacement(a).(*relationDescriptor); ok {
+			case *catalog.Relation:
+				if replacement, ok := provider.replacement(a).(*catalog.Relation); ok {
 					d = replacement
 				}
 				if d.Foreign != nil && d.Foreign.Server == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path), relation: d})
 				}
-				if d.RelationKind == compositeRelation && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}) {
+				if d.RelationKind == catalog.CompositeRelation && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
 					continue
 				}
@@ -234,7 +235,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					}
 					continue
 				}
-				if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation && d.RelationKind != compositeRelation && d.RelationKind != foreignRelation {
+				if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.CompositeRelation && d.RelationKind != catalog.ForeignRelation {
 					continue
 				}
 				if name == "" {
@@ -361,9 +362,9 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 		for i, target := range targets {
 			var owner ids.ObjectAddress
 			switch descriptor := provider.retirementDescriptor(target).(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				owner = descriptor.OwningRelation
-			case *relationDescriptor:
+			case *catalog.Relation:
 				if descriptor.Sequence != nil {
 					owner = descriptor.Sequence.Owned
 					owner.SubID = 0
@@ -376,7 +377,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 			// share the subject of their removed partition ancestry.
 			if i >= originalRootCount {
 				for {
-					relation, ok := provider.retirementDescriptor(target).(*relationDescriptor)
+					relation, ok := provider.retirementDescriptor(target).(*catalog.Relation)
 					if !ok || relation.Membership == nil {
 						break
 					}
@@ -411,7 +412,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 				}
 			}
 			object := dependencyObject(provider.base, target, provider.path)
-			if index, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && index.SQLIndex != nil {
+			if index, ok := provider.retirementDescriptor(target).(*catalog.Relation); ok && index.SQLIndex != nil {
 				object = "index " + dependencyRelationName(provider.base, index, provider.path)
 			}
 			details = append(details, edge.label+" depends on "+object)
@@ -441,7 +442,7 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 // Commit supplies its actual private-root projector without inventing a scope.
 // A nonzero subject attributes only the RESTRICT message to one SQL DROP;
 // retirement roots, dependency discovery, locks and mutations stay unchanged.
-func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error, subject ids.ObjectAddress) error {
+func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*catalog.Relation, *catalog.Relation) error, subject ids.ObjectAddress) error {
 	return stageDropProvider(ctx, stage, scope, changes, project).expressionDependencies(roots, mode, subject)
 }
 
@@ -456,7 +457,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	// In particular a schema can remove both a provider and an inheritance parent.
 	var retirementRoots []ids.ObjectAddress
 	for address, descriptor := range provider.removalDescriptors() {
-		if _, relation := descriptor.(*relationDescriptor); relation && !slices.Contains(roots, address) {
+		if _, relation := descriptor.(*catalog.Relation); relation && !slices.Contains(roots, address) {
 			retirementRoots = append(retirementRoots, address)
 		}
 	}
@@ -479,7 +480,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		return provider.restrictError(roots, edges, originalRootCount, subject)
 	}
 	targets := append([]ids.ObjectAddress(nil), roots...)
-	var relations []*relationDescriptor
+	var relations []*catalog.Relation
 	var hierarchyTargets []ids.ObjectAddress
 	seen := make(map[ids.ObjectAddress]bool)
 	for _, target := range targets {
@@ -511,7 +512,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	for _, target := range targets {
 		observe := target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ForeignWrapperClassID || target.ClassID == ids.ForeignServerClassID
 		if target.ClassID == ids.ProcedureClassID {
-			procedure, ok := provider.retirementDescriptor(target).(*procedureDescriptor)
+			procedure, ok := provider.retirementDescriptor(target).(*catalog.Procedure)
 			observe = ok && procedure.Foreign != nil
 		}
 		if observe {
@@ -537,7 +538,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	if scope != nil {
 		// Lock owners are not deletion/projection targets. A policy edge
 		// captures its surviving owner's identity, even without a column edge.
-		lockRelations := make([]*relationDescriptor, 0, len(relations))
+		lockRelations := make([]*catalog.Relation, 0, len(relations))
 		lockSeen := make(map[ids.ObjectAddress]bool)
 		for _, r := range relations {
 			lockRelations = append(lockRelations, r)
@@ -548,7 +549,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			if r == nil || lockSeen[r.Address()] {
 				continue
 			}
-			if edge.address.ClassID == ids.PolicyClassID || edge.address == r.Address() && (r.RelationKind == tableRelation || r.RelationKind == foreignRelation) {
+			if edge.address.ClassID == ids.PolicyClassID || edge.address == r.Address() && (r.RelationKind == catalog.TableRelation || r.RelationKind == catalog.ForeignRelation) {
 				lockRelations = append(lockRelations, r)
 				lockSeen[r.Address()] = true
 			}
@@ -602,7 +603,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			if provider.removed(old.Address()) {
 				break
 			}
-			if replacement, ok := provider.replacement(old.Address()).(*relationDescriptor); ok {
+			if replacement, ok := provider.replacement(old.Address()).(*catalog.Relation); ok {
 				next = replacement
 			}
 			// The closure captured a live stable attribute. A nested cascade
@@ -671,15 +672,15 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*namespaceDescriptor, relations []*relationDescriptor, domains []Descriptor, cascade bool) error {
-	var contained []Descriptor
+func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
+	var contained []catalog.Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)
 	}
 	for _, d := range domains {
 		contained = append(contained, d)
 		stage.domainTargets = append(stage.domainTargets, d.Address())
-		if extension, ok := d.(*extensionDescriptor); ok {
+		if extension, ok := d.(*catalog.Extension); ok {
 			for _, member := range extension.Members {
 				stage.domainTargets = append(stage.domainTargets, member)
 				if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), member), false); err != nil {
@@ -704,7 +705,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	for _, d := range contained {
 		label := dependencyObject(stage.Base, d.Address(), stage.dependencyPath)
 		namespaceAddress := d.Namespace()
-		if extension, ok := d.(*extensionDescriptor); ok {
+		if extension, ok := d.(*catalog.Extension); ok {
 			namespaceAddress = extension.TargetNamespace
 		}
 		namespace := stage.Base.Get(namespaceAddress).Name()
@@ -712,7 +713,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
 			root := edge.root == d.Address()
-			if extension, ok := d.(*extensionDescriptor); ok {
+			if extension, ok := d.(*catalog.Extension); ok {
 				root = root || slices.Contains(extension.Members[:], edge.root)
 			}
 			if root && !edge.automatic {
@@ -739,16 +740,16 @@ func usageDependsOn(u sqltype.Usage, target ids.ObjectAddress) bool {
 	return target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}) || target == (ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
 }
 
-func (stage *CatalogStage) removeDomainCheck(d *typeDescriptor, oid ids.OID) error {
+func (stage *CatalogStage) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
 	return stageDropProvider(nil, stage, nil, nil, nil).removeDomainCheck(d, oid)
 }
 
-func (provider *dropProvider) removeDomainCheck(d *typeDescriptor, oid ids.OID) error {
-	if replacement, ok := provider.replacement(d.Address()).(*typeDescriptor); ok {
+func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
+	if replacement, ok := provider.replacement(d.Address()).(*catalog.Type); ok {
 		d = replacement
 	}
 	next := *d
-	next.DomainChecks = make([]domainCheckConstraint, 0, len(d.DomainChecks))
+	next.DomainChecks = make([]catalog.DomainCheckConstraint, 0, len(d.DomainChecks))
 	for _, check := range d.DomainChecks {
 		if check.OID != oid {
 			next.DomainChecks = append(next.DomainChecks, check)

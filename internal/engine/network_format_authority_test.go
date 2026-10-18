@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -46,7 +47,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.Builtin
-			if d.Identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.Result != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Variadic != 0 || d.Defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.Identity != (catalog.RoutineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, catalog.ProcedureSignature(tc.sig)}) || d.Result != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Variadic != 0 || d.Defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}
@@ -64,7 +65,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			}
 			foreign := New()
 			for _, mode := range []string{"missing", "foreign", "stale"} {
-				var checks []expressionDependency
+				var checks []catalog.ExpressionDependency
 				for _, dep := range binder.dependencies {
 					if dep.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}) {
 						switch mode {
@@ -90,7 +91,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []expressionDependency{}
+			evaluation.routineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag manufactured authority")
 			}
@@ -110,7 +111,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.parameters[1].Type)}
 			// No original routine manifest is available for computation. A known-NULL
 			// formal must prune without invoking/admitting the selected routine.
-			evaluation.routineChecks = []expressionDependency{}
+			evaluation.routineChecks = []catalog.ExpressionDependency{}
 			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("known NULL was not pruned before admission", changed, err)

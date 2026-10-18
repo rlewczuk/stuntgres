@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func copyTargets(relation *relationDescriptor, columns []parser.Identifier) ([]int, error) {
+func copyTargets(relation *catalog.Relation, columns []parser.Identifier) ([]int, error) {
 	targets := make([]int, 0, len(relation.Columns))
 	if len(columns) == 0 {
 		for i, attribute := range relation.Attributes {
@@ -315,22 +316,22 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	return
 }
 
-func copyRelationKind(relation *relationDescriptor, from bool) error {
-	if !from && relation.RelationKind == materializedViewRelation && !relation.Populated {
+func copyRelationKind(relation *catalog.Relation, from bool) error {
+	if !from && relation.RelationKind == catalog.MaterializedViewRelation && !relation.Populated {
 		d := sqlError("0A000", fmt.Sprintf("cannot copy from unpopulated materialized view \"%s\"", relation.Name())).(*sqlstate.Error)
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
 		return d
 	}
-	if relation.RelationKind != tableRelation && !(from && relation.RelationKind == partitionedRelation) && !(!from && relation.RelationKind == materializedViewRelation) {
+	if relation.RelationKind != catalog.TableRelation && !(from && relation.RelationKind == catalog.PartitionedRelation) && !(!from && relation.RelationKind == catalog.MaterializedViewRelation) {
 		kind := "non-table relation"
 		switch relation.RelationKind {
-		case viewRelation:
+		case catalog.ViewRelation:
 			kind = "view"
-		case partitionedRelation:
+		case catalog.PartitionedRelation:
 			kind = "partitioned table"
-		case materializedViewRelation:
+		case catalog.MaterializedViewRelation:
 			kind = "materialized view"
-		case sequenceRelation:
+		case catalog.SequenceRelation:
 			kind = "sequence"
 		}
 		direction := "from"
@@ -338,10 +339,10 @@ func copyRelationKind(relation *relationDescriptor, from bool) error {
 			direction = "to"
 		}
 		d := sqlError("42809", fmt.Sprintf("cannot copy %s %s \"%s\"", direction, kind, relation.Name())).(*sqlstate.Error)
-		if !from && (relation.RelationKind == viewRelation || relation.RelationKind == partitionedRelation) {
+		if !from && (relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.PartitionedRelation) {
 			d.Hint = "Try the COPY (SELECT ...) TO variant."
 		}
-		if from && relation.RelationKind == viewRelation {
+		if from && relation.RelationKind == catalog.ViewRelation {
 			d.Hint = "To enable copying to a view, provide an INSTEAD OF INSERT trigger."
 		}
 		return d
@@ -420,7 +421,7 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 	if err = selectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
-	schema := make([]ColumnDescriptor, len(b.targets))
+	schema := make([]catalog.Column, len(b.targets))
 	for i, target := range b.targets {
 		schema[i] = b.relation.Columns[target]
 	}

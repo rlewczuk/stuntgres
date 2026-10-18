@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -150,7 +151,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 	}
 	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
 		for a, d := range s.catalog.descriptors {
-			if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
+			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				auth.stagedTemporary = a
 				break
 			}

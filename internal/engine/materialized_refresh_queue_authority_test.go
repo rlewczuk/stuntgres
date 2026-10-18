@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -80,7 +81,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "name":
 				next.ObjectName = "changed_name"
 			case "columns":
-				next.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+				next.Columns = append([]catalog.Column(nil), d.Columns...)
 				next.Columns[0].Name = "changed_shape"
 			case "attributes":
 				next.Attributes = append([]int32(nil), d.Attributes...)

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -17,7 +18,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	run(t, e, "CREATE TABLE ordinary(a INT,r BOOL GENERATED ALWAYS AS(a>0 AND ('anchor'::regclass IS NOT NULL)) STORED,CONSTRAINT c2 CHECK(a>0 AND ('anchor'::regclass IS NOT NULL)),CONSTRAINT c1 CHECK(a>0 AND ('anchor'::regclass IS NOT NULL)))")
 	run(t, e, "CREATE INDEX later_index ON ordinary(a) WHERE ('anchor'::regclass IS NOT NULL) AND a>0")
 	table := e.CatalogRead().MustRelation(roleTableRef(t, e, "ordinary").Address)
-	var first, second checkConstraint
+	var first, second catalog.CheckConstraint
 	for _, check := range table.CheckConstraints {
 		if check.Name == "c2" {
 			first = check

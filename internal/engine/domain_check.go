@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return c.domainValue, nil
 }
 
-func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	return e.bindDomainCheckRecipes(op.Context(), op, auth, stage, d, raw, input)
 }
 
@@ -48,7 +49,7 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
 }
 
-func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := constraintNames(auth.catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
@@ -92,7 +93,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		if err != nil {
 			return err
 		}
-		definition := domainCheckConstraint{OID: oid, Name: name, NotValid: check.NotValid, Ordinal: firstOrdinal + ordinal, Expression: node}
+		definition := catalog.DomainCheckConstraint{OID: oid, Name: name, NotValid: check.NotValid, Ordinal: firstOrdinal + ordinal, Expression: node}
 		for _, ref := range refs {
 			address := ref.Address
 			address.SubID = 0
@@ -100,14 +101,14 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 			if !ok {
 				return fmt.Errorf("stuntgres: missing domain CHECK provider")
 			}
-			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: provider.Revision()})
+			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: provider.Revision()})
 			if stage != nil {
 				stage.domainBases = append(stage.domainBases, provider)
 			}
 		}
 		d.DomainChecks = append(d.DomainChecks, definition)
 	}
-	slices.SortFunc(d.DomainChecks, func(a, b domainCheckConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(d.DomainChecks, func(a, b catalog.DomainCheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }
 
@@ -165,7 +166,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 	return nil
 }
 
-func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
+func (c *EvalContext) prepareDomainChecks(d *catalog.Type) error {
 	if base := d.SQLType.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
 		parent, ok := c.domainCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
 		if !ok || parent.SQLType != base {
@@ -180,7 +181,7 @@ func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
 
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
-func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
+func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	scope := c.liveScope()
 	if scope != nil {
 		c.preparedDomainChecks = scope.domainPreparedChecks
@@ -241,7 +242,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 	}
 	programme.phases = append(programme.phases, phase)
 	if c.preparedDomainChecks == nil {
-		c.preparedDomainChecks = make(map[*typeDescriptor]domainCheckProgram)
+		c.preparedDomainChecks = make(map[*catalog.Type]domainCheckProgram)
 	}
 	c.preparedDomainChecks[d] = programme
 	if scope != nil {
@@ -250,7 +251,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 	return nil
 }
 
-func (c *EvalContext) domainCatalog() CatalogRead {
+func (c *EvalContext) domainCatalog() catalog.Read {
 	if c.catalog.State() != nil {
 		return c.catalog
 	}
@@ -260,10 +261,10 @@ func (c *EvalContext) domainCatalog() CatalogRead {
 		}
 		return scope.ResolutionCatalog()
 	}
-	return CatalogRead{}
+	return catalog.Read{}
 }
 
-func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value) error {
+func (c *EvalContext) evaluateDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value) error {
 	base := d.SQLType.DomainBase()
 	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
 		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
@@ -274,7 +275,7 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDesc
 	return c.evaluateOwnDomainChecks(view, target, d, candidate, nil)
 }
 
-func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value, violation error) error {
+func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value, violation error) error {
 	base := d.SQLType.DomainBase()
 	if len(d.DomainChecks) == 0 {
 		return nil
@@ -350,7 +351,7 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
 }
 
-func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) error {
+func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {
 	base := domain.SQLType.DomainBase()
 	if domain.SQLType.HasDomainChecks() != (len(domain.DomainChecks) != 0 || base.Type.HasDomainChecks()) {
 		return fmt.Errorf("stuntgres: inconsistent domain CHECK ancestry")

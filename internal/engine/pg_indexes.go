@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,27 +13,27 @@ import (
 
 // The SQL source owns disclosure, not the ACL-neutral structural projections.
 // Authorization and deparsing both read the exact immutable statement capture.
-func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth AuthorizationView, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGIndexes(ctx context.Context, view catalog.Read, auth AuthorizationView, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil || auth.engine.catalog.owner() != catalog.Owner() || auth.catalog.State() != catalog.State() || auth.catalog.Owner() != catalog.Owner() || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || catalog.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.engine.catalog.owner() != view.Owner() || auth.catalog.State() != view.State() || auth.catalog.Owner() != view.Owner() || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.Parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index parent")
 		}
-		schema, ok := catalog.Find(parent.Namespace())
+		schema, ok := view.Find(parent.Namespace())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index namespace")
 		}
@@ -48,7 +49,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 			}
 			return nil, err
 		}
-		definition, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{})
+		definition, err := indexDefinitionSQL(ctx, view, index, indexPresentation{})
 		if err != nil {
 			return nil, err
 		}

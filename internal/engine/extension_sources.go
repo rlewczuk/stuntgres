@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureExtensionCatalog(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -19,14 +20,14 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")
 		}
 		for i, column := range source.Columns {
-			owned, ok := catalog.LookupType(ids[i])
+			owned, ok := view.LookupType(ids[i])
 			if !ok || owned != column.Usage.Type {
 				return nil, fmt.Errorf("stuntgres: foreign extension source type")
 			}
 		}
 	}
-	descriptors := make([]Descriptor, 0)
-	for _, d := range catalog.Descriptors() {
+	descriptors := make([]catalog.Descriptor, 0)
+	for _, d := range view.Descriptors() {
 		if d.Address().ClassID == source.Address().ObjectID {
 			descriptors = append(descriptors, d)
 		}
@@ -55,7 +56,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		text := func(i int, s string) { row[i] = sqltype.String(source.Columns[i].Usage.Type, s) }
 		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 		switch d := descriptor.(type) {
-		case *extensionDescriptor:
+		case *catalog.Extension:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Owner.ID()))
@@ -64,7 +65,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			text(5, d.Version)
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
@@ -91,11 +92,11 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 				}
 			}
 			text(8, parallel)
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))

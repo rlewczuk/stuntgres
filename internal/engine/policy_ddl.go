@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -68,10 +69,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 		return fail(err)
 	}
-	if old.RelationKind == catalogRelation {
+	if old.RelationKind == catalog.CatalogRelation {
 		return fail(sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, old.Name())))
 	}
-	if old.RelationKind != tableRelation && old.RelationKind != partitionedRelation {
+	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.PartitionedRelation {
 		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, old.Name())))
 	}
 	var using, check *policyExpression
@@ -95,8 +96,8 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			return fail(err)
 		}
 		s := stmt.(*parser.CreatePolicy)
-		next.Policies = append(next.Policies, policyDefinition{
-			OID: oid, Name: name, Permissive: s.Permissive, Command: policyCommand(s.Command),
+		next.Policies = append(next.Policies, catalog.PolicyDefinition{
+			OID: oid, Name: name, Permissive: s.Permissive, Command: catalog.PolicyCommand(s.Command),
 			Roles: roles, Using: policyPayloadOf(using), Check: policyPayloadOf(check),
 		})
 	} else if alter {
@@ -126,7 +127,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	} else {
 		next.Policies = append(next.Policies[:index], next.Policies[index+1:]...)
 	}
-	slices.SortFunc(next.Policies, func(a, b policyDefinition) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(next.Policies, func(a, b catalog.PolicyDefinition) int { return strings.Compare(a.Name, b.Name) })
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)

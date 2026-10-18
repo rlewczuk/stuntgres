@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
-	parent := scope.lockedDescriptor.(*relationDescriptor)
+	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
 		return fail(partitionDetachKindError(auth.catalog, parent, false))
 	}
@@ -58,7 +59,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if err == nil {
 		child := auth.catalog.MustRelation(candidate.Address)
-		if child.RelationKind == indexRelation || child.RelationKind == compositeRelation {
+		if child.RelationKind == catalog.IndexRelation || child.RelationKind == catalog.CompositeRelation {
 			err = partitionDetachKindError(auth.catalog, child, true)
 		}
 		if err == nil {
@@ -122,27 +123,27 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	return Result{}, e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 }
 
-func partitionDetachMembership(parent, child *relationDescriptor) error {
+func partitionDetachMembership(parent, child *catalog.Relation) error {
 	if child.Membership == nil || child.Membership.Parent != parent.Address() || !slices.Contains(parent.Partition.Children, child.Address()) {
 		return sqlError("42P01", fmt.Sprintf(`relation "%s" is not a partition of relation "%s"`, child.Name(), parent.Name()))
 	}
 	return nil
 }
 
-func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening bool) error {
+func partitionDetachKindError(view catalog.Read, d *catalog.Relation, opening bool) error {
 	kind := "relations"
 	switch d.RelationKind {
-	case tableRelation:
+	case catalog.TableRelation:
 		kind = "tables"
-	case viewRelation:
+	case catalog.ViewRelation:
 		kind = "views"
-	case materializedViewRelation:
+	case catalog.MaterializedViewRelation:
 		kind = "materialized views"
-	case sequenceRelation:
+	case catalog.SequenceRelation:
 		kind = "sequences"
-	case compositeRelation:
+	case catalog.CompositeRelation:
 		kind = "composite types"
-	case indexRelation:
+	case catalog.IndexRelation:
 		kind = "indexes"
 		if table, ok := view.Relation(d.SQLIndex.Parent); ok && table.Partition != nil {
 			kind = "partitioned indexes"
@@ -157,7 +158,7 @@ func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening b
 
 // Only descriptors of the immediate edge are replaced. Stores, logical roots,
 // rowtype, stable attributes, local definitions and descendant edges are shared.
-func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relationDescriptor) error {
+func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *catalog.Relation) error {
 	if err := partitionDetachMembership(parent, child); err != nil {
 		return err
 	}
@@ -202,7 +203,7 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 		return err
 	}
 	for _, descriptor := range stage.Base.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != child.Address() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			continue
 		}

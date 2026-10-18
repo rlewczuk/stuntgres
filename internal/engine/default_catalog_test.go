@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,38 +19,38 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		t.Fatal("validation evaluated narrowing", err)
 	}
 	names := []string{"missing-attribute", "wrong-destination", "missing-dependencies", "parameter-dependent-valid-oid", "nonnull-literal-type-mismatch-valid-oid", "missing-oid"}
-	for i, mutate := range []func(*relationDescriptor){
-		func(d *relationDescriptor) { d.Defaults = map[int32]columnDefault{99: old.Defaults[1]} },
-		func(d *relationDescriptor) { d.Defaults = map[int32]columnDefault{1: old.Defaults[2]} },
-		func(d *relationDescriptor) {
+	for i, mutate := range []func(*catalog.Relation){
+		func(d *catalog.Relation) { d.Defaults = map[int32]catalog.ColumnDefault{99: old.Defaults[1]} },
+		func(d *catalog.Relation) { d.Defaults = map[int32]catalog.ColumnDefault{1: old.Defaults[2]} },
+		func(d *catalog.Relation) {
 			bad := old.Defaults[1]
 			bad.Dependencies = nil
-			d.Defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]catalog.ColumnDefault{1: bad}
 		},
-		func(d *relationDescriptor) {
+		func(d *catalog.Relation) {
 			u := old.Columns[0].Usage
 			node := parameterExpression{Info: expr.Info{Usage: u, Property: expr.Properties{ParameterDependent: true}}, number: 1}
 			bad := old.Defaults[1]
 			bad.Expression = node
-			d.Defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]catalog.ColumnDefault{1: bad}
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
 				t.Fatal("parameter invariant not reached", err)
 			}
 		},
-		func(d *relationDescriptor) {
+		func(d *catalog.Relation) {
 			u := old.Columns[0].Usage
 			node := literalExpression{Info: expr.Info{Usage: u}, value: sqltype.Boolean(old.Columns[1].Usage.Type, true)}
 			bad := old.Defaults[1]
 			bad.Expression = node
-			d.Defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]catalog.ColumnDefault{1: bad}
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
 				t.Fatal("literal type invariant not reached", err)
 			}
 		},
-		func(d *relationDescriptor) {
+		func(d *catalog.Relation) {
 			bad := old.Defaults[1]
 			bad.OID = 0
-			d.Defaults = map[int32]columnDefault{1: bad}
+			d.Defaults = map[int32]catalog.ColumnDefault{1: bad}
 			if err := (relationProvider{}).Validate(view, d); err == nil || err.Error() != "stuntgres: invalid column default destination" {
 				t.Fatal("missing identity invariant not reached", err)
 			}
@@ -125,7 +126,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := *old
-			next.Defaults = make(map[int32]columnDefault, len(old.Defaults))
+			next.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults))
 			for attribute, definition := range old.Defaults {
 				next.Defaults[attribute] = definition
 			}
@@ -162,7 +163,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 		next := *old
 		bad := old.Defaults[1]
 		bad.Expression = mutate(bad.Expression.(coercionExpression))
-		next.Defaults = map[int32]columnDefault{1: bad, 2: old.Defaults[2]}
+		next.Defaults = map[int32]catalog.ColumnDefault{1: bad, 2: old.Defaults[2]}
 		if err := (relationProvider{}).Validate(view, &next); err == nil {
 			t.Fatal("invalid cast definition accepted", bad)
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -10,7 +11,7 @@ import (
 // The ordinary default provider is metadata-only. Cook each physical default
 // against its own column Usage, but publish the complete hierarchy only once.
 // The caller holds Engine.mu; every return releases it.
-func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *relationDescriptor) (Result, error) {
+func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
 	targets, auth, err := scope.acquireInheritanceDefinitions(root, !raw.Only)
 	if err != nil {
 		return Result{}, err
@@ -35,7 +36,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		if err == nil && !exists {
 			err = ids.ErrCatalogReplaced
 		}
-		var definition columnDefault
+		var definition catalog.ColumnDefault
 		if err == nil && raw.Action == parser.SetDefault {
 			definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, childSlot, raw.Expression)
 		}
@@ -55,7 +56,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			delete(next.Defaults, attribute)
 		} else {
 			if next.Defaults == nil {
-				next.Defaults = make(map[int32]columnDefault)
+				next.Defaults = make(map[int32]catalog.ColumnDefault)
 			}
 			next.Defaults[attribute] = definition
 		}

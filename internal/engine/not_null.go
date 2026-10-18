@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,11 +12,11 @@ import (
 )
 
 // Named ALTER lookup rejects protected relations before action preparation.
-func alterTableLookupKind(d *relationDescriptor) error {
+func alterTableLookupKind(d *catalog.Relation) error {
 	switch d.RelationKind {
-	case catalogRelation:
+	case catalog.CatalogRelation:
 		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.Name()))
-	case compositeRelation:
+	case catalog.CompositeRelation:
 		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TYPE instead."
 		return diagnostic
@@ -57,7 +58,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return fail(err)
 	}
-	old := scope.lockedDescriptor.(*relationDescriptor)
+	old := scope.lockedDescriptor.(*catalog.Relation)
 	if s.Only && scope.inheritanceAlter == nil && slices.ContainsFunc(s.Actions, func(a parser.AlterTableAction) bool { return a.Action == parser.SetNotNull }) {
 		command := *s
 		command.Actions = slices.Clone(s.Actions)
@@ -195,8 +196,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var transformations []columnTransformation
 	var pendingChecks []alterTypeCheck
 	var pendingIndexes []alterTypeIndex
-	var typeChecks []checkConstraint
-	var addedChecks []checkConstraint
+	var typeChecks []catalog.CheckConstraint
+	var addedChecks []catalog.CheckConstraint
 	var addedIndexes []ids.ObjectAddress
 	var addedForeignKeys []ids.OID
 	var additions []addedColumn
@@ -440,7 +441,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var storedReplacements []int32
 	for _, attribute := range replacements {
-		if next.Generations[attribute].Kind == generationStored {
+		if next.Generations[attribute].Kind == catalog.GenerationStored {
 			storedReplacements = append(storedReplacements, attribute)
 		}
 	}
@@ -472,8 +473,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if stage != nil {
 		for address, descriptor := range stage.Descriptors {
-			sequence, ok := descriptor.(*relationDescriptor)
-			if !ok || sequence.RelationKind != sequenceRelation {
+			sequence, ok := descriptor.(*catalog.Relation)
+			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				continue
 			}
 			original := grantCatalog.Get(address)
@@ -482,14 +483,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, descriptor)
 			changes.generators[address] = stage.generators[address]
 		}
 		for address, removal := range stage.Removals {
-			sequence, ok := removal.Descriptor.(*relationDescriptor)
-			if !ok || sequence.RelationKind != sequenceRelation {
+			sequence, ok := removal.Descriptor.(*catalog.Relation)
+			if !ok || sequence.RelationKind != catalog.SequenceRelation {
 				continue
 			}
 			original := grantCatalog.Get(address)
@@ -498,7 +499,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, nil)
 			delete(changes.generators, address)
@@ -740,7 +741,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
+			if next.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}
@@ -809,7 +810,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Validation closes the type graph before transferring it to private catalog
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
-		consumer := stage.Descriptors[address].(*relationDescriptor)
+		consumer := stage.Descriptors[address].(*catalog.Relation)
 		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
@@ -822,7 +823,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		for name := range stage.Touched {
 			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
-				return Result{}, CatalogConflict{}
+				return Result{}, catalog.Conflict{}
 			}
 		}
 	}
@@ -833,7 +834,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
@@ -844,7 +845,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
-			return Result{}, CatalogConflict{}
+			return Result{}, catalog.Conflict{}
 		}
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)

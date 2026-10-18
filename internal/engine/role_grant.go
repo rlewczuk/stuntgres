@@ -35,8 +35,8 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
-func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]Descriptor, error) {
-	targets := make([]Descriptor, 0, len(s.Relations)+len(s.Routines))
+func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
+	targets := make([]catalog.Descriptor, 0, len(s.Relations)+len(s.Routines))
 	for _, name := range s.Relations {
 		if err := op.Context().Err(); err != nil {
 			return nil, err
@@ -99,18 +99,18 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
-			if routine, ok := descriptor.(*procedureDescriptor); ok {
+			if routine, ok := descriptor.(*catalog.Procedure); ok {
 				if routine.Namespace() == addr && grantRoutineKindMatches(s.Kind, routine.RoutineKind) {
 					targets = append(targets, descriptor)
 				}
 				continue
 			}
-			relation, ok := descriptor.(*relationDescriptor)
+			relation, ok := descriptor.(*catalog.Relation)
 			matches := ok && (s.Kind == "" || s.Kind == "sequence") && relation.Namespace() == addr && !relation.VirtualView
 			if matches && s.Kind == "sequence" {
-				matches = relation.RelationKind == sequenceRelation
+				matches = relation.RelationKind == catalog.SequenceRelation
 			} else if matches {
-				matches = relation.RelationKind == tableRelation || relation.RelationKind == partitionedRelation || relation.RelationKind == viewRelation || relation.RelationKind == materializedViewRelation || relation.RelationKind == foreignRelation
+				matches = relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ViewRelation || relation.RelationKind == catalog.MaterializedViewRelation || relation.RelationKind == catalog.ForeignRelation
 			}
 			if matches {
 				targets = append(targets, descriptor)
@@ -128,7 +128,7 @@ type columnGrantRequest struct {
 	mask authorization.Privileges
 }
 type objectGrantChange struct {
-	descriptor   Descriptor
+	descriptor   catalog.Descriptor
 	columnsOwned bool
 }
 
@@ -156,7 +156,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	default:
 		return Result{}, sqlError("0A000", "statement is not supported")
 	}
-	var targets []Descriptor
+	var targets []catalog.Descriptor
 	var err error
 	if unavailable == "" {
 		targets, err = e.objectGrantTargets(op, v, s)
@@ -211,7 +211,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if err != nil {
 		return Result{}, err
 	}
-	var candidate *catalogState
+	var candidate *catalog.State
 	changed := make(map[ids.ObjectAddress]objectGrantChange)
 	for _, target := range targets {
 		address := target.Address()
@@ -232,7 +232,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				if candidate == nil {
 					candidate = catalog.CloneState(v.catalog.State())
 				}
-				if parameter, ok := next.(*parameterDescriptor); ok {
+				if parameter, ok := next.(*catalog.Parameter); ok {
 					installParameterGrant(candidate, parameter)
 					if candidate.Get(address) == nil {
 						changed[address] = objectGrantChange{}
@@ -243,32 +243,32 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 			continue
 		}
-		relation := target.(*relationDescriptor)
+		relation := target.(*catalog.Relation)
 		prior := changed[address]
 		if prior.descriptor != nil {
-			relation = prior.descriptor.(*relationDescriptor)
+			relation = prior.descriptor.(*catalog.Relation)
 		}
-		if s.Kind == "sequence" && relation.RelationKind != sequenceRelation {
+		if s.Kind == "sequence" && relation.RelationKind != catalog.SequenceRelation {
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a sequence`, relation.Name()))
 		}
 		switch relation.RelationKind {
-		case indexRelation:
+		case catalog.IndexRelation:
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is an index`, relation.Name()))
-		case compositeRelation:
+		case catalog.CompositeRelation:
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name()))
-		case catalogRelation:
+		case catalog.CatalogRelation:
 			return Result{}, sqlError("0A000", "statement is not supported")
 		}
 		classMask := authorization.TableGrantPrivileges
 		noun := "table"
-		if relation.RelationKind == sequenceRelation {
+		if relation.RelationKind == catalog.SequenceRelation {
 			classMask = authorization.DefaultMask(authorization.DefaultSequences)
 			noun = "sequence"
 		}
 		targetMask := tableMask
 		if tableAll {
 			targetMask = classMask
-		} else if relation.RelationKind == sequenceRelation && s.Kind == "" {
+		} else if relation.RelationKind == catalog.SequenceRelation && s.Kind == "" {
 			if targetMask & ^classMask != 0 {
 				op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.Name())})
 			}
@@ -298,7 +298,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if available != 0 {
 				materialized := originalTable
 				if !materialized.Explicit {
-					if relation.RelationKind == sequenceRelation {
+					if relation.RelationKind == catalog.SequenceRelation {
 						materialized = authorization.DefaultBaseline(relation.Owner, authorization.DefaultSequences, false)
 					} else {
 						materialized = authorization.MaterializeRelationACL(originalTable, relation.Owner)
@@ -322,7 +322,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			columns = append(columns, columnGrantRequest{sub: sub, name: name, mask: mask})
 		}
 		if s.Revoke && targetMask&authorization.ColumnGrantPrivileges != 0 {
-			if relation.RelationKind != viewRelation {
+			if relation.RelationKind != catalog.ViewRelation {
 				for i, name := range []string{"tableoid", "cmax", "xmax", "cmin", "xmin", "ctid"} {
 					addColumn(int32(-6+i), name, targetMask&authorization.ColumnGrantPrivileges)
 				}
@@ -333,7 +333,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		}
 		for i, item := range s.Privileges {
 			mask := masks[i]
-			if len(item.Columns) != 0 && relation.RelationKind == sequenceRelation {
+			if len(item.Columns) != 0 && relation.RelationKind == catalog.SequenceRelation {
 				if mask & ^authorization.SelectPrivilege != 0 {
 					op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.Name())})
 				}
@@ -398,7 +398,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 		}
 		if tableChanged || nextColumns != nil {
-			next, _ := prior.descriptor.(*relationDescriptor)
+			next, _ := prior.descriptor.(*catalog.Relation)
 			if next == nil {
 				copy := *relation
 				next = &copy
@@ -411,7 +411,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if err := validateACL(v.roles, next); err != nil {
 				return Result{}, err
 			}
-			if next.RelationKind == sequenceRelation {
+			if next.RelationKind == catalog.SequenceRelation {
 				stamp, err := e.catalog.revisionLocked()
 				if err != nil {
 					return Result{}, err

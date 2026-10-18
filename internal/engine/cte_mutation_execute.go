@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ type preparedCTEProgram struct {
 // This dispatch never binds, imports parameters, creates a scope or publishes.
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
-func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *relationDescriptor) (result Result, failure error) {
+func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	if len(b.ctes) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
@@ -43,7 +44,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
-func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *relationDescriptor, prepared *preparedCTEProgram) (Result, error) {
+func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
 	if scope.ruleActionAuth == nil {
 		scope.routineAuth = auth
 	}
@@ -136,7 +137,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 }
 
 // Enter held; execute only already prepared commands with the original stage.
-func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *preparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *relationDescriptor) (result Result, failure error) {
+func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *preparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
 	scope.activeMutation = prepared.mainMutation
 	scope.installRuleScratch(prepared.mainScratch)
@@ -170,7 +171,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if len(leaves) == len(b.querySources) {
 				leaves = append([]queryLeaf(nil), leaves...)
 			}
-			leaves = append(leaves, queryLeaf{ref: mutation.lockedRef, relation: mutation.lockedDescriptor.(*relationDescriptor), only: true})
+			leaves = append(leaves, queryLeaf{ref: mutation.lockedRef, relation: mutation.lockedDescriptor.(*catalog.Relation), only: true})
 			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}

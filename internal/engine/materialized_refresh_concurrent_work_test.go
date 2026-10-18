@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -41,7 +42,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		}
 		ctx := &materializedWorkContext{Context: context.Background()}
 		fresh := concurrentUnitRows(t, d, make([]any, count)...)
-		effective, err := materializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.commitSeq, entries, []*relationDescriptor{index}, fresh, sqltype.OutputEnvironment{})
+		effective, err := materializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.commitSeq, entries, []*catalog.Relation{index}, fresh, sqltype.OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}

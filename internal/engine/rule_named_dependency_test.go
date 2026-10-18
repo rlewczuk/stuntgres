@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine, *Session, *relationDescriptor, *relationDescriptor) {
+func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine, *Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -31,7 +31,7 @@ func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine,
 	return e, s, alterConstraintDescriptor(t, e, "src"), alterConstraintDescriptor(t, e, "sink")
 }
 
-func ruleNamedDependencyAction(t *testing.T, event *relationDescriptor, modifier bool) (ruleDefinition, *boundInsertConflict) {
+func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier bool) (ruleDefinition, *boundInsertConflict) {
 	t.Helper()
 	for _, r := range rulesOf(event) {
 		if r.Name != "r" {
@@ -147,7 +147,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if inferred {
 							want = 2
 						}
-						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Descriptors[parent.Address()].(*relationDescriptor).UniqueConstraints) != 0 {
+						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.Descriptors[parent.Address()].(*catalog.Relation).UniqueConstraints) != 0 {
 							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
 						}
 						if stage.Removals[parent.UniqueConstraints[0].Index].Ref.Address != parent.UniqueConstraints[0].Index {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -50,7 +51,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := newFinalRows([]ColumnDescriptor{{Name: "r", Usage: d.Usage()}}, 1)
+	rows := newFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
 	output := capturedRegroleOutput{owner: e, roles: old}
 	if err := captureRegroleOutputValue(rows, output, array); err != nil {

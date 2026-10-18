@@ -160,7 +160,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	before.roots = indexMaintenanceCapture(e)
 }
 
-func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed Descriptor, old *relationDescriptor, retainedACL authorization.ACLValue, retainedOptions sequenceOptions, before ownershipManualSnapshot, dropped bool) {
+func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
 	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
@@ -230,12 +230,12 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					if candidate == nil || e.catalog.state != before.roots.catalog {
 						t.Fatal("actual utility did not retain its candidate without prefix")
 					}
-					var created *relationDescriptor
-					var enum, array *typeDescriptor
+					var created *catalog.Relation
+					var enum, array *catalog.Type
 					switch utility {
 					case "create-sequence":
 						for _, descriptor := range candidate.descriptors {
-							if d, ok := descriptor.(*relationDescriptor); ok && d.Name() == "new_sequence" {
+							if d, ok := descriptor.(*catalog.Relation); ok && d.Name() == "new_sequence" {
 								created = d
 							}
 						}
@@ -251,20 +251,20 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 							t.Fatal("DROP did not stage actual sequence tombstone")
 						}
 					case "comment-sequence":
-						d := candidate.descriptors[sequence.Address].(*relationDescriptor)
+						d := candidate.descriptors[sequence.Address].(*catalog.Relation)
 						if d == &old || d.Comment != "new sequence comment" || d.Owner != old.Owner || !reflect.DeepEqual(d.ACL, retainedACL) || *d.Sequence != retainedOptions || candidate.generators[sequence.Address] != nil {
 							t.Fatal("COMMENT did not stage comment-only descriptor replacement")
 						}
 					case "create-enum":
 						for _, descriptor := range candidate.descriptors {
-							if d, ok := descriptor.(*typeDescriptor); ok && d.SQLType.IsEnum() && d.Name() == "new_enum" {
+							if d, ok := descriptor.(*catalog.Type); ok && d.SQLType.IsEnum() && d.Name() == "new_enum" {
 								enum = d
 							}
 						}
 						if enum == nil {
 							t.Fatal("CREATE ENUM did not stage actual enum descriptor")
 						}
-						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*typeDescriptor)
+						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*catalog.Type)
 						members := enum.SQLType.EnumMembers()
 						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),
@@ -291,7 +291,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					}
 					err := message.end(finishErr)
 					if phase != "healthy" {
-						var conflict CatalogConflict
+						var conflict catalog.Conflict
 						if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 							t.Fatal("missing manual utility DB predecessor veto", err)
 						}
@@ -439,9 +439,9 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 					t.Fatal("DB-only replacement did not remove earlier schema CREATE authority")
 				}
 				candidate := message.scope.catalog
-				var created *relationDescriptor
+				var created *catalog.Relation
 				for _, descriptor := range candidate.descriptors {
-					if d, ok := descriptor.(*relationDescriptor); ok && d.Name() == "new_owned_sequence" {
+					if d, ok := descriptor.(*catalog.Relation); ok && d.Name() == "new_owned_sequence" {
 						created = d
 					}
 				}
@@ -453,7 +453,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				finishErr := message.scope.Finish(nil)
 				err = message.end(finishErr)
 				if replace {
-					var conflict CatalogConflict
+					var conflict catalog.Conflict
 					if !errors.Is(err, ids.ErrCatalogReplaced) && !errors.As(err, &conflict) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}

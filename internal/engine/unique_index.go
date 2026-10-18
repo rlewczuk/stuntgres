@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -9,15 +10,15 @@ import (
 
 // Membership and identity come from the existing immutable catalog. The caller
 // caches this enumeration by catalog identity, never by the parent alone.
-func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
-	var indexes []*relationDescriptor
+func enforcingIndexes(view catalog.Read, parent ids.ObjectAddress) []*catalog.Relation {
+	var indexes []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent && (index.SQLIndex.Unique || index.SQLIndex.IsExclusion()) {
 			indexes = append(indexes, index)
 		}
 	}
-	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
+	slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}
@@ -31,7 +32,7 @@ func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDes
 
 // Index ordering owns comparison; existing column grouping owns normalized
 // claims. Reject only the owned cross-input class whose equality differs.
-func validateUniqueProviders(parent *relationDescriptor, definition *indexDefinition, raw []parser.IndexKey) error {
+func validateUniqueProviders(parent *catalog.Relation, definition *catalog.IndexDefinition, raw []parser.IndexKey) error {
 	for i, key := range definition.Keys {
 		position := parser.Position{}
 		if len(raw) != 0 {

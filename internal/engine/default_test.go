@@ -44,10 +44,10 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		if old, ok := descriptor.(*relationDescriptor); ok && old.Name() == "d" {
+		if old, ok := descriptor.(*catalog.Relation); ok && old.Name() == "d" {
 			next := *old
 			probe.Info = expr.Info{Usage: old.Columns[1].Usage}
-			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {Expression: probe}}
+			next.Defaults = map[int32]catalog.ColumnDefault{old.Attributes[1]: {Expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
 			state := catalog.CloneState(e.catalog.state)
@@ -127,7 +127,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, err := e.describe(op.ctx, statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, op, nil, nil)
-	var defaults map[int32]columnDefault
+	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
 		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.createColumns, b.createDeclarations)
 	}

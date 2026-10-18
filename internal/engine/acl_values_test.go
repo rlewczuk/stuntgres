@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 		t.Fatal("foreign authority accepted")
 	}
 }
-func mustACLValuesArray(t *testing.T, view CatalogRead, items ...sqltype.Value) sqltype.Value {
+func mustACLValuesArray(t *testing.T, view catalog.Read, items ...sqltype.Value) sqltype.Value {
 	t.Helper()
 	d, _ := view.LookupType(sqltype.ACLItemArray)
 	v, err := sqltype.ArrayValue(d, []sqltype.ArrayDimension{{Lower: -3, Length: int32(len(items))}}, items)
@@ -150,7 +151,7 @@ func TestACLValuesContainment(t *testing.T) {
 		t.Fatal("empty contains", got, err)
 	}
 }
-func aclValuesUnitShape(t *testing.T, view CatalogRead) *sqltype.Descriptor {
+func aclValuesUnitShape(t *testing.T, view catalog.Read) *sqltype.Descriptor {
 	t.Helper()
 	names := []string{"grantor", "grantee", "privilege_type", "is_grantable"}
 	ids := []sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Text, sqltype.Bool}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -176,7 +177,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					importedParent := imported.MustRelation(importedSink.Address)
 					importedRule := rulesOf(imported.MustRelation(importedSrc.Address))[0]
 					importedConflict := conflict(importedRule)
-					var importedProvider uniqueConstraint
+					var importedProvider catalog.UniqueConstraint
 					for _, definition := range importedParent.UniqueConstraints {
 						if definition.Name == "renamed_key" {
 							importedProvider = definition

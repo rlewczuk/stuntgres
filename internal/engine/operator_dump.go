@@ -12,10 +12,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func operatorSQLName(view CatalogRead, d *operatorDescriptor) string {
+func operatorSQLName(view catalog.Read, d *catalog.Operator) string {
 	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + d.Name()
 }
-func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, error) {
+func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
 	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
@@ -33,7 +33,7 @@ func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, erro
 	}
 	return operatorSQLName(view, d) + " (" + arguments[0] + ", " + arguments[1] + ")", nil
 }
-func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
+func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
 	identity, ok := routineIdentityByOID(view, id)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
@@ -44,7 +44,7 @@ func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
 	}
 	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.Name), nil
 }
-func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor) (dumpDomain, error) {
+func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
@@ -59,7 +59,7 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 
 // Reciprocal links between defined custom operators are established only after
 // both declarations. Shell targets must instead be created by a forward link.
-func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id ids.OID) bool {
+func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if peer == nil || peer.Function == 0 || operatorSeeded(peer) {
 		return false
@@ -71,7 +71,7 @@ func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind
 	return reciprocal == source.Address().ObjectID
 }
 
-func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor, keepForwardLinks bool) (dumpDomain, error) {
+func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator, keepForwardLinks bool) (dumpDomain, error) {
 	options := make([]string, 0, 10)
 	for i, id := range [...]ids.OID{d.Left, d.Right} {
 		if id == 0 {
@@ -131,7 +131,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		options = append(options, "MERGES")
 	}
 	text := "CREATE OPERATOR " + operatorSQLName(view, d) + " (" + strings.Join(options, ", ") + ");\n"
-	owners := []*operatorDescriptor{d}
+	owners := []*catalog.Operator{d}
 	for _, id := range [...]ids.OID{d.Commutator, d.Negator} {
 		peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 		if peer != nil && peer.Function == 0 {
@@ -155,18 +155,18 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 }
 
 // Select a deterministic extant forward reference for an unfilled shell.
-func operatorShellGenerator(view CatalogRead, shell *operatorDescriptor) *operatorDescriptor {
-	var selected *operatorDescriptor
+func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog.Operator {
+	var selected *catalog.Operator
 	for _, descriptor := range view.Descriptors() {
-		d, ok := descriptor.(*operatorDescriptor)
+		d, ok := descriptor.(*catalog.Operator)
 		if ok && d.Function != 0 && (d.Commutator == shell.Address().ObjectID || d.Negator == shell.Address().ObjectID) && (selected == nil || d.Address().ObjectID < selected.Address().ObjectID) {
 			selected = d
 		}
 	}
 	return selected
 }
-func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles authorization.Read, shell *operatorDescriptor) (dumpDomain, error) {
-	var routine *procedureDescriptor
+func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dumpDomain, error) {
+	var routine *catalog.Procedure
 	negator := false
 	for key, declaration := range builtinOperatorRoutineByDeclaration {
 		comm := shell.Left != 0 && key.left == shell.Right && key.right == shell.Left
@@ -200,7 +200,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 		if negator {
 			left, right = shell.Left, shell.Right
 		}
-		key := operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: shell.Namespace(), ObjectName: symbol, Left: left, Right: right}
+		key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: shell.Namespace(), ObjectName: symbol, Left: left, Right: right}
 		if _, exists := view.LookupName(catalog.DescriptorNameKey(&key)); !exists {
 			name = symbol
 			break
@@ -237,7 +237,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 
 // Link events use raw endpoint declarations. Only semantic consumers are
 // redirected to completion; redirecting structural edges would invent cycles.
-func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph map[dumpEventKey][]dumpEventKey) {
+func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph map[dumpEventKey][]dumpEventKey) {
 	for _, source := range operators {
 		if source.Function == 0 {
 			continue
@@ -261,7 +261,7 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 	}
 }
 
-func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) {
+func normalizeOperatorDumpPredecessors(view catalog.Read, graph map[dumpEventKey][]dumpEventKey) {
 	for event, predecessors := range graph {
 		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid})
 		structural := event.phase == dumpOperatorLinks || operator && event.phase == dumpDeclaration
@@ -281,7 +281,7 @@ func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey]
 	}
 }
 
-func operatorDumpLinks(view CatalogRead, source *operatorDescriptor) (string, error) {
+func operatorDumpLinks(view catalog.Read, source *catalog.Operator) (string, error) {
 	var options []string
 	for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {

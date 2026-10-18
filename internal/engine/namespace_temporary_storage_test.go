@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session, *relationDescriptor, *relationDescriptor, *relationDescriptor) {
+func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -29,12 +29,12 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	} {
 		sessionSQL(t, owner, q)
 	}
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	namespace := owner.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
-	lookup := func(namespace ids.ObjectAddress, name string) *relationDescriptor {
-		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
-		return catalog.MustRelation(address)
+	lookup := func(namespace ids.ObjectAddress, name string) *catalog.Relation {
+		address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+		return view.MustRelation(address)
 	}
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
@@ -57,7 +57,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	e, owner, peer, foreign, chain, persistent := namespaceTemporaryStorageFixture(t)
 	catalogView := e.CatalogRead()
 	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
-	collect := func(view CatalogRead, relation *relationDescriptor, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
+	collect := func(view catalog.Read, relation *catalog.Relation, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
 		leaf := queryLeaf{ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), relation: relation, only: only, analysisOnly: analysis}
 		auth := peerAuth
@@ -72,7 +72,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	}
 	before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 	for _, tc := range []struct {
-		relation *relationDescriptor
+		relation *catalog.Relation
 		only     bool
 	}{{foreign, false}, {foreign, true}, {chain, false}} {
 		refs, err := collect(catalogView, tc.relation, tc.only, false, peer.token)

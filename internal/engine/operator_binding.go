@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 // selected call's ordered, already-coerced operands for SQL rendering.
 type selectedOperatorExpression struct {
 	expr.Info
-	operator *operatorDescriptor
+	operator *catalog.Operator
 	ref      ids.ObjectRef
 	provider expr.Expr
 }
@@ -66,8 +67,8 @@ func builtinOperatorSpelling(name string) bool {
 }
 
 type operatorCandidateSet struct {
-	catalog     CatalogRead
-	descriptors []*operatorDescriptor
+	catalog     catalog.Read
+	descriptors []*catalog.Operator
 	hasCustom   bool
 	// Presence is independent of materialization for seed-only binary comparisons.
 	available bool
@@ -86,7 +87,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
+			for _, address := range auth.catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
 				d := auth.catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
@@ -103,11 +104,11 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 		}
 		// Even a masked custom descriptor requires ordered signature masking below.
 	}
-	var candidates []*operatorDescriptor
+	var candidates []*catalog.Operator
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.State().OperatorNames().Buckets[operatorNameKey{path.at(i), spelling}] {
+		for _, address := range auth.catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
 			d := auth.catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
@@ -124,7 +125,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	return operatorCandidateSet{catalog: auth.catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
 }
 
-func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*operatorDescriptor, error) {
+func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*catalog.Operator, error) {
 	candidates := set.descriptors
 	signatures := make([]sqltype.OperatorInputs, len(candidates))
 	for i, d := range candidates {
@@ -150,7 +151,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 	return d, nil
 }
 
-func requireBuiltinComparison(d *operatorDescriptor, pos parser.Position) error {
+func requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
 	if !operatorSeeded(d) {
 		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}
@@ -262,7 +263,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 // Provider dispatch is constrained by the selected routine's exact declaration.
 // Synthetic argument slots are binder-local, cannot occur in parsed SQL, and
 // are restored even if the selected provider rejects an unsupported signature.
-func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
+func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
 	previous := b.selectedOperatorArgs
 	b.selectedOperatorArgs = args
 	defer func() { b.selectedOperatorArgs = previous }()
@@ -285,7 +286,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 			if key.left != 0 {
 				signature = strconv.FormatUint(uint64(key.left), 10) + "," + signature
 			}
-			if procedureSignature(signature) != d.Signature {
+			if catalog.ProcedureSignature(signature) != d.Signature {
 				continue
 			}
 			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: key.name, Pos: pos}}}, Args: rawArgs, Pos: pos}

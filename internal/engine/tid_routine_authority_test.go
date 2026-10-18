@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -55,12 +56,12 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("missing selected declaration", outer, err)
 			}
 			declaration := outer.Builtin
-			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
-			if declaration.Identity != wantIdentity || declaration.Result != 16 || declaration.Kind != functionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
+			wantIdentity := catalog.RoutineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
+			if declaration.Identity != wantIdentity || declaration.Result != 16 || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != functionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
+			if auth.catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != catalog.FunctionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.Body) != 0 {
@@ -86,7 +87,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			foreign := New()
 			for _, mode := range []string{"missing", "foreign", "stale epoch", "stale revision"} {
-				var checks []expressionDependency
+				var checks []catalog.ExpressionDependency
 				for _, dependency := range binder.dependencies {
 					if dependency.Ref.Address == address {
 						switch mode {
@@ -114,7 +115,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []expressionDependency{}
+			evaluation.routineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}

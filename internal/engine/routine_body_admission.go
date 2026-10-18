@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,7 +11,7 @@ import (
 )
 
 type routineBodyContext struct {
-	outer     *procedureDescriptor
+	outer     *catalog.Procedure
 	statement bool
 }
 
@@ -30,13 +31,13 @@ func (context routineBodyContext) annotate(err error) error {
 	}
 	return err
 }
-func bodyErrorContext(outer *procedureDescriptor, constant bool) routineBodyContext {
+func bodyErrorContext(outer *catalog.Procedure, constant bool) routineBodyContext {
 	if !constant || outer.Address().ObjectID == 3935 || outer.Address().ObjectID == 3936 {
 		return routineBodyContext{}
 	}
 	return routineBodyContext{outer: outer, statement: outer.Volatility == expr.Immutable}
 }
-func inquiryRoutine(outer *procedureDescriptor) bool {
+func inquiryRoutine(outer *catalog.Procedure) bool {
 	switch outer.Address().ObjectID {
 	case 1215, 1216, 1348, 1993:
 		return true
@@ -46,7 +47,7 @@ func inquiryRoutine(outer *procedureDescriptor) bool {
 
 // The declaration edge chooses a candidate, not its lifetime. A current owned
 // descriptor can be selected only after matching the exact original manifest.
-func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []expressionDependency, edge routineBodyEdge) (*procedureDescriptor, error) {
+func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, edge catalog.RoutineBodyEdge) (*catalog.Procedure, error) {
 	var original ids.ObjectRef
 	var revision ids.DefinitionRevision
 	if c.routineReferences != nil {
@@ -84,39 +85,39 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	if err != nil {
 		return nil, err
 	}
-	current, ok := descriptor.(*procedureDescriptor)
+	current, ok := descriptor.(*catalog.Procedure)
 	if !ok || !sameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
 	if revision != 0 && current.Revision() != revision {
-		return nil, CatalogConflict{}
+		return nil, catalog.Conflict{}
 	}
 	return current, nil
 }
 
-func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *procedureDescriptor) error {
+func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *catalog.Procedure) error {
 	auth, dependencies, err := c.routineAdmissionAuthority()
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	return walkRoutineBody(outer, node, func(body *procedureDescriptor) error {
-		_, err := bodyRoutineDescriptor(c, auth, dependencies, routineBodyEdge{Routine: body})
+	return walkRoutineBody(outer, node, func(body *catalog.Procedure) error {
+		_, err := bodyRoutineDescriptor(c, auth, dependencies, catalog.RoutineBodyEdge{Routine: body})
 		return err
 	})
 }
 
-func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBodyEdge) bool {
+func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.RoutineBodyEdge) bool {
 	switch edge.Demand {
-	case bodyBooleanText, bodyNetworkText:
+	case catalog.BodyBooleanText, catalog.BodyNetworkText:
 		argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
 		return bodyCastMatches(edge, argument) && !randomLiteralNull(argument)
-	case bodyLeftDuration, bodyRightDuration:
+	case catalog.BodyLeftDuration, catalog.BodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
 			return false
 		}
 		at := 0
-		if edge.Demand == bodyRightDuration {
+		if edge.Demand == catalog.BodyRightDuration {
 			at = 2
 		}
 		return !randomLiteralNull(overlap.Args[at]) && !randomLiteralNull(overlap.Args[at+1])
@@ -124,7 +125,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBo
 	return true
 }
 
-func admitRoutineBody(c *EvalContext, node expr.Expr, outer *procedureDescriptor, constant bool) error {
+func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, constant bool) error {
 	if len(outer.Body) == 0 || inquiryRoutine(outer) {
 		return nil
 	}
@@ -173,9 +174,9 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 	}
 	local := *c
 	local.routineBodyContext = routineBodyContext{outer: outer}
-	demand := bodyLeftDuration
+	demand := catalog.BodyLeftDuration
 	if pair == 1 {
-		demand = bodyRightDuration
+		demand = catalog.BodyRightDuration
 	}
 	for _, edge := range outer.Body {
 		if edge.Demand != demand || !bodyEdgeDemanded(e, outer, edge) {

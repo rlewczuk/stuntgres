@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -50,7 +51,7 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 	return err
 }
 
-func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, output capturedACLItemOutput) error {
+func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, output capturedACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
@@ -64,15 +65,15 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			}
 		})
 	}
-	for _, descriptor := range catalog.Descriptors() {
-		relation, ok := descriptor.(*relationDescriptor)
+	for _, descriptor := range view.Descriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := view.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if relation.RelationKind == catalogRelation {
+		if relation.RelationKind == catalog.CatalogRelation {
 			continue
 		}
 		if storage := e.storage[relation.Address()]; storage != nil {

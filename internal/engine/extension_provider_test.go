@@ -37,7 +37,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 		t.Fatal(err)
 	}
 }
-func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *extensionDescriptor) {
+func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -67,7 +67,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if err := e.registerExtension("unaccent", stockUnaccent); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
-	for i, signature := range []procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature} {
+	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {
 		proc := view.MustProcedure(ext.Members[i])
 		if proc.Signature != signature {
 			t.Fatal("declared signature", i, proc.Signature)
@@ -91,7 +91,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || unaccentDictionaryProviderOf(dict) != stockUnaccent {
 		t.Fatal("dictionary implementation identity")
 	}
-	if unaccentProviderOf((&procedureDescriptor{})) != nil || unaccentDictionaryProviderOf((&tsDictionaryDescriptor{})) != nil {
+	if unaccentProviderOf((&catalog.Procedure{})) != nil || unaccentDictionaryProviderOf((&catalog.TSDictionary{})) != nil {
 		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.Members {
@@ -106,7 +106,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.Address() {
 			t.Fatal("broken member placement")
 		}
-		if _, ok := d.(*tsTemplateDescriptor); ok {
+		if _, ok := d.(*catalog.TSTemplate); ok {
 			if refs := descriptorReferences(d); len(refs) != 0 {
 				t.Fatal("template acquired owner", refs)
 			}
@@ -117,9 +117,9 @@ func TestExtensionProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)}
+	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)}
 	text := view.NameAddress(key)
-	key.Signature = string(unaccentDictionarySignature)
+	key.Signature = string(catalog.UnaccentDictionarySignature)
 	dictionary := view.NameAddress(key)
 	if text == (ids.ObjectAddress{}) || dictionary == (ids.ObjectAddress{}) || text == dictionary {
 		t.Fatal("overloads collapsed")
@@ -200,12 +200,12 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*catalog.Extension)
 			loose := e.BeginCatalogStage(e.CatalogRead())
-			var conflict Descriptor
+			var conflict catalog.Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
-				n := *source.Descriptors[ext.Members[index]].(*procedureDescriptor)
+				n := *source.Descriptors[ext.Members[index]].(*catalog.Procedure)
 				n.Extension = ids.ObjectAddress{}
 				n.Dictionary = ids.ObjectAddress{}
 				conflict = &n
@@ -215,14 +215,14 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			} else {
 				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
-					n := *source.Descriptors[ext.Members[i]].(*procedureDescriptor)
+					n := *source.Descriptors[ext.Members[i]].(*catalog.Procedure)
 					n.Extension = ids.ObjectAddress{}
 					n.ObjectNamespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
 				}
-				tmpl := *source.Descriptors[ext.Members[4]].(*tsTemplateDescriptor)
+				tmpl := *source.Descriptors[ext.Members[4]].(*catalog.TSTemplate)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
@@ -232,7 +232,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.Descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
+					dict := *source.Descriptors[ext.Members[5]].(*catalog.TSDictionary)
 					dict.Extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {
@@ -250,7 +250,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				t.Fatal("collision accepted", err)
 			}
 			want := "23505"
-			if _, ok := conflict.(*procedureDescriptor); ok {
+			if _, ok := conflict.(*catalog.Procedure); ok {
 				want = "42723"
 			}
 			if diagnostic.Code != want || diagnostic.Context == "" {

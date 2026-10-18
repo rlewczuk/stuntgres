@@ -6,12 +6,13 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgCastUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
 	d, ok := e.catalog.state.Relation(a)
@@ -24,7 +25,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 func TestPGCastShapeAndOwnership(t *testing.T) {
 	e := New()
 	d, _ := pgCastUnitSource(t, e)
-	if d.Name() != "pg_cast" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
+	if d.Name() != "pg_cast" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
 		t.Fatal(d)
 	}
 	for i, name := range []string{"oid", "castsource", "casttarget", "castfunc", "castcontext", "castmethod"} {
@@ -43,7 +44,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
@@ -79,7 +80,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
+func pgCastUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
 	for _, row := range rows.anonymous {

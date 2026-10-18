@@ -13,7 +13,7 @@ import (
 )
 
 // Package fixtures construct providers, not SQL sessions or public-driver mocks.
-func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *relationDescriptor) {
+func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -24,18 +24,18 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	var columns []ColumnDescriptor
+	var columns []catalog.Column
 	if !empty {
-		columns = []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}, {Name: "note", Usage: testUsage(e, sqltype.Text), Nullable: true, NullabilityKnown: true}}
+		columns = []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}, {Name: "note", Usage: testUsage(e, sqltype.Text), Nullable: true, NullabilityKnown: true}}
 	}
 	index := make(map[string]int, len(columns))
 	for i, column := range columns {
 		index[column.Name] = i
 	}
 	e.mu.Lock()
-	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
+	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
-		source.RelationKind = compositeRelation
+		source.RelationKind = catalog.CompositeRelation
 		if !empty {
 			source.Attributes = []int32{2, 4}
 			source.AttributeHighWater = 4
@@ -44,9 +44,9 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 		}
 		err = e.stageRowTypeLocked(stage, source)
 	}
-	var table *relationDescriptor
+	var table *catalog.Relation
 	if err == nil {
-		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
+		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
 		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -108,7 +108,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 		t.Fatal("physical own-row source admitted")
 	}
 	invalid = *table
-	invalid.Columns = append([]ColumnDescriptor(nil), table.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), table.Columns...)
 	invalid.Columns[0].Usage = testUsage(e, sqltype.Int8)
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("different member usage admitted")
@@ -139,12 +139,12 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 	}
 }
 
-func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor) *CatalogStage {
+func typedRenameStage(t *testing.T, e *Engine, source, table *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.typedSource = table.OfType
 	stage.typedObserved = typedClosure(stage.Base, table.OfType)
-	for _, old := range []*relationDescriptor{source, table} {
+	for _, old := range []*catalog.Relation{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {
 			t.Fatal(err)
@@ -194,7 +194,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
-			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
+			late.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
 			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *table

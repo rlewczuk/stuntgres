@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -55,8 +56,10 @@ func TestForeignActionsDefinition(t *testing.T) {
 	if original.UpdateAction != parser.ForeignKeyCascade || original.DeleteAction != parser.ForeignKeySetNull || len(original.DeleteAttributes) != 1 || original.DeleteAttributes[0] != child.Attributes[3] {
 		t.Fatal(original)
 	}
-	for _, change := range []func(*foreignKeyConstraint){
-		func(f *foreignKeyConstraint) { f.UpdateAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = 255 }, func(f *foreignKeyConstraint) { f.DeleteAction = parser.ForeignKeyCascade }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.Attributes[2]} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{99} }, func(f *foreignKeyConstraint) { f.DeleteAttributes = []int32{child.Attributes[3], child.Attributes[3]} },
+	for _, change := range []func(*catalog.ForeignKeyConstraint){
+		func(f *catalog.ForeignKeyConstraint) { f.UpdateAction = 255 }, func(f *catalog.ForeignKeyConstraint) { f.DeleteAction = 255 }, func(f *catalog.ForeignKeyConstraint) { f.DeleteAction = parser.ForeignKeyCascade }, func(f *catalog.ForeignKeyConstraint) { f.DeleteAttributes = []int32{child.Attributes[2]} }, func(f *catalog.ForeignKeyConstraint) { f.DeleteAttributes = []int32{99} }, func(f *catalog.ForeignKeyConstraint) {
+			f.DeleteAttributes = []int32{child.Attributes[3], child.Attributes[3]}
+		},
 	} {
 		candidate := *child
 		candidate.ForeignKeys = slices.Clone(child.ForeignKeys)

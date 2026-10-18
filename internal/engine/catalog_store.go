@@ -18,24 +18,24 @@ import (
 // engine's single provenance domain, so session tokens, transaction
 // references and the lock manager use it as well as catalog references.
 type catalogStore struct {
-	catalogOwner
-	state          *catalogState
+	catalog.Owner
+	state          *catalog.State
 	nextOID        ids.OID
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
 }
 
 // owner returns the store's owner record.
-func (s *catalogStore) owner() *catalogOwner { return &s.catalogOwner }
+func (s *catalogStore) owner() *catalog.Owner { return &s.Owner }
 
 // read returns a view of state owned by this store.
-func (s *catalogStore) read(state *catalogState) CatalogRead {
+func (s *catalogStore) read(state *catalog.State) catalog.Read {
 	return catalog.NewRead(s.owner(), state)
 }
 
 // registerProviderLocked adds a provider before the builtin catalog is
 // installed. Registration closes once state exists.
-func (s *catalogStore) registerProviderLocked(id ids.OID, p CatalogProvider) error {
+func (s *catalogStore) registerProviderLocked(id ids.OID, p catalog.Provider) error {
 	if s.state != nil {
 		return fmt.Errorf("stuntgres: catalog providers are already initialized")
 	}
@@ -114,7 +114,7 @@ func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
 // its current epoch, and that ref names a live object. It preserves live epoch
 // and provenance checks without reacquiring synchronization when called from
 // catalog mutation preflight.
-func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
+func (s *catalogStore) validateObjectRefLocked(view catalog.Read, ref ids.ObjectRef) error {
 	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -132,7 +132,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 		return fmt.Errorf("stuntgres: invalid catalog subobject")
 	}
 	if ref.Address.SubID > 0 {
-		r, ok := d.(*relationDescriptor)
+		r, ok := d.(*catalog.Relation)
 		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}
@@ -142,7 +142,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 
 // validateCatalogViewLocked checks that view belongs to this store and its
 // current epoch.
-func (s *catalogStore) validateCatalogViewLocked(view CatalogRead) error {
+func (s *catalogStore) validateCatalogViewLocked(view catalog.Read) error {
 	if s.Domain == nil || view.Owner() != s.owner() || view.State() == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}

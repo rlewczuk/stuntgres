@@ -39,10 +39,10 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.Kind != functionRoutine || declaration.Result != 1700 || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || !declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers&seriesRoutineProvider == 0 {
+			if declaration.Kind != catalog.FunctionRoutine || declaration.Result != 1700 || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || !declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers&seriesRoutineProvider == 0 {
 				t.Fatal("independent released declaration flags", declaration)
 			}
 			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != expr.Immutable {
@@ -52,7 +52,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || owned != captured {
 				t.Fatal("call did not capture original owned descriptor")
 			}
-			original := append([]expressionDependency(nil), binder.dependencies...)
+			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
@@ -74,13 +74,13 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
 				t.Fatal("original source/project admission", err)
 			}
-			missing := make([]expressionDependency, 0, len(original))
+			missing := make([]catalog.ExpressionDependency, 0, len(original))
 			for _, dependency := range original {
 				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
-			for _, manifest := range [][]expressionDependency{nil, {}, missing} {
+			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
 				probe.routineChecks = manifest
 				if err := admitRoutineCall(&probe, node, false, false); err == nil {
@@ -88,7 +88,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			for _, epoch := range []bool{false, true} {
-				stale := append([]expressionDependency(nil), original...)
+				stale := append([]catalog.ExpressionDependency(nil), original...)
 				for i := range stale {
 					if stale[i].Ref.Address == address {
 						if epoch {

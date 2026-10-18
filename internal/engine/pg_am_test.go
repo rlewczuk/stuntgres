@@ -6,12 +6,13 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2601}
 	d, ok := e.catalog.state.Relation(a)
@@ -21,7 +22,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), a)
 }
 
-func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {
+func pgAMUnitFacts(t *testing.T, source *querySource, d *catalog.Relation) [][]any {
 	t.Helper()
 	if len(source.anonymous) != 4 {
 		t.Fatal("access-method count", len(source.anonymous))
@@ -59,11 +60,11 @@ func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][
 
 func TestPGAMCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d, ref := pgAMUnitSource(t, e)
-	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
+	checkDescriptor := func(view catalog.Read, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {
@@ -72,7 +73,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			if i == 1 {
 				collation = 950
 			}
-			owned, ok := catalog.LookupType(id)
+			owned, ok := view.LookupType(id)
 			c := d.Columns[i]
 			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2601 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 				t.Fatal("column ownership", i, c)
@@ -85,20 +86,20 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal("PUBLIC SELECT", d.ACL)
 		}
-		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015})
-		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})
-		ownedRow, rowOK := catalog.LookupType(10015)
-		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015})
+		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})
+		ownedRow, rowOK := view.LookupType(10015)
+		ownedArray, arrayOK := view.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10014 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
-		if err := (relationProvider{}).Validate(catalog, d); err != nil {
+		if err := (relationProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
-	checkDescriptor(catalog, d)
+	checkDescriptor(view, d)
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +107,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)
-	second, err := capturePGAM(context.Background(), catalog, ref, d)
+	second, err := capturePGAM(context.Background(), view, ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,19 +121,19 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	}
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*relationDescriptor{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]catalog.Column(nil), d.Columns...), d.Columns[0])}}
 	for slot := range d.Columns {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[slot].Usage.Type, _ = foreign.LookupType(d.Columns[slot].Usage.Type.ID())
 		badSources = append(badSources, &invalid)
 		wrong := *d
-		wrong.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		wrong.Columns = append([]catalog.Column(nil), d.Columns...)
 		wrong.Columns[slot].Usage.Type = d.Columns[(slot+1)%4].Usage.Type
 		badSources = append(badSources, &wrong)
 	}
 	for _, bad := range badSources {
-		got, err := capturePGAM(context.Background(), catalog, ref, bad)
+		got, err := capturePGAM(context.Background(), view, ref, bad)
 		message := "stuntgres: foreign access-method source type"
 		if bad == nil || len(bad.Columns) != 4 {
 			message = "stuntgres: invalid access-method source shape"
@@ -152,7 +153,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			cancel()
 			ctx = during
 		}
-		got, err := capturePGAM(ctx, catalog, ref, d)
+		got, err := capturePGAM(ctx, view, ref, d)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
@@ -173,9 +174,9 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			t.Fatal("generation not reowned", i)
 		}
 	}
-	oldRow, _ := catalog.LookupType(10015)
+	oldRow, _ := view.LookupType(10015)
 	newRow, _ := freshCatalog.LookupType(10015)
-	oldArray, _ := catalog.LookupType(10014)
+	oldArray, _ := view.LookupType(10014)
 	newArray, _ := freshCatalog.LookupType(10014)
 	if d == fresh || oldRow == newRow || oldArray == newArray {
 		t.Fatal("relation/row/array descriptor reused")

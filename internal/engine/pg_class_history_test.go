@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
+func pgClassHistoryCatalog(e *Engine) (catalog.Read, *catalog.Relation) {
 	state := catalog.CloneState(e.CatalogRead().State())
-	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)
 	state.BindName(catalog.DescriptorNameKey(parent), parent.Address())
 	return e.catalog.read(state), parent
@@ -24,16 +24,16 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			base, parent := pgClassHistoryCatalog(e)
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, ObjectNamespace: parent.Namespace(), ObjectName: "history_child", ObjectRevision: 1, Owner: parent.Owner}
+			child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, ObjectNamespace: parent.Namespace(), ObjectName: "history_child", ObjectRevision: 1, Owner: parent.Owner}
 			switch edge {
 			case "inheritance":
-				child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
+				child.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}
 			case "table_partition":
-				child.Membership = &partitionMembership{Parent: parent.Address()}
+				child.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
 			case "index_partition":
-				child.SQLIndex = &indexDefinition{PartitionParent: parent.Address()}
+				child.SQLIndex = &catalog.IndexDefinition{PartitionParent: parent.Address()}
 			case "ordinary_index":
-				child.SQLIndex = &indexDefinition{Parent: parent.Address()}
+				child.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address()}
 			}
 			if err := stage.Create(child); err != nil {
 				t.Fatal(err)
@@ -50,7 +50,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := stage.Descriptors[parent.Address()].(*relationDescriptor)
+			got := stage.Descriptors[parent.Address()].(*catalog.Relation)
 			want := edge != "ordinary_index"
 			if got.HasSubclasses != want || got.Name() != next.Name() || got.Revision() != next.Revision() || parent.HasSubclasses || next.HasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
@@ -74,8 +74,8 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.authorizationDomain.Principal(10)}
-	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.authorizationDomain.Principal(10)}
+	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := stage.Descriptors[parent.Address()].(*relationDescriptor)
+	got := stage.Descriptors[parent.Address()].(*catalog.Relation)
 	if !got.HasSubclasses || got.Revision() != 7 || got.RowType != 200112 || parent.HasSubclasses {
 		t.Fatal("same-stage identity/history", got)
 	}
@@ -97,9 +97,9 @@ func TestPgClassSubclassPublication(t *testing.T) {
 func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	view, parent := pgClassHistoryCatalog(e)
-	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
+	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
 	view.State().SetDescriptor(child.Address(), child)
-	history := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)

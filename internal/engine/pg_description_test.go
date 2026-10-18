@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2609}
 	d, ok := e.catalog.state.Relation(address)
@@ -56,7 +56,7 @@ func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddre
 func TestPGDescriptionShape(t *testing.T) {
 	e := New()
 	d, _ := pgDescriptionUnitSource(t, e)
-	if d.Name() != "pg_description" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_description" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -76,24 +76,24 @@ func TestPGDescriptionShape(t *testing.T) {
 		t.Fatal("virtual catalog metadata must validate without physical constraints", err)
 	}
 	physical := *d
-	physical.RelationKind = tableRelation
+	physical.RelationKind = catalog.TableRelation
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical table NOT NULL metadata requires constraint identities")
 	}
 	foreignType, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	for _, tc := range []struct {
 		name       string
-		invalidate func(*relationDescriptor)
+		invalidate func(*catalog.Relation)
 	}{
-		{"identity", func(r *relationDescriptor) { r.ObjectAddress.ObjectID = 0 }},
-		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
-		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
-		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
-		{"column comment", func(r *relationDescriptor) { r.ColumnComments = map[int32]string{99: "dead attribute"} }},
+		{"identity", func(r *catalog.Relation) { r.ObjectAddress.ObjectID = 0 }},
+		{"type", func(r *catalog.Relation) { r.Columns[0].Usage.Type = foreignType }},
+		{"live attribute", func(r *catalog.Relation) { r.Attributes[0] = 0 }},
+		{"constraint record", func(r *catalog.Relation) { r.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}} }},
+		{"column comment", func(r *catalog.Relation) { r.ColumnComments = map[int32]string{99: "dead attribute"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
-			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
 			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
@@ -132,8 +132,8 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.CloneDescriptors()
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	d := &relationDescriptor{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.SetDescriptor(namespace, &namespaceDescriptor{ObjectAddress: namespace, Comment: "namespace"})
+	d := &catalog.Relation{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
+	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)
@@ -188,7 +188,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.catalog.state, catalog.NewState(0)} {
+	for _, state := range []*catalog.State{e.catalog.state, catalog.NewState(0)} {
 		captured, err := capturePGDescription(ctx, e.catalog.read(state), ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
@@ -231,7 +231,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	}
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		switch descriptor.(type) {
-		case *collationDescriptor, *conversionDescriptor:
+		case *catalog.Collation, *catalog.Conversion:
 			if descriptorComment(descriptor, 0) != "" || catalogDescription(descriptor, 1) != "" {
 				t.Fatal("projection widened inquiry/subobject boundary", descriptor)
 			}

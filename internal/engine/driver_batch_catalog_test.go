@@ -211,7 +211,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
 		t.Fatal("authentic pre-stage namespace creation rejected", err)
 	}
-	namespace := candidate.descriptors[ns.Address].(*namespaceDescriptor)
+	namespace := candidate.descriptors[ns.Address].(*catalog.Namespace)
 	key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}
 	if original, exists := candidate.originals[ns.Address]; !exists || original != nil {
 		t.Fatal("namespace creation lost its committed absence fence")

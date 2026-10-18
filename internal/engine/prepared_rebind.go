@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,7 +21,7 @@ type preparedAnalysis struct {
 	target          ids.ObjectRef
 	targets         map[parser.Statement]ids.ObjectRef
 	sources         map[*parser.TableReference]preparedSource
-	dependencies    []expressionDependency
+	dependencies    []catalog.ExpressionDependency
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
 type preparedSource struct {
@@ -84,8 +85,8 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // Caller holds Engine.mu. Sequence source events are independent of generator
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
-func preparedDefinitionStamp(d Descriptor, session *Session) ids.DefinitionRevision {
-	if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == sequenceRelation {
+func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.DefinitionRevision {
+	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {
 			if memory := session.sequences[relation.Address()]; memory != nil {
@@ -121,8 +122,8 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		if d == nil || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		cell.dependencies = append(cell.dependencies, expressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
-		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == viewRelation && relation.View != nil {
+		cell.dependencies = append(cell.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
+		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.ViewRelation && relation.View != nil {
 			for _, leaf := range viewOf(relation).sources {
 				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)
 				if err != nil {

@@ -6,17 +6,18 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
 )
 
-func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *relationDescriptor, action, target string) error {
+func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, action, target string) error {
 	t.Helper()
 	return extensionUnitExecute(t, e, op, &parser.AlterView{Materialized: true, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Action: action, Target: parser.Identifier{Text: target}})
 }
-func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *relationDescriptor) *relationDescriptor {
+func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
@@ -70,7 +71,7 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege},
 		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}
-	for _, typ := range []*typeDescriptor{row, array} {
+	for _, typ := range []*catalog.Type{row, array} {
 		if len(typ.ACL.Entries) != len(expected) {
 			t.Fatal("dependent type lost or added ACL origins", typ.Name(), typ.ACL)
 		}
@@ -200,7 +201,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		e.mu.Lock()
 		err = e.catalogPreflightLocked(changes)
 		e.mu.Unlock()
-		if _, conflict := err.(CatalogConflict); !conflict {
+		if _, conflict := err.(catalog.Conflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
@@ -233,7 +234,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	}
 	roleExecute(t, e, op, "CREATE VIEW union_child AS SELECT s FROM union_mv")
 	child := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "union_child"})
-	member := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(unaccentTextSignature)})
+	member := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)})
 	survivor := refreshUnitRelation(t, e)
 	store := e.storage[survivor.Address()]
 	before := e.catalog.state
@@ -301,7 +302,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			next.AutoExtensions = []ids.ObjectAddress{ext.Address()}
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			stage.querySources = []Descriptor{ext}
+			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.session
 			stage.authRevision = op.session.authorization.revision
 			stage.roleRevision = e.roles.revision
@@ -417,7 +418,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage[retained] != retainedStore || e.catalog.state.Get(d.Address()) != d || e.storage[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
 		t.Fatal("import mutated retained TEMP or source authority")
 	}
-	remapped := remapExtensionDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*relationDescriptor)
+	remapped := remapExtensionDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
 	if remapped == d || remapped.AutoExtensions[0] != importedExt.Address() || d.AutoExtensions[0] != ext.Address() || remapped.View != d.View {
 		t.Fatal("remap lost immutable genuine x authority")
 	}

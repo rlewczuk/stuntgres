@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -44,9 +45,9 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing actual bound declaration", captured, err)
 			}
-			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
+			identity := catalog.RoutineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
 			d := captured.Builtin
-			if d.Identity != identity || d.Kind != functionRoutine || uint32(d.Result) != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
+			if d.Identity != identity || d.Kind != catalog.FunctionRoutine || uint32(d.Result) != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
 				t.Fatal("released full-IN declaration", d)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
@@ -86,7 +87,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 				t.Fatal("repaired missing manifest")
 			}
-			checks := append([]expressionDependency(nil), b.dependencies...)
+			checks := append([]catalog.ExpressionDependency(nil), b.dependencies...)
 			for i := range checks {
 				if checks[i].Ref.Address == address {
 					checks[i].Revision++

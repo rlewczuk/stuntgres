@@ -143,7 +143,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			provider := f.e.catalog.Providers[ids.RelationClassID]
 			var once sync.Once
-			f.e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
+			f.e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
 			type result struct {
 				p   *PreparedCatalogPublication
 				err error
@@ -162,7 +162,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal(r.err)
 			}
 			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.Base.Epoch()})
-			if err != (CatalogConflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
+			if err != (catalog.Conflict{}) || f.e.catalog.state.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.DefaultReads {

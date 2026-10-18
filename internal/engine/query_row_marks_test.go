@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -134,8 +135,8 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
-		{leaf: queryLeaf{relation: &relationDescriptor{RelationKind: tableRelation}}},
+		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	marks := []queryRowMark{{mode: lock.ForUpdate, wait: parser.RowLockSkip}, {mode: lock.ForShare, wait: parser.RowLockNowait}}
 	pending := appendPendingRowMarks(nil, marks, inputs)
@@ -151,7 +152,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
-	table := &relationDescriptor{RelationKind: tableRelation}
+	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := queryRowMark{mode: lock.ForUpdate, wait: parser.RowLockNowait, diagnosticMode: lock.ForUpdate, order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{
 		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},

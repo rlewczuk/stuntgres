@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -137,7 +138,7 @@ type Operation struct {
 	materializedOwner          authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
 	restoreDefaultReplay       bool
 	restorePartitionAttach     bool
-	restorePartitionCheck      *relationDescriptor        // Exact leased private-import physical CHECK target.
+	restorePartitionCheck      *catalog.Relation          // Exact leased private-import physical CHECK target.
 	restorePartitionUsingIndex *partitionUsingIndexReplay // Exact leased private-import physical target/index.
 	restorePartitionUnique     *partitionUniqueReplay     // Exact private virtual definition/subtree lease.
 	discardRoleReset           authorization.RoleState    // nonzero Authenticated only during DISCARD ALL publication

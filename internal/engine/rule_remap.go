@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func remapRuleBinding(view CatalogRead, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (binding, error) {
+func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (binding, error) {
 	typ = recordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
 	mapper.mutation = func(definition *cteDefinition) (binding, error) {
@@ -18,7 +19,7 @@ func remapRuleBinding(view CatalogRead, b binding, ref func(ids.ObjectRef) ids.O
 	return remapRuleBindingMapped(view, b, ref, typ, collation, mapper)
 }
 
-func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper, mapper *viewQueryRemapper) (binding, error) {
+func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper, mapper *viewQueryRemapper) (binding, error) {
 	originalRef := b.ref
 	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		if expr == nil {
@@ -138,7 +139,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 		return &next, nil
 	}
 	b.ref = ref(b.ref)
-	var current *relationDescriptor
+	var current *catalog.Relation
 	if b.relation != nil {
 		current, _ = view.Relation(b.ref.Address)
 		if current == nil {
@@ -260,7 +261,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 	return b, nil
 }
 
-func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
+func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
@@ -342,8 +343,8 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 // Definition OID reminting follows descriptor/expression import. Only named
 // constraint identities change here; canonical recipe mapping keeps modifying
 // WITH definitions and their scans coherent without remapping scalar types again.
-func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*relationDescriptor, error) {
-	var replacement *relationDescriptor
+func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*catalog.Relation, error) {
+	var replacement *catalog.Relation
 	for i, r := range rulesOf(d) {
 		var references []ids.ObjectAddress
 		for j, address := range r.references {
@@ -401,7 +402,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		d, ok := descriptor.(*relationDescriptor)
+		d, ok := descriptor.(*catalog.Relation)
 		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
 
@@ -27,7 +28,7 @@ func (t *dumpRelation) hasInvalidConstraints() bool {
 
 // Invalid definitions follow all ordinary rows: no validation bypass, no
 // validity promotion, and the same captured owner as their table definition.
-func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
+func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
 	prefix := "ALTER TABLE " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ADD CONSTRAINT "
 	for _, n := range t.notNullConstraints {
 		if !n.NotValid || !dumpNotNullDeclaration(catalog, t.descriptor, n.Attribute) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,9 +12,9 @@ import (
 )
 
 type operatorSignature struct{ left, right ids.OID }
-type operatorGroups map[string][]*operatorDescriptor
+type operatorGroups map[string][]*catalog.Operator
 
-func collectOperatorGroups(view CatalogRead) operatorGroups {
+func collectOperatorGroups(view catalog.Read) operatorGroups {
 	groups := make(operatorGroups)
 	for key, addresses := range view.State().OperatorNames().Buckets {
 		for _, address := range addresses {
@@ -25,8 +26,8 @@ func collectOperatorGroups(view CatalogRead) operatorGroups {
 }
 
 // Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*operatorDescriptor {
-	var result []*operatorDescriptor
+func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
+	var result []*catalog.Operator
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
 		for _, d := range groups[name] {
@@ -48,7 +49,7 @@ type capturedOperatorInput struct {
 	path      []ids.ObjectAddress
 	groups    operatorGroups
 	qualified *[]ids.ObjectAddress
-	operands  *[]expressionDependency
+	operands  *[]catalog.ExpressionDependency
 }
 
 func (e *Engine) captureOperatorInput(auth AuthorizationView, op *Operation) (capturedOperatorInput, error) {
@@ -83,7 +84,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 	n, err := v.OID()
 	return n, true, err
 }
-func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, error) {
+func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, error) {
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return nil, sqlError("42602", "invalid name syntax")

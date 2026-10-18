@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -238,7 +239,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 		t.Fatal(matches)
 	}
 	descriptor, _ := view.Descriptor(matches[0])
-	original := descriptor.(*relationDescriptor)
+	original := descriptor.(*catalog.Relation)
 	provider := relationProvider{}
 	if err := provider.Validate(view, original); err != nil {
 		t.Fatal("valid precision rejected", err)
@@ -251,7 +252,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 		{Type: foreign, Typmod: 3},
 	} {
 		copy := *original
-		copy.Columns = append([]ColumnDescriptor(nil), original.Columns...)
+		copy.Columns = append([]catalog.Column(nil), original.Columns...)
 		copy.Columns[0].Usage = usage
 		if err := provider.Validate(view, &copy); err == nil {
 			t.Fatal("invalid/foreign usage admitted", usage)

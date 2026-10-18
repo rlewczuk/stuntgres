@@ -25,18 +25,18 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					provider := &typeDescriptor{SQLType: domain, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectRevision: 1}
+					provider := &catalog.Type{SQLType: domain, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectRevision: 1}
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
-					p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
+					p.Columns = []catalog.Column{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.Attributes, p.AttributeHighWater, p.Index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
 					ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), provider.Address())
 					switch definition {
 					case "column":
 						p.Columns[0].Usage = domain.Usage()
 					case "default":
-						p.Defaults = map[int32]columnDefault{3: {OID: 29003, Dependencies: []ids.ObjectRef{ref}}}
+						p.Defaults = map[int32]catalog.ColumnDefault{3: {OID: 29003, Dependencies: []ids.ObjectRef{ref}}}
 					case "check":
-						p.CheckConstraints = []checkConstraint{{OID: 29003, Name: "authority_check", Dependencies: []expressionDependency{{Ref: ref}}}}
+						p.CheckConstraints = []catalog.CheckConstraint{{OID: 29003, Name: "authority_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
 					}
 					c := inheritanceLifecycleTable(e, 29002, "authority_c", p.Address())
 					inheritanceLifecycleInstall(e, p, c)
@@ -89,7 +89,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						mode = parser.DropRestrict
 					}
 					projected := 0
-					project := func(old, next *relationDescriptor) error {
+					project := func(old, next *catalog.Relation) error {
 						projected++
 						if old != p || len(next.Columns) != 1 || next.Columns[0].Name != "keep" || next.Attributes[0] != 7 {
 							t.Fatal("wrong stable-column projection")
@@ -136,7 +136,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						}
 					}
 					if authority == "removed_child" || authority == "replaced_child" || authority == "standalone" {
-						next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
+						next, ok := stage.Descriptors[p.Address()].(*catalog.Relation)
 						if !ok {
 							t.Fatal("standalone mutation not staged")
 						}
@@ -161,17 +161,17 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			p := inheritanceLifecycleTable(e, 29101, "prospective_p")
 			c := inheritanceLifecycleTable(e, 29102, "prospective_c", q.Address(), p.Address())
 			u := testUsage(e, sqltype.Int4)
-			p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
+			p.Columns = []catalog.Column{{Name: "a", Usage: u}}
 			p.Attributes, p.AttributeHighWater, p.Index = []int32{1}, 1, map[string]int{"a": 0}
-			c.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
+			c.Columns = []catalog.Column{{Name: "a", Usage: u}}
 			c.Attributes, c.AttributeHighWater, c.Index = []int32{1}, 1, map[string]int{"a": 0}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), q.Address())
 			if definition == "default" {
-				p.Defaults = map[int32]columnDefault{1: {OID: 29103, Dependencies: []ids.ObjectRef{ref}}}
-				c.Defaults = map[int32]columnDefault{1: {OID: 29104, Dependencies: []ids.ObjectRef{ref}}}
+				p.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 29103, Dependencies: []ids.ObjectRef{ref}}}
+				c.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 29104, Dependencies: []ids.ObjectRef{ref}}}
 			} else {
-				p.CheckConstraints = []checkConstraint{{OID: 29103, Name: "provider_check", Dependencies: []expressionDependency{{Ref: ref}}}}
-				c.CheckConstraints = []checkConstraint{{OID: 29104, Name: "provider_check", Dependencies: []expressionDependency{{Ref: ref}}}}
+				p.CheckConstraints = []catalog.CheckConstraint{{OID: 29103, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
+				c.CheckConstraints = []catalog.CheckConstraint{{OID: 29104, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
 			}
 			inheritanceLifecycleInstall(e, q, p, c)
 			op, done := roleOperation(t, e, "postgres")
@@ -202,7 +202,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if _, removed := stage.Removals[p.Address()]; removed {
 				t.Fatal("other parent was whole-retired")
 			}
-			next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
+			next, ok := stage.Descriptors[p.Address()].(*catalog.Relation)
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}

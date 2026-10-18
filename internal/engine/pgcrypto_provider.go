@@ -9,14 +9,14 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type pgcryptoProvider struct{ control extensionControl }
+type pgcryptoProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
-func (p *pgcryptoProvider) Control() extensionControl { return p.control.Detached() }
+func (p *pgcryptoProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 
-var stockPgcrypto = &pgcryptoProvider{control: extensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
+var stockPgcrypto = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 
-func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(functions.PgcryptoMembers))
 	for i, member := range functions.PgcryptoMembers {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -29,7 +29,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: procedureSignature(member.Signature), RoutineKind: functionRoutine, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: catalog.ProcedureSignature(member.Signature), RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.Result, Volatility: member.Volatility, Strict: member.Strict, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
@@ -40,7 +40,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	return nil
 }
 
-func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
+func (p *pgcryptoProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
 	if v.Owner() == nil || p != stockPgcrypto || ext.Name() != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
 		return invalid()
@@ -65,7 +65,7 @@ func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	return nil
 }
 
-func (p *pgcryptoProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
+func (p *pgcryptoProvider) validateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	if v.Get(proc.Address()) != proc || pgcryptoProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
 	}

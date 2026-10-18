@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 // One replay decision over an already-bound, validated definition, not DEFAULT
 // admission or volatility policy. Captured closed expressions and the selected
 // closed regclass result subset may install after their providers are created.
-func defaultReplayDeferrable(definition columnDefault) bool {
+func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	node := definition.Expression
 	if node == nil {
 		return false

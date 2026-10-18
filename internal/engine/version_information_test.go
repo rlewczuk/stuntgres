@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -48,7 +49,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if declaration.Identity.ID != tc.oid || declaration.Identity.Signature != "" || declaration.Kind != functionRoutine || declaration.Result != 25 || !declaration.Strict || declaration.Parallel != 's' || declaration.Volatility != tc.volatility || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 {
+		if declaration.Identity.ID != tc.oid || declaration.Identity.Signature != "" || declaration.Kind != catalog.FunctionRoutine || declaration.Result != 25 || !declaration.Strict || declaration.Parallel != 's' || declaration.Volatility != tc.volatility || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 {
 			t.Fatalf("incorrect declaration %#v", declaration)
 		}
 		if plannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {

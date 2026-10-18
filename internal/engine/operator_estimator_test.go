@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -11,8 +12,8 @@ import (
 func TestUserOperatorCatalogEstimatorVariants(t *testing.T) {
 	name := operatorUnitName("public", "join_estimator")
 	// Lookup-only inputs deliberately do not install procedures or providers.
-	four := routineIdentity{ID: 90000, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21"}
-	five := routineIdentity{ID: 90001, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21,2281"}
+	four := catalog.RoutineIdentity{ID: 90000, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21"}
+	five := catalog.RoutineIdentity{ID: 90001, Namespace: ids.PublicNamespaceOID, Name: "join_estimator", Signature: "2281,26,2281,21,2281"}
 	for _, tc := range []struct {
 		name                 string
 		fourCount, fiveCount int

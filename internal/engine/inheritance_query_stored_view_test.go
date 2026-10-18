@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -37,12 +38,12 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, stage)
-			var child *relationDescriptor
+			var child *catalog.Relation
 			if tc.child {
 				predecessor, before := parent, e.CatalogRead()
 				storage := e.storage[parent.Address()]
 				childStage, d := queryCreateStage(t, e, "c", 1)
-				d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
+				d.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 					t.Fatal(err)
 				}
@@ -53,7 +54,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}
-			ref := func(d *relationDescriptor) ids.ObjectRef {
+			ref := func(d *catalog.Relation) ids.ObjectRef {
 				return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 			}
 			parentRef, parentStorage := ref(parent), e.storage[parent.Address()]
@@ -64,7 +65,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
-			addView := func(name string, only, local bool) (*relationDescriptor, ids.ObjectRef) {
+			addView := func(name string, only, local bool) (*catalog.Relation, ids.ObjectRef) {
 				t.Helper()
 				query := "SELECT i FROM p"
 				if only {
@@ -84,7 +85,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var definition *viewDefinition
 				if bindErr == nil {
-					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, viewRelation, false)
+					definition, bindErr = e.freezeViewDefinitionLocked(auth, raw.Query, b, false, false, 0, catalog.ViewRelation, false)
 				}
 				var oid ids.OID
 				if bindErr == nil {
@@ -94,7 +95,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(bindErr)
 				}
-				d := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: viewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 				d.Columns[0].OriginTable, d.Columns[0].OriginAttribute = uint32(oid), 1
 				viewStage := e.BeginCatalogStage(auth.catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)
@@ -109,7 +110,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				return d, ref(d)
 			}
 			view, viewRef := addView("v", tc.only, tc.local)
-			var otherView *relationDescriptor
+			var otherView *catalog.Relation
 			var otherRef ids.ObjectRef
 			if tc.overlapping {
 				otherView, otherRef = addView("marked_v", false, true)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -30,10 +31,10 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			defer scope.Finish(context.Canceled)
 			base := e.catalog.state
 			e.mu.Lock()
-			var carried *namespaceDescriptor
+			var carried *catalog.Namespace
 			if prior {
 				scope.catalog = newCatalogChanges()
-				carried = &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.authorizationDomain.Principal(10), ObjectRevision: 1}
+				carried = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.authorizationDomain.Principal(10), ObjectRevision: 1}
 				e.catalogChangeLocked(scope.catalog, carried.Address(), carried)
 			}
 			auth, path, err := scope.schemaInquiryPathLocked(e)
@@ -61,7 +62,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			boolType, _ := auth.catalog.LookupType(sqltype.Bool)
 			var toast ids.ObjectAddress
 			for a, d := range candidate.descriptors {
-				if n, ok := d.(*namespaceDescriptor); ok && n.TemporaryToast && n.Temporary == s.token {
+				if n, ok := d.(*catalog.Namespace); ok && n.TemporaryToast && n.Temporary == s.token {
 					toast = a
 				}
 			}

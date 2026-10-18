@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -64,20 +65,20 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					}
 				}
 				var address ids.ObjectAddress
-				var descriptor Descriptor
+				var descriptor catalog.Descriptor
 				switch dependency {
 				case "schema":
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
 					address = schemaRef(t, e, "retirement_peer").Address
 					descriptor = e.catalog.state.Get(address)
-					if descriptor.(*namespaceDescriptor).Owner != role.Ref {
+					if descriptor.(*catalog.Namespace).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
 					}
 				case "policy":
 					sessionSQL(t, b, "CREATE POLICY retirement_peer ON retirement_policy TO retired USING(i>0)")
 					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
 					descriptor = e.catalog.state.Get(address)
-					policies := descriptor.(*relationDescriptor).Policies
+					policies := descriptor.(*catalog.Relation).Policies
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}

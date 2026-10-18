@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
+func pgSequenceUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2224}
 	d, ok := e.catalog.state.Relation(a)
@@ -59,7 +59,7 @@ func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 func TestPGSequenceShape(t *testing.T) {
 	e := New()
 	d, _ := pgSequenceUnitSource(t, e)
-	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
+	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -82,23 +82,23 @@ func TestPGSequenceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	physical := *d
-	physical.RelationKind = tableRelation
+	physical.RelationKind = catalog.TableRelation
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical NOT NULL requires constraint identities")
 	}
 	foreignType, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	for _, tc := range []struct {
 		name       string
-		invalidate func(*relationDescriptor)
+		invalidate func(*catalog.Relation)
 	}{
-		{"identity", func(r *relationDescriptor) { r.ObjectAddress.ObjectID = 0 }},
-		{"type", func(r *relationDescriptor) { r.Columns[0].Usage.Type = foreignType }},
-		{"live attribute", func(r *relationDescriptor) { r.Attributes[0] = 0 }},
-		{"constraint record", func(r *relationDescriptor) { r.NotNullConstraints = []notNullConstraint{{Attribute: 1}} }},
+		{"identity", func(r *catalog.Relation) { r.ObjectAddress.ObjectID = 0 }},
+		{"type", func(r *catalog.Relation) { r.Columns[0].Usage.Type = foreignType }},
+		{"live attribute", func(r *catalog.Relation) { r.Attributes[0] = 0 }},
+		{"constraint record", func(r *catalog.Relation) { r.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
-			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
 			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
@@ -139,11 +139,11 @@ func TestPGSequenceProjection(t *testing.T) {
 	state := *e.catalog.state
 	state.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	options := &sequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
-	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
+	options := &catalog.SequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
+	d := &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: options}
 	state.SetDescriptor(a, d)
-	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
-	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{RelationKind: viewRelation})
+	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &catalog.Relation{RelationKind: catalog.TableRelation})
+	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &catalog.Relation{RelationKind: catalog.ViewRelation})
 	e.sequences[a] = &sequenceGenerator{last: 99, called: true, generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
@@ -163,12 +163,12 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base := *e.catalog.state
 	base.CloneDescriptors()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.SetDescriptor(a, &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
+	base.SetDescriptor(a, &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
 		name string
-		base *catalogState
+		base *catalog.State
 		own  *catalogChanges
 	}{
 		{"no definitions", e.catalog.state, nil},
@@ -193,8 +193,8 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	options := &sequenceOptions{SQLType: sqltype.Int2, Start: -1, Increment: -3, Max: -1, Min: -32768, Cache: 1}
-	d := &relationDescriptor{ObjectAddress: a, RelationKind: sequenceRelation, Sequence: options}
+	options := &catalog.SequenceOptions{SQLType: sqltype.Int2, Start: -1, Increment: -3, Max: -1, Min: -32768, Cache: 1}
+	d := &catalog.Relation{ObjectAddress: a, RelationKind: catalog.SequenceRelation, Sequence: options}
 	base.SetDescriptor(a, d)
 	other := *d
 	other.ObjectAddress = dropped
@@ -233,7 +233,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{&base, catalog.NewState(0)} {
+	for _, state := range []*catalog.State{&base, catalog.NewState(0)} {
 		rows, err := capturePGSequence(ctx, state, own, ref, source)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)

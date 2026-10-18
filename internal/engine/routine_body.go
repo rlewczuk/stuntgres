@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,50 +11,50 @@ import (
 
 var builtinRoutineBodyEdges = [...]struct {
 	outer, inner ids.OID
-	demand       routineBodyDemand
+	demand       catalog.RoutineBodyDemand
 }{
-	{879, 873, bodyAlways}, {880, 874, bodyAlways},
-	{1811, 1374, bodyAlways}, {1811, 141, bodyAlways},
-	{1810, 720, bodyAlways}, {1810, 141, bodyAlways}, {1812, 1681, bodyAlways},
-	{1708, 1707, bodyAlways}, {1710, 1709, bodyAlways},
-	{1384, 2024, bodyAlways}, {1384, 2021, bodyAlways},
-	{2059, 2024, bodyAlways}, {2059, 2058, bodyAlways},
-	{1296, 1272, bodyAlways}, {1298, 1297, bodyAlways},
-	{1848, 1747, bodyAlways}, {2546, 2071, bodyAlways}, {2547, 1749, bodyAlways},
-	{2548, 2032, bodyAlways}, {2549, 1189, bodyAlways}, {2550, 1141, bodyAlways},
-	{2631, 2630, bodyAlways},
-	{2074, 1986, bodyAlways}, {2074, 2073, bodyAlways},
-	{1285, 2971, bodyBooleanText}, {1285, 730, bodyNetworkText}, {1285, 1283, bodyAlways},
-	{1290, 2971, bodyBooleanText}, {1290, 730, bodyNetworkText}, {1290, 1289, bodyAlways},
-	{2003, 2971, bodyBooleanText}, {2003, 730, bodyNetworkText}, {2003, 1258, bodyAlways},
-	{2004, 2971, bodyBooleanText}, {2004, 730, bodyNetworkText}, {2004, 1258, bodyAlways},
-	{3935, 2649, bodyAlways}, {3935, 1189, bodyAlways}, {3935, 6203, bodyAlways}, {3935, 1725, bodyAlways}, {3935, 1746, bodyAlways}, {3935, 2626, bodyAlways},
-	{3936, 2649, bodyAlways}, {3936, 6203, bodyAlways}, {3936, 1725, bodyAlways}, {3936, 1746, bodyAlways}, {3936, 2626, bodyAlways},
-	{1305, 1189, bodyLeftDuration}, {1305, 1189, bodyRightDuration}, {1305, 1304, bodyAlways},
-	{1306, 1189, bodyRightDuration}, {1306, 1304, bodyAlways},
-	{1307, 1189, bodyLeftDuration}, {1307, 1304, bodyAlways},
-	{2042, 2032, bodyLeftDuration}, {2042, 2032, bodyRightDuration}, {2042, 2041, bodyAlways},
-	{2043, 2032, bodyRightDuration}, {2043, 2041, bodyAlways},
-	{2044, 2032, bodyLeftDuration}, {2044, 2041, bodyAlways},
-	{1309, 1747, bodyLeftDuration}, {1309, 1747, bodyRightDuration}, {1309, 1308, bodyAlways},
-	{1310, 1747, bodyRightDuration}, {1310, 1308, bodyAlways},
-	{1311, 1747, bodyLeftDuration}, {1311, 1308, bodyAlways},
-	{1215, 184, bodyAlways}, {1215, 62, bodyAlways}, {1215, 65, bodyAlways},
-	{1993, 184, bodyAlways}, {1993, 62, bodyAlways},
-	{1348, 184, bodyAlways}, {1348, 65, bodyAlways},
-	{1216, 184, bodyAlways}, {1216, 65, bodyAlways},
-	{1741, 1736, bodyAlways}, {1481, 1736, bodyAlways},
+	{879, 873, catalog.BodyAlways}, {880, 874, catalog.BodyAlways},
+	{1811, 1374, catalog.BodyAlways}, {1811, 141, catalog.BodyAlways},
+	{1810, 720, catalog.BodyAlways}, {1810, 141, catalog.BodyAlways}, {1812, 1681, catalog.BodyAlways},
+	{1708, 1707, catalog.BodyAlways}, {1710, 1709, catalog.BodyAlways},
+	{1384, 2024, catalog.BodyAlways}, {1384, 2021, catalog.BodyAlways},
+	{2059, 2024, catalog.BodyAlways}, {2059, 2058, catalog.BodyAlways},
+	{1296, 1272, catalog.BodyAlways}, {1298, 1297, catalog.BodyAlways},
+	{1848, 1747, catalog.BodyAlways}, {2546, 2071, catalog.BodyAlways}, {2547, 1749, catalog.BodyAlways},
+	{2548, 2032, catalog.BodyAlways}, {2549, 1189, catalog.BodyAlways}, {2550, 1141, catalog.BodyAlways},
+	{2631, 2630, catalog.BodyAlways},
+	{2074, 1986, catalog.BodyAlways}, {2074, 2073, catalog.BodyAlways},
+	{1285, 2971, catalog.BodyBooleanText}, {1285, 730, catalog.BodyNetworkText}, {1285, 1283, catalog.BodyAlways},
+	{1290, 2971, catalog.BodyBooleanText}, {1290, 730, catalog.BodyNetworkText}, {1290, 1289, catalog.BodyAlways},
+	{2003, 2971, catalog.BodyBooleanText}, {2003, 730, catalog.BodyNetworkText}, {2003, 1258, catalog.BodyAlways},
+	{2004, 2971, catalog.BodyBooleanText}, {2004, 730, catalog.BodyNetworkText}, {2004, 1258, catalog.BodyAlways},
+	{3935, 2649, catalog.BodyAlways}, {3935, 1189, catalog.BodyAlways}, {3935, 6203, catalog.BodyAlways}, {3935, 1725, catalog.BodyAlways}, {3935, 1746, catalog.BodyAlways}, {3935, 2626, catalog.BodyAlways},
+	{3936, 2649, catalog.BodyAlways}, {3936, 6203, catalog.BodyAlways}, {3936, 1725, catalog.BodyAlways}, {3936, 1746, catalog.BodyAlways}, {3936, 2626, catalog.BodyAlways},
+	{1305, 1189, catalog.BodyLeftDuration}, {1305, 1189, catalog.BodyRightDuration}, {1305, 1304, catalog.BodyAlways},
+	{1306, 1189, catalog.BodyRightDuration}, {1306, 1304, catalog.BodyAlways},
+	{1307, 1189, catalog.BodyLeftDuration}, {1307, 1304, catalog.BodyAlways},
+	{2042, 2032, catalog.BodyLeftDuration}, {2042, 2032, catalog.BodyRightDuration}, {2042, 2041, catalog.BodyAlways},
+	{2043, 2032, catalog.BodyRightDuration}, {2043, 2041, catalog.BodyAlways},
+	{2044, 2032, catalog.BodyLeftDuration}, {2044, 2041, catalog.BodyAlways},
+	{1309, 1747, catalog.BodyLeftDuration}, {1309, 1747, catalog.BodyRightDuration}, {1309, 1308, catalog.BodyAlways},
+	{1310, 1747, catalog.BodyRightDuration}, {1310, 1308, catalog.BodyAlways},
+	{1311, 1747, catalog.BodyLeftDuration}, {1311, 1308, catalog.BodyAlways},
+	{1215, 184, catalog.BodyAlways}, {1215, 62, catalog.BodyAlways}, {1215, 65, catalog.BodyAlways},
+	{1993, 184, catalog.BodyAlways}, {1993, 62, catalog.BodyAlways},
+	{1348, 184, catalog.BodyAlways}, {1348, 65, catalog.BodyAlways},
+	{1216, 184, catalog.BodyAlways}, {1216, 65, catalog.BodyAlways},
+	{1741, 1736, catalog.BodyAlways}, {1481, 1736, catalog.BodyAlways},
 }
 
 func (e *Engine) initializeBuiltinRoutineBodies() {
-	storage := make([]routineBodyEdge, len(builtinRoutineBodyEdges))
+	storage := make([]catalog.RoutineBodyEdge, len(builtinRoutineBodyEdges))
 	for i, edge := range builtinRoutineBodyEdges {
 		outer, ok := e.catalog.state.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.outer})
 		inner, found := e.catalog.state.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.inner})
 		if !ok || !found {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}
-		storage[i] = routineBodyEdge{inner, edge.demand}
+		storage[i] = catalog.RoutineBodyEdge{inner, edge.demand}
 		if len(outer.Body) == 0 {
 			outer.Body = storage[i : i+1 : i+1]
 		} else {
@@ -79,12 +80,12 @@ func polymorphicBodyArgument(node expr.Expr, id ids.OID) expr.Expr {
 	return nil
 }
 
-func bodyCastMatches(edge routineBodyEdge, argument expr.Expr) bool {
+func bodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
 	if argument == nil {
 		return false
 	}
 	id := argument.ResultUsage().Type.BaseType().ID()
-	return edge.Demand == bodyBooleanText && id == sqltype.Bool || edge.Demand == bodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
+	return edge.Demand == catalog.BodyBooleanText && id == sqltype.Bool || edge.Demand == catalog.BodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
 }
 
 // Capture at binding, before descriptors can be remapped or published with a new
@@ -106,9 +107,9 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 	return nil
 }
 
-func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error {
+func (b *expressionBinder) captureRoutineBody(outer *catalog.Procedure) error {
 	for _, edge := range outer.Body {
-		if edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText {
+		if edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText {
 			continue
 		}
 		if edge.Routine == nil || edge.Routine.Builtin == nil {
@@ -123,10 +124,10 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 
 // Lifetime capture is conservative even where strict NULL later removes actual
 // invocation. Only instance-selected polymorphic cast identities participate.
-func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
+func walkRoutineBody(outer *catalog.Procedure, node expr.Expr, visit func(*catalog.Procedure) error) error {
 	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
-		if (edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
+		if (edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText) && !bodyCastMatches(edge, argument) {
 			continue
 		}
 		if err := visit(edge.Routine); err != nil {

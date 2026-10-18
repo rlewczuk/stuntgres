@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -17,7 +18,7 @@ type indexRowIdentity struct {
 // A validated overlay has a compact physical layout. Baseline installation
 // filters its already-produced entries and restores genuine heap positions;
 // owner-invisible predecessors have no invented keys.
-func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescriptor, baseline *relationStorage, positions map[indexRowIdentity]int) (*logicalIndexRoot, error) {
+func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relation, baseline *relationStorage, positions map[indexRowIdentity]int) (*logicalIndexRoot, error) {
 	if b == nil || b.index == nil || !sameIndexKeySemantics(b.index, index) || b.store == nil || baseline == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -60,7 +61,7 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *relationDescr
 	return newLogicalIndexRoot(index.SQLIndex, entries), nil
 }
 
-func retainIndexBuild(changes *catalogChanges, index *relationDescriptor, baseline *relationStorage, root *logicalIndexRoot) {
+func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline *relationStorage, root *logicalIndexRoot) {
 	if changes.uniqueRoots == nil {
 		changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +18,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	earlier := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -25,7 +26,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	nondefault := conversionUnitDefinition(e, 90003, "shadow_nondefault", false)
 	nondefault.ObjectNamespace = earlier.Address()
 	stage := e.BeginCatalogStage(view)
-	for _, d := range []Descriptor{earlier, low, high, first, nondefault} {
+	for _, d := range []catalog.Descriptor{earlier, low, high, first, nondefault} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -135,7 +136,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	private := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
@@ -170,12 +171,12 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
+	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalog
+	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -185,7 +186,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	path := []ids.ObjectAddress{public, catalog}
+	path := []ids.ObjectAddress{public, catalogAddress}
 	if actual := regprocSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
 	}

@@ -16,7 +16,7 @@ import (
 
 // Package-function candidates use real registry descriptors and ownership; no
 // public SQL API or manufactured committed DELETE rows are used here.
-func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Engine, *Operation, *catalogChanges, *relationDescriptor) {
+func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Engine, *Operation, *catalogChanges, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	session := sessionStart(t, e, nil)
@@ -26,8 +26,8 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
-	namespace := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
-	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
 	e.catalogChangeLocked(c, table.Address(), table)
@@ -52,7 +52,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
 	e.storage[table.Address()] = &relationStorage{}
-	if _, ok := e.catalogPreflightLocked(c).(CatalogConflict); !ok {
+	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}
 }
@@ -135,7 +135,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	foreign.Temporary = e.catalog.Domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.SetDescriptor(consumer.Namespace(), &namespaceDescriptor{ObjectAddress: consumer.Namespace(), Temporary: op.session.token})
+	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.session.token})
 	advanced.SetDescriptor(table.Namespace(), &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
@@ -203,7 +203,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.Persistence = "temporary"
-	sequence := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
+	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.Address(), sequence)
 	view := e.privateCatalogLocked(c)
@@ -265,10 +265,10 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
-	lookup := func(view CatalogRead, name string, namespace ids.SessionToken) *relationDescriptor {
+	lookup := func(view catalog.Read, name string, namespace ids.SessionToken) *catalog.Relation {
 		t.Helper()
 		for _, descriptor := range view.Descriptors() {
-			d, ok := descriptor.(*relationDescriptor)
+			d, ok := descriptor.(*catalog.Relation)
 			if !ok || d.Name() != name {
 				continue
 			}
@@ -324,7 +324,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("immutable dependency manifest changed", attribute)
 		}
 	}
-	for _, target := range []*relationDescriptor{provider, providerIndex} {
+	for _, target := range []*catalog.Relation{provider, providerIndex} {
 		ref := e.catalog.Domain.Ref(before.Epoch(), target.Address())
 		if !storedReferenceEpochValid(retained, consumer, ref) {
 			t.Fatal("actual same-owner relation rejected", target.Name())

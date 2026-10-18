@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -14,52 +15,52 @@ type pgDependEdge struct {
 }
 
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
-func pgDependPinned(catalog CatalogRead, address ids.ObjectAddress) bool {
+func pgDependPinned(view catalog.Read, address ids.ObjectAddress) bool {
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := catalog.Descriptor(whole)
+	d, ok := view.Descriptor(whole)
 	if !ok {
 		return false
 	}
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		if d.OwningRelation != (ids.ObjectAddress{}) {
-			relation, ok := catalog.Relation(d.OwningRelation)
-			return !ok || relation.RelationKind == catalogRelation
+			relation, ok := view.Relation(d.OwningRelation)
+			return !ok || relation.RelationKind == catalog.CatalogRelation
 		}
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
 		// arrays retain their owned element's dependency even without storage.
 		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
-	case *collationDescriptor:
+	case *catalog.Collation:
 		return d.Seeded()
-	case *conversionDescriptor:
+	case *catalog.Conversion:
 		return d.Seeded()
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		return d.Seeded()
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		return operatorSeeded(d)
-	case *relationDescriptor:
-		return d.RelationKind == catalogRelation
+	case *catalog.Relation:
+		return d.RelationKind == catalog.CatalogRelation
 	}
 	return false
 }
 
-func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, error) {
+func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	var edges []pgDependEdge
 	add := func(dependent, referenced ids.ObjectAddress, flavor byte) {
-		if referenced.ObjectID != 0 && !pgDependPinned(catalog, referenced) {
+		if referenced.ObjectID != 0 && !pgDependPinned(view, referenced) {
 			edges = append(edges, pgDependEdge{dependent, referenced, flavor})
 		}
 	}
 	attribute := func(relation ids.ObjectAddress, sub int32) ids.ObjectAddress { relation.SubID = sub; return relation }
 	expression := func(owner ids.ObjectAddress, expr expr.Expr, parent ids.ObjectAddress, localFlavor byte) error {
-		refs, err := pgDependExpressionRefs(ctx, catalog, expr)
+		refs, err := pgDependExpressionRefs(ctx, view, expr)
 		if err != nil {
 			return err
 		}
@@ -75,56 +76,56 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		}
 		return nil
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		switch d := descriptor.(type) {
-		case *operatorDescriptor:
+		case *catalog.Operator:
 			if !operatorSeeded(d) {
-				for _, address := range operatorDependencyAddresses(catalog, d) {
+				for _, address := range operatorDependencyAddresses(view, d) {
 					add(d.Address(), address, 'n')
 				}
 			}
-		case *foreignDescriptor:
+		case *catalog.ForeignObject:
 			for _, address := range foreignDependencyAddresses(d) {
 				if address != (ids.ObjectAddress{}) {
 					add(d.Address(), address, 'n')
 				}
 			}
-		case *extensionDescriptor:
+		case *catalog.Extension:
 			add(d.Address(), d.TargetNamespace, 'n')
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			if intarrayProviderOf(d) != nil {
 				if d.Name() == "bqarr_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				} else {
-					ext := catalog.MustExtension(d.Extension)
+					ext := view.MustExtension(d.Extension)
 					add(d.Address(), ext.Members[0], 'n')
 				}
 			}
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Init, 'n')
 			add(d.Address(), d.Lexize, 'n')
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Template, 'n')
-		case *collationDescriptor:
+		case *catalog.Collation:
 			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 			}
-		case *conversionDescriptor:
+		case *catalog.Conversion:
 			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 				add(d.Address(), d.Handler, 'n')
 			}
-		case *typeDescriptor:
-			if pgDependPinned(catalog, d.Address()) {
+		case *catalog.Type:
+			if pgDependPinned(view, d.Address()) {
 				continue
 			}
 			add(d.Address(), d.Extension, 'e')
@@ -132,7 +133,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')
 			} else if d.OwningRelation != (ids.ObjectAddress{}) && !d.SQLType.IsComposite() {
 				add(d.Address(), d.OwningRelation, 'i')
-			} else if d.SQLType.IsComposite() && catalog.MustRelation(d.OwningRelation).RelationKind != compositeRelation {
+			} else if d.SQLType.IsComposite() && view.MustRelation(d.OwningRelation).RelationKind != catalog.CompositeRelation {
 				add(d.Address(), d.OwningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
@@ -141,11 +142,11 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')
 				}
 			}
-		case *relationDescriptor:
+		case *catalog.Relation:
 			if d.Foreign != nil {
 				add(d.Address(), d.Foreign.Server, 'n')
 			}
-			if d.RelationKind == catalogRelation {
+			if d.RelationKind == catalog.CatalogRelation {
 				continue
 			}
 			for _, extension := range d.AutoExtensions {
@@ -204,7 +205,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 				// All expression keys share one collection, so repeated inputs
 				// across keys do not create repeated dependency records.
-				refs := pgDependRefs{ctx: ctx, catalog: catalog}
+				refs := pgDependRefs{ctx: ctx, catalog: view}
 				for _, key := range definition.Keys {
 					if err := ctx.Err(); err != nil {
 						return nil, err
@@ -233,7 +234,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 				continue
 			}
-			if d.RelationKind == compositeRelation {
+			if d.RelationKind == catalog.CompositeRelation {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
@@ -247,7 +248,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(d.Address(), d.Membership.Parent, 'a')
 			}
 			if d.Partition != nil {
-				refs := pgDependRefs{ctx: ctx, catalog: catalog}
+				refs := pgDependRefs{ctx: ctx, catalog: view}
 				for _, key := range d.Partition.Keys {
 					if key.Attribute != 0 {
 						refs.add(attribute(d.Address(), key.Attribute))
@@ -299,7 +300,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					}
 					add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.Address(), sub), 'a')
 				}
-				index, ok := catalog.Relation(c.Index)
+				index, ok := view.Relation(c.Index)
 				if !ok || index.SQLIndex == nil {
 					return nil, fmt.Errorf("stuntgres: missing unique dependency index")
 				}
@@ -321,7 +322,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(owner, f.Index, 'n')
 			}
 			for _, c := range d.ExclusionConstraints {
-				index, ok := catalog.Relation(c.Index)
+				index, ok := view.Relation(c.Index)
 				if !ok || index.SQLIndex == nil {
 					return nil, fmt.Errorf("stuntgres: missing exclusion dependency index")
 				}
@@ -331,7 +332,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 						add(owner, attribute(d.Address(), key.Attribute), 'a')
 						continue
 					}
-					refs, err := pgDependExpressionRefs(ctx, catalog, key.Derived.Definition)
+					refs, err := pgDependExpressionRefs(ctx, view, key.Derived.Definition)
 					if err != nil {
 						return nil, err
 					}
@@ -346,7 +347,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					add(owner, attribute(d.Address(), sub), 'a')
 				}
 				if predicate := index.SQLIndex.Predicate; predicate != nil {
-					refs, err := pgDependExpressionRefs(ctx, catalog, predicate.Definition)
+					refs, err := pgDependExpressionRefs(ctx, view, predicate.Definition)
 					if err != nil {
 						return nil, err
 					}
@@ -360,7 +361,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			}
 			for _, c := range d.CheckConstraints {
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}
-				refs, err := pgDependExpressionRefs(ctx, catalog, c.Expression)
+				refs, err := pgDependExpressionRefs(ctx, view, c.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -409,7 +410,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			if d.View != nil {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
 				add(owner, d.Address(), 'i')
-				refs, err := pgDependQueryRefs(ctx, catalog, viewOf(d).query)
+				refs, err := pgDependQueryRefs(ctx, view, viewOf(d).query)
 				if err != nil {
 					return nil, err
 				}
@@ -428,7 +429,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 	return edges, nil
 }
 
-func capturePGDepend(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDepend(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	edges, err := collectPGDepend(ctx, catalog)
 	if err != nil {
 		return nil, err

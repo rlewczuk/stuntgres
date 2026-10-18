@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -9,7 +10,7 @@ import (
 
 type installedMetaphoneFunctionExpression struct {
 	functions.Metaphone
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 
@@ -24,14 +25,14 @@ func (e installedMetaphoneFunctionExpression) Rebuild(info expr.Info, children [
 	return e, nil
 }
 
-func (n installedMetaphoneFunctionExpression) validate(v CatalogRead) error {
+func (n installedMetaphoneFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Metaphone argument")
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != procedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
+	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone identity")
 	}
 	if err := stockFuzzystrmatch.validateProcedure(v, proc); err != nil {

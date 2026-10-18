@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 		t.Fatal("bound inquiry lost snapshot demand")
 	}
 	badRelation := *relation
-	badRelation.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
+	badRelation.CheckConstraints = append([]catalog.CheckConstraint(nil), relation.CheckConstraints...)
 	badRelation.CheckConstraints[0].CommentSnapshot = false
 	if err := validateChecks(view, &badRelation, map[string]bool{}); err == nil {
 		t.Fatal("invalid snapshot demand persisted")

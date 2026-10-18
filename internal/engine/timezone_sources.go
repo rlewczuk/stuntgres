@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 
 // Called after releasing the engine mutex. The immutable descriptor and captured
 // input belong to this execution; provider loading never extends catalog locks.
-func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor, input sqltype.InputEnvironment) (*querySource, error) {
+func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, input sqltype.InputEnvironment) (*querySource, error) {
 	var rows [][]sqltype.Value
 	offsetIndex := len(d.Columns) - 2
 	appendFact := func(name, abbrev string, east int32, daylight bool) error {
@@ -48,7 +49,7 @@ func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *relationDe
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
 
-func timezoneViewWriteError(d *relationDescriptor, operation string) error {
+func timezoneViewWriteError(d *catalog.Relation, operation string) error {
 	message := fmt.Sprintf(`cannot update view "%s"`, d.Name())
 	action := "updating the view"
 	switch operation {

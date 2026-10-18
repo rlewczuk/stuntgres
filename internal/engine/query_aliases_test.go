@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func TestQueryAliasesMetadata(t *testing.T) {
 		typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		usage := sqltype.Usage{Type: typ, Typmod: -1}
 		origin := base.Results[0].OriginTable
-		want := []ColumnDescriptor{
+		want := []catalog.Column{
 			{Name: "shown", Usage: usage, NullabilityKnown: true, OriginTable: origin, OriginAttribute: 1},
 			{Name: "a", Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: origin, OriginAttribute: 2},
 			{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: origin, OriginAttribute: 3},
@@ -187,7 +188,7 @@ func TestQueryAliasesTypmodAndCollation(t *testing.T) {
 	varchar, _ := e.CatalogRead().LookupType(sqltype.VarChar)
 	numeric, _ := e.CatalogRead().LookupType(sqltype.Numeric)
 	origin := base.Results[0].OriginTable
-	want := []ColumnDescriptor{
+	want := []catalog.Column{
 		{Name: "label", Usage: sqltype.Usage{Type: varchar, Typmod: 9, Collation: sqltype.CollationRef{ID: 100, Derivation: sqltype.Default}}, Nullable: true, NullabilityKnown: true, OriginTable: origin, OriginAttribute: 1},
 		{Name: "price", Usage: sqltype.Usage{Type: numeric, Typmod: (7 << 16) + 2 + 4}, Nullable: true, NullabilityKnown: true, OriginTable: origin, OriginAttribute: 2},
 	}

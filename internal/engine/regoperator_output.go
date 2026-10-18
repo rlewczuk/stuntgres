@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ type operatorOutputKey struct {
 	alias sqltype.ID
 }
 
-func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
+func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
 	descriptor, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
@@ -93,7 +94,7 @@ func (r *finalRows) FormatRegoper(id uint32) (string, error) {
 func (r *finalRows) FormatRegoperator(id uint32) (string, error) {
 	return r.formatOperator(id, sqltype.Regoperator)
 }
-func captureOperatorOutputValue(rows *finalRows, view CatalogRead, path []ids.ObjectAddress, value sqltype.Value) error {
+func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.ObjectAddress, value sqltype.Value) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}

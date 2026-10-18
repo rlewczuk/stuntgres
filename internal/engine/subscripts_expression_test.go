@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func subscriptsUnit(t *testing.T, view CatalogRead, dimensions []sqltype.ArrayDimension, dimension int64, reverse ...bool) subscriptsExpression {
+func subscriptsUnit(t *testing.T, view catalog.Read, dimensions []sqltype.ArrayDimension, dimension int64, reverse ...bool) subscriptsExpression {
 	t.Helper()
 	d, _ := view.LookupType(sqltype.Int4)
 	array, ok := view.LookupArray(d)

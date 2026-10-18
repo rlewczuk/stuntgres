@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -50,11 +51,11 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			for _, test := range []struct {
 				ref   ids.ObjectRef
 				old   *sequenceGenerator
-				d     *relationDescriptor
+				d     *catalog.Relation
 				start int64
 			}{{ps, oldPS, oldPD, 1}, {qs, oldQS, oldQD, 44}} {
 				replacement := scope.catalog.generators[test.ref.Address]
-				d := scope.catalog.descriptors[test.ref.Address].(*relationDescriptor)
+				d := scope.catalog.descriptors[test.ref.Address].(*catalog.Relation)
 				if replacement == nil || replacement == test.old || replacement.last != test.start || replacement.called || replacement.generation != d.Revision() || d.SequencePlanStamp != d.Revision() || d.SequencePlanStamp == test.d.SequencePlanStamp || d.Sequence != test.d.Sequence || d.Owner != test.d.Owner || d.Address() != test.d.Address() {
 					t.Fatal("not a fresh configured-start binding with preserved definition")
 				}
@@ -138,7 +139,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				peer := sessionStart(t, e, nil)
 				sessionSQL(t, peer, "CREATE ROLE restart_changed_authority")
 			case "SequenceRevision":
-				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) { d.SequencePlanStamp++ })
+				truncateUnitReplace(t, e, ps, func(d *catalog.Relation) { d.SequencePlanStamp++ })
 			case "SequenceACL":
 				if err := e.SetObjectACL(context.Background(), ps, authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
@@ -165,7 +166,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-			} else if err != (CatalogConflict{}) {
+			} else if err != (catalog.Conflict{}) {
 				t.Fatal("missing final veto", err)
 			}
 			if len(oldP.versions) != 2 || len(oldQ.versions) != 1 || oldPS.last != 2 || oldQS.last != 44 || oldP.truncateLineage != nil || oldQ.truncateLineage != nil || e.storage[q.Address] != oldQ || e.sequences[qs.Address] != oldQS || e.catalog.state.Get(qs.Address) != oldQD {
@@ -222,9 +223,9 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
 			if change == "Incoming" {
 				owned := e.catalog.state.MustRelation(ps.Address).Sequence.Owned
-				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.Sequence; options.Owned = owned; d.Sequence = &options })
+				truncateUnitReplace(t, e, incoming, func(d *catalog.Relation) { options := *d.Sequence; options.Owned = owned; d.Sequence = &options })
 			} else {
-				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) {
+				truncateUnitReplace(t, e, ps, func(d *catalog.Relation) {
 					options := *d.Sequence
 					if change == "Removed" {
 						options.Owned = ids.ObjectAddress{}
@@ -235,7 +236,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 					d.Sequence = &options
 				})
 			}
-			if err := scope.Finish(nil); err != (CatalogConflict{}) {
+			if err := scope.Finish(nil); err != (catalog.Conflict{}) {
 				t.Fatalf("host ownership did not veto: %v", err)
 			}
 			scope.op.Done()

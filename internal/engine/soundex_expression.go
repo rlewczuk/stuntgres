@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,7 +11,7 @@ import (
 
 type installedSoundexFunctionExpression struct {
 	functions.Soundex
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 
@@ -25,7 +26,7 @@ func (e installedSoundexFunctionExpression) Rebuild(info expr.Info, children []e
 	return e, nil
 }
 
-func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
+func (n installedSoundexFunctionExpression) validate(v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Soundex argument")
@@ -36,7 +37,7 @@ func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
 		result = 23
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != procedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
+	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}
 	if err := stockFuzzystrmatch.validateProcedure(v, proc); err != nil {

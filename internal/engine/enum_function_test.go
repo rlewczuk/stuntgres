@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -17,11 +18,11 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	array, _ := sqltype.Array(45001, "_mood", mood)
 	targetMood, _ := sqltype.Enum(45002, "mood", "public.mood", mood.EnumLabels())
 	targetArray, _ := sqltype.Array(45003, "_mood", targetMood)
-	fixtureView := func(e *Engine, enum, array *sqltype.Descriptor) CatalogRead {
+	fixtureView := func(e *Engine, enum, array *sqltype.Descriptor) catalog.Read {
 		base := e.CatalogRead()
 		namespace := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 		stage := e.BeginCatalogStage(base)
-		for _, d := range []*typeDescriptor{{SQLType: enum, ObjectNamespace: namespace, ObjectRevision: 1, Array: array.ID()}, {SQLType: array, ObjectNamespace: namespace, ObjectRevision: 1}} {
+		for _, d := range []*catalog.Type{{SQLType: enum, ObjectNamespace: namespace, ObjectRevision: 1, Array: array.ID()}, {SQLType: array, ObjectNamespace: namespace, ObjectRevision: 1}} {
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
 			}

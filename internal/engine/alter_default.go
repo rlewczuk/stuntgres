@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -29,7 +30,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return fail(err)
 	}
-	old := scope.lockedDescriptor.(*relationDescriptor)
+	old := scope.lockedDescriptor.(*catalog.Relation)
 	if hierarchyRelation(old) && !partitionDefaultReplayAllowed(e, op, auth, s) {
 		return fail(sqlError("0A000", "altering partition hierarchies is unsupported"))
 	}
@@ -62,7 +63,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if inheritanceParticipant(auth.catalog, old) {
 		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
 	}
-	var definition columnDefault
+	var definition catalog.ColumnDefault
 	if s.Action == parser.SetDefault {
 		definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, slot, s.Expression)
 		if err != nil {
@@ -106,7 +107,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	next.Defaults = nil
 	if capacity != 0 {
-		next.Defaults = make(map[int32]columnDefault, capacity)
+		next.Defaults = make(map[int32]catalog.ColumnDefault, capacity)
 	}
 	for key, value := range old.Defaults {
 		if key != attr {
@@ -142,8 +143,8 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	return Result{}, nil
 }
 
-func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, slot int, expression parser.Expr) (columnDefault, error) {
-	var definition columnDefault
+func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
+	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
 	binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
@@ -159,10 +160,10 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 			copy.Position = ""
 			err = &copy
 		}
-		return columnDefault{}, err
+		return catalog.ColumnDefault{}, err
 	}
 	if structuralNull(definition.Expression) {
-		return columnDefault{}, nil
+		return catalog.ColumnDefault{}, nil
 	}
 	definition.OID, err = e.catalog.allocateOIDLocked()
 	return definition, err

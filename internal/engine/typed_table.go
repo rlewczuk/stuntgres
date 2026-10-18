@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -11,7 +12,7 @@ import (
 )
 
 // OF names are catalog object names, not SQL declaration aliases.
-func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, error) {
+func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
 	path, err := e.lookupNamespaces(auth, name, typeLookup)
 	if err != nil {
 		return nil, err
@@ -25,19 +26,19 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
+func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
-		name = typeDiagnosticNameAt(catalog, typ, path)
+		name = typeDiagnosticNameAt(view, typ, path)
 	}
 	if !typ.SQLType.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")
 	}
-	source, ok := catalog.Relation(typ.OwningRelation)
+	source, ok := view.Relation(typ.OwningRelation)
 	if !ok || source.RowType != typ.SQLType.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
-	if source.RelationKind != compositeRelation {
+	if source.RelationKind != catalog.CompositeRelation {
 		d := sqlError("42809", "type "+name+" is the row type of another table").(*sqlstate.Error)
 		d.Detail = "A typed table must use a stand-alone composite type created with CREATE TYPE."
 		return nil, d
@@ -45,7 +46,7 @@ func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.Ob
 	return source, nil
 }
 
-func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]ColumnDescriptor, []createColumnDeclaration, *typeDescriptor, error) {
+func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]catalog.Column, []createColumnDeclaration, *catalog.Type, error) {
 	typ, err := e.namedType(auth, *s.OfType)
 	if err != nil {
 		return nil, nil, nil, err
@@ -61,13 +62,13 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	columns := make([]ColumnDescriptor, len(source.Columns))
+	columns := make([]catalog.Column, len(source.Columns))
 	declarations := make([]createColumnDeclaration, len(columns))
 	for i, member := range source.Columns {
 		if isSystemColumn(member.Name) {
 			return nil, nil, nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, member.Name))
 		}
-		columns[i] = ColumnDescriptor{Name: member.Name, Usage: member.Usage, Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: member.Name, Usage: member.Usage, Nullable: true, NullabilityKnown: true}
 	}
 	seen := make(map[string]bool, len(s.Elements))
 	for _, element := range s.Elements {
@@ -98,7 +99,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	return columns, declarations, typ, nil
 }
 
-func typedShape(table, source *relationDescriptor) error {
+func typedShape(table, source *catalog.Relation) error {
 	for i, member := range source.Columns {
 		if i >= len(table.Columns) {
 			return sqlError("42804", fmt.Sprintf(`table is missing column "%s"`, member.Name))
@@ -117,18 +118,18 @@ func typedShape(table, source *relationDescriptor) error {
 	return nil
 }
 
-func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) error {
+func validateTypedAttachment(view catalog.Read, table *catalog.Relation) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != tableRelation {
+	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != catalog.TableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
-	typ, ok := catalog.Type(table.OfType)
+	typ, ok := view.Type(table.OfType)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing typed source")
 	}
-	source, err := standaloneComposite(catalog, typ, nil)
+	source, err := standaloneComposite(view, typ, nil)
 	if err != nil {
 		return err
 	}
@@ -143,7 +144,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	old, ok := scope.lockedDescriptor.(*relationDescriptor)
+	old, ok := scope.lockedDescriptor.(*catalog.Relation)
 	if !ok {
 		return fail(ids.ErrCatalogReplaced)
 	}
@@ -217,7 +218,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	return Result{}, err
 }
 
-func typedDirectActionsGuard(table *relationDescriptor, actions []parser.AlterTableAction) error {
+func typedDirectActionsGuard(table *catalog.Relation, actions []parser.AlterTableAction) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -248,7 +249,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		}
 	} else {
 		for _, descriptor := range stage.Descriptors {
-			if table, ok := descriptor.(*relationDescriptor); ok && table.OfType != (ids.ObjectAddress{}) {
+			if table, ok := descriptor.(*catalog.Relation); ok && table.OfType != (ids.ObjectAddress{}) {
 				if sources == nil {
 					sources = make(map[ids.ObjectAddress]bool)
 				}
@@ -292,7 +293,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.Base.Get(typ.OwningRelation)
 		e.mu.Unlock()
 		if !valid {
-			return CatalogConflict{}
+			return catalog.Conflict{}
 		}
 	}
 	return nil

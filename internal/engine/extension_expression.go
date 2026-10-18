@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,16 +11,16 @@ import (
 
 type installedFunctionExpression struct {
 	functions.InstalledText
-	procedure  *procedureDescriptor
-	dictionary *tsDictionaryDescriptor
-	template   *tsTemplateDescriptor
+	procedure  *catalog.Procedure
+	dictionary *catalog.TSDictionary
+	template   *catalog.TSTemplate
 	ref        ids.ObjectRef
 }
 
 // Validate provider-specific captured authority without assuming a dictionary.
 func (n installedFunctionExpression) validProvider() bool {
 	p := n.procedure
-	if p == nil || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != unaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
+	if p == nil || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != catalog.UnaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
 		return false
 	}
 	if fuzzystrmatchProviderOf(p) != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"testing"
 )
 
@@ -28,7 +29,7 @@ func TestUpdateCoreSameLengthCatalogGuard(t *testing.T) {
 		t.Fatal("same-length update not versioned")
 	}
 	_, err := e.ValidateCatalogStage(context.Background(), stage)
-	var conflict CatalogConflict
+	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("stale shape accepted", err)
 	}

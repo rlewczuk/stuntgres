@@ -12,15 +12,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Retain the published maps, not merely a CatalogRead pointing at mutable maps.
+// Retain the published maps, not merely a catalog.Read pointing at mutable maps.
 type temporaryProjectionCatalog struct {
-	view        CatalogRead
-	descriptors map[ids.ObjectAddress]Descriptor
+	view        catalog.Read
+	descriptors map[ids.ObjectAddress]catalog.Descriptor
 	names       map[ids.NameKey]ids.ObjectAddress
 }
 
 func captureTemporaryProjectionCatalog(e *Engine) temporaryProjectionCatalog {
-	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
+	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
 	for a, d := range p.view.Descriptors() {
 		p.descriptors[a] = d
 	}
@@ -48,13 +48,13 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 		if len(found) != 1 || found[0] != a {
 			t.Fatal("descriptor lost its unique name binding", a, found)
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind == sequenceRelation && e.sequences[a] == nil {
+		if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.SequenceRelation && e.sequences[a] == nil {
 			t.Fatal("published sequence has no generator", a)
 		}
 	}
 	for a := range e.sequences {
 		r, ok := view.Relation(a)
-		if !ok || r.RelationKind != sequenceRelation {
+		if !ok || r.RelationKind != catalog.SequenceRelation {
 			t.Fatal("orphan generator", a)
 		}
 	}
@@ -180,7 +180,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
 	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
-	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.Columns...)
+	sourceColumns := append([]catalog.Column(nil), sourceSurvivor.Columns...)
 	sourceStore := source.storage[sourceSurvivor.Address()]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.versions))
 	for i, row := range sourceStore.versions {
@@ -188,8 +188,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	retainedTypedRows := sessionSQL(t, a, "SELECT wide,flag,absent_n,absent_b FROM portable.survivor ORDER BY v")
 	retainedTypes := map[sqltype.ID]*sqltype.Descriptor{
-		sqltype.Int8: descriptor.(*relationDescriptor).Columns[0].Usage.Type,
-		sqltype.Bool: descriptor.(*relationDescriptor).Columns[2].Usage.Type,
+		sqltype.Int8: descriptor.(*catalog.Relation).Columns[0].Usage.Type,
+		sqltype.Bool: descriptor.(*catalog.Relation).Columns[2].Usage.Type,
 	}
 	oldRows := sessionSQL(t, b, "SELECT v FROM public.old_table")
 	sourceRows := sessionSQL(t, a, "SELECT v FROM portable.owner_table")
@@ -206,7 +206,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("foreign replacement changed destination toast identity")
 	}
 	for _, d := range dest.catalog.state.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			tempNamespaces++
 			if ns.Temporary != b.token || (ns.Address() != namespace && ns.Address() != toast) || d != destBefore.view.Get(ns.Address()) {
 				t.Fatal("imported foreign SessionToken", ns.Temporary)
@@ -376,7 +376,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 				t.Fatal("excluded retired TEMP required a deleted generator", err)
 			}
 			for _, d := range dest.catalog.state.Descriptors() {
-				if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
+				if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 					if !self || (ns.Address() != namespace && ns.Address() != toast) {
 						t.Fatal("imported foreign TEMP namespace")
 					}
