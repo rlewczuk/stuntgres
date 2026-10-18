@@ -14,13 +14,13 @@ func selectedLogPowerName(name string) bool {
 	return false
 }
 
-func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindMath(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.defaultConsumer && !selectedLogPowerName(name) {
+	if b.DefaultConsumer() && !selectedLogPowerName(name) {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	if name == "width_bucket" && len(raw.Args) == 2 {
-		return b.bindThresholdBucket(raw, visible)
+		return bindThresholdBucket(b, raw, visible)
 	}
 	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
 	if err != nil {
@@ -30,31 +30,31 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	if !visible {
-		return nil, b.randomSignature(raw, args, unknown, false)
+		return nil, randomSignature(b, raw, args, unknown, false)
 	}
 	prepared := functions.PrepareMath(name)
 	var types functions.NumericTypes
 	if prepared.Needs(sqltype.Int2) {
-		types.Int2 = b.typ(sqltype.Int2).Usage()
+		types.Int2 = b.Type(sqltype.Int2).Usage()
 	}
 	if prepared.Needs(sqltype.Int4) {
-		types.Int4 = b.typ(sqltype.Int4).Usage()
+		types.Int4 = b.Type(sqltype.Int4).Usage()
 	}
 	if prepared.Needs(sqltype.Int8) {
-		types.Int8 = b.typ(sqltype.Int8).Usage()
+		types.Int8 = b.Type(sqltype.Int8).Usage()
 	}
 	if prepared.Needs(sqltype.Float4) {
-		types.Float4 = b.typ(sqltype.Float4).Usage()
+		types.Float4 = b.Type(sqltype.Float4).Usage()
 	}
 	if prepared.Needs(sqltype.Float8) {
-		types.Float8 = b.typ(sqltype.Float8).Usage()
+		types.Float8 = b.Type(sqltype.Float8).Usage()
 	}
 	if prepared.Needs(sqltype.Numeric) {
-		types.Numeric = b.typ(sqltype.Numeric).Usage()
+		types.Numeric = b.Type(sqltype.Numeric).Usage()
 	}
 	signature, resolution := functions.SelectMath(prepared, name, raw.Variadic, args, unknown, types)
 	if resolution != functions.Resolved {
-		return nil, b.randomSignature(raw, args, unknown, resolution == functions.Ambiguous)
+		return nil, randomSignature(b, raw, args, unknown, resolution == functions.Ambiguous)
 	}
 	if selectedLogPowerName(name) {
 		if err := mathModifiers(raw, name); err != nil {
@@ -68,13 +68,13 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 	for _, arg := range args {
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	usage := b.typ(signature.Result).Usage()
-	info := b.info(usage, raw.Pos, properties)
+	usage := b.Type(signature.Result).Usage()
+	info := b.Info(usage, raw.Pos, properties)
 	node, err := functions.NewMath(info, name, args)
 	if err != nil {
 		return nil, err
 	}
-	info, err = b.builtinRoutineInfo(info, mathRoutineProvider, name, signature.Args[:signature.Arity]...)
+	info, err = b.BuiltinRoutineInfo(info, mathRoutineProvider, name, signature.Args[:signature.Arity]...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,17 +106,18 @@ func mathModifiers(raw parser.FunctionExpr, name string) error {
 	return nil
 }
 
-func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindThresholdBucket(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	operands := make([]functions.Argument, len(raw.Args))
 	for i, child := range raw.Args {
-		operand, err := b.comparisonOperandPolicy(child, expressionPolicy{context: projectionContext, thresholdArrayInput: i == 1})
+		intent := functions.ComparisonArgument
+		if i == 1 {
+			intent = functions.ThresholdArrayArgument
+		}
+		operand, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: intent})
 		if err != nil {
 			return nil, err
 		}
-		operands[i] = functions.Argument{Expression: operand.node, Raw: operand.raw}
-		if operand.node != nil {
-			operands[i].Usage = operand.node.ResultUsage()
-		}
+		operands[i] = operand
 	}
 	names := make([]string, len(operands))
 	for i, operand := range operands {
@@ -125,32 +126,27 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 			names[i] = functions.ArrayTypeName(b, operand.Usage.Type)
 		}
 	}
-	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	signature := func() (BoundExpr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
 	if !visible || raw.Variadic || len(raw.ArgNames) != 0 {
 		return signature()
 	}
-	var views [2]comparisonOperand
+	// The threshold array contributes its leaf type to the common type.
+	known := make([]sqltype.Usage, 0, len(operands))
 	for i, operand := range operands {
-		views[i] = comparisonOperand{node: operand.Expression, raw: operand.Raw}
-	}
-	if operands[1].Usage.Type != nil {
-		leaf, ok := functions.ArraySearchLeafUsage(operands[1].Usage)
-		if !ok {
-			return signature()
+		usage := operand.Usage
+		if i == 1 && usage.Type != nil {
+			leaf, ok := functions.ArraySearchLeafUsage(usage)
+			if !ok {
+				return signature()
+			}
+			usage = leaf
 		}
-		views[1].node = literalExpression{expressionInfo: expressionInfo{Usage: leaf}}
-	}
-	known := views[:0]
-	for _, view := range views {
-		if view.descriptor() != nil {
-			known = append(known, view)
+		if usage.Type != nil {
+			known = append(known, usage)
 		}
 	}
-	common, err := selectCommonUsage(len(known), func(i int) comparisonOperand { return known[i] }, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
-	if err != nil {
-		return signature()
-	}
-	array, ok := b.definitionArray(common.Type)
+	common := b.CommonUsage(known)
+	array, ok := b.ArrayType(common.Type)
 	if !ok || !array.Concrete() {
 		return signature()
 	}
@@ -167,6 +163,7 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	}
 	args := make([]BoundExpr, 2)
 	properties := ExprProperties{Volatility: Immutable}
+	var err error
 	for i, operand := range operands {
 		intent := functions.DirectFormalArgument
 		if _, parameter := operand.Raw.(parser.ParameterExpr); parameter && operand.Usage.Type == nil {
@@ -180,11 +177,11 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}
-	input, err := b.comparisonInfo(args[0], args[1])
+	input, err := b.ComparisonInfo(args[0], args[1])
 	if err != nil {
 		return nil, err
 	}
-	result := b.typ(sqltype.Int4).Usage()
+	result := b.Type(sqltype.Int4).Usage()
 	plan, err := sqltype.BindWidthBucketThreshold(result, args[0].ResultUsage(), args[1].ResultUsage(), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, err
@@ -192,7 +189,7 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	if plan.SessionDependent() {
 		properties.Volatility = max(properties.Volatility, Stable)
 	}
-	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), mathRoutineProvider, "width_bucket", 5077, 5078)
+	info, err := b.BuiltinRoutineInfo(b.Info(result, raw.Pos, properties), mathRoutineProvider, "width_bucket", 5077, 5078)
 	if err != nil {
 		return nil, err
 	}

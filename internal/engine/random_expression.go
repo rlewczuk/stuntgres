@@ -15,7 +15,7 @@ func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 	return &c.liveScope().op.session.random, nil
 }
 
-func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {
+func randomSignature(b functions.Binder, raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {
 	types := make([]string, len(args))
 	for i, arg := range args {
 		types[i] = "unknown"
@@ -23,7 +23,10 @@ func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []Bound
 			types[i] = arg.ResultUsage().Type.DiagnosticName()
 		}
 	}
-	return b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, ambiguous)
+	if ambiguous {
+		return functions.ResolutionError(raw.Name, raw.Pos, types, true)
+	}
+	return b.SignatureError(raw.Name, raw.Pos, types)
 }
 
 func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -54,7 +57,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 	}
 	selected, resolution := functions.SelectRandom(prepared, args, unknown, types)
 	if resolution != functions.Resolved {
-		return nil, b.randomSignature(raw, args, unknown, resolution == functions.Ambiguous)
+		return nil, randomSignature(b, raw, args, unknown, resolution == functions.Ambiguous)
 	}
 	if err := functions.CoerceRandomArguments(b, raw.Args, args, unknown, selected); err != nil {
 		return nil, err

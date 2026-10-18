@@ -180,7 +180,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		}
 	}
 	if count != 1 {
-		return nil, b.randomSignature(raw, args, unknown, count > 1)
+		return nil, randomSignature(b, raw, args, unknown, count > 1)
 	}
 	signature := candidates[0]
 	properties := ExprProperties{Volatility: Stable}
