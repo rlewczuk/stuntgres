@@ -867,20 +867,20 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
 		return ok && e.ref == o.ref && e.procedure.revision == o.procedure.revision && same(e.Arg, o.Arg)
-	case sqlJSONExpression:
-		o, ok := other.(sqlJSONExpression)
-		if !ok || e.raw.Kind != o.raw.Kind || e.raw.Absent != o.raw.Absent || e.raw.Unique != o.raw.Unique || len(e.args) != len(o.args) {
+	case functions.SQLJSON:
+		o, ok := other.(functions.SQLJSON)
+		if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Absent != o.Raw.Absent || e.Raw.Unique != o.Raw.Unique || len(e.Args) != len(o.Args) {
 			return false
 		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
 				return false
 			}
 		}
 		return true
-	case jsonPredicateExpression:
-		o, ok := other.(jsonPredicateExpression)
-		return ok && e.kind == o.kind && e.unique == o.unique && e.not == o.not && same(e.child, o.child)
+	case functions.JSONPredicate:
+		o, ok := other.(functions.JSONPredicate)
+		return ok && e.Kind == o.Kind && e.Unique == o.Unique && e.Not == o.Not && same(e.Child, o.Child)
 	case functions.JSONCreate:
 		o, ok := other.(functions.JSONCreate)
 		if !ok || e.Kind != o.Kind || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
@@ -1674,15 +1674,15 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
-	case sqlJSONExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
+	case functions.SQLJSON:
+		e.Args = append([]expr.Expr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
-	case jsonPredicateExpression:
-		e.child = rewrite(e.child)
+	case functions.JSONPredicate:
+		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
 	case functions.JSONCreate:
@@ -2059,12 +2059,12 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		}
 	case installedFunctionExpression:
 		walk(e.Arg)
-	case sqlJSONExpression:
-		for _, arg := range e.args {
+	case functions.SQLJSON:
+		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case jsonPredicateExpression:
-		walk(e.child)
+	case functions.JSONPredicate:
+		walk(e.Child)
 	case functions.JSONCreate:
 		for _, arg := range e.Args {
 			walk(arg)

@@ -658,15 +658,6 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		n.args = children(n.args)
 		n.Info = info
 		rebound = n
-	case sqlJSONExpression:
-		n.args = children(n.args)
-		if err == nil {
-			rebound, err = n.reconstruct(info, n.args)
-		}
-	case jsonPredicateExpression:
-		n.child = child(n.child)
-		n.Info = info
-		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
 		var arms []caseBranch

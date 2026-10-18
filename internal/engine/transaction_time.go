@@ -92,7 +92,7 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case sqlJSONExpression, jsonPredicateExpression:
+	case functions.SQLJSON, functions.JSONPredicate:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

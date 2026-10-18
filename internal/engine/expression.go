@@ -1831,31 +1831,31 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Args = args
 			return e, true, nil
 		}
-	case sqlJSONExpression:
+	case functions.SQLJSON:
 		var args []expr.Expr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
+					args = append([]expr.Expr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			next, err := e.reconstruct(e.Info, args)
+			next, err := e.Rebuild(e.Info, args)
 			return next, true, err
 		}
-	case jsonPredicateExpression:
-		folded, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+	case functions.JSONPredicate:
+		folded, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if changed {
-			e.child = folded
+			e.Child = folded
 			return e, true, nil
 		}
 	case functions.JSONCreate:
@@ -2582,7 +2582,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.JSONPredicateExpr:
 			var err error
-			node, err = bindJSONPredicate(b, r)
+			node, err = functions.BindJSONPredicate(b, r)
 			if err != nil {
 				return nil, err
 			}

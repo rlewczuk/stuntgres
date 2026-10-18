@@ -241,12 +241,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
-	case sqlJSONExpression:
-		fmt.Fprintf(out, "SQLJSON %s absent %t unique %t", n.raw.Kind, n.raw.Absent, n.raw.Unique)
-		err = args(n.args)
-	case jsonPredicateExpression:
-		fmt.Fprintf(out, "IS JSON %s unique %t not %t", n.kind, n.unique, n.not)
-		err = args([]expr.Expr{n.child})
 	case visibilityInquiryExpression:
 		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")

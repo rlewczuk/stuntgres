@@ -28,7 +28,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
 	}
-	arg, err = sqlJSONInput(b, arg, format, false, false)
+	arg, err = functions.SQLJSONInput(b, arg, format, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	}
 	var returning sqltype.Usage
 	if raw.Returning != nil {
-		returning, err = sqlJSONReturningType(b, *raw.Returning)
+		returning, err = functions.SQLJSONReturningType(b, *raw.Returning)
 		if err != nil {
 			return nil, err
 		}

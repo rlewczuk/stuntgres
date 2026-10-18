@@ -273,10 +273,6 @@ func generationImmutable(node expr.Expr) bool {
 		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args(n.Args)
 	case installedFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == expr.Immutable && args([]expr.Expr{n.Arg})
-	case sqlJSONExpression:
-		return n.Property.Volatility == expr.Immutable && args(n.args)
-	case jsonPredicateExpression:
-		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
 		// provider is admitted by its own volatility and its children.
@@ -487,10 +483,6 @@ func generationHasTableOID(node expr.Expr) bool {
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]expr.Expr{n.Arg})
-	case sqlJSONExpression:
-		return args(n.args)
-	case jsonPredicateExpression:
-		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		return args(n.Children())
 	default:
@@ -830,10 +822,6 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.E
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]expr.Expr{n.Arg})
-	case sqlJSONExpression:
-		return args(n.args)
-	case jsonPredicateExpression:
-		return args([]expr.Expr{n.child})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		stored, ok := n.(expr.StoredProvider)
