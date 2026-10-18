@@ -1,22 +1,22 @@
-package engine
+package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeExtract(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [2]functions.Argument
+	var small [2]Argument
 	operands := small[:min(len(raw.Args), 2)]
 	if len(raw.Args) > 2 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -25,7 +25,7 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	diagnosticName := raw.Name
 	if raw.Syntax == parser.SQLFunctionSyntax {
@@ -34,26 +34,26 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 	names := func() []string {
 		result := make([]string, len(operands))
 		for i, o := range operands {
-			result[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
+			result[i] = DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return result
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		return nil, b.SignatureError(diagnosticName, raw.Pos, names())
 	}
-	prepared := functions.PrepareDatetimeExtract(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeExtract(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
-	if selection.Resolution == functions.Missing {
+	prepared := PrepareDatetimeExtract(visible, raw.Variadic, operands)
+	selection := ResolveDatetimeExtract(prepared, operands, TemporalTypesFor(b, prepared.Demand))
+	if selection.Resolution == Missing {
 		return signature()
 	}
-	if selection.Resolution == functions.Ambiguous {
-		return nil, functions.ResolutionError(diagnosticName, raw.Pos, names(), true)
+	if selection.Resolution == Ambiguous {
+		return nil, ResolutionError(diagnosticName, raw.Pos, names(), true)
 	}
 	if selection.Unsupported != "" {
-		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+		return nil, expr.ErrorAt("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeExtract{Syntax: raw.Syntax}
+	e := DatetimeExtract{Syntax: raw.Syntax}
 	if raw.Syntax == parser.SQLFunctionSyntax {
 		literal, ok := raw.Args[0].(parser.LiteralExpr)
 		if !ok {
@@ -61,9 +61,9 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 		}
 		e.Field = literal.Value.Text
 	}
-	properties := ExprProperties{Volatility: Immutable}
-	if functions.DatetimeExtractIntrinsicStable(selected) {
-		properties.Volatility = Stable
+	properties := expr.Properties{Volatility: expr.Immutable}
+	if DatetimeExtractIntrinsicStable(selected) {
+		properties.Volatility = expr.Stable
 	}
 	for i, o := range operands {
 		id := sqltype.Text
@@ -71,7 +71,7 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 			id = selected
 		}
 		target := b.Type(id)
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -87,8 +87,8 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 	// Bound parameters can become constants in PostgreSQL's custom plan. A
 	// row/stage-dependent or nonimmutable argument instead permits SQL inlining;
 	// that distinction applies to both arguments, not only the DATE source.
-	e.DateWrapperContext = functions.DatetimeExtractWrapperContext(name, selected, properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent)
-	result := functions.DatetimeExtractResult(name)
+	e.DateWrapperContext = DatetimeExtractWrapperContext(name, selected, properties.Volatility == expr.Immutable && !properties.RowDependent && !properties.StageDependent)
+	result := DatetimeExtractResult(name)
 	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	e.Info = info
 	plan, err := sqltype.BindDatetimeExtract(name, b.Type(sqltype.Text), b.Type(selected), e.Usage.Type, b.Type(sqltype.Timestamp))
@@ -96,7 +96,7 @@ func bindDatetimeExtract(b functions.Binder, raw parser.FunctionExpr, visible bo
 		return nil, err
 	}
 	e.Plan = plan
-	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, sqltype.Text, selected)
+	info, err = b.BuiltinRoutineInfo(info, DatetimeRoutineProvider, name, sqltype.Text, selected)
 	if err != nil {
 		return nil, err
 	}

@@ -129,7 +129,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringFunction(raw, visible && name == "parse_ident")
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly {
@@ -160,22 +160,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindEnumFunction(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
-	case "extract", "date_part":
-		return bindDatetimeExtract(b, raw, visible)
-	case "date_trunc":
-		return bindDatetimeTrunc(b, raw, visible)
-	case "date_bin":
-		return bindDatetimeBin(b, raw, visible)
-	case "timezone", "date_add", "date_subtract":
-		return bindDatetimeZone(b, raw, visible)
 	case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
 		return b.bindDatetimeSleep(raw, visible)
 	case "age", "isfinite":
-		return bindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
+		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
 			return b.identityExpression(raw, identityAge, arg)
 		})
 	case "overlaps":
-		node, err := bindDatetimeOverlaps(b, raw, visible)
+		node, err := functions.BindDatetimeOverlaps(b, raw, visible)
 		if err != nil {
 			return nil, err
 		}
@@ -183,12 +175,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		e := node.(functions.DatetimeOverlaps)
 		e.WrapperContext = !overlapsInlineSafe(e)
 		return e, nil
-	case "justify_days", "justify_hours", "justify_interval":
-		return bindDatetimeJustify(b, raw, visible)
-	case "make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval":
-		return bindDatetimeMake(b, raw, visible)
-	case "to_char", "to_date", "to_timestamp":
-		return bindDatetimeFormatting(b, raw, visible)
 	case "to_number":
 		return b.bindNumericFormatting(raw, visible)
 	case "string_to_table":

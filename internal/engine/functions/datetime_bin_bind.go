@@ -1,19 +1,19 @@
-package engine
+package functions
 
 import (
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func bindDatetimeBin(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]functions.Argument
+func bindDatetimeBin(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
+	var small [3]Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -22,33 +22,33 @@ func bindDatetimeBin(b functions.Binder, raw parser.FunctionExpr, visible bool) 
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
+			names[i] = DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	prepared := functions.PrepareDatetimeBin(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeBin(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
-	if selection.Resolution == functions.Missing {
+	prepared := PrepareDatetimeBin(visible, raw.Variadic, operands)
+	selection := ResolveDatetimeBin(prepared, operands, TemporalTypesFor(b, prepared.Demand))
+	if selection.Resolution == Missing {
 		return signature()
 	}
 	if selection.Unsupported != "" {
-		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+		return nil, expr.ErrorAt("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeBin{}
-	properties := ExprProperties{Volatility: Immutable}
+	e := DatetimeBin{}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for i, o := range operands {
 		id := selected
 		if i == 0 {
 			id = sqltype.Interval
 		}
 		target := b.Type(id)
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -68,7 +68,7 @@ func bindDatetimeBin(b functions.Binder, raw parser.FunctionExpr, visible bool) 
 		return nil, err
 	}
 	e.Plan = plan
-	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, "date_bin", sqltype.Interval, selected, selected)
+	info, err = b.BuiltinRoutineInfo(info, DatetimeRoutineProvider, "date_bin", sqltype.Interval, selected, selected)
 	if err != nil {
 		return nil, err
 	}

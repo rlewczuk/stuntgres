@@ -1,19 +1,19 @@
-package engine
+package functions
 
 import (
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func bindDatetimeTrunc(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]functions.Argument
+func bindDatetimeTrunc(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
+	var small [3]Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -22,33 +22,33 @@ func bindDatetimeTrunc(b functions.Binder, raw parser.FunctionExpr, visible bool
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	names := func() []string {
 		result := make([]string, len(operands))
 		for i, o := range operands {
-			result[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
+			result[i] = DiagnosticNameOrUnknown(o.Usage.Type)
 		}
 		return result
 	}
-	signature := func() (BoundExpr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names()) }
-	prepared := functions.PrepareDatetimeTrunc(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeTrunc(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
-	if selection.Resolution == functions.Missing {
+	signature := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names()) }
+	prepared := PrepareDatetimeTrunc(visible, raw.Variadic, operands)
+	selection := ResolveDatetimeTrunc(prepared, operands, TemporalTypesFor(b, prepared.Demand))
+	if selection.Resolution == Missing {
 		return signature()
 	}
-	if selection.Resolution == functions.Ambiguous {
-		return nil, functions.ResolutionError(raw.Name, raw.Pos, names(), true)
+	if selection.Resolution == Ambiguous {
+		return nil, ResolutionError(raw.Name, raw.Pos, names(), true)
 	}
 	if selection.Unsupported != "" {
-		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+		return nil, expr.ErrorAt("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
 	input := selection.Input
-	e := functions.DatetimeTrunc{Count: len(operands)}
-	properties := ExprProperties{Volatility: Immutable}
-	if functions.DatetimeTruncIntrinsicStable(selected, e.Count) {
-		properties.Volatility = Stable
+	e := DatetimeTrunc{Count: len(operands)}
+	properties := expr.Properties{Volatility: expr.Immutable}
+	if DatetimeTruncIntrinsicStable(selected, e.Count) {
+		properties.Volatility = expr.Stable
 	}
 	for i, o := range operands {
 		id := sqltype.Text
@@ -56,7 +56,7 @@ func bindDatetimeTrunc(b functions.Binder, raw parser.FunctionExpr, visible bool
 			id = input
 		}
 		target := b.Type(id)
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func bindDatetimeTrunc(b functions.Binder, raw parser.FunctionExpr, visible bool
 	}
 	e.Plan = plan
 	formal := [3]sqltype.ID{sqltype.Text, selected, sqltype.Text}
-	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, "date_trunc", formal[:e.Count]...)
+	info, err = b.BuiltinRoutineInfo(info, DatetimeRoutineProvider, "date_trunc", formal[:e.Count]...)
 	if err != nil {
 		return nil, err
 	}

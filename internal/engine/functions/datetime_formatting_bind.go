@@ -1,21 +1,20 @@
-package engine
+package functions
 
 import (
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindDatetimeFormatting(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [4]functions.Argument
+	var small [4]Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.DatetimeFormattingAnalysis(name, i)})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: DatetimeFormattingAnalysis(name, i)})
 		if err != nil {
 			return nil, err
 		}
@@ -24,9 +23,9 @@ func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = "unknown"
@@ -36,28 +35,28 @@ func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible
 		}
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	selection := functions.ResolveDatetimeFormatting(name, visible, raw.Variadic, operands)
-	if selection.Resolution == functions.Missing {
+	selection := ResolveDatetimeFormatting(name, visible, raw.Variadic, operands)
+	if selection.Resolution == Missing {
 		return signature()
 	}
-	if selection.Resolution == functions.Ambiguous {
-		return nil, functions.ResolutionError(raw.Name, raw.Pos, []string{"unknown", functions.DiagnosticNameOrUnknown(operands[1].Usage.Type)}, true)
+	if selection.Resolution == Ambiguous {
+		return nil, ResolutionError(raw.Name, raw.Pos, []string{"unknown", DiagnosticNameOrUnknown(operands[1].Usage.Type)}, true)
 	}
 	if selection.Unsupported != "" {
-		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+		return nil, expr.ErrorAt("0A000", selection.Unsupported, raw.Pos)
 	}
 	source := b.Type(selection.Source)
 	if selection.Numeric {
-		return functions.NumericFormattingOperands(b, raw, operands, source)
+		return NumericFormattingOperands(b, raw, operands, source)
 	}
-	var args [2]BoundExpr
-	properties := expr.IntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
+	var args [2]expr.Expr
+	properties := expr.IntrinsicProperties(DatetimeFormattingIntrinsicRule())
 	for i, o := range operands {
 		target := b.Type(sqltype.Text)
 		if i == 0 {
 			target = source
 		}
-		argument, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.TextFormalArgument, Target: target.Usage()})
+		argument, err := b.CoerceArgument(o, CoercionRequest{Intent: TextFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +69,7 @@ func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := b.Type(functions.DatetimeFormattingResult(name)).Usage()
+	result := b.Type(DatetimeFormattingResult(name)).Usage()
 	info := b.Info(result, raw.Pos, properties)
 	collated, err := b.CollatedInfo(b.Info(b.Type(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
 	if err != nil {
@@ -92,9 +91,9 @@ func bindDatetimeFormatting(b functions.Binder, raw parser.FunctionExpr, visible
 		return nil, err
 	}
 	plan = plan.WithCollationConflict(collated.CollationConflict)
-	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
+	info, err = b.BuiltinRoutineInfo(info, DatetimeRoutineProvider, name, selection.Source, sqltype.Text)
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeFormatting{Info: info, Plan: plan, Args: args}, nil
+	return DatetimeFormatting{Info: info, Plan: plan, Args: args}, nil
 }

@@ -1,19 +1,21 @@
-package engine
+package functions
 
 import (
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func bindDatetimeOverlaps(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var stack [4]functions.Argument
+// BindDatetimeOverlaps binds OVERLAPS. The engine sets WrapperContext, which
+// depends on the inline safety of the bound endpoints.
+func BindDatetimeOverlaps(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
+	var stack [4]Argument
 	operands := stack[:min(len(raw.Args), 4)]
 	if len(raw.Args) > 4 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -22,23 +24,23 @@ func bindDatetimeOverlaps(b functions.Binder, raw parser.FunctionExpr, visible b
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	resolution := func(ambiguous bool) (BoundExpr, error) {
+	resolution := func(ambiguous bool) (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
+			names[i] = DiagnosticNameOrUnknown(o.Usage.Type)
 		}
-		return nil, functions.NotedResolutionError(b, raw.Name, raw.Pos, names, ambiguous)
+		return nil, NotedResolutionError(b, raw.Name, raw.Pos, names, ambiguous)
 	}
-	prepared := functions.PrepareDatetimeOverlaps(visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeOverlaps(prepared, operands, functions.TemporalTypesFor(b, prepared.Demand))
-	if selection.Resolution != functions.Resolved {
-		return resolution(selection.Resolution == functions.Ambiguous)
+	prepared := PrepareDatetimeOverlaps(visible, raw.Variadic, operands)
+	selection := ResolveDatetimeOverlaps(prepared, operands, TemporalTypesFor(b, prepared.Demand))
+	if selection.Resolution != Resolved {
+		return resolution(selection.Resolution == Ambiguous)
 	}
 	signature := selection.Signature
-	e := functions.DatetimeOverlaps{Syntax: raw.Syntax}
-	properties := ExprProperties{Volatility: Immutable}
+	e := DatetimeOverlaps{Syntax: raw.Syntax}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	var local [4]bool
 	for i, o := range operands {
 		target := b.Type(signature[i])
@@ -46,7 +48,7 @@ func bindDatetimeOverlaps(b functions.Binder, raw parser.FunctionExpr, visible b
 			target = b.Type(sqltype.Time)
 			local[i] = true
 		}
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -65,9 +67,9 @@ func bindDatetimeOverlaps(b functions.Binder, raw parser.FunctionExpr, visible b
 	}
 	e.Plan = plan
 	if plan.SessionDependent() {
-		properties.Volatility = max(properties.Volatility, Stable)
+		properties.Volatility = max(properties.Volatility, expr.Stable)
 	}
-	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(functions.DatetimeOverlapsResult()).Usage(), raw.Pos, properties), datetimeRoutineProvider, "overlaps", signature[:]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(DatetimeOverlapsResult()).Usage(), raw.Pos, properties), DatetimeRoutineProvider, "overlaps", signature[:]...)
 	if err != nil {
 		return nil, err
 	}

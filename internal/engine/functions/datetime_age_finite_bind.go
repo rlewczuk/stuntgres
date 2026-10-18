@@ -1,22 +1,22 @@
-package engine
+package functions
 
 import (
-	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // The candidates are only this PG18 function family's homogeneous signatures.
 // age(xid) is a transaction-identity inquiry: the caller supplies its node.
-func bindDatetimeAgeFinite(b functions.Binder, raw parser.FunctionExpr, visible bool, transactionAge func(BoundExpr) (BoundExpr, error)) (BoundExpr, error) {
+func BindDatetimeAgeFinite(b Binder, raw parser.FunctionExpr, visible bool, transactionAge func(expr.Expr) (expr.Expr, error)) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [2]functions.Argument
+	var small [2]Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > 2 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
+		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
+		o, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -25,61 +25,61 @@ func bindDatetimeAgeFinite(b functions.Binder, raw parser.FunctionExpr, visible 
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = functions.NamedArgumentType(raw, i, functions.DiagnosticNameOrUnknown(o.Usage.Type))
+			names[i] = NamedArgumentType(raw, i, DiagnosticNameOrUnknown(o.Usage.Type))
 		}
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 {
 		return signature()
 	}
-	prepared := functions.PrepareDatetimeAgeFinite(name, visible, raw.Variadic, operands)
-	selection := functions.ResolveDatetimeAgeFinite(prepared, name, operands, functions.TemporalTypesFor(b, prepared.Demand))
-	if selection.Resolution == functions.Missing {
+	prepared := PrepareDatetimeAgeFinite(name, visible, raw.Variadic, operands)
+	selection := ResolveDatetimeAgeFinite(prepared, name, operands, TemporalTypesFor(b, prepared.Demand))
+	if selection.Resolution == Missing {
 		return signature()
 	}
-	if selection.Resolution == functions.Ambiguous {
+	if selection.Resolution == Ambiguous {
 		names := func() []string {
 			names := make([]string, len(operands))
 			for i, o := range operands {
-				names[i] = functions.DiagnosticNameOrUnknown(o.Usage.Type)
+				names[i] = DiagnosticNameOrUnknown(o.Usage.Type)
 			}
 			return names
 		}()
-		return nil, functions.ResolutionError(raw.Name, raw.Pos, names, true)
+		return nil, ResolutionError(raw.Name, raw.Pos, names, true)
 	}
 	if selection.Unsupported != "" {
-		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+		return nil, expr.ErrorAt("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
 	if selected == sqltype.Xid {
 		if raw.ResolutionOnly {
 			return signature()
 		}
-		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+		if err := ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
-		if err := functions.CallDecorationError(raw); err != nil {
+		if err := CallDecorationError(raw); err != nil {
 			return nil, err
 		}
-		arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.Type(sqltype.Xid).Usage()})
+		arg, err := b.CoerceArgument(operands[0], CoercionRequest{Intent: ExactFormalArgument, Target: b.Type(sqltype.Xid).Usage()})
 		if err != nil {
 			return nil, err
 		}
 		return transactionAge(arg)
 	}
-	e := functions.DatetimeAgeFinite{Count: len(operands)}
-	properties := ExprProperties{Volatility: Immutable}
-	if functions.DatetimeAgeFiniteIntrinsicStable(name, e.Count) {
-		properties.Volatility = Stable
+	e := DatetimeAgeFinite{Count: len(operands)}
+	properties := expr.Properties{Volatility: expr.Immutable}
+	if DatetimeAgeFiniteIntrinsicStable(name, e.Count) {
+		properties.Volatility = expr.Stable
 	}
 	target := b.Type(selected)
 	for i, o := range operands {
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
+		arg, err := b.CoerceArgument(o, CoercionRequest{Intent: ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +92,7 @@ func bindDatetimeAgeFinite(b functions.Binder, raw parser.FunctionExpr, visible 
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := functions.DatetimeAgeFiniteResult(name)
+	result := DatetimeAgeFiniteResult(name)
 	info := b.Info(b.Type(result).Usage(), raw.Pos, properties)
 	e.Info = info
 	plan, err := sqltype.BindDatetimeAgeFinite(name, target, e.Usage.Type, b.Type(sqltype.Date), e.Count)
@@ -101,7 +101,7 @@ func bindDatetimeAgeFinite(b functions.Binder, raw parser.FunctionExpr, visible 
 	}
 	e.Plan = plan
 	formal := [2]sqltype.ID{selected, selected}
-	info, err = b.BuiltinRoutineInfo(info, datetimeRoutineProvider, name, formal[:e.Count]...)
+	info, err = b.BuiltinRoutineInfo(info, DatetimeRoutineProvider, name, formal[:e.Count]...)
 	if err != nil {
 		return nil, err
 	}

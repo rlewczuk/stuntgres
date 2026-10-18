@@ -2914,7 +2914,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.TimeZoneExpr:
 			var err error
-			node, err = b.bindTimeZone(r)
+			node, err = functions.BindTimeZone(b, r)
 			if err != nil {
 				return nil, err
 			}

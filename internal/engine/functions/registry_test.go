@@ -67,8 +67,19 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
+	for _, name := range []string{"extract", "date_part", "date_trunc", "date_bin", "timezone", "date_add", "justify_interval", "to_char", "to_timestamp", "make_date", "make_interval"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
+			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
+		}
+		// Only the make_* constructors accept argument labels.
+		if definition.OwnsLabels != strings.HasPrefix(name, "make_") {
+			t.Fatalf("Lookup(%q).OwnsLabels = %v", name, definition.OwnsLabels)
+		}
+	}
 	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "lower", "UPPER", "range_agg", "int4range",
-		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays"} {
+		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
+		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "pg_sleep", "now", "to_number"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}
