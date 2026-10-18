@@ -23,7 +23,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (expr.Exp
 		}
 	}
 	left, right := operands[0].descriptor(), operands[1].descriptor()
-	signature := func() error { return b.arrayMembershipError(left, right, raw) }
+	signature := func() error { return functions.ArrayOperatorError(b, left, right, raw) }
 	if len(raw.Args) != 2 {
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, right, raw)
 	}
@@ -58,7 +58,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (expr.Exp
 		}
 	}
 	if left == nil {
-		return nil, b.comparisonError(sqlError("42725", "operator is not unique"), left, right, raw)
+		return nil, functions.ComparisonError(b, sqlError("42725", "operator is not unique"), left, right, raw)
 	}
 	var args [2]expr.Expr
 	properties := expr.Properties{Volatility: expr.Immutable}

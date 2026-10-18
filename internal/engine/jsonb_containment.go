@@ -16,7 +16,7 @@ func (b *expressionBinder) bindJSONBContainment(raw parser.OperatorExpr, operand
 	for _, o := range operands {
 		if o.descriptor() != nil {
 			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), target, sqltype.Implicit); err != nil {
-				return nil, b.arrayMembershipError(operands[0].descriptor(), operands[1].descriptor(), raw)
+				return nil, functions.ArrayOperatorError(b, operands[0].descriptor(), operands[1].descriptor(), raw)
 			}
 		}
 	}

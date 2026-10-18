@@ -29,7 +29,7 @@ func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (expr.Ex
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, right, raw)
 	}
 	if !visible {
-		return nil, b.arrayMembershipError(left, right, raw)
+		return nil, functions.ArrayOperatorError(b, left, right, raw)
 	}
 	array, ok := b.bindingCatalog().LookupArray(b.typ(sqltype.Text))
 	if !ok {
@@ -39,7 +39,7 @@ func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (expr.Ex
 	for i, o := range operands {
 		if o.descriptor() != nil {
 			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
-				return nil, b.arrayMembershipError(left, right, raw)
+				return nil, functions.ArrayOperatorError(b, left, right, raw)
 			}
 		}
 	}

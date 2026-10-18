@@ -56,7 +56,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 		return nil, err
 	}
 	if !visible {
-		return nil, b.arrayMembershipError(left, right, raw)
+		return nil, functions.ArrayOperatorError(b, left, right, raw)
 	}
 	if left == nil && right == nil {
 		d := expr.ErrorAt("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
@@ -78,7 +78,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 	op, _ := sqltype.RangeOperatorKind(name)
 	result := sqltype.RangeOperatorResult(op, lt, rt)
 	if result == nil {
-		return nil, b.arrayMembershipError(left, right, raw)
+		return nil, functions.ArrayOperatorError(b, left, right, raw)
 	}
 	var args [2]expr.Expr
 	for i, target := range [2]*sqltype.Descriptor{lt, rt} {

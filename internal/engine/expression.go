@@ -3894,7 +3894,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 	}
 	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
-		return nil, b.comparisonError(err, left.descriptor(), right.descriptor(), raw)
+		return nil, functions.ComparisonError(b, err, left.descriptor(), right.descriptor(), raw)
 	}
 	p, rp := l.Properties(), r.Properties()
 	p.RowDependent = p.RowDependent || rp.RowDependent

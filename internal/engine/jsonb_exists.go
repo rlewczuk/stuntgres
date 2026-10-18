@@ -28,7 +28,7 @@ func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (expr.Exp
 		return nil, err
 	}
 	signature := func() error {
-		return b.arrayMembershipError(left, right, raw)
+		return functions.ArrayOperatorError(b, left, right, raw)
 	}
 	// Unary spelling is parsed by the existing generic-operator grammar but
 	// has no selected executable signature.
@@ -40,7 +40,7 @@ func (b *expressionBinder) bindJSONBExistence(raw parser.OperatorExpr) (expr.Exp
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if name == "?|" && left == nil && right == nil {
-		return nil, b.comparisonError(sqlError("42725", "operator is not unique"), left, right, raw)
+		return nil, functions.ComparisonError(b, sqlError("42725", "operator is not unique"), left, right, raw)
 	}
 	targets := [2]sqltype.Usage{b.typ(sqltype.JSONB).Usage(), b.typ(sqltype.Text).Usage()}
 	if name != "?" {
