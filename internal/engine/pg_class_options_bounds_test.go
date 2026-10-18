@@ -55,8 +55,8 @@ func TestPgClassOptionHistory(t *testing.T) {
 
 func TestPgClassPartitionTree(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	integer, ok := catalog.LookupType(sqltype.Int4)
+	view := e.CatalogRead()
+	integer, ok := view.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("INT4")
 	}
@@ -88,7 +88,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 	if got, err := multi.StructuralOutput(context.Background()); err != nil || got != "{PartitionBound strategy range default false lower (MINVALUE MINVALUE) upper (MAXVALUE MAXVALUE)}" {
 		t.Fatal(got, err)
 	}
-	character, ok := catalog.LookupType(sqltype.VarChar)
+	character, ok := view.LookupType(sqltype.VarChar)
 	if !ok {
 		t.Fatal("VARCHAR")
 	}

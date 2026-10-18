@@ -151,8 +151,8 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 
 func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
+	catalogView := e.CatalogRead()
+	source := catalogView.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 	if source.RowType != sqltype.ID(12035) || len(source.Columns) != 8 {
 		t.Fatal("pg_tables rowtype/schema", source.RowType, source.Columns)
 	}
@@ -186,7 +186,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12007, "pg_roles", false},
 		{12008, "pg_group", false},
 	} {
-		relation, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
+		relation, ok := catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
 		if !ok || relation.Name() != expected.name || relation.RelationKind != catalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
@@ -194,7 +194,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 			t.Fatalf("incorrect table/view classification for %s", expected.name)
 		}
 	}
-	for _, d := range catalog.Descriptors() {
+	for _, d := range catalogView.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
 			table := representedSummaryTable(relation.Address().ObjectID)
 			view := representedSummaryViewDefinition(relation.Address().ObjectID) != ""
@@ -204,7 +204,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
+	captured, err := e.captureTableViewSummary(context.Background(), catalogView, e.roleRead(catalogView, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

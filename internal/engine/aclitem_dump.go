@@ -50,7 +50,7 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 	return err
 }
 
-func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, output capturedACLItemOutput) error {
+func (e *Engine) preflightACLItemDump(ctx context.Context, view CatalogRead, output capturedACLItemOutput) error {
 	var failure error
 	check := func(value sqltype.Value) {
 		if failure == nil {
@@ -64,12 +64,12 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			}
 		})
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := view.Namespace(relation.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if relation.RelationKind == catalogRelation {

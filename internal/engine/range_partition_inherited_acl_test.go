@@ -42,8 +42,8 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		typeRefs[i] = e.catalog.Domain.Ref(view.Epoch(), addresses[0])
 	}
 	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
-		catalog := e.CatalogRead()
-		descriptor, ok := catalog.Descriptor(ref.Address)
+		catalogView := e.CatalogRead()
+		descriptor, ok := catalogView.Descriptor(ref.Address)
 		if !ok {
 			t.Fatal("ACL fixture descriptor missing", ref)
 		}
@@ -54,7 +54,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		if !ok {
 			t.Fatal("ACL fixture is not a user type", descriptor)
 		}
-		stage := e.BeginCatalogStage(catalog)
+		stage := e.BeginCatalogStage(catalogView)
 		next := *typ
 		next.ACL = acl
 		next.ACLSyntheticDefault = false

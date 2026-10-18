@@ -187,14 +187,14 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		return ref
 	}
 	sequence := add("kind_sequence", nil, sequenceRelation)
-	catalog := add("kind_catalog", nil, catalogRelation)
+	catalogKindRef := add("kind_catalog", nil, catalogRelation)
 	plainRoot := func() *projectNode {
 		return &projectNode{syntax: &parser.Select{}, child: &sourceNode{occurrence: 0}}
 	}
 	setRoot := func() *projectNode {
 		return &projectNode{syntax: &parser.Select{Set: &parser.SetQuery{}}, child: &limitNode{child: &sortNode{child: &evaluationNode{child: &filterNode{child: &setNode{left: plainRoot(), right: &projectNode{child: &sourceNode{occurrence: 1}}}}}}}}
 	}
-	set := add("kind_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: sequence}, {ref: catalog}}}, viewRelation)
+	set := add("kind_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: sequence}, {ref: catalogKindRef}}}, viewRelation)
 	nested := add("kind_nested", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: set}}}, viewRelation)
 	ordinary := add("kind_ordinary", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: sequence}}}, viewRelation)
 	localMark := queryRowMark{mode: lock.ForUpdate}
@@ -203,8 +203,8 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// The sequence is unselected: only the local reference-kind context, not a
 	// physical source mark, must reject this sibling beneath a nested set.
 	local := add("kind_local", &viewDefinition{query: &BoundQuery{Root: localRoot}, sources: []viewLeaf{{ref: base, mark: localMark}, {ref: sequence}}}, viewRelation)
-	localSet := add("kind_local_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: local}, {ref: catalog}}}, viewRelation)
-	localCatalog := add("kind_local_catalog", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: catalog, mark: localMark}}}, viewRelation)
+	localSet := add("kind_local_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: local}, {ref: catalogKindRef}}}, viewRelation)
+	localCatalog := add("kind_local_catalog", &viewDefinition{query: &BoundQuery{Root: plainRoot()}, sources: []viewLeaf{{ref: catalogKindRef, mark: localMark}}}, viewRelation)
 	localCatalogSet := add("kind_local_catalog_set", &viewDefinition{query: &BoundQuery{Root: setRoot()}, sources: []viewLeaf{{ref: localCatalog}, {ref: base}}}, viewRelation)
 	for _, tc := range []struct {
 		ref           ids.ObjectRef

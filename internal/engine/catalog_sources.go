@@ -391,15 +391,15 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.Address().ObjectID == pgTypeOID {
-		return e.capturePGType(ctx, catalog, roles, ref, source)
+		return e.capturePGType(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == pgAttributeOID {
-		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
+		return e.capturePGAttribute(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == ids.ParameterClassID {
-		return e.capturePGParameterACL(ctx, catalog, roles, ref, source)
+		return e.capturePGParameterACL(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 2964 {
 		if err := ctx.Err(); err != nil {
@@ -410,67 +410,67 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return &querySource{ref: ref, anonymous: [][]sqltype.Value{}}, nil
 	}
 	if source.Address().ObjectID == 2615 {
-		return e.capturePGNamespace(ctx, catalog, roles, ref, source)
+		return e.capturePGNamespace(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 1262 {
-		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
+		return e.capturePGDatabase(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 1213 {
-		return e.capturePGTablespace(ctx, catalog, roles, ref, source)
+		return e.capturePGTablespace(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 3079 || source.Address().ObjectID == 1255 || source.Address().ObjectID == 3764 || source.Address().ObjectID == 3600 {
-		return captureExtensionCatalog(ctx, catalog, ref, source)
+		return captureExtensionCatalog(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 3456 {
-		return capturePGCollation(ctx, catalog, ref, source)
+		return capturePGCollation(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2607 {
-		return capturePGConversion(ctx, catalog, ref, source)
+		return capturePGConversion(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2605 {
-		return capturePGCast(ctx, catalog, ref, source)
+		return capturePGCast(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgLanguageOID {
-		return capturePGLanguage(ctx, catalog, ref, source)
+		return capturePGLanguage(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgAggregateOID {
-		return capturePGAggregate(ctx, catalog, ref, source)
+		return capturePGAggregate(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2616 {
-		return capturePGOpclass(ctx, catalog, ref, source)
+		return capturePGOpclass(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgAMOID {
-		return capturePGAM(ctx, catalog, ref, source)
+		return capturePGAM(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == pgRangeOID {
-		return capturePGRange(ctx, catalog, ref, source)
+		return capturePGRange(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2617 {
-		return capturePGOperator(ctx, catalog, ref, source)
+		return capturePGOperator(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 3501 {
-		return capturePGEnum(ctx, catalog, ref, source)
+		return capturePGEnum(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2606 {
-		return capturePGConstraint(ctx, catalog, ref, source)
+		return capturePGConstraint(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2224 {
-		return capturePGSequence(ctx, catalog.State(), nil, ref, source)
+		return capturePGSequence(ctx, view.State(), nil, ref, source)
 	}
 	if source.Address().ObjectID == 2609 {
-		return capturePGDescription(ctx, catalog, ref, source)
+		return capturePGDescription(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 12001 {
 		return e.capturePreparedSourceLocked(ctx, ref, source)
 	}
 	if source.Address().ObjectID == 2608 {
-		return capturePGDepend(ctx, catalog, ref, source)
+		return capturePGDepend(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 12000 || source.Address().ObjectID == 12003 {
-		return e.captureTableViewSummary(ctx, catalog, roles, ref, source, viewPresentation{})
+		return e.captureTableViewSummary(ctx, view, roles, ref, source, viewPresentation{})
 	}
 	var relations []*relationDescriptor
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			relations = append(relations, relation)
 		}
@@ -519,7 +519,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
 		case 1259:
-			row, err := e.pgClassRow(ctx, catalog, roles, source, relation)
+			row, err := e.pgClassRow(ctx, view, roles, source, relation)
 			if err != nil {
 				return nil, err
 			}

@@ -25,8 +25,8 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	e := s.op.session.Engine()
 	for {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
-		root, ok := catalog.Relation(s.lockedRef.Address)
+		view := e.privateCatalogLocked(s.owner.catalog)
+		root, ok := view.Relation(s.lockedRef.Address)
 		if !ok {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
@@ -36,13 +36,13 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			return nil
 		}
 		for _, target := range s.inheritedTargets {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, target); err != nil {
+			if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, target); err != nil {
 				e.mu.Unlock()
 				return err
 			}
 		}
 		var pending []queryLeaf
-		err := inheritanceQueryClosure(catalog, root, s.op.session.token, func(child *relationDescriptor) error {
+		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *relationDescriptor) error {
 			if child.Address() == root.Address() {
 				return nil
 			}

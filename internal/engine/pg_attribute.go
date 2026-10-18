@@ -65,11 +65,11 @@ func hasSystemAttributes(catalog CatalogRead, relation *relationDescriptor) bool
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and
 // paired role roots, not the live catalog, source origins or stored row data.
-func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGAttribute(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() != e.catalog.owner() || catalog.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.State().Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source {
+	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {
@@ -79,7 +79,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 		return nil, fmt.Errorf("stuntgres: invalid attribute source shape")
 	}
 	for i, id := range pgAttributeTypeIDs {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || source.Columns[i].Usage.Type != owned {
 			return nil, fmt.Errorf("stuntgres: foreign attribute source type")
 		}
@@ -88,19 +88,19 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 		return nil, fmt.Errorf("stuntgres: invalid attribute NULL carrier")
 	}
 	count := 0
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			count += len(relation.Columns) + len(relation.DroppedAttributes)
-			if hasSystemAttributes(catalog, relation) {
+			if hasSystemAttributes(view, relation) {
 				count += 6
 			}
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -126,7 +126,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 				return nil, err
 			}
 		}
-		if hasSystemAttributes(catalog, relation) {
+		if hasSystemAttributes(view, relation) {
 			for _, system := range [...]struct {
 				name   string
 				oid    uint32

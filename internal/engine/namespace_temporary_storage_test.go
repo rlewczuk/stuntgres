@@ -29,12 +29,12 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	} {
 		sessionSQL(t, owner, q)
 	}
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	namespace := owner.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	lookup := func(namespace ids.ObjectAddress, name string) *relationDescriptor {
-		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
-		return catalog.MustRelation(address)
+		address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+		return view.MustRelation(address)
 	}
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }

@@ -72,7 +72,7 @@ func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitio
 	return partitionProofOr(&partitionProofGoal{key: at, op: strict, value: datum.Value}, partitionProofAnd(&partitionProofGoal{key: at, op: "=", value: datum.Value}, rest))
 }
 
-func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, parent, relation *relationDescriptor, bound *partitionMembership, exclude bool) (bool, error) {
+func partitionConstraintProven(scope *StatementScope, view CatalogRead, parent, relation *relationDescriptor, bound *partitionMembership, exclude bool) (bool, error) {
 	// Range endpoint implication does not prove seeded hash membership. Private
 	// replay attachment uses the ordinary full-row validation path instead.
 	if bound.Strategy == parser.PartitionHash {
@@ -91,13 +91,13 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		var node expr.Expr
 		if key.Derived != nil {
 			var err error
-			node, err = in.remap(key.Derived.Definition, relation, catalog)
+			node, err = in.remap(key.Derived.Definition, relation, view)
 			if err != nil {
 				return false, err
 			}
 		} else {
 			slot := in.targetSlots[parent.IndexForAttribute(key.Attribute)]
-			ref := catalog.Owner().Domain.Ref(catalog.Epoch(), relation.Address())
+			ref := view.Owner().Domain.Ref(view.Epoch(), relation.Address())
 			ref.Address.SubID = relation.Attributes[slot]
 			node = columnExpression{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
@@ -117,7 +117,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	nullAllowed := exclude || bound.DefaultBound
 	if bound.DefaultBound {
 		for _, address := range parent.Partition.Children {
-			child := catalog.MustRelation(address)
+			child := view.MustRelation(address)
 			if child.Membership.DefaultBound {
 				continue
 			}

@@ -16,7 +16,7 @@ const (
 	notNullValidation
 )
 
-func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescriptor, a parser.AlterTableAction, recursion notNullRecursion) (*relationDescriptor, error) {
+func notNullCandidate(op *Operation, view CatalogRead, old *relationDescriptor, a parser.AlterTableAction, recursion notNullRecursion) (*relationDescriptor, error) {
 	slot, index := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.NotNullConstraints {
@@ -48,11 +48,11 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				if c.Parent != 0 {
 					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.Name()))
 				}
-				index, exists := catalog.Relation(c.Index)
+				index, exists := view.Relation(c.Index)
 				if !exists {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if err := partitionIndexDropDependency(catalog, index); err != nil {
+				if err := partitionIndexDropDependency(view, index); err != nil {
 					return nil, err
 				}
 				next := *old
@@ -170,7 +170,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				next.Inheritance.NotNull[constraint.Attribute] = provenance
 				return &next, nil
 			}
-			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(catalog, old.Address())) != 0 {
+			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(view, old.Address())) != 0 {
 				return nil, sqlError("42P16", "constraint must be validated on child tables too")
 			}
 		}
@@ -191,7 +191,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(catalog, old.Namespace(), old, op.definition))
+			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(view, old.Namespace(), old, op.definition))
 		}
 		if relationConstraintNameExists(old, name) {
 			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.Name()))

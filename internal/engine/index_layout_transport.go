@@ -264,8 +264,8 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 
 // Preserve exact committed descriptor predecessors while empty roots are built
 // unlocked; the normal catalog preflight owns the publication veto.
-func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
-	for _, descriptor := range catalog.Descriptors() {
+func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
+	for _, descriptor := range snapshot.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
@@ -279,12 +279,12 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
-	parent, ok := catalog.Relation(address)
+func transportEmptyIndexStorage(ctx context.Context, snapshot *catalogState, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
+	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.versions) != 0 {
 		return ids.ErrCatalogReplaced
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range snapshot.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue

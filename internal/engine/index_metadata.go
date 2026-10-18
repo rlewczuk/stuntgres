@@ -34,25 +34,25 @@ type indexesMetadata struct {
 
 // Both projections use exactly this capture. In particular, deparsing does not
 // consult the current engine or filter records through the caller's ACL.
-func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
+func projectIndexMetadata(ctx context.Context, view CatalogRead, ref ids.ObjectRef) (indexMetadata, indexesMetadata, error) {
 	var m indexMetadata
 	var names indexesMetadata
 	if err := ctx.Err(); err != nil {
 		return m, names, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
+	if view.Owner() == nil || view.State() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
-	index, ok := catalog.Relation(ref.Address)
+	index, ok := view.Relation(ref.Address)
 	if !ok || index.SQLIndex == nil {
 		return m, names, fmt.Errorf("stuntgres: index metadata target is missing")
 	}
-	sql, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{})
+	sql, err := indexDefinitionSQL(ctx, view, index, indexPresentation{})
 	if err != nil {
 		return m, names, err
 	}
 	definition := index.SQLIndex
-	parent := catalog.MustRelation(definition.Parent)
+	parent := view.MustRelation(definition.Parent)
 	n := len(definition.Keys)
 	ready, valid, live := definition.PublicationState()
 	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
@@ -115,21 +115,21 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		}
 		m.IndKey[n+i] = int16(attribute)
 	}
-	names = indexesMetadata{SchemaName: catalog.Get(parent.Namespace()).Name(), TableName: parent.Name(), IndexName: index.Name(), IndexDef: sql}
+	names = indexesMetadata{SchemaName: view.Get(parent.Namespace()).Name(), TableName: parent.Name(), IndexName: index.Name(), IndexDef: sql}
 	return m, names, nil
 }
 
 // ACL-neutral structural enumeration for internal metadata consumers.
 // The SQL pg_indexes source separately applies its invoker disclosure policy.
-func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMetadata, []indexesMetadata, error) {
+func indexCatalogMetadata(ctx context.Context, view CatalogRead) ([]indexMetadata, []indexesMetadata, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil {
+	if view.Owner() == nil || view.State() == nil {
 		return nil, nil, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	var indexes []*relationDescriptor
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
@@ -142,7 +142,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.Owner().Domain.Ref(catalog.Epoch(), index.Address()))
+		records[i], names[i], err = projectIndexMetadata(ctx, view, view.Owner().Domain.Ref(view.Epoch(), index.Address()))
 		if err != nil {
 			return nil, nil, err
 		}

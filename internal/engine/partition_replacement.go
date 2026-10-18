@@ -8,8 +8,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hasHashPartition(catalog *catalogState) bool {
-	for _, d := range catalog.Descriptors() {
+func hasHashPartition(snapshot *catalogState) bool {
+	for _, d := range snapshot.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true
 		}
@@ -40,16 +40,16 @@ func partitionReplacementRow(from, to *relationDescriptor, row []sqltype.Value) 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
 func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
-	catalog := evaluation.catalog
+	view := evaluation.catalog
 	var removed map[ids.ObjectAddress]map[int]bool
 	var incoming map[ids.ObjectAddress][]rowVersion
 	var dirty map[ids.ObjectAddress]bool
 	for address, store := range storage {
-		source, ok := catalog.Relation(address)
+		source, ok := view.Relation(address)
 		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
 		}
-		root := partitionHashReplayTarget(catalog, source)
+		root := partitionHashReplayTarget(view, source)
 		if root == source {
 			continue
 		}
@@ -57,7 +57,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		if snapshot != nil {
 			history = snapshot.partitionRows[address]
 		}
-		if history.relation == nil && partitionNeedsRowHistory(catalog, source) {
+		if history.relation == nil && partitionNeedsRowHistory(view, source) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		historyPosition := 0
@@ -86,7 +86,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 				var selected *relationDescriptor
 				for _, childAddress := range destination.Partition.Children {
-					child := catalog.MustRelation(childAddress)
+					child := view.MustRelation(childAddress)
 					if child.Membership.DefaultBound {
 						continue
 					}
@@ -100,10 +100,10 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 					}
 				}
 				if selected == nil && destination.Partition.DefaultChild != (ids.ObjectAddress{}) {
-					selected = catalog.MustRelation(destination.Partition.DefaultChild)
+					selected = view.MustRelation(destination.Partition.DefaultChild)
 				}
 				if selected == nil {
-					state := partitionInsertState{catalog: catalog, auth: auth, target: root}
+					state := partitionInsertState{catalog: view, auth: auth, target: root}
 					return nil, state.missingPartition(ctx, destination, key.values, evaluation.Output)
 				}
 				destination = selected
@@ -118,7 +118,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 			}
 			detail := func() (string, error) { return failingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := catalog.Get(destination.Namespace()).Name()
+			schema := view.Get(destination.Namespace()).Name()
 			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
 				return nil, err
 			}
@@ -126,8 +126,8 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			// insertion would enforce their constraints as well.
 			child := destination
 			for child.Membership != nil {
-				parent := catalog.MustRelation(child.Membership.Parent)
-				allowed, err := partitionAccepts(catalog, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
+				parent := view.MustRelation(child.Membership.Parent)
+				allowed, err := partitionAccepts(view, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
 				if err != nil {
 					return nil, err
 				}

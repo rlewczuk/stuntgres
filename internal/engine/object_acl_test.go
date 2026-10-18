@@ -82,9 +82,9 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		// Use actual descriptor staging and the existing ACL publication seam;
 		// no sequence GRANT SQL or new producer is introduced by this inquiry.
 		engine := New()
-		catalog := engine.CatalogRead()
+		catalogView := engine.CatalogRead()
 		principal := engine.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		stage := engine.BeginCatalogStage(catalog)
+		stage := engine.BeginCatalogStage(catalogView)
 		options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
 		if err != nil {
 			t.Fatal(err)

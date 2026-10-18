@@ -12,7 +12,7 @@ type alterTypeIndex struct {
 	sql       string
 }
 
-func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
+func captureAlterTypeIndexes(scope *StatementScope, view CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeIndex, error) {
 	op := scope.op
 	hasType := false
 	for _, action := range actions {
@@ -22,7 +22,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 		return nil, nil
 	}
 	var queue []alterTypeIndex
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.Address() {
 			continue
@@ -88,7 +88,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 			pending.keys = append(pending.keys, i)
 		}
 		if len(pending.keys) > 0 || pending.predicate {
-			text, err := indexDefinitionSQL(op.Context(), catalog, index, indexPresentation{reconstruct: true, path: scope.deparsePath, output: scope.output})
+			text, err := indexDefinitionSQL(op.Context(), view, index, indexPresentation{reconstruct: true, path: scope.deparsePath, output: scope.output})
 			if err != nil {
 				return nil, err
 			}

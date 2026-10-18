@@ -8,9 +8,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGConversion(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGConversion(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	var definitions []*conversionDescriptor
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*conversionDescriptor); ok {
 			definitions = append(definitions, d)
 		}

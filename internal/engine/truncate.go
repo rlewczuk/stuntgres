@@ -251,16 +251,16 @@ func compareTruncateAddress(a, b ids.ObjectAddress) int {
 }
 
 // FK definitions alone decide closure, including empty referencing tables.
-func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
+func truncateReferencers(view CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
 	var result []truncateReferencer
-	for address, descriptor := range catalog.Descriptors() {
+	for address, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || selected[address] != 0 {
 			continue
 		}
 		for _, fk := range d.ForeignKeys {
 			if selected[fk.Target] != 0 {
-				parent, _ := catalog.Relation(fk.Target)
+				parent, _ := view.Relation(fk.Target)
 				if parent != nil {
 					result = append(result, truncateReferencer{d, parent})
 				}

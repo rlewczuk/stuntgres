@@ -10,9 +10,9 @@ import (
 
 func TestPGLanguageCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLanguageOID}
-	source := catalog.MustRelation(address)
+	source := view.MustRelation(address)
 	checkTypeLinks := func(catalog CatalogRead, relation *relationDescriptor) {
 		t.Helper()
 		if relation.RowType != 10021 {
@@ -26,9 +26,9 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 			t.Fatal("native row/array ownership and reciprocal linkage", row, array)
 		}
 	}
-	checkTypeLinks(catalog, source)
+	checkTypeLinks(view, source)
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
-	captured, err := capturePGLanguage(context.Background(), catalog, ref, source)
+	captured, err := capturePGLanguage(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		}
 	}
 	// A second capture must not lend mutable row storage from the first.
-	second, err := capturePGLanguage(context.Background(), catalog, ref, source)
+	second, err := capturePGLanguage(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,12 +51,12 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := capturePGLanguage(ctx, catalog, ref, source); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := capturePGLanguage(ctx, view, ref, source); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 	invalid := *source
 	invalid.Columns = source.Columns[:8]
-	if got, err := capturePGLanguage(context.Background(), catalog, ref, &invalid); got != nil || err == nil {
+	if got, err := capturePGLanguage(context.Background(), view, ref, &invalid); got != nil || err == nil {
 		t.Fatal("truncated source admitted", got, err)
 	}
 	foreign := New().CatalogRead()
@@ -64,7 +64,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		invalid := *source
 		invalid.Columns = append([]ColumnDescriptor(nil), source.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.LookupType(column.Usage.Type.ID())
-		if got, err := capturePGLanguage(context.Background(), catalog, ref, &invalid); got != nil || err == nil {
+		if got, err := capturePGLanguage(context.Background(), view, ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign source type admitted", i, got, err)
 		}
 	}

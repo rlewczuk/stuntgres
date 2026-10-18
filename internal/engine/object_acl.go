@@ -202,7 +202,7 @@ func objectACLClass(class ids.OID) (hasACL, known bool) {
 	return false, false
 }
 
-func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization.ACLValue, error) {
+func rawObjectACL(view CatalogRead, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	if address.ClassID == 0 && address.ObjectID == 0 {
 		return authorization.ACLValue{}, nil
 	}
@@ -218,7 +218,7 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 	}
 	key := address
 	key.SubID = 0
-	d := catalog.Get(key)
+	d := view.Get(key)
 	if address.ClassID == ids.RelationClassID && address.SubID != 0 {
 		// AttrNumber is signed int16. Narrow only after choosing the column
 		// path, so wrapped zero never becomes a whole-object ACL request.

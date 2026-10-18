@@ -746,7 +746,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
 func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
-	catalog := e.catalog.read(e.catalog.state)
+	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range temporary {
 		consumer, ok := descriptor.(*relationDescriptor)
 		if !ok || consumer.View == nil {
@@ -760,7 +760,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 				continue
 			}
 			if temporary[old.Namespace()] != nil {
-				if !storedViewReferenceValid(catalog, consumer, ref) {
+				if !storedViewReferenceValid(view, consumer, ref) {
 					return ids.ErrCatalogReplaced
 				}
 				continue
@@ -768,7 +768,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			fail := func() error {
 				return fmt.Errorf("stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported")
 			}
-			if old != captured || old.RelationKind != catalogRelation || !pgDependPinned(catalog, address) {
+			if old != captured || old.RelationKind != catalogRelation || !pgDependPinned(view, address) {
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
@@ -789,7 +789,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			}
 			namespace, ok := e.catalog.state.Namespace(old.Namespace())
 			other, candidateOK := next.Namespace(old.Namespace())
-			if !ok || !candidateOK || !pgDependPinned(catalog, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
+			if !ok || !candidateOK || !pgDependPinned(view, old.Namespace()) || namespace.Name() != other.Name() || namespace.Owner != other.Owner || namespace.Temporary != other.Temporary || namespace.TemporaryToast != other.TemporaryToast || namespace.ACL.Explicit != other.ACL.Explicit || !slices.Equal(namespace.ACL.Entries, other.ACL.Entries) {
 				return fail()
 			}
 			next.SetDescriptor(address, old)

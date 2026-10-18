@@ -8,10 +8,10 @@ import (
 
 // Partition reads reuse the mapped physical-prefix source used by inheritance.
 // Row identities and versions always retain their original physical storage.
-func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref ids.ObjectRef, parent *relationDescriptor) (*querySource, error) {
+func capturePartitionQueryPrefix(catalogView CatalogRead, view *VisibilityView, ref ids.ObjectRef, parent *relationDescriptor) (*querySource, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
-	if captured, ok := catalog.Relation(ref.Address); ok {
+	if captured, ok := catalogView.Relation(ref.Address); ok {
 		parent = captured
 	}
 	pin := view.Retain()
@@ -19,7 +19,7 @@ func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref 
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	source := &querySource{ref: ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
-	err := partitionPhysicalDescendants(catalog, parent, func(leaf *relationDescriptor) error {
+	err := partitionPhysicalDescendants(catalogView, parent, func(leaf *relationDescriptor) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
 		layout, err := inheritanceQueryLayout(parent, leaf)
 		if err != nil {

@@ -6,12 +6,12 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogChanges) bool {
-	d, ok := e.privateCatalogLocked(catalog).Relation(ref.Address)
+func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogChanges) bool {
+	d, ok := e.privateCatalogLocked(changes).Relation(ref.Address)
 	if !ok || d.RelationKind != tableRelation {
 		return false
 	}
-	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.Namespace())
+	ns, ok := e.privateCatalogLocked(changes).Namespace(d.Namespace())
 	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 

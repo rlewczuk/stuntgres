@@ -188,7 +188,7 @@ func (provider *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) [
 	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
 }
 
-func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
+func ruleDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor], observe func(ids.ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -197,11 +197,11 @@ func ruleDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, p
 		}
 		for _, r := range rulesOf(d) {
 			for _, target := range targets {
-				if ruleDepends(catalog, r, target) {
+				if ruleDepends(view, r, target) {
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
 					break
 				}
 			}

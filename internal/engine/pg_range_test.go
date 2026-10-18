@@ -66,9 +66,9 @@ func pgRangeUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[
 }
 func TestPGRangeCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d, ref := pgRangeUnitSource(t, e)
-	checkDescriptor := func(catalog CatalogRead, d *relationDescriptor) {
+	checkDescriptor := func(view CatalogRead, d *relationDescriptor) {
 		t.Helper()
 		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)
@@ -78,7 +78,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 			if i >= 5 {
 				id = sqltype.Regproc
 			}
-			owned, ok := catalog.LookupType(id)
+			owned, ok := view.LookupType(id)
 			c := d.Columns[i]
 			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 0 || c.Nullable || !c.NullabilityKnown || c.OriginTable != 3541 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i || owned.PostgreSQLTypeLength() != 4 {
 				t.Fatal("column ownership", i, c)
@@ -87,20 +87,20 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal("PUBLIC read", d.ACL)
 		}
-		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
-		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})
-		ownedRow, rowOK := catalog.LookupType(10101)
-		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
+		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})
+		ownedRow, rowOK := view.LookupType(10101)
+		ownedArray, arrayOK := view.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10100 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
-		if err := (relationProvider{}).Validate(catalog, d); err != nil {
+		if err := (relationProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
-	checkDescriptor(catalog, d)
+	checkDescriptor(view, d)
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgRangeUnitBag(t, rows, d)
-	second, err := capturePGRange(context.Background(), catalog, ref, d)
+	second, err := capturePGRange(context.Background(), view, ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	wrong.Columns[5].Usage.Type = d.Columns[0].Usage.Type
 	badSources = append(badSources, &wrong)
 	for _, bad := range badSources {
-		got, err := capturePGRange(context.Background(), catalog, ref, bad)
+		got, err := capturePGRange(context.Background(), view, ref, bad)
 		message := "stuntgres: foreign range source type"
 		if bad == nil || len(bad.Columns) != 7 {
 			message = "stuntgres: invalid range source shape"
@@ -155,7 +155,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 			cancel()
 			ctx = during
 		}
-		got, err := capturePGRange(ctx, catalog, ref, d)
+		got, err := capturePGRange(ctx, view, ref, d)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
@@ -172,7 +172,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 			t.Fatal("generation not reowned", i)
 		}
 	}
-	oldRow, _ := catalog.LookupType(10101)
+	oldRow, _ := view.LookupType(10101)
 	newRow, _ := freshCatalog.LookupType(10101)
 	if d == fresh || oldRow == newRow {
 		t.Fatal("relation/row descriptor reused")

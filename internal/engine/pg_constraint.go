@@ -21,7 +21,7 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -30,14 +30,14 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 	}
 	var types [28]*sqltype.Descriptor
 	for i, id := range pgConstraintTypeIDs {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign constraint source type")
 		}
 		types[i] = owned
 	}
 	count := 0
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -52,7 +52,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 	values := make([]sqltype.Value, count*28)
 	builder := pgConstraintBuilder{types: types}
 	at := 0
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -97,7 +97,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			if err != nil {
 				return nil, err
 			}
-			local, count := nonuniqueConstraintProvenance(catalog, table, c.Name, c.Attribute, false)
+			local, count := nonuniqueConstraintProvenance(view, table, c.Name, c.Attribute, false)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local || c.PartitionLocal)
 			builder.integer(row, 17, count)
@@ -109,7 +109,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			if err != nil {
 				return nil, err
 			}
-			local, count := nonuniqueConstraintProvenance(catalog, table, c.Name, 0, true)
+			local, count := nonuniqueConstraintProvenance(view, table, c.Name, 0, true)
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
@@ -163,7 +163,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			builder.keys(row, 20, c.Attributes)
 			builder.keys(row, 21, c.Referenced)
 			builder.keys(row, 25, c.DeleteAttributes)
-			if err := builder.foreignOperators(ctx, catalog, row, table, c); err != nil {
+			if err := builder.foreignOperators(ctx, view, row, table, c); err != nil {
 				return nil, err
 			}
 		}
@@ -181,7 +181,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				builder.integer(row, 17, 1)
 			}
 			builder.boolean(row, 18, c.Parent == 0)
-			index, ok := catalog.Relation(c.Index)
+			index, ok := view.Relation(c.Index)
 			if !ok || index.SQLIndex == nil || len(index.SQLIndex.Keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")
 			}
@@ -204,7 +204,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				if err != nil {
 					return nil, err
 				}
-				id, err := constraintOperator(catalog, op.Name, inputs[0], inputs[1])
+				id, err := constraintOperator(view, op.Name, inputs[0], inputs[1])
 				if err != nil {
 					return nil, err
 				}

@@ -32,7 +32,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				alterGenerationPopulate(t, e, admin)
 				old := e.catalog.state.MustRelation(ref.Address)
 				store := e.storage[ref.Address]
-				catalog := e.catalog.state
+				snapshot := e.catalog.state
 				ends, generation := store.ends, store.generation
 				rowID, versionID, frontier := e.nextRow, e.nextVersion, e.commitSeq
 				ctx, cancel := context.WithCancel(context.Background())
@@ -55,7 +55,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*relationDescriptor)
-				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != catalog || e.storage[ref.Address] != store {
+				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != snapshot || e.storage[ref.Address] != store {
 					t.Fatal("stage published before Finish")
 				}
 				shape := scope.catalog.storage[ref.Address]
@@ -78,7 +78,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.Generations[2].Kind != generationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || snapshot.Get(ref.Address) != old || old.Generations[2].Kind != generationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.versions {
@@ -104,7 +104,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 					t.Fatal("Finish cancellation veto", err)
 				}
-				if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.ends != ends || store.generation != generation || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
+				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.ends != ends || store.generation != generation || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
 					t.Fatal("Finish veto changed installed roots/counters/owner")
 				}
 				lockEmpty(t, e)

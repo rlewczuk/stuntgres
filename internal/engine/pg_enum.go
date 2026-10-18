@@ -9,7 +9,7 @@ import (
 
 // Capture immutable definitions from the caller's coherent catalog generation;
 // catalog labels are metadata, not enum datum input (including unsafe members).
-func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGEnum(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -17,13 +17,13 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 		return nil, fmt.Errorf("stuntgres: invalid enum source shape")
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		if !ok || owned != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign enum source type")
 		}
 	}
 	count := 0
-	for address, descriptor := range catalog.Descriptors() {
+	for address, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*4)
 	at := 0
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

@@ -234,12 +234,12 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (CatalogRead, *relationDescriptor, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog := e.privateCatalogLocked(scope.owner.catalog)
-	d, ok := catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
+	view := e.privateCatalogLocked(scope.owner.catalog)
+	d, ok := view.Relation(ref.Address)
+	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return CatalogRead{}, nil, ids.ErrCatalogReplaced
 	}
-	return catalog, d, nil
+	return view, d, nil
 }
 
 // Private import executes the same utility against captured definitions. Only

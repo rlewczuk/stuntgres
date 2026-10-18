@@ -29,11 +29,11 @@ func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog CatalogRead, 
 	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.Owner() != e.catalog.owner() || catalog.State() == nil || e.catalog.state.Epoch() != catalog.Epoch() || frontier != e.commitSeq {
+	if view.Owner() == nil || view.Owner() != e.catalog.owner() || view.State() == nil || e.catalog.state.Epoch() != view.Epoch() || frontier != e.commitSeq {
 		return nil, ids.ErrCatalogReplaced
 	}
 	authority := e.catalog.state
@@ -49,7 +49,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		return e.indexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
-	for address, descriptor := range catalog.Descriptors() {
+	for address, descriptor := range view.Descriptors() {
 		if parents != nil {
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.SQLIndex == nil || parents[index.SQLIndex.Parent] == nil {
@@ -59,7 +59,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
+		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(view, relation) {
 			store := storage[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ids.ErrCatalogReplaced
@@ -73,7 +73,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.Parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}

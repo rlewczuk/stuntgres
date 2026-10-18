@@ -60,7 +60,7 @@ func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) ma
 
 func TestPGOpclassCaptureOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	d, ref := pgOpclassUnitSource(t, e)
 	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
 		t.Fatal("descriptor", d)
@@ -75,7 +75,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 		if i == 7 {
 			id = sqltype.Bool
 		}
-		owned, ok := catalog.LookupType(id)
+		owned, ok := view.LookupType(id)
 		c := d.Columns[i]
 		if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2616 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
@@ -84,11 +84,11 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC read", d.ACL)
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*relationDescriptor{&invalid, {Columns: d.Columns[:8]}} {
-		if rows, err := capturePGOpclass(context.Background(), catalog, ref, source); rows != nil || err == nil {
+		if rows, err := capturePGOpclass(context.Background(), view, ref, source); rows != nil || err == nil {
 			t.Fatal("invalid source accepted", rows, err)
 		}
 	}
@@ -117,7 +117,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, ctx := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if rows, err := capturePGOpclass(ctx, catalog, ref, d); rows != nil || !errors.Is(err, context.Canceled) {
+		if rows, err := capturePGOpclass(ctx, view, ref, d); rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", rows, err)
 		}
 	}
@@ -189,13 +189,13 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if err != nil || root == nil || (root.hash != nil) != (tc.method == hashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}
-		catalog := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.Domain.Ref(catalog.Epoch(), index.Address()))
+		view := e.CatalogRead()
+		m, _, err := projectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), index.Address()))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}
 		d, ref := pgOpclassUnitSource(t, e)
-		rows, err := capturePGOpclass(context.Background(), catalog, ref, d)
+		rows, err := capturePGOpclass(context.Background(), view, ref, d)
 		if err != nil {
 			t.Fatal(err)
 		}

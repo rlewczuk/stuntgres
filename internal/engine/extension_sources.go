@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -19,14 +19,14 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			return nil, fmt.Errorf("stuntgres: invalid extension source shape")
 		}
 		for i, column := range source.Columns {
-			owned, ok := catalog.LookupType(ids[i])
+			owned, ok := view.LookupType(ids[i])
 			if !ok || owned != column.Usage.Type {
 				return nil, fmt.Errorf("stuntgres: foreign extension source type")
 			}
 		}
 	}
 	descriptors := make([]Descriptor, 0)
-	for _, d := range catalog.Descriptors() {
+	for _, d := range view.Descriptors() {
 		if d.Address().ClassID == source.Address().ObjectID {
 			descriptors = append(descriptors, d)
 		}

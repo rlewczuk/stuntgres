@@ -22,7 +22,7 @@ func policyDependentLabels(catalog CatalogRead, targets []ids.ObjectAddress, pat
 	return policyDependentLabelsFrom(catalog, targets, path, catalog.Descriptors())
 }
 
-func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {
+func policyDependentLabelsFrom(view CatalogRead, targets []ids.ObjectAddress, path []ids.ObjectAddress, descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
 	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -35,7 +35,7 @@ func policyDependentLabelsFrom(catalog CatalogRead, targets []ids.ObjectAddress,
 		for _, p := range d.Policies {
 			for _, target := range targets {
 				if policyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + dependencyIdentifier(p.Name) + " on table " + dependencyRelationName(catalog, d, path)})
+					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + dependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
 					break
 				}
 			}
@@ -91,9 +91,9 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 	}
 	return nil
 }
-func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error {
+func policyTypeChangeError(view CatalogRead, target ids.ObjectAddress) error {
 	var owners []*relationDescriptor
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*relationDescriptor); ok {
 			owners = append(owners, d)
 		}
@@ -112,7 +112,7 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 			if !policyDepends(p, target) {
 				continue
 			}
-			provider := catalog.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})
+			provider := view.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})
 			column := ""
 			for i, a := range provider.Attributes {
 				if a == target.SubID {

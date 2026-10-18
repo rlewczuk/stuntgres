@@ -179,7 +179,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
+func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil
@@ -193,7 +193,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		var failure error
 		validate := func(expression expr.Expr) {
 			if failure == nil {
-				failure = validateExpressionJoinExecution(c, expression, catalog)
+				failure = validateExpressionJoinExecution(c, expression, view)
 			}
 		}
 		if source, ok := node.(*functionFromNode); ok {
@@ -298,15 +298,15 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 				}
 			}
 		}
-		if err := validateMarkedQueryJoin(c, set.left, catalog, nil, queryRowMark{}, emptyInput, nil, reads); err != nil {
+		if err := validateMarkedQueryJoin(c, set.left, view, nil, queryRowMark{}, emptyInput, nil, reads); err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(c, set.right, catalog, nil, queryRowMark{}, emptyInput, nil, reads)
+		return validateMarkedQueryJoin(c, set.right, view, nil, queryRowMark{}, emptyInput, nil, reads)
 	case *worktableScanNode:
 		return nil
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
-		if d, ok := catalog.Relation(n.ref.Address); ok && d.RelationKind == viewRelation {
+		if d, ok := view.Relation(n.ref.Address); ok && d.RelationKind == viewRelation {
 			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
 				return err
 			}
@@ -322,7 +322,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			if err != nil {
 				return err
 			}
-			return validateMarkedQueryJoin(&child, root, catalog, nil, mark, emptyInput, nil, storedReads)
+			return validateMarkedQueryJoin(&child, root, view, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
 	case *derivedNode:
@@ -344,7 +344,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		if err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(&child, root, catalog, marks, inherited, emptyInput, nil, reads)
+		return validateMarkedQueryJoin(&child, root, view, marks, inherited, emptyInput, nil, reads)
 	case *joinNode:
 		mark := queryRowMark{}
 		if n.kind == parser.JoinLeft || n.kind == parser.JoinFull {
@@ -410,10 +410,10 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		}
 	}
 	left, right := queryInputs(node)
-	if err := validateMarkedQueryJoin(c, left, catalog, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
+	if err := validateMarkedQueryJoin(c, left, view, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
 		return err
 	}
-	return validateMarkedQueryJoin(c, right, catalog, marks, inherited, emptyInput, ignoredProject, reads)
+	return validateMarkedQueryJoin(c, right, view, marks, inherited, emptyInput, ignoredProject, reads)
 }
 
 // Every key is an effective equality. Keep only its ordered, bound operands:

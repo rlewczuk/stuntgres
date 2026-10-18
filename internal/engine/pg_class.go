@@ -24,7 +24,7 @@ func representedCatalogHasIndexes(oid ids.OID) bool {
 
 // catalogRelation describes execution, not PostgreSQL relation kind. Keep this
 // classification separate from virtualView, which controls source dispatch.
-func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
+func pgClassKind(view CatalogRead, relation *relationDescriptor) string {
 	switch relation.RelationKind {
 	case foreignRelation:
 		return "f"
@@ -39,7 +39,7 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 	case partitionedRelation:
 		return "p"
 	case indexRelation:
-		if parent, ok := catalog.Relation(relation.SQLIndex.Parent); ok && parent.Partition != nil {
+		if parent, ok := view.Relation(relation.SQLIndex.Parent); ok && parent.Partition != nil {
 			return "I"
 		}
 		return "i"
@@ -71,7 +71,7 @@ func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) strin
 	return "p"
 }
 
-func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles authorization.Read, source, relation *relationDescriptor) ([]sqltype.Value, error) {
+func (e *Engine) pgClassRow(ctx context.Context, view CatalogRead, roles authorization.Read, source, relation *relationDescriptor) ([]sqltype.Value, error) {
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {
@@ -83,7 +83,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 	integer := func(i int, n int64) sqltype.Value { return checked(sqltype.Integer(source.Columns[i].Usage.Type, n)) }
 	text := func(i int, s string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, s) }
 	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
-	kind := pgClassKind(catalog, relation)
+	kind := pgClassKind(view, relation)
 	method := uint32(0)
 	if kind == "r" || kind == "m" {
 		method = 2
@@ -124,7 +124,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 	}
 	bound := sqltype.Null(source.Columns[33].Usage.Type)
 	if relation.Membership != nil {
-		parent, ok := catalog.Relation(relation.Membership.Parent)
+		parent, ok := view.Relation(relation.Membership.Parent)
 		if !ok || parent.Partition == nil {
 			return nil, fmt.Errorf("stuntgres: missing partition bound parent")
 		}
@@ -135,7 +135,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.HasIndexes), boolean(15, shared),
-		text(16, pgClassPersistence(catalog, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
+		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
 		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.HasSubclasses),
 		boolean(23, relation.RLSEnabled), boolean(24, relation.RLSForced), boolean(25, relation.RelationKind != materializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),

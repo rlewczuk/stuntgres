@@ -20,9 +20,9 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TYPE operator_provider_enum AS ENUM('a','b')")
 	run(t, e, "CREATE TYPE operator_provider_record AS (n INT)")
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	userType := func(name string) *sqltype.Descriptor {
-		for _, d := range catalog.Descriptors() {
+		for _, d := range view.Descriptors() {
 			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
 				return typ.SQLType
 			}
@@ -63,7 +63,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		case 2249:
 			return record
 		}
-		d, _ := catalog.LookupType(id)
+		d, _ := view.LookupType(id)
 		return d
 	}
 	want := map[ids.OID][]string{}

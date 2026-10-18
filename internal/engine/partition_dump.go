@@ -10,9 +10,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
+func partitionDumpPredecessors(view CatalogRead, d *relationDescriptor, predecessors []ids.OID) ([]ids.OID, error) {
 	add := func(address ids.ObjectAddress) error {
-		id, err := dumpPredecessor(catalog, address, d.Address())
+		id, err := dumpPredecessor(view, address, d.Address())
 		if err != nil {
 			return err
 		}
@@ -26,9 +26,9 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 			return nil, err
 		}
 		if d.Membership.DefaultBound {
-			parent := catalog.MustRelation(d.Membership.Parent)
+			parent := view.MustRelation(d.Membership.Parent)
 			for _, address := range parent.Partition.Children {
-				if address != d.Address() && !partitionExclusionDefaultBefore(catalog, d, catalog.MustRelation(address)) {
+				if address != d.Address() && !partitionExclusionDefaultBefore(view, d, view.MustRelation(address)) {
 					if err := add(address); err != nil {
 						return nil, err
 					}
@@ -42,15 +42,15 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 						continue
 					}
 					literal := literalExpression{Info: expr.Info{Usage: datum.Value.Type().Usage()}, value: datum.Value}
-					if err := regclassReplayReferences(catalog, literal, add); err != nil {
+					if err := regclassReplayReferences(view, literal, add); err != nil {
 						return nil, err
 					}
 					var buffer [1]ids.ObjectRef
 					references := buffer[:0]
-					if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasReferences(catalog, datum.Value); err != nil {
+					if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
-					if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(catalog, datum.Value); err != nil {
+					if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(view, datum.Value); err != nil {
 						return nil, err
 					}
 					for _, ref := range references {
@@ -159,10 +159,10 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 	return false
 }
 
-func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
-	parent := catalog.MustRelation(d.Membership.Parent)
+func partitionAttachDumpSQL(ctx context.Context, view CatalogRead, d *relationDescriptor) (string, error) {
+	parent := view.MustRelation(d.Membership.Parent)
 	qualified := func(table *relationDescriptor) string {
-		return quoteIdentifier(catalog.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+		return quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
 	}
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
 	if d.Membership.DefaultBound {
@@ -171,11 +171,11 @@ func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relatio
 	if d.Membership.Strategy == parser.PartitionHash {
 		return text + hashPartitionBoundSQL(d.Membership) + ";\n", nil
 	}
-	lower, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.Keys, d.Membership.Lower)
+	lower, err := partitionTupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Lower)
 	if err != nil {
 		return "", err
 	}
-	upper, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.Keys, d.Membership.Upper)
+	upper, err := partitionTupleDumpSQL(ctx, view, parent.Partition.Keys, d.Membership.Upper)
 	if err != nil {
 		return "", err
 	}

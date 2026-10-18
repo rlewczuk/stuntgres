@@ -14,8 +14,8 @@ import (
 // relation identities with the same numeric OID. Frozen capture and pg_depend
 // share the value walk, but intentionally retain different pinned-ref rules.
 func TestPGDependRegtypeValueReferences(t *testing.T) {
-	e, catalog, integer := pgDependUnitCatalog(t)
-	regtype, ok := catalog.LookupType(sqltype.Regtype)
+	e, view, integer := pgDependUnitCatalog(t)
+	regtype, ok := view.LookupType(sqltype.Regtype)
 	if !ok {
 		t.Fatal("missing regtype")
 	}
@@ -24,15 +24,15 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.ID())}
-	catalog.State().SetDescriptor(provider, &typeDescriptor{SQLType: domain})
+	view.State().SetDescriptor(provider, &typeDescriptor{SQLType: domain})
 	row, err := sqltype.Composite(48102, "row_provider", "public.row_provider", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "id", Usage: integer.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.ID())}
 	relationAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(row.ID())}
-	catalog.State().SetDescriptor(rowAddress, &typeDescriptor{SQLType: row, OwningRelation: relationAddress})
-	catalog.State().SetDescriptor(relationAddress, &relationDescriptor{ObjectAddress: relationAddress, RowType: row.ID()})
+	view.State().SetDescriptor(rowAddress, &typeDescriptor{SQLType: row, OwningRelation: relationAddress})
+	view.State().SetDescriptor(relationAddress, &relationDescriptor{ObjectAddress: relationAddress, RowType: row.ID()})
 	value := func(id ids.OID) sqltype.Value {
 		t.Helper()
 		v, err := sqltype.RegtypeValue(regtype, uint32(id))
@@ -58,18 +58,18 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			literal := literalExpression{Info: expr.Info{Usage: regtype.Usage()}, value: tc.value}
-			refs, err := pgDependExpressionRefs(context.Background(), catalog, literal)
+			refs, err := pgDependExpressionRefs(context.Background(), view, literal)
 			if err != nil {
 				t.Fatal(err)
 			}
 			pgDependUnitRefs(t, refs, tc.want)
 			var captured []ids.ObjectRef
-			if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, tc.value); err != nil {
+			if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(view, tc.value); err != nil {
 				t.Fatal(err)
 			}
 			var addresses []ids.ObjectAddress
 			for _, ref := range captured {
-				if ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+				if ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 					t.Fatal("lost identity provenance", ref)
 				}
 				addresses = append(addresses, ref.Address)
@@ -114,26 +114,26 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	payloadAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(payloadType.ID())}
-	catalog.State().SetDescriptor(payloadAddress, &typeDescriptor{SQLType: payloadType})
+	view.State().SetDescriptor(payloadAddress, &typeDescriptor{SQLType: payloadType})
 	literal := literalExpression{Info: expr.Info{Usage: payloadType.Usage()}, value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
-	refs, err := pgDependExpressionRefs(context.Background(), catalog, literal)
+	refs, err := pgDependExpressionRefs(context.Background(), view, literal)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
-	refs, err = pgDependQueryRefs(context.Background(), catalog, &BoundQuery{Root: &projectNode{expressions: []expr.Expr{literal}}})
+	refs, err = pgDependQueryRefs(context.Background(), view, &BoundQuery{Root: &projectNode{expressions: []expr.Expr{literal}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
 	var captured []ids.ObjectRef
-	if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, payload); err != nil {
+	if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(view, payload); err != nil {
 		t.Fatal(err)
 	}
 	var addresses []ids.ObjectAddress
 	for _, ref := range captured {
-		if ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			t.Fatal("lost recursive identity provenance", ref)
 		}
 		addresses = append(addresses, ref.Address)
@@ -144,7 +144,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	// later identities. No transformed payload is allocated by the walk.
 	stop := errors.New("stop recording")
 	calls := 0
-	if err := walkCatalogAliasReferences(catalog, payload, func(ids.ObjectAddress) error {
+	if err := walkCatalogAliasReferences(view, payload, func(ids.ObjectAddress) error {
 		calls++
 		return stop
 	}); !errors.Is(err, stop) || calls != 1 {
@@ -159,7 +159,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err = pgDependExpressionRefs(context.Background(), catalog, remapped)
+	refs, err = pgDependExpressionRefs(context.Background(), view, remapped)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if refs, err := pgDependExpressionRefs(canceled, catalog, literal); !errors.Is(err, context.Canceled) || refs != nil {
+	if refs, err := pgDependExpressionRefs(canceled, view, literal); !errors.Is(err, context.Canceled) || refs != nil {
 		t.Fatal("cancellation lost", refs, err)
 	}
 }

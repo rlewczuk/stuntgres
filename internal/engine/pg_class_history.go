@@ -70,8 +70,8 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 
 // Replacement's private map may still point at retained immutable descriptors.
 // Reconstruct active facts without losing already-retained TEMP history.
-func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRead) error {
-	for _, descriptor := range catalog.Descriptors() {
+func normalizeReplacementSubclassHistory(ctx context.Context, view CatalogRead) error {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -80,14 +80,14 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 			continue
 		}
 		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
-			parent, ok := catalog.Relation(address)
+			parent, ok := view.Relation(address)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
 			if !parent.HasSubclasses {
 				next := *parent
 				next.HasSubclasses = true
-				catalog.State().SetDescriptor(address, &next)
+				view.State().SetDescriptor(address, &next)
 			}
 			return nil
 		}); err != nil {

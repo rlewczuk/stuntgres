@@ -279,14 +279,14 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 
 // Captured heads are immutable; the copied scalar generation/end-root tuple
 // fences every build against row publication, even when catalog is unchanged.
-func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, catalog *catalogState) map[ids.ObjectAddress]*relationStorage {
+func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, snapshot *catalogState) map[ids.ObjectAddress]*relationStorage {
 	var captured map[ids.ObjectAddress]*relationStorage
-	for _, d := range catalog.Descriptors() {
+	for _, d := range snapshot.Descriptors() {
 		index, ok := d.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		if parent, ok := catalog.Relation(index.SQLIndex.Parent); ok && parent.Partition != nil {
+		if parent, ok := snapshot.Relation(index.SQLIndex.Parent); ok && parent.Partition != nil {
 			continue
 		}
 		if captured == nil {
@@ -341,14 +341,14 @@ func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *cat
 func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*relationDescriptor, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*logicalIndexRoot
-	catalog := e.catalog.read(next)
-	evaluation.catalog, evaluation.Output = catalog, output
+	view := e.catalog.read(next)
+	evaluation.catalog, evaluation.Output = view, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
-		auth = &AuthorizationView{catalog: catalog}
+		auth = &AuthorizationView{catalog: view}
 	} else {
 		disclosure := *auth
-		disclosure.catalog = catalog
+		disclosure.catalog = view
 		disclosure.recaptureCatalog(disclosure.catalog)
 		auth = &disclosure
 	}
@@ -379,7 +379,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 					return nil, err
 				}
 			}
-			if err := validateIndexDefinition(catalog, index); err != nil {
+			if err := validateIndexDefinition(view, index); err != nil {
 				return nil, err
 			}
 			if roots[a] != nil {
@@ -390,7 +390,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		intent := rebuildParents[index.SQLIndex.Parent] || rebuildIndexes[a] != nil
 		if !index.SQLIndex.Ready && rebuildIndexes[a] == nil {
 			if current.Get(a) != index {
-				if err := validateIndexDefinition(catalog, index); err != nil {
+				if err := validateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
 			}
@@ -419,7 +419,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				return nil, fmt.Errorf("stuntgres: ready index root is missing")
 			}
 			if old != index {
-				if err := validateIndexDefinition(catalog, index); err != nil {
+				if err := validateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
 			}
@@ -488,7 +488,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			continue
 		}
 		if rebuild {
-			if err := validateIndexDefinition(catalog, index); err != nil {
+			if err := validateIndexDefinition(view, index); err != nil {
 				return nil, err
 			}
 			// Required ordering/uniqueness scratch is not an installation
@@ -578,7 +578,7 @@ func preserveUnchangedIndexRoots(prepared, previous, live map[ids.ObjectAddress]
 // Explicit statements must discover derived-key errors before installing private
 // rows, not defer them to COMMIT. Admission owns these rows; the captured catalog
 // and execution trees are immutable. Finish retains its final publication veto.
-func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
+func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
 	if len(s.stage.rows) == 0 {
 		return nil
 	}
@@ -588,7 +588,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		e.mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(catalog)
+	view := e.privateCatalogLocked(changes)
 	input := s.input
 	var programmeAuth AuthorizationView
 	if len(s.domainPreparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.indexBindings) != 0 {

@@ -26,10 +26,10 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		}
 	}
 
-	catalog := e.CatalogRead()
-	regclass, _ := catalog.LookupType(sqltype.Regclass)
-	oid, _ := catalog.LookupType(sqltype.Oid)
-	boolean, _ := catalog.LookupType(sqltype.Bool)
+	view := e.CatalogRead()
+	regclass, _ := view.LookupType(sqltype.Regclass)
+	oid, _ := view.LookupType(sqltype.Oid)
+	boolean, _ := view.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
 	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, "10000")}
 	definition := columnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}

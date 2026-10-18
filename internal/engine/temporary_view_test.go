@@ -113,9 +113,9 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog := e.privateCatalogLocked(next)
+	catalogView := e.privateCatalogLocked(next)
 	for _, d := range []Descriptor{table, view} {
-		if catalog.Get(d.Address()) != nil {
+		if catalogView.Get(d.Address()) != nil {
 			t.Fatal("ON COMMIT DROP missed view closure", d.Name())
 		}
 	}

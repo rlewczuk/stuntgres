@@ -25,28 +25,28 @@ func pgDependUnitRefs(t *testing.T, got, want []ids.ObjectAddress) {
 	}
 }
 func TestPGDependExpressionReferences(t *testing.T) {
-	e, catalog, integer := pgDependUnitCatalog(t)
+	e, view, integer := pgDependUnitCatalog(t)
 	parent := pgDependUnitAddress(1259, 48001, 0)
 	column := parent
 	column.SubID = 3
-	catalog.State().SetDescriptor(parent, &relationDescriptor{ObjectAddress: parent, RelationKind: tableRelation, Attributes: []int32{3}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	view.State().SetDescriptor(parent, &relationDescriptor{ObjectAddress: parent, RelationKind: tableRelation, Attributes: []int32{3}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
 	provider := pgDependUnitAddress(1259, 48002, 0)
-	catalog.State().SetDescriptor(provider, &relationDescriptor{ObjectAddress: provider, RelationKind: tableRelation})
+	view.State().SetDescriptor(provider, &relationDescriptor{ObjectAddress: provider, RelationKind: tableRelation})
 	domain, err := sqltype.Domain(48003, "d", "public.d", integer.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog.State().SetDescriptor(pgDependUnitAddress(1247, 48003, 0), &typeDescriptor{SQLType: domain})
-	regclass, ok := catalog.LookupType(sqltype.Regclass)
+	view.State().SetDescriptor(pgDependUnitAddress(1247, 48003, 0), &typeDescriptor{SQLType: domain})
+	regclass, ok := view.LookupType(sqltype.Regclass)
 	if !ok {
 		t.Fatal("regclass")
 	}
-	array, ok := catalog.LookupArray(regclass)
+	array, ok := view.LookupArray(regclass)
 	if !ok {
 		t.Fatal("regclass array")
 	}
 	ref := func(a ids.ObjectAddress) ids.ObjectRef {
-		return e.catalog.Domain.Ref(catalog.State().Epoch(), a)
+		return e.catalog.Domain.Ref(view.State().Epoch(), a)
 	}
 	variable := columnExpression{Info: expr.Info{Usage: domain.Usage()}, origin: ref(column)}
 	scalar := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref(provider)}}
@@ -69,14 +69,14 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := pgDependExpressionRefs(context.Background(), catalog, tc.expr)
+			got, err := pgDependExpressionRefs(context.Background(), view, tc.expr)
 			if err != nil {
 				t.Fatal(err)
 			}
 			pgDependUnitRefs(t, got, tc.want)
 		})
 	}
-	collection := pgDependRefs{ctx: context.Background(), catalog: catalog}
+	collection := pgDependRefs{ctx: context.Background(), catalog: view}
 	collection.add(parent)
 	collection.add(column)
 	collection.add(column)
@@ -87,7 +87,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column, provider})
 	for _, bad := range []ids.ObjectAddress{pgDependUnitAddress(1259, 49999, 0), pgDependUnitAddress(1259, 48001, 2)} {
-		r := pgDependRefs{ctx: context.Background(), catalog: catalog}
+		r := pgDependRefs{ctx: context.Background(), catalog: view}
 		r.add(bad)
 		if _, err := r.finish(); err == nil {
 			t.Fatal("missing authority accepted", bad)
@@ -95,20 +95,20 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := pgDependExpressionRefs(canceled, catalog, scalar); !errors.Is(err, context.Canceled) || got != nil {
+	if got, err := pgDependExpressionRefs(canceled, view, scalar); !errors.Is(err, context.Canceled) || got != nil {
 		t.Fatal(got, err)
 	}
 }
 func TestPGDependQuerySourceSuppression(t *testing.T) {
-	e, catalog, integer := pgDependUnitCatalog(t)
+	e, view, integer := pgDependUnitCatalog(t)
 	table := pgDependUnitAddress(1259, 49001, 0)
 	column := table
 	column.SubID = 4
-	catalog.State().SetDescriptor(table, &relationDescriptor{ObjectAddress: table, RelationKind: tableRelation, Attributes: []int32{4}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
-	ref := e.catalog.Domain.Ref(catalog.State().Epoch(), table)
+	view.State().SetDescriptor(table, &relationDescriptor{ObjectAddress: table, RelationKind: tableRelation, Attributes: []int32{4}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	ref := e.catalog.Domain.Ref(view.State().Epoch(), table)
 	source := &sourceNode{ref: ref}
 	relationOnly := &BoundQuery{Root: source}
-	got, err := pgDependQueryRefs(context.Background(), catalog, relationOnly)
+	got, err := pgDependQueryRefs(context.Background(), view, relationOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,19 +116,19 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	ref.Address = column
 	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, origin: ref}
 	query := &BoundQuery{Root: &projectNode{child: source, expressions: []expr.Expr{variable, variable}}}
-	got, err = pgDependQueryRefs(context.Background(), catalog, query)
+	got, err = pgDependQueryRefs(context.Background(), view, query)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 	nested := subqueryExpression{queryPlan: query}
-	got, err = pgDependExpressionRefs(context.Background(), catalog, nested)
+	got, err = pgDependExpressionRefs(context.Background(), view, nested)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 	aggregate := &BoundQuery{Root: &projectNode{child: &aggregateNode{child: source, keys: []expr.Expr{variable}, calls: []aggregateCall{{argument: variable, order: []sortKey{{expression: variable}}}}}, expressions: []expr.Expr{groupExpression{}, aggregateExpression{}}}}
-	got, err = pgDependQueryRefs(context.Background(), catalog, aggregate)
+	got, err = pgDependQueryRefs(context.Background(), view, aggregate)
 	if err != nil {
 		t.Fatal(err)
 	}

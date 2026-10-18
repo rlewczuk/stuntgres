@@ -167,7 +167,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if err := p.validateBounds(scope); err != nil {
 			return err
 		}
-		catalog := p.stage.Base
+		view := p.stage.Base
 		if err := p.checkOverlap(scope); err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		}
 		evaluation.catalog, evaluation.routineAuthority = p.auth.catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
-			leaf, ok := catalog.Relation(ref.Address)
+			leaf, ok := view.Relation(ref.Address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
@@ -206,9 +206,9 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 				}
 				if contains {
 					source.close()
-					defaultRelation := catalog.MustRelation(p.parent.Partition.DefaultChild)
+					defaultRelation := view.MustRelation(p.parent.Partition.DefaultChild)
 					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.Name())).(*sqlstate.Error)
-					diagnostic.Schema, diagnostic.Table = catalog.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
+					diagnostic.Schema, diagnostic.Table = view.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
 					return diagnostic
 				}
 			}

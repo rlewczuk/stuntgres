@@ -156,9 +156,9 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	ancestors = append(ancestors, ref)
 	for _, source := range viewOf(d).sources {
 		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.catalog)
-		child, ok := catalog.Relation(source.ref.Address)
-		use, useErr := storedViewUseReference(catalog, d, source.ref)
+		view := e.privateCatalogLocked(s.owner.catalog)
+		child, ok := view.Relation(source.ref.Address)
+		use, useErr := storedViewUseReference(view, d, source.ref)
 		valid := ok && useErr == nil
 		e.mu.Unlock()
 		if !valid {

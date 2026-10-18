@@ -37,8 +37,8 @@ func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) {
 
 func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgDBRoleSettingUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgDBRoleSettingUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
 	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
@@ -47,7 +47,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	typeIDs := [...]sqltype.ID{26, 26, 1009}
 	collations := [...]uint32{0, 0, 950}
 	for i, column := range d.Columns {
-		typ, ok := catalog.LookupType(typeIDs[i])
+		typ, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != (i == 2) || !column.NullabilityKnown || column.OriginTable != 2964 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
@@ -66,24 +66,24 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if d.Columns[2].Usage.Type.Element().ID() != 25 {
 		t.Fatal("text array element")
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10054})
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
-	ownedRow, ok := catalog.LookupType(10054)
-	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10054})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
+	ownedRow, ok := view.LookupType(10054)
+	ownedArray, arrayOK := view.LookupArray(ownedRow)
 	if d.RowType != 10054 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10053 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
+	if !representedCatalogHasIndexes(2964) || !representedSummaryTable(2964) || pgClassKind(view, d) != "r" || pgClassPersistence(view, d) != "p" {
 		t.Fatal("table discovery")
 	}
-	class := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := e.pgClassRow(context.Background(), catalog, e.Roles(), class, d)
+	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	facts, err := e.pgClassRow(context.Background(), view, e.Roles(), class, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("pg_global", space, err)
 	}
 	for _, oid := range []ids.OID{2965, 2966, 2967} {
-		if _, exists := catalog.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); exists {
+		if _, exists := view.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); exists {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}

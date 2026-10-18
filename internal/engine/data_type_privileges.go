@@ -39,11 +39,11 @@ func (e *Engine) initializeDataTypePrivileges() error {
 
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth AuthorizationView, database string, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil || auth.engine.catalog.owner() != catalog.Owner() || auth.catalog != catalog || auth.roleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || catalog.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.engine.catalog.owner() != view.Owner() || auth.catalog != view || auth.roleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid data_type_privileges capture")
 	}
 	// Validate paired roles/catalog/ref even if the inventory contains only
@@ -71,24 +71,24 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 		rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, address), false)
 		return rights&mask != 0, err
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		switch d := descriptor.(type) {
 		case *relationDescriptor:
-			kind := pgClassKind(catalog, d)
+			kind := pgClassKind(view, d)
 			if kind != "r" && kind != "v" && kind != "f" && kind != "p" && kind != "c" {
 				continue
 			}
-			ns, ok := catalog.Namespace(d.Namespace())
+			ns, ok := view.Namespace(d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: missing data type privilege namespace")
 			}
 			objectType := "TABLE"
 			if kind == "c" {
 				objectType = "USER-DEFINED TYPE"
-				typ, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+				typ, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 				if !ok || !typ.SQLType.IsComposite() || typ.OwningRelation != d.Address() {
 					return nil, fmt.Errorf("stuntgres: invalid composite privilege identity")
 				}
@@ -135,13 +135,13 @@ func captureDataTypePrivileges(ctx context.Context, catalog CatalogRead, auth Au
 			if !d.SQLType.IsDomain() {
 				continue
 			}
-			ns, ok := catalog.Namespace(d.Namespace())
+			ns, ok := view.Namespace(d.Namespace())
 			base := d.SQLType.DomainBase().Type
 			if !ok || base == nil {
 				return nil, fmt.Errorf("stuntgres: invalid domain privilege identity")
 			}
-			actual, exists := catalog.LookupType(base.ID())
-			identity, present := catalog.LookupType(d.SQLType.ID())
+			actual, exists := view.LookupType(base.ID())
+			identity, present := view.LookupType(d.SQLType.ID())
 			if !exists || actual != base || !present || identity != d.SQLType {
 				return nil, fmt.Errorf("stuntgres: inconsistent domain privilege identity")
 			}

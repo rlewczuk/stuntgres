@@ -37,8 +37,8 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *queryS
 
 func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgDatabaseUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgDatabaseUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
 	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.HasIndexes {
 		t.Fatal("relation identity", d)
@@ -48,21 +48,21 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	collations := [...]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 950, 950, 950, 950, 950, 0}
 	nulls := [...]bool{false, false, false, false, false, true, true, false, true, true, true, true, false, false, true, true, true, true}
 	for i, column := range d.Columns {
-		typ, ok := catalog.LookupType(typeIDs[i])
+		typ, ok := view.LookupType(typeIDs[i])
 		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collations[i] || column.Nullable != nulls[i] || !column.NullabilityKnown || column.OriginTable != 1262 || column.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[names[i]] != i {
 			t.Fatal("column", i, column)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.ACL)
 	}
-	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
-	ownedRow, ok := catalog.LookupType(1248)
-	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
+	ownedRow, ok := view.LookupType(1248)
+	ownedArray, arrayOK := view.LookupArray(ownedRow)
 	if d.RowType != 1248 || !ok || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10052 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}

@@ -54,7 +54,7 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 
 // Root classification follows canonical reciprocal identities, never object
 // names. Protected catalog namespaces and immutable providers are not bulk roots.
-func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
+func ownershipRoot(view CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
 	case *foreignDescriptor:
 		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
@@ -69,7 +69,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 		if t.OwningRelation == (ids.ObjectAddress{}) {
 			return true
 		}
-		r, ok := catalog.Relation(t.OwningRelation)
+		r, ok := view.Relation(t.OwningRelation)
 		return ok && r.RelationKind == compositeRelation
 	case *collationDescriptor:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})

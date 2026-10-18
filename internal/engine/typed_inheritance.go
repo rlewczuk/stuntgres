@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddress]Descriptor {
+func typedClosure(view CatalogRead, source ids.ObjectAddress) map[ids.ObjectAddress]Descriptor {
 	result := make(map[ids.ObjectAddress]Descriptor)
 	var visit func(*relationDescriptor)
 	visit = func(table *relationDescriptor) {
@@ -17,11 +17,11 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 			return
 		}
 		result[table.Address()] = table
-		for _, child := range inheritanceChildren(catalog, table.Address()) {
+		for _, child := range inheritanceChildren(view, table.Address()) {
 			visit(child)
 		}
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
 			visit(table)
 		}
@@ -34,7 +34,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	for _, descriptor := range result {
 		rowTypes = append(rowTypes, descriptor.(*relationDescriptor).RowType)
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || !table.RelationKind.Stored() || result[table.Address()] != nil {
 			continue
@@ -75,7 +75,7 @@ func typedObservationValid(stage *CatalogStage, current CatalogRead) bool {
 }
 
 // Parent-before-child order processes a diamond only after both incoming edges.
-func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*relationDescriptor {
+func typedPropagationOrder(view CatalogRead, source ids.ObjectAddress) []*relationDescriptor {
 	selected := make(map[ids.ObjectAddress]*relationDescriptor)
 	var selectTable func(*relationDescriptor)
 	selectTable = func(table *relationDescriptor) {
@@ -83,11 +83,11 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 			return
 		}
 		selected[table.Address()] = table
-		for _, child := range inheritanceChildren(catalog, table.Address()) {
+		for _, child := range inheritanceChildren(view, table.Address()) {
 			selectTable(child)
 		}
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.OfType == source {
 			selectTable(table)
 		}

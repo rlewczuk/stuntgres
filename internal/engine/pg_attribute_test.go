@@ -61,8 +61,8 @@ func pgAttributeUnitRows(t *testing.T, rows *querySource, relation uint32) map[i
 
 func TestPGAttributeShape(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgAttributeUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgAttributeUnitSource(t, e, view)
 	names := []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
 	typeIDs := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
 	if d.RowType != 75 || d.AttributeHighWater != 25 || len(d.Columns) != 25 || !d.HasIndexes || d.VirtualView {
@@ -73,17 +73,17 @@ func TestPGAttributeShape(t *testing.T) {
 			t.Fatal("column", i, c)
 		}
 	}
-	if err := (relationProvider{}).Validate(catalog, d); err != nil {
+	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
 	if array.OwningRelation != d.Address() || array.SQLType.Element().ID() != 75 {
 		t.Fatal("array ownership", array)
 	}
 	bad := *d
 	bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
 	bad.Columns[23].Usage = d.Columns[24].Usage
-	if err := (relationProvider{}).Validate(catalog, &bad); err == nil {
+	if err := (relationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("pseudo carrier escaped attribute25")
 	}
 }
@@ -271,8 +271,8 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 
 func TestPGAttributeCarrier(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
-	d, _ := pgAttributeUnitSource(t, e, catalog)
+	view := e.CatalogRead()
+	d, _ := pgAttributeUnitSource(t, e, view)
 	u := d.Columns[24].Usage
 	value := sqltype.CatalogResultNull(u)
 	if err := validateProducedValue(value, u); err != nil {
@@ -301,7 +301,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
 	ordinary := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.authorizationDomain.Principal(10), Columns: []ColumnDescriptor{{Name: "a", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"a": 0}}
-	if err := (relationProvider{}).Validate(catalog, ordinary); err == nil {
+	if err := (relationProvider{}).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}
 	_, err = e.pgClassACL(New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})

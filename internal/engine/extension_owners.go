@@ -31,18 +31,18 @@ type extensionOwnerRecord struct {
 	Members []extensionMemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *extensionDescriptor) (string, error) {
+func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *extensionDescriptor) (string, error) {
 	owner, err := roles.Descriptor(ext.Owner)
 	if err != nil {
 		return "", err
 	}
-	ns, ok := catalog.Namespace(ext.TargetNamespace)
+	ns, ok := view.Namespace(ext.TargetNamespace)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
 	record := extensionOwnerRecord{Name: ext.Name(), Schema: ns.Name(), Version: ext.Version, Owner: owner.Name}
 	for _, a := range ext.Members {
-		d := catalog.Get(a)
+		d := view.Get(a)
 		var member extensionMemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {

@@ -161,14 +161,14 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO persistent_child VALUES(4)")
 	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
-	catalog := e.CatalogRead()
-	ownAddress := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"})
-	peerAddress := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"})
+	view := e.CatalogRead()
+	ownAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"})
+	peerAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"})
 	persistent := roleTableRef(t, e, "persistent_child")
 	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
-	peerRef := e.catalog.Domain.Ref(catalog.Epoch(), peerAddress)
+	peerRef := e.catalog.Domain.Ref(view.Epoch(), peerAddress)
 	oldPeer := e.storage[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.versions, oldPeer.ends, oldPeer.generation
 	scope := truncateUnitStage(t, e, owner, "p")
@@ -179,7 +179,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	excluded = excluded && !journaledPeer && lockState.Resources[lock.Resource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ids.ObjectAddress{parent.Address, ownAddress, persistent.Address} {
-		ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
+		ref := e.catalog.Domain.Ref(view.Epoch(), address)
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false

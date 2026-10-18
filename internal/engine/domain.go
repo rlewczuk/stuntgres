@@ -149,11 +149,11 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	return nil
 }
 
-func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
+func typeDiagnosticNameAt(view CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
-		element, ok := catalog.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
-			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
+			return typeDiagnosticNameAt(view, element.(*typeDescriptor), path) + "[]"
 		}
 	}
 	name := dependencyIdentifier(d.Name())
@@ -161,14 +161,14 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.Obj
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
+		if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
 			if address == d.Address() {
 				return name
 			}
 			break
 		}
 	}
-	return dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+	return dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
 func validateTypeProviders(view CatalogRead, d Descriptor) error {

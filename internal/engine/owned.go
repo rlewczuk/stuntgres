@@ -62,10 +62,10 @@ func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool
 
 // Ownership locks follow canonical associations, not generated names. Include
 // independent roots and their backing relations, indexes and owned sequences.
-func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
+func ownershipRelationLocks(view CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
-		switch d := catalog.Get(a).(type) {
+		switch d := view.Get(a).(type) {
 		case *relationDescriptor:
 			group[a] = true
 		case *typeDescriptor:
@@ -74,7 +74,7 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 			}
 		}
 	}
-	for a, d := range catalog.Descriptors() {
+	for a, d := range view.Descriptors() {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
 			continue

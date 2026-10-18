@@ -11,14 +11,14 @@ import (
 
 // Ordinary LOCK and view-target paths retain their capability boundary.
 // Direct UPDATE/DELETE targets use real command-local descendant admission.
-func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
+func inheritanceTargetGuard(view CatalogRead, relation *relationDescriptor) error {
 	if relation.View == nil {
-		if relation.RelationKind == tableRelation && inheritanceHasChildren(catalog, relation.Address()) {
+		if relation.RelationKind == tableRelation && inheritanceHasChildren(view, relation.Address()) {
 			return sqlError("0A000", "recursive table inheritance is unsupported")
 		}
 		return nil
 	}
-	return inheritanceViewTargetGuard(catalog, relation, make(map[ids.ObjectAddress]bool))
+	return inheritanceViewTargetGuard(view, relation, make(map[ids.ObjectAddress]bool))
 }
 
 func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescriptor, visited map[ids.ObjectAddress]bool) error {

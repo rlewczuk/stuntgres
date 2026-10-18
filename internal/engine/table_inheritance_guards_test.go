@@ -13,7 +13,7 @@ import (
 func TestInheritanceGuards(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	catalog := e.catalog.read(catalog.CloneState(base.State()))
+	catalogView := e.catalog.read(catalog.CloneState(base.State()))
 	parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, ObjectName: "p", RelationKind: tableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
 	child := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: tableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &tableInheritance{
 		Parents: []ids.ObjectAddress{parent.Address()},
@@ -23,7 +23,7 @@ func TestInheritanceGuards(t *testing.T) {
 	standalone := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: tableRelation}
 	view := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: viewRelation, View: &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: parent.Address()}}}}}
 	for _, relation := range []*relationDescriptor{parent, child, standalone, view} {
-		catalog.State().SetDescriptor(relation.Address(), relation)
+		catalogView.State().SetDescriptor(relation.Address(), relation)
 	}
 	assertError := func(err error, code, message, position string) {
 		t.Helper()
@@ -34,18 +34,18 @@ func TestInheritanceGuards(t *testing.T) {
 	}
 	cyclic := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: viewRelation}
 	cyclic.View = &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: cyclic.Address()}}, {ref: ids.ObjectRef{Address: parent.Address()}}}}
-	catalog.State().SetDescriptor(cyclic.Address(), cyclic)
-	assertError(inheritanceTargetGuard(catalog, cyclic), "0A000", "recursive table inheritance is unsupported", "")
+	catalogView.State().SetDescriptor(cyclic.Address(), cyclic)
+	assertError(inheritanceTargetGuard(catalogView, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*relationDescriptor{parent, view} {
-		assertError(inheritanceTargetGuard(catalog, relation), "0A000", "recursive table inheritance is unsupported", "")
+		assertError(inheritanceTargetGuard(catalogView, relation), "0A000", "recursive table inheritance is unsupported", "")
 	}
 	for _, relation := range []*relationDescriptor{child, standalone} {
-		if err := inheritanceTargetGuard(catalog, relation); err != nil {
+		if err := inheritanceTargetGuard(catalogView, relation); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, relation := range []*relationDescriptor{parent, child, standalone} {
-		if err := inheritanceAlterActionsGuard(catalog, relation, []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}); err != nil {
+		if err := inheritanceAlterActionsGuard(catalogView, relation, []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,9 +63,9 @@ func TestInheritanceGuards(t *testing.T) {
 		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "p_a_not_null"}},
 		{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}},
 	} {
-		assertError(inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.AddColumn}, action}), "42P16", `cannot drop inherited constraint "p_a_not_null" of relation "c"`, "")
+		assertError(inheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.AddColumn}, action}), "42P16", `cannot drop inherited constraint "p_a_not_null" of relation "c"`, "")
 	}
-	if err := inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
+	if err := inheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if child.Inheritance.Columns[5].Local || len(child.Inheritance.Columns[5].Origins) != 1 || child.NotNullConstraints[0].Name != "p_a_not_null" {

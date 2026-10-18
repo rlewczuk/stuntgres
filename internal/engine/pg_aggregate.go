@@ -16,21 +16,21 @@ var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Int4, sqltype.Text, sqltype.Text,
 }
 
-func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGAggregate(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.Owner() == nil || catalog.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.Owner().Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.Address() || catalog.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
+	if view.Owner() == nil || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source || len(source.Columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {
-		typ, ok := catalog.LookupType(id)
+		typ, ok := view.LookupType(id)
 		if !ok || typ != source.Columns[i].Usage.Type {
 			return nil, fmt.Errorf("stuntgres: foreign aggregate source type")
 		}
 	}
 	count := len(builtinAggregateDefinitions)
-	for _, d := range catalog.Descriptors() {
+	for _, d := range view.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
 			count++
 		}
@@ -97,7 +97,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 			return nil, err
 		}
 	}
-	for _, d := range catalog.Descriptors() {
+	for _, d := range view.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
 			if err := put(&p.Aggregate.Definition); err != nil {
 				return nil, err

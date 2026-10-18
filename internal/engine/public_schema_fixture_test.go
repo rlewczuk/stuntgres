@@ -12,12 +12,12 @@ import (
 // precondition. It leaves the tested operation's identity and object ACLs alone.
 func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func()) {
 	t.Helper()
-	catalog := e.CatalogRead()
-	addresses := catalog.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	view := e.CatalogRead()
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	if len(addresses) != 1 {
 		t.Fatal("public schema fixture requires one public namespace")
 	}
-	descriptor, ok := catalog.Descriptor(addresses[0])
+	descriptor, ok := view.Descriptor(addresses[0])
 	if !ok {
 		t.Fatal("public schema fixture requires its namespace descriptor")
 	}

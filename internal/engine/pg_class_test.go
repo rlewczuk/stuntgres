@@ -17,7 +17,7 @@ func pgClassUnitSource(t *testing.T, e *Engine) *relationDescriptor {
 
 func TestPgClassProjection(t *testing.T) {
 	e := New()
-	catalog := e.CatalogRead()
+	view := e.CatalogRead()
 	source := pgClassUnitSource(t, e)
 	names := []string{"oid", "relname", "relnamespace", "reltype", "reloftype", "relowner", "relam", "relfilenode", "reltablespace", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relhasindex", "relisshared", "relpersistence", "relkind", "relnatts", "relchecks", "relhasrules", "relhastriggers", "relhassubclass", "relrowsecurity", "relforcerowsecurity", "relispopulated", "relreplident", "relispartition", "relrewrite", "relfrozenxid", "relminmxid", "relacl", "reloptions", "relpartbound"}
 	typeIDs := []sqltype.ID{26, 19, 26, 26, 26, 26, 26, 26, 26, 23, 700, 23, 23, 26, 16, 16, 18, 18, 21, 21, 16, 16, 16, 16, 16, 16, 18, 16, 26, 28, 28, 1034, 1009, 194}
@@ -30,7 +30,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	relation := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, HasIndexes: true, HasSubclasses: true, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]checkConstraint, 2)}
-	row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, relation)
+	row, err := e.pgClassRow(context.Background(), view, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
 	}
@@ -75,8 +75,8 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
-		d := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, d)
+		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+		row, err := e.pgClassRow(context.Background(), view, e.Roles(), source, d)
 		if err != nil {
 			t.Fatal(err)
 		}

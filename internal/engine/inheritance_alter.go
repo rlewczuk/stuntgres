@@ -43,7 +43,7 @@ func cloneInheritance(graph *tableInheritance) *tableInheritance {
 }
 
 // Unlike the OF-type entry, ordinary propagation includes its named root.
-func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*relationDescriptor {
+func inheritanceAlterOrder(view CatalogRead, root *relationDescriptor) []*relationDescriptor {
 	selected := map[ids.ObjectAddress]*relationDescriptor{}
 	var collect func(*relationDescriptor)
 	collect = func(d *relationDescriptor) {
@@ -51,7 +51,7 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 			return
 		}
 		selected[d.Address()] = d
-		for _, child := range inheritanceChildren(catalog, d.Address()) {
+		for _, child := range inheritanceChildren(view, d.Address()) {
 			collect(child)
 		}
 	}

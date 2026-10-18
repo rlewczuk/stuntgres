@@ -220,7 +220,7 @@ func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) 
 }
 
 // Each frozen consumer supplies its own coherent catalog and input owners.
-func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func captureRetainedDefinitionInput(view CatalogRead, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	seen := make(map[*viewDefinition]bool)
 	var capture func(*viewDefinition) error
 	capture = func(definition *viewDefinition) error {
@@ -238,7 +238,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 			return failure
 		}
 		for _, source := range definition.sources {
-			relation, ok := catalog.Relation(source.ref.Address)
+			relation, ok := view.Relation(source.ref.Address)
 			if ok && relation.RelationKind == viewRelation {
 				if err := capture(viewOf(relation)); err != nil {
 					return err

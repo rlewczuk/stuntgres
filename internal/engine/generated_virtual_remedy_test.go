@@ -63,17 +63,17 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 }
 
 func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
-	e, catalog, source := generatedUnitDescriptor(t)
+	e, view, source := generatedUnitDescriptor(t)
 	typ := source.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	seven, _ := sqltype.Integer(typ, 7)
 	negative, _ := sqltype.Integer(typ, -9)
-	origin := e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
+	origin := e.catalog.Domain.Ref(view.Epoch(), source.Address())
 	origin.Address.SubID = 2
 	old := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
 	ordinary := *source
 	ordinary.CheckConstraints = []checkConstraint{{Name: "positive", Expression: old}}
-	if err := refreshGenerationChecks(&ordinary, catalog); err != nil {
+	if err := refreshGenerationChecks(&ordinary, view); err != nil {
 		t.Fatal(err)
 	}
 	column := ordinary.CheckConstraints[0].Expression.(columnExpression)
@@ -99,7 +99,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 		t.Fatal("owner copy retained source execution recipe", copiedColumn)
 	}
 	wide.CheckConstraints = []checkConstraint{{Name: "positive", Expression: copied}}
-	if err := refreshGenerationChecks(&wide, catalog); err != nil {
+	if err := refreshGenerationChecks(&wide, view); err != nil {
 		t.Fatal(err)
 	}
 	column = wide.CheckConstraints[0].Expression.(columnExpression)

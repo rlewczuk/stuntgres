@@ -164,9 +164,9 @@ func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode)
 // A SELECT's admitted topology is immutable even though AS permits ATTACH SUE.
 // Accept only same-authority append growth; all replacement/decrease fences stay.
 func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.ObjectRef) error {
-	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, ok := catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+	view := e.privateCatalogLocked(s.owner.catalog)
+	d, ok := view.Relation(ref.Address)
+	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if old := s.partitionRelations[ref.Address]; old != nil && old != d && !partitionAppendCompatible(old, d) {

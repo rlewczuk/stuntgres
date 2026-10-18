@@ -170,12 +170,12 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
 	first := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalog
+	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	path := []ids.ObjectAddress{public, catalog}
+	path := []ids.ObjectAddress{public, catalogAddress}
 	if actual := regprocSpelling(view, path, second.Address().ObjectID); actual != "pg_catalog.unaccent" {
 		t.Fatal("real namespace shadow output", actual)
 	}

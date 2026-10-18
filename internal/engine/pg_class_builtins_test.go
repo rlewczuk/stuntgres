@@ -28,12 +28,12 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 	}
 	views := []string{"pg_roles", "pg_group", "pg_user", "pg_cursors", "pg_locks", "pg_timezone_names", "pg_timezone_abbrevs", "pg_available_extensions", "pg_available_extension_versions", "pg_sequences", "pg_views", "pg_prepared_xacts", "pg_indexes", "pg_tables", "pg_matviews", "table_privileges"}
 	check := func() {
-		catalog := e.CatalogRead()
+		view := e.CatalogRead()
 		source := pgClassUnitSource(t, e)
 		roles := e.Roles()
 		project := func(d *relationDescriptor, want bool) {
 			t.Helper()
-			row, err := e.pgClassRow(context.Background(), catalog, roles, source, d)
+			row, err := e.pgClassRow(context.Background(), view, roles, source, d)
 			if err != nil {
 				t.Fatal(d.Name(), err)
 			}
@@ -43,7 +43,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			}
 		}
 		for _, fact := range tables {
-			d, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
+			d, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
 			if !ok || d.Name() != fact.name || d.RelationKind != catalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
@@ -51,7 +51,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		for _, name := range views {
 			found := 0
-			for _, descriptor := range catalog.Descriptors() {
+			for _, descriptor := range view.Descriptors() {
 				d, ok := descriptor.(*relationDescriptor)
 				if ok && d.Name() == name && d.RelationKind == catalogRelation {
 					found++

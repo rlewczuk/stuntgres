@@ -10,12 +10,12 @@ import (
 
 // Parameter identities and sparse membership belong to the grant owner. Read
 // only actual descriptors, using the statement's matching catalog/role roots.
-func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) capturePGParameterACL(ctx context.Context, view CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -23,7 +23,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			continue
 		}
-		if err := (parameterProvider{e.settingsDefinitions}).Validate(catalog, d); err != nil {
+		if err := (parameterProvider{e.settingsDefinitions}).Validate(view, d); err != nil {
 			return nil, err
 		}
 		if err := validateACL(roles, d); err != nil {

@@ -42,8 +42,8 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
-	catalog := auth.catalog
-	if auth.engine != e || catalog.Owner() != e.catalog.owner() || catalog.State() == nil {
+	view := auth.catalog
+	if auth.engine != e || view.Owner() != e.catalog.owner() || view.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
 	// Authorize every executable view occurrence before admitting any physical
@@ -52,8 +52,8 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	var active []ids.ObjectRef
 	var authorize func(ids.ObjectRef, authorization.PrincipalRef, queryRowMark) error
 	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
-		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+		relation, ok := view.Relation(ref.Address)
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if relation.RelationKind != viewRelation {
@@ -74,7 +74,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			if child.analysisOnly {
 				continue
 			}
-			use, err := storedViewUseReference(catalog, relation, child.ref)
+			use, err := storedViewUseReference(view, relation, child.ref)
 			if err != nil {
 				return err
 			}
@@ -98,19 +98,19 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		}
 	}
 	for _, ref := range refs {
-		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+		relation, ok := view.Relation(ref.Address)
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
+		if err := checkTemporaryStorageAccess(view, relation, token); err != nil {
 			return nil, err
 		}
 	}
 	var visited map[ids.ObjectRef]bool
 	var collect func(ids.ObjectRef, bool) error
 	collect = func(ref ids.ObjectRef, only bool) error {
-		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
+		relation, ok := view.Relation(ref.Address)
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if relation.RelationKind == viewRelation {
@@ -125,7 +125,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				if child.analysisOnly {
 					continue
 				}
-				use, err := storedViewUseReference(catalog, relation, child.ref)
+				use, err := storedViewUseReference(view, relation, child.ref)
 				if err != nil {
 					return err
 				}
@@ -136,7 +136,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		}
 		if relation.Partition != nil && !only {
 			for _, address := range relation.Partition.Children {
-				child, ok := catalog.Relation(address)
+				child, ok := view.Relation(address)
 				if !ok {
 					return ids.ErrCatalogReplaced
 				}
@@ -146,14 +146,14 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		if relation.RelationKind == tableRelation && !only {
-			return inheritanceQueryClosure(catalog, relation, token, func(physical *relationDescriptor) error {
+			return inheritanceQueryClosure(view, relation, token, func(physical *relationDescriptor) error {
 				child := ref
 				child.Address = physical.Address()
 				return collect(child, true)
 			})
 		}
 		if relation.RelationKind.Stored() {
-			if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
+			if err := checkTemporaryStorageAccess(view, relation, token); err != nil {
 				return err
 			}
 			for _, prior := range refs {

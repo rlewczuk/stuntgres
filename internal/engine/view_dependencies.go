@@ -100,11 +100,11 @@ func constraintName(parent *relationDescriptor, address ids.ObjectAddress) strin
 	return ""
 }
 
-func constraintParent(catalog CatalogRead, address ids.ObjectAddress) *relationDescriptor {
+func constraintParent(view CatalogRead, address ids.ObjectAddress) *relationDescriptor {
 	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return nil
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if parent, ok := descriptor.(*relationDescriptor); ok && constraintName(parent, address) != "" {
 			return parent
 		}
@@ -112,49 +112,49 @@ func constraintParent(catalog CatalogRead, address ids.ObjectAddress) *relationD
 	return nil
 }
 
-func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) string {
+func dependencyObject(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectAddress) string {
 	base := target
 	base.SubID = 0
-	if parent := constraintParent(catalog, base); parent != nil {
-		return "constraint " + dependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(catalog, parent, path)
+	if parent := constraintParent(view, base); parent != nil {
+		return "constraint " + dependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(view, parent, path)
 	}
-	if d, ok := catalog.Namespace(base); ok {
+	if d, ok := view.Namespace(base); ok {
 		return "schema " + dependencyIdentifier(d.Name())
 	}
-	if d, ok := catalog.Database(base); ok {
+	if d, ok := view.Database(base); ok {
 		return "database " + dependencyIdentifier(d.Name())
 	}
-	if d, ok := catalog.Foreign(base); ok {
+	if d, ok := view.Foreign(base); ok {
 		if d.Address().ClassID == ids.ForeignMappingClassID {
 			user := "public"
 			if d.MappedRole != (authorization.PrincipalRef{}) {
 				user = dependencyIdentifier(d.MappedName)
 			}
-			server := catalog.Get(d.Server)
+			server := view.Get(d.Server)
 			return "user mapping for " + user + " on server " + dependencyIdentifier(server.Name())
 		}
 		return foreignLabel(d.Address().ClassID) + " " + dependencyIdentifier(d.Name())
 	}
-	if d, ok := catalog.Extension(base); ok {
+	if d, ok := view.Extension(base); ok {
 		return "extension " + dependencyIdentifier(d.Name())
 	}
-	if _, ok := catalog.Operator(base); ok {
-		return "operator " + operatorSpelling(catalog, path, collectOperatorGroups(catalog), base.ObjectID, sqltype.Regoperator)
+	if _, ok := view.Operator(base); ok {
+		return "operator " + operatorSpelling(view, path, collectOperatorGroups(view), base.ObjectID, sqltype.Regoperator)
 	}
-	if d, ok := catalog.Procedure(base); ok {
+	if d, ok := view.Procedure(base); ok {
 		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, namespace := range path {
-			if n, ok := catalog.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
+			if n, ok := view.Namespace(namespace); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.Name(), Signature: string(d.Signature)}); ok {
+			if address, ok := view.LookupName(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: d.Name(), Signature: string(d.Signature)}); ok {
 				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+			name = dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 		}
 		var arguments string
 		switch d.Signature {
@@ -181,70 +181,70 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		}
 		return "function " + name + "(" + arguments + ")"
 	}
-	if d, ok := catalog.TSDictionary(base); ok {
+	if d, ok := view.TSDictionary(base); ok {
 		name := dependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, ns := range path {
-			if n, ok := catalog.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
+			if n, ok := view.Namespace(ns); ok && n.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
+			if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()}); ok {
 				visible = address == d.Address()
 				break
 			}
 		}
 		if !visible {
-			name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+			name = dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 		}
 		return "text search dictionary " + name
 	}
-	if t, ok := catalog.Type(base); ok {
-		return "type " + typeDiagnosticNameAt(catalog, t, path)
+	if t, ok := view.Type(base); ok {
+		return "type " + typeDiagnosticNameAt(view, t, path)
 	}
-	if d, ok := catalog.Collation(base); ok {
+	if d, ok := view.Collation(base); ok {
 		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
+				if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
+				if a, ok := view.LookupName(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
 			}
 			if !visible {
-				name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+				name = dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 			}
 		}
 		return "collation " + name
 	}
-	if d, ok := catalog.Conversion(base); ok {
+	if d, ok := view.Conversion(base); ok {
 		name := dependencyIdentifier(d.Name())
 		if path != nil {
 			visible := false
 			for _, ns := range path {
-				if namespace, ok := catalog.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
+				if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 					continue
 				}
-				if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.Name()}); ok {
+				if a, ok := view.LookupName(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: ns, Name: d.Name()}); ok {
 					visible = a == d.Address()
 					break
 				}
 			}
 			if !visible {
-				name = dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
+				name = dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 			}
 		}
 		return "conversion " + name
 	}
-	d := catalog.MustRelation(base)
+	d := view.MustRelation(base)
 	if d.SQLIndex != nil && d.SQLIndex.Constraint != nil {
-		parent := catalog.MustRelation(d.SQLIndex.Parent)
-		return "constraint " + dependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
+		parent := view.MustRelation(d.SQLIndex.Parent)
+		return "constraint " + dependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(view, parent, path)
 	}
-	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
+	object := relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)
 	if target.SubID != 0 {
 		for i, attribute := range d.Attributes {
 			if attribute == target.SubID {

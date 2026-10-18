@@ -51,11 +51,11 @@ func conversionDescription(oid ids.OID) string {
 	return builtinConversionDescriptions[index]
 }
 
-func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGDescription(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, 0, catalog.DescriptorCount())
+	rows := make([][]sqltype.Value, 0, view.DescriptorCount())
 	appendDescription := func(address ids.ObjectAddress, sub int32, text string) error {
 		if text == "" {
 			return nil
@@ -75,7 +75,7 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		rows = append(rows, []sqltype.Value{object, class, attribute, sqltype.String(source.Columns[3].Usage.Type, text)})
 		return nil
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

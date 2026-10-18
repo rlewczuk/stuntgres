@@ -685,14 +685,14 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.partitionRelations) == 0 {
 		return nil
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.catalog)
 	for _, source := range s.inheritanceRelations {
-		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source); err != nil {
+		if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, source); err != nil {
 			return err
 		}
 	}
 	for i, source := range s.querySources {
-		current, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source)
+		current, err := currentQuerySourceLocked(e, view, s.owner.catalog, source)
 		if err != nil {
 			return err
 		}
@@ -713,11 +713,11 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.lockedRef.Domain() == nil {
 		return nil
 	}
-	catalog := e.privateCatalogLocked(s.owner.catalog)
+	view := e.privateCatalogLocked(s.owner.catalog)
 	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current := catalog.Get(s.lockedRef.Address)
+	current := view.Get(s.lockedRef.Address)
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
 			return ids.ErrCatalogReplaced
@@ -732,19 +732,19 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		return ids.ErrCatalogReplaced
 	}
 	for _, target := range s.inheritedTargets {
-		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, target); err != nil {
+		if _, err := currentQuerySourceLocked(e, view, s.owner.catalog, target); err != nil {
 			return err
 		}
 	}
 	for address, captured := range s.partitionRelations {
-		current, _ := catalog.Relation(address)
+		current, _ := view.Relation(address)
 		if current != captured && !partitionAppendCompatible(captured, current) {
 			return ids.ErrCatalogReplaced
 		}
 	}
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
-			current, ok := catalog.Relation(layer.ref.Address)
+			current, ok := view.Relation(layer.ref.Address)
 			if !ok || current.View != layer.relation.View || !sameRelationRowShape(current, layer.relation) {
 				return ids.ErrCatalogReplaced
 			}

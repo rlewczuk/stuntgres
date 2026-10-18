@@ -25,15 +25,15 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
+func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*relationDescriptor, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
-		name = typeDiagnosticNameAt(catalog, typ, path)
+		name = typeDiagnosticNameAt(view, typ, path)
 	}
 	if !typ.SQLType.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")
 	}
-	source, ok := catalog.Relation(typ.OwningRelation)
+	source, ok := view.Relation(typ.OwningRelation)
 	if !ok || source.RowType != typ.SQLType.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
@@ -117,18 +117,18 @@ func typedShape(table, source *relationDescriptor) error {
 	return nil
 }
 
-func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) error {
+func validateTypedAttachment(view CatalogRead, table *relationDescriptor) error {
 	if table.OfType == (ids.ObjectAddress{}) {
 		return nil
 	}
 	if table.OfType.ClassID != ids.TypeClassID || table.OfType.SubID != 0 || table.RelationKind != tableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
-	typ, ok := catalog.Type(table.OfType)
+	typ, ok := view.Type(table.OfType)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing typed source")
 	}
-	source, err := standaloneComposite(catalog, typ, nil)
+	source, err := standaloneComposite(view, typ, nil)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ type alterTypeCheck struct {
 	literals []literalExpression
 }
 
-func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+func captureAlterTypeChecks(op *Operation, view CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
 	if len(survivor.CheckConstraints) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}
@@ -48,7 +48,7 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 				continue
 			}
 			var literals []literalExpression
-			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.Expression)
+			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), view, check.Expression)
 			if err != nil {
 				return nil, err
 			}

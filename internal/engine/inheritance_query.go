@@ -36,8 +36,8 @@ func inheritanceQueryLayout(parent, child *relationDescriptor) ([]int, error) {
 	return layout, nil
 }
 
-func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
-	if leaf.only || !inheritanceHasChildren(catalog, leaf.ref.Address) {
+func captureInheritanceQueryPrefix(catalogView CatalogRead, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
+	if leaf.only || !inheritanceHasChildren(catalogView, leaf.ref.Address) {
 		return captureQueryPrefix(view, leaf.ref)
 	}
 	pin := view.Retain()
@@ -45,7 +45,7 @@ func captureInheritanceQueryPrefix(catalog CatalogRead, view *VisibilityView, le
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
 	source := &querySource{ref: leaf.ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
-	err := inheritanceQueryClosure(catalog, leaf.relation, token, func(physical *relationDescriptor) error {
+	err := inheritanceQueryClosure(catalogView, leaf.relation, token, func(physical *relationDescriptor) error {
 		child := leaf
 		child.ref.Address, child.relation = physical.Address(), physical
 		child.storage = view.read().generationAt(physical.Address())

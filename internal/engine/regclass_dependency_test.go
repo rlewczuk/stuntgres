@@ -22,12 +22,12 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 		roleExecute(t, e, op, query)
 	}
 	ref := roleTableRef(t, e, "rr_stage_owner")
-	catalog := e.CatalogRead()
-	descriptor, _ := catalog.Descriptor(ref.Address)
+	catalogView := e.CatalogRead()
+	descriptor, _ := catalogView.Descriptor(ref.Address)
 	old := descriptor.(*relationDescriptor)
 	kept := old.Attributes[old.Index["kept"]]
 	remaining := old.Defaults[kept]
-	stage := e.BeginCatalogStage(catalog)
+	stage := e.BeginCatalogStage(catalogView)
 	defer e.DiscardCatalogStage(stage)
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -81,14 +81,14 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 		roleExecute(t, e, op, query)
 	}
 	ref := roleTableRef(t, e, "rr_order_owner")
-	catalog := e.CatalogRead()
-	descriptor, _ := catalog.Descriptor(ref.Address)
+	view := e.CatalogRead()
+	descriptor, _ := view.Descriptor(ref.Address)
 	owner := descriptor.(*relationDescriptor)
 	target := ref.Address
 	target.SubID = owner.Attributes[owner.Index["v"]]
-	stage := e.BeginCatalogStage(catalog)
+	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	views := viewDependencyClosure(catalog, []ids.ObjectAddress{target}, stage)
+	views := viewDependencyClosure(view, []ids.ObjectAddress{target}, stage)
 	expanded := []ids.ObjectAddress{target}
 	for _, edge := range views {
 		expanded = append(expanded, edge.view.Address())
@@ -101,7 +101,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordered := supportedDependentLabels(catalog, []ids.ObjectAddress{target}, checks, views, defaults, nil)
+	ordered := supportedDependentLabels(view, []ids.ObjectAddress{target}, checks, views, defaults, nil)
 	var labels []string
 	for _, dependent := range ordered {
 		if dependent.oid == 0 {
@@ -113,13 +113,13 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].check.OID || ordered[4].oid != checks[1].check.OID || ordered[3].oid <= ordered[4].oid {
 		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
 	}
-	duplicate := supportedDependentLabels(catalog, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
+	duplicate := supportedDependentLabels(view, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
 	if !reflect.DeepEqual(duplicate, ordered) {
 		t.Fatal("duplicate roots emitted consumers twice", duplicate)
 	}
 	other := target
 	other.SubID = owner.Attributes[owner.Index["r"]]
-	if got := supportedDependentLabels(catalog, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
+	if got := supportedDependentLabels(view, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
 		t.Fatal("column identity ignored", got)
 	}
 }

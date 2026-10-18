@@ -69,28 +69,28 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
-func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
-	if catalog.Owner() == nil || ref.Domain() != catalog.Owner().Domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
+func storedViewReferenceValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
+	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
 	address := ref.Address
 	address.SubID = 0
-	target := catalog.Get(address)
+	target := view.Get(address)
 	if target == nil {
 		return false
 	}
-	if ref.Epoch == catalog.Epoch() {
+	if ref.Epoch == view.Epoch() {
 		return true
 	}
 	if consumer == nil || consumer.View == nil {
 		return false
 	}
 	owner, temporary := consumer.View.TemporaryConsumer()
-	if owner != consumer.Address() || catalog.Get(consumer.Address()) != consumer {
+	if owner != consumer.Address() || view.Get(consumer.Address()) != consumer {
 		return false
 	}
-	namespace, ok := catalog.Namespace(consumer.Namespace())
-	if !ok || namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary != temporary || namespace.Temporary.Domain() != catalog.Domain() {
+	namespace, ok := view.Namespace(consumer.Namespace())
+	if !ok || namespace.Temporary == (ids.SessionToken{}) || namespace.Temporary != temporary || namespace.Temporary.Domain() != view.Domain() {
 		return false
 	}
 	captured, exists := consumer.View.CapturedReference(ref)
@@ -98,9 +98,9 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	if relation, ok := target.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
-		return target == captured && pgDependPinned(catalog, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
+		return target == captured && pgDependPinned(view, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
 	}
-	if !storedReferenceEpochValid(catalog, consumer, ref) {
+	if !storedReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
 	switch actual := target.(type) {
@@ -127,7 +127,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 			return false
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&
-			old.Owner.ID() != 0 && old.Owner == catalog.Owner().Principals.Principal(old.Owner.ID()) &&
+			old.Owner.ID() != 0 && old.Owner == view.Owner().Principals.Principal(old.Owner.ID()) &&
 			sameRoutineDeclaration(actual, old)
 	}
 	return false

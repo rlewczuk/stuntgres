@@ -232,9 +232,9 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 				// definition, not CREATE. Making it mandatory would add a cycle.
 				roleExecute(t, e, op, "ALTER TABLE rr_opaque_target ADD COLUMN a regclass[] DEFAULT '{rr_opaque_owner}'")
 			}
-			catalog := e.CatalogRead()
+			view := e.CatalogRead()
 			ownerRef, targetRef := roleTableRef(t, e, "rr_opaque_owner"), roleTableRef(t, e, "rr_opaque_target")
-			descriptor, _ := catalog.Descriptor(ownerRef.Address)
+			descriptor, _ := view.Descriptor(ownerRef.Address)
 			owner := descriptor.(*relationDescriptor)
 			definition := owner.Defaults[owner.Attributes[owner.Index["v"]]]
 			if defaultReplayDeferrable(definition) || definition.Expression.ResultUsage().Type.ID() != sqltype.Bool {
@@ -246,7 +246,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 				}
 			}
 			var refs []ids.ObjectAddress
-			if err := regclassReplayReferences(catalog, definition.Expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
+			if err := regclassReplayReferences(view, definition.Expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(refs, []ids.ObjectAddress{targetRef.Address}) {

@@ -189,12 +189,12 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		if err != nil {
 			return fail(err)
 		}
-		catalog := auth.catalog
-		if catalog.Epoch() != epoch {
+		view := auth.catalog
+		if view.Epoch() != epoch {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		for address, old := range captured {
-			current, _ := catalog.Relation(address)
+			current, _ := view.Relation(address)
 			if !inheritanceMarkerPublication(old, current) {
 				return fail(ids.ErrCatalogReplaced)
 			}
@@ -205,7 +205,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		root = captured[root.Address()]
 		var targets []*relationDescriptor
 		if recurse {
-			targets = inheritanceAlterOrder(catalog, root)
+			targets = inheritanceAlterOrder(view, root)
 		} else {
 			targets = []*relationDescriptor{root}
 		}

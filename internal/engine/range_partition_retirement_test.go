@@ -39,10 +39,10 @@ func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture boo
 	}
 }
 
-func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*relationDescriptor, *relationDescriptor) {
+func rangePartitionRetirementDescriptors(t *testing.T, view CatalogRead) (*relationDescriptor, *relationDescriptor) {
 	t.Helper()
 	var provider, root *relationDescriptor
-	for _, d := range catalog.Descriptors() {
+	for _, d := range view.Descriptors() {
 		if r, ok := d.(*relationDescriptor); ok {
 			switch r.Name() {
 			case "rp_retire_provider":

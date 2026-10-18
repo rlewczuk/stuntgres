@@ -34,7 +34,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // Preserve the prepared source manifest. Only frozen presentation loses a
 // constructor's erased outer identity, and only when no executable occurrence
 // still needs that identity. The ordinary pg_depend expression owner decides.
-func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDependency, error) {
+func frozenQueryDependencies(view CatalogRead, b binding) ([]expressionDependency, error) {
 	var erased map[sqltype.ID]bool
 	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
@@ -49,7 +49,7 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 	if len(erased) == 0 {
 		return b.dependencies, nil
 	}
-	refs := pgDependRefs{ctx: context.Background(), catalog: catalog}
+	refs := pgDependRefs{ctx: context.Background(), catalog: view}
 	refs.query(b.query.Root)
 	if refs.err != nil {
 		return nil, refs.err

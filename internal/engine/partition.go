@@ -11,7 +11,7 @@ import (
 
 func hierarchyRelation(d *relationDescriptor) bool { return d.Partition != nil || d.Membership != nil }
 
-func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) error {
+func validatePartitionDescriptor(view CatalogRead, d *relationDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition hierarchy descriptor") }
 	if (d.Partition != nil) != (d.RelationKind == partitionedRelation) {
 		return invalid()
@@ -32,7 +32,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if !key.Usage.Valid() || !key.Usage.Type.Concrete() {
 				return invalid()
 			}
-			if err := validateUsageCollation(catalog, key.Usage); err != nil {
+			if err := validateUsageCollation(view, key.Usage); err != nil {
 				return err
 			}
 			if key.Collation != 0 && key.Collation != key.Usage.Collation.ID {
@@ -66,7 +66,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 		seen := make(map[ids.ObjectAddress]bool, len(p.Children))
 		for i, a := range p.Children {
-			child, ok := catalog.Relation(a)
+			child, ok := view.Relation(a)
 			if !ok || seen[a] || child.Membership == nil || child.Membership.Parent != d.Address() {
 				return invalid()
 			}
@@ -79,7 +79,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.Children[:i] {
-					previous := catalog.MustRelation(earlier).Membership
+					previous := view.MustRelation(earlier).Membership
 					small, large := previous, child.Membership
 					if small.Modulus > large.Modulus {
 						small, large = large, small
@@ -98,7 +98,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.Children[:i] {
-					previous := catalog.MustRelation(earlier).Membership
+					previous := view.MustRelation(earlier).Membership
 					if previous.DefaultBound {
 						continue
 					}
@@ -124,12 +124,12 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 	}
 	if membership := d.Membership; membership != nil {
-		parent, ok := catalog.Relation(membership.Parent)
+		parent, ok := view.Relation(membership.Parent)
 		if !ok || parent.Partition == nil || !slices.Contains(parent.Partition.Children, d.Address()) || len(parent.Columns) != len(d.Columns) {
 			return invalid()
 		}
-		parentNamespace, parentExists := catalog.Namespace(parent.Namespace())
-		childNamespace, childExists := catalog.Namespace(d.Namespace())
+		parentNamespace, parentExists := view.Namespace(parent.Namespace())
+		childNamespace, childExists := view.Namespace(d.Namespace())
 		if !parentExists || !childExists || parentNamespace.Temporary != childNamespace.Temporary {
 			return invalid()
 		}
@@ -181,7 +181,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if ancestor.Membership == nil {
 				break
 			}
-			ancestor, ok = catalog.Relation(ancestor.Membership.Parent)
+			ancestor, ok = view.Relation(ancestor.Membership.Parent)
 			if !ok {
 				return invalid()
 			}
@@ -273,7 +273,7 @@ func partitionContains(ctx context.Context, keys []partitionKeyEntry, bound *par
 
 // DEFAULT is always the live complement; no copied DEFAULT predicate can
 // outlive an explicit sibling's publication or its atomic removal.
-func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *relationDescriptor, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+func partitionAccepts(view CatalogRead, parent *relationDescriptor, child *relationDescriptor, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
 	var buffer [32]partitionDatum
 	key, err := partitionRowKey(parent, row, evaluation, buffer[:])
 	if err != nil {
@@ -283,7 +283,7 @@ func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *re
 		return partitionContains(evaluation.Context, parent.Partition.Keys, child.Membership, key, evaluation.Input)
 	}
 	for _, a := range parent.Partition.Children {
-		sibling := catalog.MustRelation(a)
+		sibling := view.MustRelation(a)
 		if sibling.Membership.DefaultBound {
 			continue
 		}

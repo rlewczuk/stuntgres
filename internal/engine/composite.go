@@ -124,13 +124,13 @@ func containsRowType(typ *sqltype.Descriptor, id sqltype.ID) bool {
 
 // PostgreSQL protects physical row codecs even when the proposed SQL type is
 // unchanged. Find the real stored consumer, not an intermediate named wrapper.
-func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
+func rowRewriteError(view CatalogRead, source *relationDescriptor) error {
 	if source.RowType == 0 {
 		return nil
 	}
 	var consumer *relationDescriptor
 	var column string
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || !table.RelationKind.Stored() {
 			continue

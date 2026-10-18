@@ -66,10 +66,10 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	first := &procedureDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: unaccentTextSignature, RoutineKind: functionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: stockUnaccent}
 	second := *first
-	second.ObjectAddress.ObjectID, second.ObjectNamespace, second.Signature = 90001, catalog, unaccentDictionarySignature
+	second.ObjectAddress.ObjectID, second.ObjectNamespace, second.Signature = 90001, catalogAddress, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
 	if err := stage.Create(first); err != nil {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	path := []ids.ObjectAddress{public, catalog}
+	path := []ids.ObjectAddress{public, catalogAddress}
 	if _, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)
 	}

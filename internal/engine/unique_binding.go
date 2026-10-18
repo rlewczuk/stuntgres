@@ -15,7 +15,7 @@ type createUniqueConstraint struct {
 	copyComments bool
 }
 
-func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []createLikeInput, catalog CatalogRead) ([]createUniqueConstraint, error) {
+func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []createLikeInput, view CatalogRead) ([]createUniqueConstraint, error) {
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	var declarations []createUniqueConstraint
 	primary := -1
@@ -86,7 +86,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 			if primary >= 0 {
 				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, table))
 			}
-			source, ok := catalog.Relation(old.Index)
+			source, ok := view.Relation(old.Index)
 			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}

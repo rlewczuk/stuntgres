@@ -78,7 +78,7 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *relationDescriptor, de
 	c.routineConsumer = owner
 }
 
-func (e columnExpression) admitVirtualGeneration(c *EvalContext, catalog CatalogRead) error {
+func (e columnExpression) admitVirtualGeneration(c *EvalContext, view CatalogRead) error {
 	if e.virtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -95,7 +95,7 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, catalog Catalog
 	if err != nil {
 		return err
 	}
-	return validateExpressionJoinExecution(&recipe, node, catalog)
+	return validateExpressionJoinExecution(&recipe, node, view)
 }
 
 // CHECK recipes belong to the completed destination, not a copied source.

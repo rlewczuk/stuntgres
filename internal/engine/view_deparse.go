@@ -33,12 +33,12 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 	return renderer.selectQuerySQL(ctx, catalog, v.syntax, v.queries[v.syntax])
 }
 
-func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode) (string, error) {
+func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view CatalogRead, s *parser.Select, project *projectNode) (string, error) {
 	var columns []ColumnDescriptor
 	if s == renderer.viewDefinition.syntax {
 		columns = renderer.presentation.columns
 	}
-	return renderer.selectQueryColumnsSQL(ctx, catalog, s, project, columns, false)
+	return renderer.selectQueryColumnsSQL(ctx, view, s, project, columns, false)
 }
 
 func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {

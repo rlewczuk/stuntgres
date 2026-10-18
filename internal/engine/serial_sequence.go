@@ -11,7 +11,7 @@ import (
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
 func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.Value) (sqltype.Value, error) {
 	scope := c.liveScope()
-	catalog := scope.commentCatalog
+	view := scope.commentCatalog
 	table, err := values[0].Text()
 	if err != nil {
 		return sqltype.Value{}, err
@@ -40,7 +40,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	relation := catalog.MustRelation(ref.Address)
+	relation := view.MustRelation(ref.Address)
 	owner := ref.Address
 	for i, descriptor := range relation.Columns {
 		if descriptor.Name == column {
@@ -57,7 +57,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		}
 		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
 	}
-	for _, descriptor := range catalog.Descriptors() {
+	for _, descriptor := range view.Descriptors() {
 		if err := c.Context.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
@@ -65,7 +65,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
 			continue
 		}
-		namespace, ok := catalog.Namespace(sequence.Namespace())
+		namespace, ok := view.Namespace(sequence.Namespace())
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}

@@ -240,9 +240,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 	t.Run("stored consumer policy and signature validation", func(t *testing.T) {
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE advisory_render_owner(v INT)")
-		catalog := e.CatalogRead()
-		ref := catalogRef(t, e, catalog, "advisory_render_owner")
-		owner := catalog.MustRelation(ref.Address)
+		view := e.CatalogRead()
+		ref := catalogRef(t, e, view, "advisory_render_owner")
+		owner := view.MustRelation(ref.Address)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT pg_try_advisory_lock(1,2)").(*parser.Select).Targets[0]
 		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -250,11 +250,11 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(advisoryExpression)
-		text, err := (scalarRenderer{owner: owner}).sql(ctx, catalog, node)
+		text, err := (scalarRenderer{owner: owner}).sql(ctx, view, node)
 		if err != nil || !strings.Contains(text, "pg_catalog.pg_try_advisory_lock(") {
 			t.Fatal("stored CHECK/view symbolic rendering", text, err)
 		}
-		if _, err = defaultSQL(ctx, catalog, node); err == nil {
+		if _, err = defaultSQL(ctx, view, node); err == nil {
 			t.Fatal("volatile default rendering widened")
 		}
 		if _, err = b.bindDefault(raw, ColumnDescriptor{Name: "v", Usage: node.ResultUsage()}); err == nil {
@@ -265,7 +265,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if damaged.validStored() {
 			t.Fatal("inconsistent compiled action admitted")
 		}
-		if _, err = (scalarRenderer{owner: owner}).sql(ctx, catalog, damaged); err == nil {
+		if _, err = (scalarRenderer{owner: owner}).sql(ctx, view, damaged); err == nil {
 			t.Fatal("malformed stored producer rendered")
 		}
 	})
