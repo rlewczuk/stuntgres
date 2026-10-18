@@ -289,7 +289,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 	case functions.DatetimeSleep:
 		return true
 	case functions.Binary:
-		return !jsonbExistenceName(n.Plan.Name()) && !jsonbContainmentName(n.Plan.Name())
+		return !functions.JSONBExistenceName(n.Plan.Name()) && !functions.JSONBContainmentName(n.Plan.Name())
 	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression, objectAddressExpression:
 		return true
 	case functions.VersionInformation:

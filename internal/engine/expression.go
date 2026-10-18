@@ -4039,7 +4039,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
 	if name == "-" && len(raw.Args) == 2 {
-		if node, selected, err := selectJSONBDelete(b, raw, operandArgument(left), operandArgument(right)); selected {
+		if node, selected, err := functions.SelectJSONBDelete(b, raw, operandArgument(left), operandArgument(right)); selected {
 			return node, err
 		}
 	}

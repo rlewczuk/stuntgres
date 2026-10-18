@@ -42,9 +42,9 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
-	if jsonbContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
+	if functions.JSONBContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
 		(left != nil && left.BaseType().ID() == sqltype.JSONB || right != nil && right.BaseType().ID() == sqltype.JSONB) {
-		return bindJSONBContainment(b, raw, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])})
+		return functions.BindJSONBContainment(b, raw, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])})
 	}
 	// ACL arrays select the fixed array/item signature for an unknown RHS;
 	// a known array RHS still belongs to the generic array/array operator.
