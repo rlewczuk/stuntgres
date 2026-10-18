@@ -58,6 +58,17 @@ func (e Soundex) Reconstruct(info expr.Info, args []expr.Expr) (Soundex, error) 
 	return NewSoundex(info, e.Function, args)
 }
 
+// Soundex implements expr.Composite.
+var _ expr.Composite = Soundex{}
+
+func (e Soundex) Children() []expr.Expr { return e.Args }
+func (e Soundex) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Soundex", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func (e Soundex) Validate() error {
 	result := sqltype.Text
 	if e.Function == "difference" {

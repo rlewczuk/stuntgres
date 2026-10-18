@@ -386,9 +386,12 @@ type Context interface {
 - `Composite`: `Children() []Expr` and `Rebuild(Info, []Expr) (Expr, error)`.
   `Rebuild` is the copy-on-change reconstruction that functions already
   implement as `Reconstruct`.
-- Optional rendering hooks for SQL deparse and node-tree output.
+- Optional rendering hooks for SQL deparse and node-tree output. Moved to
+  step 3 F2 at 2c: without a caller their signature would be a guess.
 - Walk and map helpers built on the protocol. Engine switches can then fall
   back to `case expr.Composite:` instead of listing every node type.
+- Landed in 2c with the lexical walk switch as the first adopter; 35
+  function nodes implement it (see the `expr` README).
 
 **Stays in the engine.** Concrete engine nodes (column, parameter, coercion,
 CASE, row and subquery nodes) and the plan IR. They move later with the
@@ -696,8 +699,8 @@ package-specific scope. This section holds the rules every session follows.
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
-| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2b done; 2c next |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3 done; F4/F5 next (F2 needs 2c) |
+| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3 done; F2 and F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |

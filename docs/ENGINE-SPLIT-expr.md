@@ -125,7 +125,9 @@ evaluation regression. 2d completes the step.
   seam, `a7bc48424` port, `d0fb3f388` recipe cut)
 - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`
   field export, `9e1ba1dae` move, docs `8f542f797`)
-- [ ] 2c — Node protocol landed with the walk switch as first adopter
+- [x] 2c — Node protocol landed with the walk switch as first adopter
+  (`328df6341` protocol, `aafd6fe97` function nodes, `f038faf09` walk
+  adopter, docs `767e1293e`)
 - [ ] 2d — Aliases removed
 
 Outstanding aliases (2d removes them):
@@ -140,6 +142,42 @@ Outstanding aliases (2d removes them):
   `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
   `IntrinsicPropertyRule`; constants `ExactStable`, `ExactVolatile`,
   `VolatileOnly` and `ExactImmutable`.
+
+Corrections to this prompt, measured at the 2c start (on `2ae77489b`):
+
+- The render hooks moved to F2, by decision at the 2c start: the deparse
+  renderer's state (implicit-cast display, parent precedence) is engine-private,
+  so a hook signature without a caller would be a guess.
+- "The nodes that already implement `Reconstruct`" was narrowed to the 35
+  whose `Reconstruct` depends only on metadata and children (18 slice nodes,
+  14 fixed-arity nodes, `LikeEscape`, `SimilarEscape`, `UUIDExtract`). The
+  others take engine-derived inputs (collation, retained descriptors, clock or
+  timestamp usages), and 10 `Reconstruct` methods are aggregate providers, not
+  nodes. Their walk cases stay; F2 lists them.
+- `Walk` takes the children enumerator as an argument, so the engine's switch
+  keeps deciding lexical boundaries while engine nodes are not protocol nodes.
+  `Map` uses the engine's changed-bit callback shape and rebuilds with
+  `InfoOf(node)`.
+- The installed soundex, metaphone, levenshtein and pgcrypto wrappers embed a
+  protocol node, so they override `Rebuild` to keep their routine identity; the
+  walk uses their promoted `Children`. The walk lost 35 cases (31 function
+  nodes and the 4 wrappers) and gained one final `case expr.Composite:`.
+
+Tests in 2c: new `expr/composite_test.go` (`Walk`, `Map`),
+`functions/composite_test.go` (rebuild identity and arity for slice,
+arity-limited, counted and named-argument nodes) and the engine's
+`expression_protocol_test.go` (wrapper `Rebuild`, walk through the Composite
+branch). No test was moved, adapted or deleted.
+
+Bench in 2c (`make bench`, same session, master `2ae77489b` vs branch):
+1.84–1.93 ms/op and 7,753 allocs/op before, 1.89–2.01 ms/op and 7,769 after.
+The 16 extra allocations come from `Children()` on value-receiver nodes with
+fixed arrays or named fields (the receiver copy or a small slice escapes);
+the old switch sliced a local without allocating.
+
+Notes for F2: if the protocol reaches a hot path, give `Composite` a
+non-allocating child visitor (for example `EachChild(func(Expr))`) beside
+`Children`, or move fixed-arity children into slices.
 
 Corrections to this prompt, measured at the 2b start:
 
@@ -204,7 +242,8 @@ Notes for later steps:
   `SELECT 1 + (abs(1))` work. This is a compatibility bug and needs reference
   coverage in a normal session.
 - Outside the split: with the pinned 18.6 image, these `REFERENCE=1` tests fail
-  on the PostgreSQL side only: `TestReferenceStringCaseReviewSigma` (final sigma
+  on the PostgreSQL side only (found in 2c: `TestReferenceJSONStripNullsFeatureSmoke`,
+  which expects 18.0's 42P17 for `json_strip_nulls` in an index expression): `TestReferenceStringCaseReviewSigma` (final sigma
   case mapping), `TestReferenceUUIDGeneration{StoredConsumersAndControls,
   FeatureSmoke,GuardDiagnostics}` (they expect 18.0's unchecked UUIDv7 shifts)
   and `TestReferenceCheckReview{2SchemaPrivateDropOutcomes,

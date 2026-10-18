@@ -71,6 +71,17 @@ func (e UUIDExtract) Reconstruct(info expr.Info, arg expr.Expr) (UUIDExtract, er
 	return NewUUIDExtract(info, e.Kind, arg)
 }
 
+// UUIDExtract implements expr.Composite.
+var _ expr.Composite = UUIDExtract{}
+
+func (e UUIDExtract) Children() []expr.Expr { return []expr.Expr{e.Arg} }
+func (e UUIDExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("UUIDExtract", children, 1); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children[0]))
+}
+
 func (e UUIDExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

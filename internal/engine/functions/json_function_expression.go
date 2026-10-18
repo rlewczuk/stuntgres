@@ -23,6 +23,17 @@ func (e JSONKeys) Reconstruct(info expr.Info, args []expr.Expr) (JSONKeys, error
 	return JSONKeys{info, plan, args}, err
 }
 
+// JSONKeys implements expr.Composite.
+var _ expr.Composite = JSONKeys{}
+
+func (e JSONKeys) Children() []expr.Expr { return e.Args }
+func (e JSONKeys) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONKeys", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 type JSONFunctionDefinition struct {
 	Input, Result  sqltype.ID
 	Keys           bool
@@ -104,6 +115,17 @@ func (e JSONEach) Reconstruct(info expr.Info, args []expr.Expr) (JSONEach, error
 	return JSONEach{info, plan, args}, err
 }
 
+// JSONEach implements expr.Composite.
+var _ expr.Composite = JSONEach{}
+
+func (e JSONEach) Children() []expr.Expr { return e.Args }
+func (e JSONEach) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONEach", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func NewJSONEach(info expr.Info, name string, arg expr.Expr) (JSONEach, error) {
 	plan, err := sqltype.BindJSONEach(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
@@ -133,6 +155,17 @@ func (e JSONElements) Reconstruct(info expr.Info, args []expr.Expr) (JSONElement
 	return JSONElements{info, plan, args}, err
 }
 
+// JSONElements implements expr.Composite.
+var _ expr.Composite = JSONElements{}
+
+func (e JSONElements) Children() []expr.Expr { return e.Args }
+func (e JSONElements) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONElements", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func NewJSONElements(info expr.Info, name string, arg expr.Expr) (JSONElements, error) {
 	plan, err := sqltype.BindJSONElements(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
@@ -159,6 +192,17 @@ func (e JSONBElements) Reconstruct(info expr.Info, args []expr.Expr) (JSONBEleme
 	}
 	plan, err := sqltype.BindJSONBElements(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
 	return JSONBElements{info, plan, args}, err
+}
+
+// JSONBElements implements expr.Composite.
+var _ expr.Composite = JSONBElements{}
+
+func (e JSONBElements) Children() []expr.Expr { return e.Args }
+func (e JSONBElements) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBElements", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
 }
 func NewJSONBElements(info expr.Info, name string, arg expr.Expr) (JSONBElements, error) {
 	plan, err := sqltype.BindJSONBElements(name, arg.ResultUsage(), info.Usage)

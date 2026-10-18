@@ -5,18 +5,20 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `1c0f87518`.
+Last verified against `master` at `2ae77489b`.
 
 ## Next ready sub-steps
 
-- **2c** — node protocol with the walk switch as first adopter (needs 2b ✓).
+- **2d** — remove the `expr` aliases (needs 2c ✓) *(alias removal)*.
+- **F2** — convert the remaining switches to the node protocol (needs 2c ✓)
+  *(broad rewrite)*.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5** — port Tier A, Tier B and aggregate families one at a time
   (needs F3 ✓).
 - **5a** — `catalogStore` state ownership (needs 1 ✓, 2b ✓).
 
-They may run in parallel on separate branches, except that 4c must not run
-alongside another broad rewrite or alias removal (§8).
+They may run in parallel on separate branches, except that 2d, 4c and F2 must
+not run alongside each other or another broad rewrite or alias removal (§8).
 
 ## Task tree
 
@@ -35,7 +37,9 @@ alongside another broad rewrite or alias removal (§8).
     `e884b9126`)
   - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`,
     `9e1ba1dae`, docs `8f542f797`)
-  - [ ] 2c — Node protocol landed with the walk switch as first adopter
+  - [x] 2c — Node protocol landed with the walk switch as first adopter
+    (`328df6341`, `aafd6fe97`, `f038faf09`, docs `767e1293e`)
+    *(full racecheck skipped at user request)*
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)

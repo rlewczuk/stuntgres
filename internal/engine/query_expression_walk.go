@@ -1,15 +1,14 @@
 package engine
 
-import "stuntgres/internal/engine/functions"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+)
 
 // Query boundaries are explicit: lexical argument walking visits predicate
 // left operands but never confuses a child query's local columns with ours.
 func walkBoundExpression(node BoundExpr, visit func(BoundExpr)) {
-	if node == nil {
-		return
-	}
-	visit(node)
-	boundExpressionChildren(node, func(child BoundExpr) { walkBoundExpression(child, visit) })
+	expr.Walk(node, boundExpressionChildren, visit)
 }
 
 // Enumerate lexical children only; a subquery's query graph is a separate frame.
@@ -110,26 +109,12 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.LikeEscape:
-		walk(e.Pattern)
-		walk(e.Escape)
 	case functions.Posix:
 		walk(e.Left)
 		walk(e.Right)
 	case functions.Similar:
 		walk(e.Left)
 		walk(e.Right)
-	case functions.SimilarEscape:
-		walk(e.Pattern)
-		walk(e.Escape)
-	case functions.PosixSubstring:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.SimilarSubstring:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
 	case seriesExpression:
 		args(e.args)
 	case subscriptsExpression:
@@ -139,18 +124,6 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case functions.Regexp:
 		args(e.Args)
 	case functions.RegexpSet:
-		args(e.Args)
-	case functions.JSONKeys:
-		args(e.Args)
-	case functions.JSONBRecord:
-		args(e.Args)
-	case functions.JSONBElements:
-		args(e.Args)
-	case functions.JSONRecord:
-		args(e.Args)
-	case functions.JSONEach:
-		args(e.Args)
-	case functions.JSONElements:
 		args(e.Args)
 	case logicalExpression:
 		walk(e.left)
@@ -164,30 +137,16 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.child)
 	case conditionalExpression:
 		args(e.args)
-	case functions.Binary:
-		args(e.Args)
 	case functions.String:
-		args(e.Args)
-	case installedSoundexFunctionExpression:
-		args(e.Args)
-	case installedMetaphoneFunctionExpression:
-		args(e.Args)
-	case installedLevenshteinFunctionExpression:
 		args(e.Args)
 	case installedUUIDOsspFunctionExpression:
 		// No argument children.
-	case installedCryptoFunctionExpression:
-		args(e.Args)
 	case installedFunctionExpression:
 		walk(e.arg)
 	case sqlJSONExpression:
 		args(e.args)
 	case jsonPredicateExpression:
 		walk(e.child)
-	case functions.JSONCreate:
-		args(e.Args)
-	case functions.StringVariadic:
-		args(e.Args)
 	case functions.Format:
 		args(e.Args)
 	case indexPropertyExpression:
@@ -206,33 +165,7 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Arguments())
 	case functions.DatetimeAgeFinite:
 		args(e.Arguments())
-	case functions.JSONStripNulls:
-		args(e.Arguments())
-	case functions.JSONExtract:
-		args(e.Arguments())
-	case functions.JSONBPathQueryArray:
-		args(e.Arguments())
-	case functions.JSONBPathExists:
-		args(e.Arguments())
-	case functions.JSONBPathMatch:
-		args(e.Arguments())
-	case functions.JSONBPathQueryFirst:
-		args(e.Arguments())
-	case functions.JSONBPathQuery:
-		args(e.Arguments())
-	case functions.JSONBSet:
-		args(e.Arguments())
-	case functions.DatetimeMake:
-		args(e.Arguments())
-	case functions.DatetimeFormatting:
-		args(e.Args[:])
-	case functions.NumericFormatting:
-		args(e.Args[:])
-	case functions.ArrayRandom:
-		args(e.Args)
 	case functions.ArrayTransform:
-		args(e.Args)
-	case functions.ArrayInspect:
 		args(e.Args)
 	case functions.ArraySearch:
 		args(e.Args)
@@ -247,16 +180,6 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		if e.arg != nil {
 			walk(e.arg)
 		}
-	case functions.UUIDExtract:
-		walk(e.Arg)
-	case functions.NetworkFormat:
-		args(e.Args[:e.Kind.Arity()])
-	case functions.RangeOperator:
-		args(e.Args[:])
-	case functions.RangeInspect:
-		args(e.Args)
-	case functions.Enum:
-		args(e.Args)
 	case functions.Math:
 		args(e.Args)
 	case deparseExpression:
@@ -286,6 +209,9 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		for _, comparison := range e.comparisons {
 			walk(comparison.left)
 		}
+	case expr.Composite:
+		// Last, so the explicit cases above keep precedence over embedded nodes.
+		args(e.Children())
 	}
 }
 

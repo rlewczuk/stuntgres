@@ -101,6 +101,17 @@ func (e ArrayInspect) Reconstruct(info expr.Info, args []expr.Expr) (ArrayInspec
 	return e, e.Validate()
 }
 
+// ArrayInspect implements expr.Composite.
+var _ expr.Composite = ArrayInspect{}
+
+func (e ArrayInspect) Children() []expr.Expr { return e.Args }
+func (e ArrayInspect) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayInspect", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func (e ArrayInspect) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

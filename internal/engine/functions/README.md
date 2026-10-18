@@ -74,6 +74,18 @@ To add or port a builtin family:
    A family whose engine branch sat after those gates must reproduce them in
    `Bind`, because `Lookup` runs first.
 
+## Node protocol
+
+Nodes whose `Reconstruct` depends only on metadata and children implement
+`expr.Composite` beside their definitions: `Children` returns the lexical
+children and `Rebuild` checks the child count, then delegates to
+`Reconstruct`. Fixed-arity nodes keep argument slots beyond `Children`
+unchanged. Helpers are in `composite.go`. Nodes whose reconstruction needs
+engine-derived inputs (collation, retained descriptors, clock or timestamp
+usages) are not protocol nodes yet; step 3 F2 decides their hooks. Engine
+wrappers that embed a protocol node override `Rebuild` to keep their routine
+identity.
+
 ## What stays in the engine
 
 The engine owns the analyzer behind `Binder`, the bind code of families not
@@ -181,6 +193,12 @@ cohesive selections. Registry shape and claims:
 
 ```sh
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed)$'
+```
+
+Node protocol on function nodes:
+
+```sh
+make check RUN='^TestComposite(SliceArguments|ArityLimitedArguments|CountedArgumentsKeepTrailingSlots|NamedArguments)$'
 ```
 
 Focused private state/demand examples:

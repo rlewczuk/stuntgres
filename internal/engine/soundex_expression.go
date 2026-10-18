@@ -16,6 +16,17 @@ type installedSoundexFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
+// Rebuild keeps the installed-routine identity; the promoted Rebuild would
+// return the bare functions node.
+func (e installedSoundexFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+	node, err := e.Soundex.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	e.Soundex = node.(functions.Soundex)
+	return e, nil
+}
+
 func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundExpr, error) {
 	var operands []functions.Argument
 	if len(raw.Args) <= 100 {

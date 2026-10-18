@@ -187,6 +187,17 @@ func NewSimilarEscape(info expr.Info, pattern, escape expr.Expr, omitted bool) (
 func (e SimilarEscape) Reconstruct(info expr.Info, pattern, escape expr.Expr) (SimilarEscape, error) {
 	return NewSimilarEscape(info, pattern, escape, e.Omitted)
 }
+
+// SimilarEscape implements expr.Composite.
+var _ expr.Composite = SimilarEscape{}
+
+func (e SimilarEscape) Children() []expr.Expr { return []expr.Expr{e.Pattern, e.Escape} }
+func (e SimilarEscape) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarEscape", children, 2); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children[0], children[1]))
+}
 func NewSimilarSubstring(info expr.Info, args [3]expr.Expr, syntax parser.FunctionSyntax, wrapper bool) (SimilarSubstring, error) {
 	usages := [3]sqltype.Usage{args[0].ResultUsage(), args[1].ResultUsage(), args[2].ResultUsage()}
 	provider, err := sqltype.BindSimilarSubstring(usages, info.Usage, wrapper)
@@ -195,10 +206,34 @@ func NewSimilarSubstring(info expr.Info, args [3]expr.Expr, syntax parser.Functi
 func (e SimilarSubstring) Reconstruct(info expr.Info, args [3]expr.Expr) (SimilarSubstring, error) {
 	return NewSimilarSubstring(info, args, e.Syntax, e.Provider.WrapperContext())
 }
+
+// SimilarSubstring implements expr.Composite.
+var _ expr.Composite = SimilarSubstring{}
+
+func (e SimilarSubstring) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e SimilarSubstring) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
 func NewLikeEscape(info expr.Info, pattern, escape expr.Expr) (LikeEscape, error) {
 	provider, err := sqltype.BindLikeEscape(pattern.ResultUsage(), escape.ResultUsage(), info.Usage)
 	return LikeEscape{info, pattern, escape, provider}, err
 }
 func (e LikeEscape) Reconstruct(info expr.Info, pattern, escape expr.Expr) (LikeEscape, error) {
 	return NewLikeEscape(info, pattern, escape)
+}
+
+// LikeEscape implements expr.Composite.
+var _ expr.Composite = LikeEscape{}
+
+func (e LikeEscape) Children() []expr.Expr { return []expr.Expr{e.Pattern, e.Escape} }
+func (e LikeEscape) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("LikeEscape", children, 2); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children[0], children[1]))
 }

@@ -41,6 +41,19 @@ func NewRangeOperator(info expr.Info, op sqltype.RangeOperator, args [2]expr.Exp
 func (e RangeOperator) Reconstruct(info expr.Info, args [2]expr.Expr) (RangeOperator, error) {
 	return NewRangeOperator(info, e.Plan.Operation(), args, e.Namespace)
 }
+
+// RangeOperator implements expr.Composite.
+var _ expr.Composite = RangeOperator{}
+
+func (e RangeOperator) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e RangeOperator) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("RangeOperator", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
 func (e RangeOperator) Validate() error {
 	n, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || n.Plan != e.Plan {
