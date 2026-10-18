@@ -1042,49 +1042,49 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.DatetimeAgeFinite:
 		return function(n.Plan.Name(), n.Arguments(), true)
 	case functions.JSONStripNulls:
-		return jsonStripNullsSQL(n, "json_strip_nulls", func(arg BoundExpr) (string, error) {
+		return functions.JSONStripNullsSQL(n, "json_strip_nulls", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONExtract:
-		return jsonExtractSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return functions.JSONExtractSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQueryArray:
-		return jsonbPathQueryArraySQL(n, "jsonb_path_query_array", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQueryArraySQL(n, "jsonb_path_query_array", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathExists:
-		return jsonbPathExistsSQL(n, "jsonb_path_exists", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathExistsSQL(n, "jsonb_path_exists", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathMatch:
-		return jsonbPathMatchSQL(n, "jsonb_path_match", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathMatchSQL(n, "jsonb_path_match", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQueryFirst:
-		return jsonbPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBPathQuery:
-		return jsonbPathQuerySQL(n, "jsonb_path_query", func(arg BoundExpr) (string, error) {
+		return functions.JSONBPathQuerySQL(n, "jsonb_path_query", func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
 	case functions.JSONBSet:
-		return jsonbSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+		return functions.JSONBSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})

@@ -207,21 +207,21 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 	case functions.DatetimeAgeFinite:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
 	case functions.JSONStripNulls:
-		return jsonStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONExtract:
-		return jsonExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQueryArray:
-		return jsonbPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathExists:
-		return jsonbPathExistsSQL(n, "pg_catalog.jsonb_path_exists", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathExistsSQL(n, "pg_catalog.jsonb_path_exists", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathMatch:
-		return jsonbPathMatchSQL(n, "pg_catalog.jsonb_path_match", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathMatchSQL(n, "pg_catalog.jsonb_path_match", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQueryFirst:
-		return jsonbPathQueryFirstSQL(n, "pg_catalog.jsonb_path_query_first", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQueryFirstSQL(n, "pg_catalog.jsonb_path_query_first", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQuery:
-		return jsonbPathQuerySQL(n, "pg_catalog.jsonb_path_query", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQuerySQL(n, "pg_catalog.jsonb_path_query", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBSet:
-		return jsonbSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeMake:
 		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeFormatting:

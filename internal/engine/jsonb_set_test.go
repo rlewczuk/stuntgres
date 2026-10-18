@@ -40,7 +40,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		args := []parser.Expr{datetimeMakeString("{}"), datetimeMakeString("{a}"), datetimeMakeString("2"), datetimeMakeString("true"), datetimeMakeString("use_json_null")}
 		args[slot] = parser.ParameterExpr{Number: 1}
-		n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_set_lax", args...), true)
+		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
 		if err != nil || !n.Properties().ParameterDependent || binder.parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal property/inference lost", slot, n, err)
 		}
@@ -53,7 +53,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if slot == 3 {
 			args[slot] = parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
 		}
-		n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_set_lax", args...), true)
+		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
 		if err != nil {
 			t.Fatal(slot, err)
 		}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
@@ -66,6 +67,23 @@ func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, err
 	return b.comparisonInfo(left, right)
 }
 
+func (b *expressionBinder) Literal(value sqltype.Value, pos parser.Position) expr.Expr {
+	return literalExpression{b.info(value.Type().Usage(), pos, ExprProperties{Volatility: Immutable}), value}
+}
+
+func (b *expressionBinder) Context() context.Context { return b.ctx }
+
+func (b *expressionBinder) AdmitSetReturning(pos parser.Position) error {
+	if err := b.stringSetAllowed(pos); err != nil {
+		return err
+	}
+	switch b.aggregateClause {
+	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
+		b.queryHasTargetSet = true
+	}
+	return nil
+}
+
 func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 	return b.collatedInfo(info, inputs...)
 }
@@ -106,4 +124,14 @@ func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator s
 
 func (b *expressionBinder) CaptureComparisonInput(typ *sqltype.Descriptor) error {
 	return b.captureComparisonDiagnosticInput(typ)
+}
+
+func (b *expressionBinder) CaptureTypeInput(typ *sqltype.Descriptor) error {
+	if err := b.captureTypeDiagnosticInput(typ); err != nil {
+		return err
+	}
+	if typ.ContainsCatalogIdentifier() {
+		return b.captureElementInput()
+	}
+	return nil
 }

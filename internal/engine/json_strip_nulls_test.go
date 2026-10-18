@@ -56,7 +56,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	randomText := parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}
 	randomBool := parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
-	volatile, err := binder.bindJSONStripNulls(datetimeMakeRaw("json_strip_nulls", datetimeMakeString("{}"), randomBool), true)
+	volatile, err := binder.bindFunctionProvider(datetimeMakeRaw("json_strip_nulls", datetimeMakeString("{}"), randomBool))
 	if err != nil {
 		t.Fatal(err)
 	}

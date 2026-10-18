@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -73,4 +75,16 @@ type Binder interface {
 	// CaptureComparisonInput records the statement's diagnostic type-name
 	// input when comparing values of the type needs it.
 	CaptureComparisonInput(*sqltype.Descriptor) error
+	// Literal returns the engine's literal node for a constant, positioned at
+	// pos with immutable properties; omitted default arguments use it.
+	Literal(sqltype.Value, parser.Position) expr.Expr
+	// Context is the binding statement's cancellation context, for input
+	// conversions performed while binding.
+	Context() context.Context
+	// AdmitSetReturning rejects a set-returning call where the current clause
+	// or consumer forbids one, and otherwise records a target-list set.
+	AdmitSetReturning(parser.Position) error
+	// CaptureTypeInput captures the diagnostic-name, ACL and catalog
+	// identifier input that values of the type need.
+	CaptureTypeInput(*sqltype.Descriptor) error
 }

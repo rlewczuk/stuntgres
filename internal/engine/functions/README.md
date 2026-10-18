@@ -94,9 +94,29 @@ elements):
   when comparing the type needs it (array_sort's element comparison; the
   engine's comparison binders do the same).
 
+Added for the JSON/JSONB function calls (F4/F5); JSON creation also uses
+`RetainUntypedParameter` and `NoteCatalogText`:
+
+- `Literal`: the engine's literal node for a constant. The engine owns the
+  node, because literal identity drives `FunctionLiteralNull`, folding and
+  stored SQL; omitted default arguments use it (63 engine sites build
+  literals).
+- `Context`: the binding statement's cancellation context, for input
+  conversions done while binding (the `'{}'::jsonb` default of JSONPath
+  calls).
+- `AdmitSetReturning`: set-returning call placement (clause, DEFAULT, CHECK,
+  generated, index and aggregate-argument rules) plus target-list set
+  bookkeeping; string, regexp, series and JSON SRFs share it.
+- `CaptureTypeInput`: the diagnostic-name, ACL and catalog-identifier input
+  that a record result type needs (also used by function column definitions).
+
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
-array, as `width_bucket`'s threshold array may.
+array, as `width_bucket`'s threshold array may. `RecordBaseArgument` is a
+populate-record base: named casts to user-defined composites keep their
+occurrence identity. The coercion intent `RecordFormalArgument` finalizes a
+fixed RECORD formal: a parameter keeps its inferred record type, other
+operands get an anonymous record.
 
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
@@ -124,6 +144,14 @@ Two fields reproduce where a family sat in that chain:
 - `OwnsLabels` (requires `SharedGates`): skip the label gate; `Bind` owns
   every label diagnostic, as `uuidv7` does for its `shift` label.
 
+One more field covers families whose chain branch used a predicate rather than
+a name list:
+
+- `Claims`: the chain's admission predicate, replacing `Names` matching. It
+  keeps each predicate's own comparison (exact, case-folded or lowercased,
+  which differ for spellings such as `ſ`). `Names` still lists every claimed
+  name; the registry tests check that each satisfies `Claims`.
+
 Registered families:
 
 | Family | File | Names | Fields |
@@ -135,9 +163,23 @@ Registered families:
 | uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4` | none |
 | Arrays | `array_{inspect,random,transform,search}_bind.go` | `array*Names` | none |
 | Range inspection | `range_inspect_bind.go` | `rangeInspectNames` | none |
+| JSON/JSONB calls | `json_call_bind.go` | `jsonCallNames` | `Claims` |
+| `json_object`, `jsonb_object` | `json_call_bind.go` | `textObjectNames` | `ExactSpelling`, `SharedGates` |
 
 `BindUUIDGeneration` is exported because pgcrypto's `gen_random_uuid`, which
 still binds in the engine, uses it when `pg_catalog` wins the path.
+
+For the JSON/JSONB processing calls, `bindJSONCall` replays the chain's
+branch order: JSON creation (visibility after argument analysis), then
+visibility, JSONPath array and query calls, `jsonb_set*`/`jsonb_insert`,
+`json_strip_nulls`, the exact `*_extract_path*` names, JSONB records, then
+the remaining processing calls (typeof, length, keys, each, elements, JSON
+records). `json_object`/`jsonb_object` sat in the final switch, so they use
+`ExactSpelling` and `SharedGates`. The slot calls (`jsonb_set*`, JSONPath
+calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
+`json_sql.go` exports their stored-SQL renderers, `MapJSONExtractChildren`
+and `JSONBPathQueryName` for the engine's deparse, retag and planning
+switches until F2.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
@@ -184,7 +226,9 @@ identity.
 ## What stays in the engine
 
 The engine owns the analyzer behind `Binder`, the bind code of families not
-yet registered, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
+yet registered (for JSON: the operators, SQL/JSON constructors, `IS JSON`
+and JSON aggregates), function column definition lists and JSONB record star
+expansion, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
 extension routines keep their engine wrapper nodes (for example
@@ -309,6 +353,15 @@ Node protocol on function nodes:
 
 ```sh
 make check RUN='^TestComposite(SliceArguments|ArityLimitedArguments|CountedArgumentsKeepTrailingSlots|NamedArguments)$'
+```
+
+JSON/JSONB function calls (registry; the engine's `TestJSON*` bind through
+the analyzer and cover engine switches; reference tests in both modes):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestJSON|TestJsonb)'
+make check RUN='^(TestReference(JSON|SQLJSON)|TestReferenceObjectGrant.*JSON)'
+make check REFERENCE=1 RUN='^(TestReference(JSON|SQLJSON)|TestReferenceObjectGrant.*JSON)'
 ```
 
 Math family (registry, kernels; the engine's `TestMath*` cover analyzer

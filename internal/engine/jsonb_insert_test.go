@@ -24,7 +24,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		args := []parser.Expr{datetimeMakeString("[0]"), datetimeMakeString("{0}"), datetimeMakeString("9"), datetimeMakeString("false")}
 		args[i] = parser.ParameterExpr{Number: 1}
-		n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_insert", args...), true)
+		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
 		if err != nil || !n.Properties().ParameterDependent || binder.parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal inference", i, err)
 		}
@@ -141,7 +141,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{datetimeMakeString("[0]"), datetimeMakeString("{0}"), datetimeMakeString("9"),
 		parser.CastExpr{Child: parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}, TypeName: parser.TypeName{Name: "boolean"}}}
-	n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_insert", args...), true)
+	n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
 	if err != nil {
 		t.Fatal(err)
 	}
