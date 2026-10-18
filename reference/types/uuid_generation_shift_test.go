@@ -67,19 +67,17 @@ func uuidGenerationShifts(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 }
 
 func uuidGenerationGuards(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-	// The independent wrap bracket below uses UTC calendar dates. Do not inherit
-	// a prior scenario's session zone (month arithmetic re-resolves its offset).
+	// Do not inherit a prior scenario's session zone.
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET TimeZone='UTC'", 0))
 	for _, tc := range []struct {
 		shift                 string
-		months                int
 		code, message, detail string
 	}{
-		{"infinity", 0, "22008", "interval out of range for UUID version 7", "UUID version 7 does not support infinite intervals."},
-		{"-infinity", 0, "22008", "interval out of range for UUID version 7", "UUID version 7 does not support infinite intervals."},
-		{"-1000 years", -12000, "22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."},
-		{"9000 years", 108000, "22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."},
-		{"2147483647 months", 0, "22008", "timestamp out of range", ""},
+		{"infinity", "22008", "interval out of range for UUID version 7", "UUID version 7 does not support infinite intervals."},
+		{"-infinity", "22008", "interval out of range for UUID version 7", "UUID version 7 does not support infinite intervals."},
+		{"-1000 years", "22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."},
+		{"9000 years", "22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."},
+		{"2147483647 months", "22008", "timestamp out of range", ""},
 	} {
 		t.Run(tc.shift, func(t *testing.T) {
 			for _, parameter := range []bool{false, true} {
@@ -93,39 +91,15 @@ func uuidGenerationGuards(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 				if err != nil {
 					t.Fatalf("valid shift failed Prepare: %v", err)
 				}
-				before := time.Now().UTC()
 				var text string
 				if parameter {
 					err = stmt.QueryRowContext(p.Ctx, args...).Scan(&text)
 				} else {
 					err = c.QueryRowContext(p.Ctx, query).Scan(&text)
 				}
-				after := time.Now().UTC()
 				stmt.Close()
-				if !b.PG || tc.shift == "2147483647 months" {
-					uuidGenerationError(t, err, uuidGenerationDiagnostic(tc.code, tc.message, tc.detail))
-					continue
-				}
-				if err != nil {
-					t.Fatalf("pinned18.0 unchecked shift %q: %v", tc.shift, err)
-				}
-				_, ms := uuidGenerationDecode(t, text, 7)
-				switch tc.shift {
-				case "infinity", "-infinity":
-					// Pinned18.0 succeeds with valid version/variant (observed by
-					// the root). Its unchecked signed sentinel multiplication
-					// overflows C int64, so there is no portable timestamp golden.
-					// Native18.6 instead asserts the exact finite-shift diagnostic.
-				default:
-					const modulus = int64(1) << 48
-					low := uuidGenerationCalendar(before, tc.months, 0, 0).UnixMilli()
-					high := uuidGenerationCalendar(after, tc.months, 0, 0).UnixMilli()
-					low = (low%modulus + modulus) % modulus
-					high = (high%modulus + modulus) % modulus
-					if ms < low-2000 || ms > high+2000 {
-						t.Fatalf("wrapped UUID ms %d outside [%d,%d]", ms, low-2000, high+2000)
-					}
-				}
+				// PostgreSQL 18.6 and native apply the same version-7 range guards.
+				uuidGenerationError(t, err, uuidGenerationDiagnostic(tc.code, tc.message, tc.detail))
 			}
 		})
 	}

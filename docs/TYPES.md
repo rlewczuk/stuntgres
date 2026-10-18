@@ -1299,10 +1299,9 @@ and symbolic provider definitions; later restored demand produces fresh values.
 Execution captures temporal policy for shift arithmetic and preserves
 submicrosecond remainder without overflowing UNIX nanosecond conversion.
 
-Native applies PostgreSQL 18.6 version-7 range guards, while pinned 18.0 predates
-them. Native rejects infinite shifts and timestamps outside its 48-bit packing
-boundary; the older oracle permits observed wrapping behavior. These are explicit
-release differences, not fabricated cross-backend golden values. Computed UUID
+Native and the pinned PostgreSQL 18.6 oracle apply the same version-7 range
+guards: infinite shifts and timestamps outside the 48-bit packing boundary are
+rejected with 22008 and the release's detail text. Computed UUID
 metadata does not gain a special nonnull proof.
 
 ## Embedded Unicode data and regeneration

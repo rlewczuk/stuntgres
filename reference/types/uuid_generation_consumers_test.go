@@ -128,15 +128,7 @@ func uuidGenerationConsumers(t *testing.T, p *fixture.Pair, b fixture.Backend, c
 	_, err = c.ExecContext(p.Ctx, "SELECT CASE WHEN true THEN uuidv7(interval '2147483647 months') ELSE NULL::uuid END")
 	uuidGenerationError(t, err, uuidGenerationDiagnostic("22008", "timestamp out of range", ""))
 	_, err = c.ExecContext(p.Ctx, "INSERT INTO uuid_gen_atomic VALUES(1,uuidv7()),(2,uuidv7(interval '-1000 years'))")
-	if b.PG {
-		if err != nil {
-			t.Fatal(err)
-		}
-		run(fixture.Select("SELECT count(*) AS n FROM uuid_gen_atomic", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}}))
-		run(fixture.Exec("DELETE FROM uuid_gen_atomic WHERE id<99", 2))
-	} else {
-		uuidGenerationError(t, err, uuidGenerationDiagnostic("22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."))
-	}
+	uuidGenerationError(t, err, uuidGenerationDiagnostic("22008", "timestamp out of range for UUID version 7", "UUID version 7 supports timestamps from 1970-01-01 to approximately year 10889."))
 	run(fixture.Select("SELECT id,v FROM uuid_gen_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "UUID"}, [][]any{{int64(99), uuidA}}))
 	if b.PG {
 		return
