@@ -158,7 +158,10 @@ Tier C has a refined plan.
   docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
-  [ ] JSON/JSONB/SQL-JSON [x] arrays [x] ranges (`a46ee7c5c` seam,
+  [ ] JSON/JSONB/SQL-JSON
+  (function calls done: `059a86924` seam, `94b71bb40`
+  port, `a6c399c2b` move, `b1099500b` slot binder, then the docs commit;
+  operators, SQL/JSON constructors and `IS JSON` remain) [x] arrays [x] ranges (`a46ee7c5c` seam,
   `48d987da7`/`62f610cb1` arrays, `050805a1e`/`a5be023f9` ranges, then the
   docs commit) [x] UUID [x] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
@@ -176,7 +179,8 @@ is a genuine analyzer capability); `DefaultConsumer`, `ArrayType`,
 `CommonUsage` and `ComparisonInfo` (math); `CollatedInfo`,
 `RetainUntypedParameter`, `NoteCatalogText` and `InstalledRoutine` (UUID
 generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
-`CaptureComparisonInput` (arrays and ranges). Reasons for every method are in the
+`CaptureComparisonInput` (arrays and ranges); `Literal`, `Context`,
+`AdmitSetReturning` and `CaptureTypeInput` (JSON calls). Reasons for every method are in the
 `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
@@ -460,9 +464,73 @@ Notes for later steps:
   dotted join used for the 42809 message). Consolidate them when the engine's
   name helpers get an owner.
 
+F4/F5 JSON function-call record, measured at its start on `604ee2be6` and
+rebased onto `7cb919447` (UUID, format, uuid-ossp, arrays and ranges):
+
+- Scope (chosen by the user): every name-dispatched JSON/JSONB call, in ten
+  engine glue files (~1,900 lines). JSON operators (`->`, `@>`, `?`, `||`, `-`,
+  `#-`; ~600 lines), SQL/JSON constructors and `IS JSON` (engine nodes
+  referenced from ~19 switch files; they need RETURNING type resolution and
+  coercion-node construction) stay for a later session, so the checkbox stays
+  open. JSON aggregates belong to the aggregates item.
+- Beyond the existing `Binder`, the glue built engine literals, read `b.ctx`,
+  admitted SRFs through `stringSetAllowed` plus target-set flags, appended
+  `anyParameters`, set `regclassConcat`, read a parameter's inferred record
+  type, captured diagnostic/element input and toggled `jsonbRecordBase`.
+  Resolved with four methods (`Literal`, `Context`, `AdmitSetReturning`,
+  `CaptureTypeInput`), the UUID/format session's `RetainUntypedParameter`
+  and `NoteCatalogText`, and two intent values (`RecordBaseArgument`,
+  `RecordFormalArgument`); see the README.
+- Registry: the chain's JSON predicates mix `EqualFold`, `strings.ToLower`
+  and exact matching, so a name list compared with `EqualFold` would claim
+  spellings the chain did not (for example `to_jſon`). `Definition.Claims`
+  keeps the chain's predicate; one definition (`bindJSONCall`) replays the
+  chain's JSON branch order, and `json_object`/`jsonb_object` use
+  `ExactSpelling` and `SharedGates`. A one-off check confirmed no earlier
+  chain branch claims a registered JSON name.
+- Engine leftovers: function column definitions moved to
+  `function_column_definitions.go`; JSONB record evaluation input, domain
+  checks, star expansion and cast annotation are in `jsonb_record_columns.go`;
+  the extraction operator is in `json_extraction_operator.go`. Stored-SQL
+  renderers, `MapJSONExtractChildren` and `JSONBPathQueryName` are exported
+  from `functions/json_sql.go` for the engine switches; F2 removes those uses.
+- The four labeled-slot binders were near-identical copies; `bindSlots` now
+  owns their shared sequence.
+
+Tests in F4/F5 JSON: `TestLookupClaimsRegisteredNames` gained JSON claim
+cases (folded, lowercased and exact spellings, `ſ` variants, SQL/JSON and
+aggregate names not claimed) and `TestDefinitionsAreWellFormed` checks that
+listed names satisfy `Claims` (both failed first). `array_to_json` left the
+arrays session's not-claimed list, since the JSON definition now claims it. Engine tests that called
+the bind methods directly (`json_create_expression_test.go`,
+`json_strip_nulls_test.go`, `jsonb_insert_test.go`,
+`jsonb_path_query_array_test.go`, `jsonb_path_query_test.go`,
+`jsonb_set_decorations_test.go`, `jsonb_set_test.go`) now bind through
+`bindFunctionProvider`; `json_extract_expression_test.go` and
+`jsonb_extract_expression_test.go` call the exported renderers. They stay in
+the engine because they use the real analyzer and engine switches. No test
+moved or was deleted.
+
+Verification: `make quickcheck` passed; `make deps` lists only module paths;
+`functions` imports no engine state packages. Quick mode passed and
+`REFERENCE=1` matched the master baseline for
+`^(TestReference(JSON|SQLJSON)|TestReferenceObjectGrant.*JSON|TestReferenceSearchPath)`
+(the only failures are the two `json_strip_nulls` oracle-drift tests below,
+in `/postgres` only, as on master). Bench skipped: bind path only, no startup
+code changed. Racecheck skipped at the user's request.
+
+Notes for later steps (JSON):
+
+- `Lookup` now evaluates the JSON `Claims` predicate (about 40 name
+  comparisons) for every function call before the chain. Re-measure bind cost
+  when more families register.
+- The JSON operator binders can reuse `BuiltinOperatorRoutineInfo` (arrays
+  and ranges) but still need the engine's operator diagnostics
+  (`arrayMembershipError`, `comparisonError`) before they can port.
+
 - Oracle drift on the pinned PostgreSQL 18.6 image, failing on master too,
   in the `/postgres` subtests only: `TestReferenceJSONStripNullsFeatureSmoke`
-  (expects 42P17, gets success) and
+  and `TestReferenceJSONStripNullsStable` (expect 42P17, get success) and
   `TestReferenceUUIDGenerationStoredConsumersAndControls` /
   `TestReferenceUUIDGenerationFeatureSmoke` /
   `TestReferenceUUIDGenerationGuardDiagnostics` (18.6 rejects out-of-range
