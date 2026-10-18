@@ -50,7 +50,7 @@ func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (compari
 	return b.comparisonOperandPolicy(raw, policy)
 }
 
-func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindStringFunction(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [4]functions.Argument
 	var operands []functions.Argument
@@ -76,12 +76,12 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
-		return b.finishStringFunction(raw, visible, operands)
+		return finishStringFunction(b, raw, visible, operands)
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	return b.finishStringFunction(raw, visible, operands)
+	return finishStringFunction(b, raw, visible, operands)
 }
 
 // bindLowerUpper binds lower and upper, which share text and range overloads.
@@ -112,28 +112,28 @@ func (b *expressionBinder) bindLowerUpper(raw parser.FunctionExpr) (BoundExpr, e
 	if err != nil {
 		return nil, err
 	}
-	return b.finishStringFunction(raw, visible, operands)
+	return finishStringFunction(b, raw, visible, operands)
 }
 
 // Reuse already transformed operands when selected lower/upper routing shares
 // the text provider. Other string providers retain their existing analysis.
-func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
+func finishStringFunction(b functions.Binder, raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if (name == "lower" || name == "upper") && len(operands) == 1 && sqltype.IsRangeInspectType(operands[0].Usage.Type) {
 		return functions.FinishRangeInspect(b, raw, visible, operands)
 	}
 	if sqltype.StringBaseConversion(name) {
-		return b.finishStringNumericBase(raw, visible, operands)
+		return finishStringNumericBase(b, raw, visible, operands)
 	}
 	var encodingName sqltype.Usage
 	if visible && name == "length" && len(operands) == 2 {
 		source, encoding := operands[0].Usage.Type, operands[1].Usage.Type
 		if (source == nil || source.BaseType().ID() == sqltype.Bytea) && encoding != nil {
-			encodingName = b.typ(sqltype.Name).Usage()
+			encodingName = b.Type(sqltype.Name).Usage()
 		}
 	}
 	if functions.StringEncodingLength(name, visible, operands, encodingName) {
-		if b.defaultConsumer {
+		if b.DefaultConsumer() {
 			return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 		}
 		return nil, expressionError("0A000", "encoding-aware length is unsupported", raw.Pos)
@@ -147,26 +147,26 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 		}
 		functions.SupplyBinaryTypes(b, functions.BinaryArgumentDemand(name, family, operands, true), &binaryTypes)
 		if functions.BinaryArgumentsViable(name, family, operands, &binaryTypes) {
-			if b.defaultConsumer && !bitCandidate {
+			if b.DefaultConsumer() && !bitCandidate {
 				return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 			}
 			syntax := raw.Syntax
 			if raw.StringSyntax == parser.TrimStringSyntax {
 				syntax = parser.SQLFunctionSyntax
 			}
-			return b.finishBinary(name, family, raw.Pos, operands, syntax, &binaryTypes)
+			return b.FinishBinary(name, family, raw.Pos, operands, syntax, &binaryTypes)
 		}
 	}
-	targets := functions.StringTargets{Text: b.typ(sqltype.Text).Usage()}
+	targets := functions.StringTargets{Text: b.Type(sqltype.Text).Usage()}
 	integer, nameTarget := functions.StringTargetDemand(name, len(operands))
 	if integer {
-		targets.Integer = b.typ(sqltype.Int4).Usage()
+		targets.Integer = b.Type(sqltype.Int4).Usage()
 	}
 	if nameTarget && name == "to_ascii" {
-		targets.Name = b.typ(sqltype.Name).Usage()
+		targets.Name = b.Type(sqltype.Name).Usage()
 	}
 	if name == "parse_ident" {
-		targets.Boolean = b.typ(sqltype.Bool).Usage()
+		targets.Boolean = b.Type(sqltype.Bool).Usage()
 	}
 	textInspection := strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper")
 	selectionVisible := visible && (!textInspection || len(raw.ArgNames) == 0)
@@ -188,7 +188,7 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 		for i := range names {
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if name == "parse_ident" || textInspection {
 		if err := functions.CallDecorationError(raw); err != nil {
@@ -199,9 +199,9 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 	if err != nil {
 		return nil, err
 	}
-	result := b.typ(selection.Result).Usage()
+	result := b.Type(selection.Result).Usage()
 	if selection.Array {
-		result = b.typ(result.Type.AssociatedArray()).Usage()
+		result = b.Type(result.Type.AssociatedArray()).Usage()
 	}
 	if name == "position" && raw.Syntax == parser.SQLFunctionSyntax {
 		raw.StringSyntax = parser.PositionStringSyntax
@@ -212,7 +212,7 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 	if name == "substring" && raw.Syntax == parser.SQLFunctionSyntax {
 		raw.StringSyntax = parser.SubstringStringSyntax
 	}
-	return b.stringNode(name, result, raw.Pos, args, selection.Textual, raw.StringSyntax)
+	return functions.StringNode(b, name, result, raw.Pos, args, selection.Textual, raw.StringSyntax)
 }
 
 func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr, error) {

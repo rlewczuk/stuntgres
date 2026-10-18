@@ -8,11 +8,11 @@ import (
 
 // Both integer candidates are considered before unknown input is finalized.
 // Neither is a preferred numeric type, so SMALLINT and UNKNOWN remain ambiguous.
-func (b *expressionBinder) finishStringNumericBase(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
+func finishStringNumericBase(b functions.Binder, raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	ids, count := functions.StringNumericBaseCandidates(visible, operands)
 	var targets [2]sqltype.Usage
 	for i, id := range ids[:count] {
-		targets[i] = b.typ(id).Usage()
+		targets[i] = b.Type(id).Usage()
 	}
 	target, resolution := functions.SelectStringNumericBase(visible, operands, targets[:count])
 	if resolution != functions.Resolved {
@@ -23,12 +23,12 @@ func (b *expressionBinder) finishStringNumericBase(raw parser.FunctionExpr, visi
 				names[i] = d.DiagnosticName()
 			}
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
+		return nil, functions.NotedResolutionError(b, raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
 	}
 	arg, err := functions.CoerceStringNumericBase(b, operands[0], target)
 	if err != nil {
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	return b.stringNode(name, b.typ(sqltype.Text).Usage(), raw.Pos, []BoundExpr{arg}, [4]bool{}, raw.StringSyntax)
+	return functions.StringNode(b, name, b.Type(sqltype.Text).Usage(), raw.Pos, []BoundExpr{arg}, [4]bool{}, raw.StringSyntax)
 }

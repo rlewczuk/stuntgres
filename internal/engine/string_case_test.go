@@ -112,7 +112,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 						Pos:   parser.Position{Character: 17},
 					}},
 				}
-				node, err := b.bindStringFunction(raw, true)
+				node, err := bindStringFunction(b, raw, true)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -146,7 +146,7 @@ func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 		}},
 	}
 	for _, binder := range []*expressionBinder{b, established} {
-		node, err := binder.bindStringFunction(raw, true)
+		node, err := bindStringFunction(binder, raw, true)
 		var diagnostic *sqlstate.Error
 		if node != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "42804" ||
 			diagnostic.Message != "collations are not supported by type integer" || diagnostic.Position != "17" {
