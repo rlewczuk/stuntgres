@@ -242,3 +242,5 @@ func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (exp
 func (e DatetimeZoneCalendar) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
 
 func (e DatetimeZoneCalendar) StrictNull() expr.Strict { return expr.StrictBefore }
+
+func (e DatetimeZoneCalendar) ValidateStoredProvider() error { return nil }

@@ -128,3 +128,5 @@ func CoerceEnumArguments(b ArgumentCoercer, arguments []Argument, target sqltype
 func EnumIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
 
 func (e Enum) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e Enum) ValidateStoredProvider() error { return nil }

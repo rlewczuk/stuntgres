@@ -213,3 +213,5 @@ func (e ArrayRandom) IntrinsicVolatility() expr.Volatility { return expr.Volatil
 
 // PlanningFold: volatile even for strict NULL, empty and singleton arrays.
 func (e ArrayRandom) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e ArrayRandom) ValidateStoredProvider() error { return e.Validate() }

@@ -181,3 +181,5 @@ func (e DatetimeExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 }
 
 func (e DatetimeExtract) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e DatetimeExtract) ValidateStoredProvider() error { return nil }

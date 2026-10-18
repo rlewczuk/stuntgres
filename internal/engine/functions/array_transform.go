@@ -343,3 +343,5 @@ func (e ArrayTransform) PlanningFold() expr.Fold {
 	}
 	return expr.FoldConstant
 }
+
+func (e ArrayTransform) ValidateStoredProvider() error { return e.Validate() }

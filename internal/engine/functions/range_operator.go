@@ -63,3 +63,5 @@ func (e RangeOperator) Validate() error {
 }
 
 func (e RangeOperator) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e RangeOperator) ValidateStoredProvider() error { return e.Validate() }

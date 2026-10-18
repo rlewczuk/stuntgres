@@ -370,3 +370,5 @@ func (e String) StrictNull() expr.Strict {
 	}
 	return expr.StrictNone
 }
+
+func (e String) ValidateStoredProvider() error { return nil }

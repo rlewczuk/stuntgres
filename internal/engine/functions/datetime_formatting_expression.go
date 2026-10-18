@@ -131,3 +131,5 @@ func (e DatetimeFormatting) Rebuild(info expr.Info, children []expr.Expr) (expr.
 func (e DatetimeFormatting) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e DatetimeFormatting) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeFormatting) ValidateStoredProvider() error { return nil }

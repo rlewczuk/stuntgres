@@ -118,3 +118,5 @@ func (e Format) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 // PlanningFold: format is intrinsically STABLE, even with literal children.
 func (e Format) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e Format) ValidateStoredProvider() error { return nil }

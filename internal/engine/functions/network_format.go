@@ -90,3 +90,5 @@ func (e NetworkFormat) Eval(c expr.Context) (sqltype.Value, error) {
 func NetworkFormatIntrinsicRule() IntrinsicPropertyRule { return ExactImmutable }
 
 func (e NetworkFormat) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e NetworkFormat) ValidateStoredProvider() error { return e.Validate() }

@@ -57,3 +57,10 @@ const (
 type StrictFolding interface {
 	StrictNull() Strict
 }
+
+// StoredProvider marks a node that a stored generation plan may contain.
+// Catalog validation calls ValidateStoredProvider before validating the
+// children, and rejects protocol nodes without the hook.
+type StoredProvider interface {
+	ValidateStoredProvider() error
+}

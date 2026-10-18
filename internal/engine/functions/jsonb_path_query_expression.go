@@ -241,3 +241,7 @@ func (e JSONBPathQueryFirst) IntrinsicVolatility() expr.Volatility { return expr
 func (e JSONBPathQuery) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONBPathQuery) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e JSONBPathExists) ValidateStoredProvider() error { return nil }
+func (e JSONBPathMatch) ValidateStoredProvider() error { return nil }
+func (e JSONBPathQueryFirst) ValidateStoredProvider() error { return nil }

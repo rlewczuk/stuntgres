@@ -139,3 +139,5 @@ func (e ArraySearch) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, e
 }
 
 func (e ArraySearch) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
+
+func (e ArraySearch) ValidateStoredProvider() error { return nil }

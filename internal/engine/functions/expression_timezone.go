@@ -89,3 +89,5 @@ func (e Timezone) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, erro
 func (e Timezone) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }
 
 func (e Timezone) StrictNull() expr.Strict { return expr.StrictBefore }
+
+func (e Timezone) ValidateStoredProvider() error { return nil }

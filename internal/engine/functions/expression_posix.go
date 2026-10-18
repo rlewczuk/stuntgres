@@ -137,3 +137,6 @@ func (e Posix) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) 
 
 func (e Posix) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 func (e PosixSubstring) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e Posix) ValidateStoredProvider() error { return nil }
+func (e PosixSubstring) ValidateStoredProvider() error { return nil }

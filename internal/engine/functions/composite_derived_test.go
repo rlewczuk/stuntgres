@@ -110,3 +110,51 @@ func TestIntrinsicVolatilityExcludesChildren(t *testing.T) {
 		}
 	}
 }
+
+// Planning hooks: stage-owned and never-evaluated calls opt out of folding,
+// strict-NULL timing is per node, and only stored-plan providers validate.
+func TestPlanningHooks(t *testing.T) {
+	fold := func(node expr.Expr) expr.Fold {
+		if hook, ok := node.(expr.Folding); ok {
+			return hook.PlanningFold()
+		}
+		return expr.FoldConstant
+	}
+	strict := func(node expr.Expr) expr.Strict {
+		if hook, ok := node.(expr.StrictFolding); ok {
+			return hook.StrictNull()
+		}
+		return expr.StrictNone
+	}
+	stored := func(node expr.Expr) bool { _, ok := node.(expr.StoredProvider); return ok }
+	for _, tc := range []struct {
+		node   expr.Expr
+		fold   expr.Fold
+		strict expr.Strict
+		stored bool
+	}{
+		{RangeInspect{}, expr.FoldConstant, expr.StrictNone, true},
+		{JSONKeys{}, expr.FoldNever, expr.StrictNone, false},
+		{RegexpSet{}, expr.FoldNever, expr.StrictNone, false},
+		{Regexp{}, expr.FoldConstant, expr.StrictNone, true},
+		{VersionInformation{}, expr.FoldNever, expr.StrictNone, false},
+		{JSONCreate{}, expr.FoldNever, expr.StrictNone, true},
+		{DatetimeOverlaps{}, expr.FoldOverlapsRoute, expr.StrictNone, true},
+		{StringVariadic{}, expr.FoldQuoteCapture, expr.StrictNone, true},
+		{StringVariadic{Stable: true}, expr.FoldNever, expr.StrictNone, true},
+		{Timezone{}, expr.FoldConstant, expr.StrictBefore, true},
+		{Binary{}, expr.FoldConstant, expr.StrictAfter, true},
+		{UUIDGeneration{}, expr.FoldNever, expr.StrictAfter, false},
+		{DatetimeSleep{}, expr.FoldNever, expr.StrictAfterBare, false},
+	} {
+		if got := fold(tc.node); got != tc.fold {
+			t.Errorf("%T fold = %v, want %v", tc.node, got, tc.fold)
+		}
+		if got := strict(tc.node); got != tc.strict {
+			t.Errorf("%T strict = %v, want %v", tc.node, got, tc.strict)
+		}
+		if got := stored(tc.node); got != tc.stored {
+			t.Errorf("%T stored provider = %v, want %v", tc.node, got, tc.stored)
+		}
+	}
+}

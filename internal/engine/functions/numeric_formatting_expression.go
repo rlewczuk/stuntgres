@@ -85,3 +85,5 @@ func NumericFormattingResult(name string) sqltype.ID {
 func NumericFormattingIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
 
 func (e NumericFormatting) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e NumericFormatting) ValidateStoredProvider() error { return nil }

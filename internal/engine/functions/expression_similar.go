@@ -253,3 +253,8 @@ func (e LikeEscape) IntrinsicVolatility() expr.Volatility { return expr.Immutabl
 func (e SimilarEscape) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 func (e SimilarSubstring) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 func (e Similar) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e LikeEscape) ValidateStoredProvider() error { return nil }
+func (e Similar) ValidateStoredProvider() error { return nil }
+func (e SimilarEscape) ValidateStoredProvider() error { return nil }
+func (e SimilarSubstring) ValidateStoredProvider() error { return nil }

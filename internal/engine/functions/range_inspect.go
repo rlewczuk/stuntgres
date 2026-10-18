@@ -120,3 +120,5 @@ func CoerceRangeInspectArguments(b ArgumentCoercer, args []Argument, target sqlt
 func RangeInspectIntrinsicRule() IntrinsicPropertyRule { return ExactImmutable }
 
 func (e RangeInspect) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e RangeInspect) ValidateStoredProvider() error { return nil }

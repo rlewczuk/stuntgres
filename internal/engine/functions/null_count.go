@@ -142,3 +142,5 @@ func (e NullCount) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, err
 }
 
 func (e NullCount) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e NullCount) ValidateStoredProvider() error { return nil }

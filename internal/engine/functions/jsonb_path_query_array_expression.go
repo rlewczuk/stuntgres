@@ -73,3 +73,5 @@ func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr
 }
 
 func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+
+func (e JSONBPathQueryArray) ValidateStoredProvider() error { return nil }

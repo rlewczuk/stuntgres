@@ -250,3 +250,5 @@ func (e StringVariadic) PlanningFold() expr.Fold {
 	}
 	return expr.FoldQuoteCapture
 }
+
+func (e StringVariadic) ValidateStoredProvider() error { return nil }

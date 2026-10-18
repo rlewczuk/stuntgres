@@ -199,3 +199,5 @@ func (e JSONCreate) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 // PlanningFold: all eight JSON creation functions are intrinsically STABLE.
 func (e JSONCreate) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e JSONCreate) ValidateStoredProvider() error { return nil }

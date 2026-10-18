@@ -348,3 +348,5 @@ func (e Math) StrictNull() expr.Strict {
 	}
 	return expr.StrictAfter
 }
+
+func (e Math) ValidateStoredProvider() error { return nil }

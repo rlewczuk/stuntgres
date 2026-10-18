@@ -67,3 +67,5 @@ func (e JSONStripNulls) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 }
 
 func (e JSONStripNulls) IntrinsicVolatility() expr.Volatility { return expr.Stable }
+
+func (e JSONStripNulls) ValidateStoredProvider() error { return nil }

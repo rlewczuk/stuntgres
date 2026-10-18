@@ -212,3 +212,5 @@ func (e RegexpSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, err
 func (call RegexpCall) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e RegexpSet) PlanningFold() expr.Fold { return expr.FoldNever }
+
+func (e Regexp) ValidateStoredProvider() error { return nil }

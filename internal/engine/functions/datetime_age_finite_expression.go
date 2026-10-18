@@ -218,3 +218,5 @@ func (e DatetimeAgeFinite) Rebuild(info expr.Info, children []expr.Expr) (expr.E
 func (e DatetimeAgeFinite) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }
 
 func (e DatetimeAgeFinite) StrictNull() expr.Strict { return expr.StrictAfter }
+
+func (e DatetimeAgeFinite) ValidateStoredProvider() error { return nil }
