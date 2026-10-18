@@ -151,7 +151,7 @@ func TestHypotheticalAggregateFormulasAndBorrowing(t *testing.T) {
 	}
 }
 
-func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
+func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		id   sqltype.ID
@@ -167,7 +167,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			b.aggregateClause = "SELECT"
 			position := parser.Position{Character: 8}
 			raw := parser.AggregateExpr{Name: tc.name, Within: true, Pos: position}
-			for i := range 50 {
+			for i := range 49 {
 				expr := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(i + 1), Pos: position}}
 				raw.Args = append(raw.Args, expr)
 				raw.Order = append(raw.Order, parser.OrderKey{Expr: expr, Pos: position})
@@ -177,7 +177,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := b.aggregates[node.(aggregateExpression).slot]
-			if len(call.direct) != 50 || len(call.order) != 50 || call.stageWidth != 52 || call.argument != nil || !call.includeNulls {
+			if len(call.direct) != 49 || len(call.order) != 49 || call.stageWidth != 51 || call.argument != nil || !call.includeNulls {
 				t.Fatal("full tuple layout", call)
 			}
 			for i, key := range call.order {
@@ -193,7 +193,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
-				t.Fatal("50-key private execution", count, err)
+				t.Fatal("49-key private execution", count, err)
 			}
 			defer rows.Close()
 			out := make([]sqltype.Value, 1)
@@ -202,21 +202,21 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 				t.Fatal(ok, err)
 			}
 			if out[0].Type() != b.typ(tc.id) || out[0].IsNull() {
-				t.Fatal("50-key result type", out[0].Type())
+				t.Fatal("49-key result type", out[0].Type())
 			}
 			value, err := out[0].Type().Output(context.Background(), out[0])
 			if err != nil || value != tc.want {
-				t.Fatal("50-key result", value, tc.want, err)
+				t.Fatal("49-key result", value, tc.want, err)
 			}
 			other := call
 			other.direct = append([]expr.Expr(nil), call.direct...)
-			other.direct[49] = call.direct[0]
+			other.direct[48] = call.direct[0]
 			if b.sameAggregateCall(call, other) {
 				t.Fatal("later direct identity omitted")
 			}
 			// Copy-on-change must not alter the original direct slice.
 			rewritten, err := rewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
-				if b.sameGroupExpression(expr, call.direct[49]) {
+				if b.sameGroupExpression(expr, call.direct[48]) {
 					return call.direct[0], true, nil
 				}
 				return expr, false, nil
@@ -224,7 +224,7 @@ func TestHypotheticalAggregateFiftyKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !b.sameGroupExpression(rewritten.(*aggregateNode).calls[0].direct[49], call.direct[0]) || !b.sameGroupExpression(aggregate.calls[0].direct[49], call.direct[49]) {
+			if !b.sameGroupExpression(rewritten.(*aggregateNode).calls[0].direct[48], call.direct[0]) || !b.sameGroupExpression(aggregate.calls[0].direct[48], call.direct[48]) {
 				t.Fatal("rewrite aliased direct slice")
 			}
 			// Every direct/key/result descriptor must belong to the destination catalog.

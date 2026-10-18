@@ -78,27 +78,18 @@ func TestReferenceHypotheticalAggregateMultiKey(t *testing.T) {
 		orderedSetBoth(t, p, c, b, hypotheticalResult("SELECT "+hypotheticalProjection("1,2,3", "x NULLS LAST,y DESC NULLS FIRST,z NULLS FIRST", "")+triples, hypotheticalRow(2, 2, 1.0/6, 4.0/7)))
 		orderedSetBoth(t, p, c, b, hypotheticalResult("SELECT "+hypotheticalProjection("1,2,1", "x,y DESC,x", "")+triples, hypotheticalRow(1, 1, 0, 4.0/7)))
 		orderedSetBoth(t, p, c, b, hypotheticalResult("SELECT "+hypotheticalProjection("NULL::int,NULL::int", "x NULLS FIRST,y NULLS FIRST", "")+" FROM (VALUES (NULL::int,NULL::int),(NULL,1),(1,NULL)) AS a(x,y)", hypotheticalRow(1, 1, 0, .5)))
-		// PostgreSQL 18.0 crashed on execution with 50 pairs (tests-1).
-		// Its fixed final-call storage appears to overflow at 101 arguments:
-		// the transition state plus all 100 SQL operands (REL_18_0 nodeAgg.c).
-		// Execute 49 independent keys; retain the 100-operand analysis boundary.
+		// Aggregates take at most 99 arguments. PostgreSQL 18.6 rejects 50
+		// pairs at analysis (18.0 accepted them and crashed on execution).
 		parts := make([]string, 49)
 		for i := range parts {
 			parts[i] = strconv.Itoa(i + 1)
 		}
 		keys := strings.Join(parts, ",")
 		orderedSetBoth(t, p, c, b, hypotheticalResult("SELECT "+hypotheticalProjection(keys, keys, ""), hypotheticalRow(1, 1, 0, 1)))
-		// Both adapters prepare and close only: PostgreSQL must never execute
-		// this 50-pair shape. Private native units cover all four executions.
 		keys += ",50"
 		for _, name := range []string{"rank", "dense_rank", "percent_rank", "cume_dist"} {
-			stmt, err := c.PrepareContext(p.Ctx, "SELECT "+name+"("+keys+") WITHIN GROUP(ORDER BY "+keys+")")
-			if err != nil {
-				t.Fatal("100-operand analysis boundary", err)
-			}
-			if err := stmt.Close(); err != nil {
-				t.Fatal(err)
-			}
+			q := "SELECT " + name + "(" + keys + ") WITHIN GROUP(ORDER BY " + keys + ")"
+			orderedSetBoth(t, p, c, b, orderedSetDiagnostic(q, "54023", "aggregates cannot have more than 99 arguments", name, ""))
 		}
 		tooMany := strings.TrimSuffix(strings.Repeat("1,", 51), ",")
 		q := "SELECT rank(" + tooMany + ") WITHIN GROUP(ORDER BY " + tooMany + ")"

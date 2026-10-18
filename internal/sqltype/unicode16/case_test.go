@@ -44,8 +44,8 @@ func TestUnicode16CaseMappings(t *testing.T) {
 		{"Σ", Lower, "Σ", "σ", "σ"},
 		{"ΑΣ", Fold, "ΑΣ", "ασ", "ασ"},
 		{"Α\u0345Σ\u0345", Lower, "Α\u0345Σ\u0345", "α\u0345σ\u0345", "α\u0345ς\u0345"},
-		{"\u0345Σ", Lower, "\u0345Σ", "\u0345σ", "\u0345ς"},
-		{"\u0345Σ", Initcap, "\u0345Σ", "Ισ", "Ις"},
+		{"\u0345Σ", Lower, "\u0345Σ", "\u0345σ", "\u0345σ"},
+		{"\u0345Σ", Initcap, "\u0345Σ", "Ισ", "Ισ"},
 		{"\u0345Σ", Fold, "\u0345Σ", "ισ", "ισ"},
 		{"ΑΣ\u0345Α", Lower, "ΑΣ\u0345Α", "ασ\u0345α", "ασ\u0345α"},
 		{"\u1C89\uA7CB\U00010D50", Lower, "\u1C89\uA7CB\U00010D50", "\u1C8A\u0264\U00010D70", "\u1C8A\u0264\U00010D70"},
@@ -80,7 +80,7 @@ func TestUnicode16CaseSigmaLookahead(t *testing.T) {
 	marks := strings.Repeat("\u0345", 8192)
 	for _, tc := range []struct{ input, want string }{
 		{"ΑΣ" + marks, "ας" + marks}, {"ΑΣ" + marks + "Α", "ασ" + marks + "α"},
-		{marks + "Σ", marks + "ς"}, {marks + "Σ" + marks, marks + "ς" + marks},
+		{marks + "Σ", marks + "σ"}, {marks + "Σ" + marks, marks + "σ" + marks},
 		{marks + "Σ" + marks + "Α", marks + "σ" + marks + "α"},
 		{"1" + marks + "Σ", "1" + marks + "σ"},
 	} {
@@ -89,13 +89,14 @@ func TestUnicode16CaseSigmaLookahead(t *testing.T) {
 			t.Fatal("original-input Final_Sigma", err)
 		}
 	}
-	// PostgreSQL18.0 accepts a leading all-ignorable prefix. Its emitted
-	// title expansion must still not replace the original-input context.
+	// PostgreSQL 18.6 needs a cased nearest non-ignorable predecessor; an
+	// all-ignorable prefix is not one. The emitted title expansion must not
+	// replace the original-input context.
 	for _, tc := range []struct{ input, lower, initcap string }{
-		{"\u0345Σ", "\u0345ς", "Ις"},
-		{"\u0301Σ", "\u0301ς", "\u0301Σ"},
-		{"\u0301\u0345Σ", "\u0301\u0345ς", "\u0301Ις"},
-		{"\u0345Σ\u0345", "\u0345ς\u0345", "Ις\u0345"},
+		{"\u0345Σ", "\u0345σ", "Ισ"},
+		{"\u0301Σ", "\u0301σ", "\u0301Σ"},
+		{"\u0301\u0345Σ", "\u0301\u0345σ", "\u0301Ισ"},
+		{"\u0345Σ\u0345", "\u0345σ\u0345", "Ισ\u0345"},
 		{"Σ", "σ", "Σ"}, {"1Σ", "1σ", "1σ"},
 		{"1\u0345Σ", "1\u0345σ", "1\u0345σ"},
 		{"\u0345ΣΑ", "\u0345σα", "Ισα"},

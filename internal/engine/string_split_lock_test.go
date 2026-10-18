@@ -33,24 +33,16 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	if physical := queryTreeOccurrences(node, inputs, nil); len(physical) != 0 {
 		t.Fatal("computed function acquired physical identity", physical)
 	}
-	state := &queryState{source: inputs, frame: 1, invocation: &EvalContext{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(text, "replacement")}}}
-	var cache functionRecheckCache
-	defer cache.close()
-	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope, query: state, functionRecheckCache: &cache}
+	// As in PostgreSQL 18.6, a recheck keeps the function-scan tuple the row was
+	// produced with and evaluates no call again.
+	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope}
 	scratch := make([]sqltype.Value, width)
-	for range 2 {
-		offset := 0
-		got, present, err := recheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)
-		if err != nil || !present || len(got) != 3 || !got[0].IsNull() {
-			t.Fatal("refreshed NULL field lost", got, present, err)
-		}
-		field, _ := got[1].Text()
-		ordinal, _ := got[2].Integer()
-		if field != "x" || ordinal != 1 || !reflect.DeepEqual(evaluations, []int{0}) {
-			t.Fatal("independent invocation failed rewind or ordinal reset", got, evaluations)
-		}
+	offset := 0
+	got, present, err := recheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)
+	if err != nil || !present || !reflect.DeepEqual(got, frozen) || len(evaluations) != 0 {
+		t.Fatal("recheck changed the function-scan tuple", got, present, err, evaluations)
 	}
-	// A recheck searches later fields rather than testing only the first field.
+	// Quals are requalified against that tuple.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
 	filteredNode := &functionFromNode{calls: []expr.Expr{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
@@ -60,17 +52,17 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 		t.Fatal(err)
 	}
 	filter := &filterNode{querySchema: filteredNode.querySchema, child: filteredNode, predicate: predicate}
-	state.invocation.Row[0] = sqltype.String(text, "x,b")
-	offset := 0
-	scratch = make([]sqltype.Value, queryLockRecheckWidth(filter, inputs))
-	got, present, err := recheckLockedQuery(filter, inputs, nil, &evaluation, scratch, &offset, frozen)
-	if err != nil || !present {
-		t.Fatal(got, present, err)
-	}
-	value, _ := got[0].Text()
-	position, _ := got[1].Integer()
-	if value != "b" || position != 2 {
-		t.Fatal("later qualifying replacement field not found", got)
+	for _, tc := range []struct {
+		field string
+		match bool
+	}{{"b", true}, {"a", false}} {
+		tuple := []sqltype.Value{sqltype.String(text, tc.field), ordinal}
+		offset := 0
+		scratch := make([]sqltype.Value, queryLockRecheckWidth(filter, inputs))
+		got, present, err := recheckLockedQuery(filter, inputs, nil, &evaluation, scratch, &offset, tuple)
+		if err != nil || present != tc.match || tc.match && !reflect.DeepEqual(got, tuple) {
+			t.Fatal("requalification", tc.field, got, present, err)
+		}
 	}
 	set := &setProjectNode{child: &singletonNode{}}
 	if physical := queryTreeOccurrences(set, inputs, nil); len(physical) != 0 {

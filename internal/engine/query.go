@@ -741,24 +741,23 @@ func (s *querySource) close() {
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
-	source          *querySource
-	invocation      *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
-	foreignOwner    any
-	functionRecheck *functionQueryRecheck
-	hashFilter      *filterNode
-	parameters      []sqltype.Value
-	input           sqltype.InputEnvironment
-	output          sqltype.OutputEnvironment
-	locking         bool
-	virtualReads    bool
-	inherited       queryRowMark
-	frame           uint32
-	outer           *EvalContext
-	retain          bool
-	derived         map[*derivedNode]*querySource
-	ctes            *cteInvocation
-	hashOwner       *queryState
-	memberships     map[subqueryMembershipKey]*subqueryMembership
+	source       *querySource
+	invocation   *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
+	foreignOwner any
+	hashFilter   *filterNode
+	parameters   []sqltype.Value
+	input        sqltype.InputEnvironment
+	output       sqltype.OutputEnvironment
+	locking      bool
+	virtualReads bool
+	inherited    queryRowMark
+	frame        uint32
+	outer        *EvalContext
+	retain       bool
+	derived      map[*derivedNode]*querySource
+	ctes         *cteInvocation
+	hashOwner    *queryState
+	memberships  map[subqueryMembershipKey]*subqueryMembership
 	// Only the positive SELECT coordinator activates these on a physical leaf.
 	executionContext   context.Context
 	scanRange          bool
@@ -967,18 +966,6 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
-	if state.functionRecheck != nil {
-		entry, ok := state.functionRecheck.topology.entries[node]
-		if !ok {
-			return indexedStage{}, fmt.Errorf("stuntgres: missing function recheck node")
-		}
-		if !entry.expanding {
-			return openFunctionRecheckPoint(ctx, state, node)
-		}
-		if mark, ok := node.(*rowLockNode); ok {
-			return openQueryNode(ctx, state, mark.child)
-		}
-	}
 	switch n := node.(type) {
 	case *functionFromNode:
 		return openFunctionFromNode(ctx, state, n)
@@ -1104,7 +1091,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
-		if join, ok := n.child.(*joinNode); ok && state.functionRecheck == nil && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+		if join, ok := n.child.(*joinNode); ok && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
 			if partitioned := functionFromConjuncts(join, n.predicate); partitioned != nil {
 				return openQueryNode(ctx, state, partitioned)
 			}

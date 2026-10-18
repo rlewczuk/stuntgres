@@ -14,12 +14,12 @@ func TestReferenceDatetimeExtractCanonicalDefinitions(t *testing.T) {
 		} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 		}
-		// Pinned PG canonically emits field text raw even when that spelling is
-		// not valid SQL. Match its public renderer, not an invented repair. Native
-		// logical Dump's independently safe replay is exercised by StoredConsumers.
-		definition := " SELECT EXTRACT(YeAr FROM s) AS year,\n    date_part('month'::text, s) AS month,\n        CASE\n            WHEN true THEN EXTRACT(year FROM s)\n            ELSE EXTRACT(bad'\\é FROM s)\n        END AS safe\n   FROM dx_definition;"
+		// PostgreSQL 18.6 quotes the field as an identifier when it needs it
+		// (18.0 emitted it raw, even when not valid SQL). Native logical Dump's
+		// independently safe replay is exercised by StoredConsumers.
+		definition := " SELECT EXTRACT(\"YeAr\" FROM s) AS year,\n    date_part('month'::text, s) AS month,\n        CASE\n            WHEN true THEN EXTRACT(year FROM s)\n            ELSE EXTRACT(\"bad'\\é\" FROM s)\n        END AS safe\n   FROM dx_definition;"
 		datetimeExtractBoth(t, p, b, c, fixture.Select("SELECT pg_get_viewdef('dx_definition_view'::regclass,true)", []string{"pg_get_viewdef"}, []string{"TEXT"}, [][]any{{definition}}))
-		datetimeExtractBoth(t, p, b, c, fixture.Select("SELECT pg_get_expr(d.adbin,d.adrelid) FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='dx_definition' ORDER BY d.adnum", []string{"pg_get_expr"}, []string{"TEXT"}, [][]any{{"EXTRACT(DoY FROM '2000-02-29'::date)"}, {"EXTRACT(year FROM s)"}}))
+		datetimeExtractBoth(t, p, b, c, fixture.Select("SELECT pg_get_expr(d.adbin,d.adrelid) FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='dx_definition' ORDER BY d.adnum", []string{"pg_get_expr"}, []string{"TEXT"}, [][]any{{`EXTRACT("DoY" FROM '2000-02-29'::date)`}, {"EXTRACT(year FROM s)"}}))
 	})
 }
 

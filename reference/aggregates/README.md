@@ -260,15 +260,13 @@ later aggregate sort after all input evaluation/retention; deterministic private
 units separately prove cancellation inside sorting, placement, dense peers,
 direct children, finalization and prepublication.
 
-The PostgreSQL 18.0 fixture **crashed** when executing 50 direct/order pairs.
-Release `nodeAgg.c` allocates `LOCAL_FCINFO(..., FUNC_MAX_ARGS)` but requests
-the transition state plus all 100 SQL operands for an extra-argument finalizer;
-fixed final-call storage overflow is a source-derived inference, not a verified
-crash diagnosis. Public proof safely executes 49 independent pairs, checks
-50-pair prepare/close on both adapters without Query or Exec, and checks
-51-pair54023. Private native binder/provider execution proves all four outputs
-`(1,1,0,1)` with exact INT8/INT8/FLOAT8/FLOAT8 result types at 50 keys, without
-reducing the 100-operand native cap or introducing a tuple limit.
+Aggregates take at most 99 arguments. PostgreSQL 18.0 accepted 50
+direct/order pairs and crashed executing them; 18.6 rejects them at analysis
+with 54023 "aggregates cannot have more than 99 arguments", and native does the
+same. Public proof executes 49 independent pairs, checks the 50-pair 54023 for
+all four functions, and the 51-pair "cannot pass more than 100 arguments".
+Private native binder/provider execution proves all four outputs `(1,1,0,1)`
+with exact INT8/INT8/FLOAT8/FLOAT8 result types at 49 keys.
 
 Private `TestHypotheticalAggregate...` units supplement public SQL proof with
 typed peer equality, NULL/direction comparison, formulas, buffer immutability,

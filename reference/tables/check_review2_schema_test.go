@@ -92,79 +92,58 @@ func TestReferenceCheckReview2SchemaPrivateDropCancellation(t *testing.T) {
 	}
 }
 
-func TestReferenceCheckReview2SchemaPrivateDropOutcomes(t *testing.T) {
+// As in PostgreSQL 18.6, schema elements that reference a sequence another
+// transaction is dropping wait for it: the whole CREATE SCHEMA succeeds after a
+// rollback and fails 42704, creating nothing, after a commit (18.0 created an
+// orphaned dependency).
+func TestReferenceCheckReview2SchemaPrivateDropWaits(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("commit=%t/prepared=%t", commit, prepared), func(t *testing.T) {
 				p := fixture.NewScenario(t)
 				for _, backend := range p.Backends() {
 					t.Run(backend.Name, func(t *testing.T) {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, 10*time.Second)
 						defer cancel()
-						a, err := backend.DB.Conn(ctx)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer a.Close()
-						b, err := backend.DB.Conn(ctx)
-						if err != nil {
-							t.Fatal(err)
-						}
-						defer b.Close()
+						a, b := fixture.LockConnections(t, ctx, backend.DB)
+						observer, _ := fixture.LockConnections(t, ctx, backend.DB)
+						holder, waiter := checkReviewSessionID(t, ctx, backend, a), checkReviewSessionID(t, ctx, backend, b)
 						run := func(s fixture.Step) { fixture.CheckRun(t, ctx, b, backend.Recorder, s) }
 						defer b.ExecContext(context.Background(), "DROP SCHEMA IF EXISTS checked CASCADE")
 						fixture.CheckRun(t, ctx, a, backend.Recorder, fixture.Exec("CREATE SEQUENCE public.s", 0))
-						var oid int64
-						if backend.PG {
-							if err := a.QueryRowContext(ctx, "SELECT 'public.s'::regclass::oid").Scan(&oid); err != nil || oid <= 0 || oid > 1<<32-1 {
-								t.Fatal(oid, err)
-							}
-						}
 						tx, err := a.BeginTx(ctx, nil)
 						if err != nil {
 							t.Fatal(err)
 						}
 						defer tx.Rollback()
 						fixture.CheckRun(t, ctx, tx, backend.Recorder, fixture.Exec("DROP SEQUENCE public.s CASCADE", 0))
-						// Native's waiting safety boundary is independently exercised above.
-						if !backend.PG {
-							if commit {
-								err = tx.Commit()
-							} else {
-								err = tx.Rollback()
-							}
-							if err != nil {
-								t.Fatal(err)
-							}
-							if commit {
-								run(fixture.Exec("CREATE SEQUENCE public.s", 0))
-							}
-						}
-						s := fixture.Exec(referenceCheckInlineSchema, 0)
-						s.Prepared = prepared
-						run(s)
-						run(fixture.Exec("INSERT INTO checked.earlier VALUES(1)", 1))
-						run(fixture.Select("SELECT a FROM checked.t", []string{"a"}, []string{"INT4"}, nil))
-						if backend.PG {
-							if commit {
-								err = tx.Commit()
-							} else {
-								err = tx.Rollback()
-							}
-							if err != nil {
-								t.Fatal(err)
-							}
-						}
-						run(fixture.Select("SELECT a FROM checked.earlier", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
-						run(fixture.Select("SELECT a FROM checked.t", []string{"a"}, []string{"INT4"}, nil))
-						if backend.PG && commit {
-							run(fixture.ImplicitError("INSERT INTO checked.t VALUES(7)", fixture.Diagnostic{Code: "XX000", Message: fmt.Sprintf("could not open relation with OID %d", oid)}))
-							run(fixture.Select("SELECT a FROM checked.t", []string{"a"}, []string{"INT4"}, nil))
+						done := fixture.RowAsync(t, ctx, b, referenceCheckInlineSchema, prepared, false)
+						checkReviewWaitBehind(t, ctx, observer, waiter, holder, done)
+						if commit {
+							err = tx.Commit()
 						} else {
-							run(fixture.Exec("INSERT INTO checked.t VALUES(7)", 1))
-							run(fixture.Select("SELECT a FROM checked.t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
-							run(fixture.Select("SELECT currval('public.s')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(1)}}))
+							err = tx.Rollback()
 						}
+						if err != nil {
+							t.Fatal(err)
+						}
+						o := fixture.LockResult(t, done)
+						if commit {
+							if o.Result != nil {
+								t.Fatal("failed CREATE SCHEMA exposed result")
+							}
+							fixture.WaitsDiagnostic(t, o.Err, "42704", "referenced relation was concurrently dropped")
+							run(fixture.Select("SELECT count(*) AS n FROM pg_namespace WHERE nspname='checked'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
+							return
+						}
+						if o.Err != nil {
+							t.Fatal(o.Err)
+						}
+						run(fixture.Exec("INSERT INTO checked.earlier VALUES(1)", 1))
+						run(fixture.Select("SELECT a FROM checked.earlier", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
+						run(fixture.Exec("INSERT INTO checked.t VALUES(7)", 1))
+						run(fixture.Select("SELECT a FROM checked.t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+						run(fixture.Select("SELECT currval('public.s')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(1)}}))
 					})
 				}
 			})

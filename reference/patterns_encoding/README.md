@@ -665,10 +665,9 @@ templates, frame prefixes, padding, ordinality and owner reuse directly.
 lexical frames and private virtual-owner windows through normalization.
 `TestFunctionSourceMixedRows` exercises mixed typed padding, scalar strict NULL
 and ordinality; `TestQuerySetMixedAttemptOwnership` checks bare terminal draws
-against emitted-only upper wrappers. `TestFunctionRecheckOwnedRegexpCursor`
-checks immutable constant-vector reuse, refreshed dependent arguments and held
-values after cache closure. Existing string component units retain their
-assertions while using the same closed call storage and invocation context.
+against emitted-only upper wrappers. Existing string component units retain
+their assertions while using the same closed call storage and invocation
+context.
 
 The independent shared definitions `TestReferenceRegexpMixedProjection` and
 `TestReferenceRegexpMixedFrom` cover mixed targets, nesting, wrappers, hidden

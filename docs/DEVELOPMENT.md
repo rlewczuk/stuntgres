@@ -452,7 +452,7 @@ group without selecting untouched PostgreSQL-only ACL, system-column, unsupporte
 expression or opposite-direction lock witnesses:
 
 ```sh
-RUN='^TestReferenceCheck(AlterCandidates|AlterCandidateTransactions|AlterTransactionalPublication|AlterOwnedSequenceCandidate|AlterOwnedSequenceAutoConstraint|Controls|Lifecycle|LikeAndConstraintCollisions|ExplicitTransactionAndSavepoint|DefinitionDiagnostics|Names|OutputAndUTF8Names|UnicodePosition|MixedConstraintDiagnostics|PreparedExecutionOutputEnvironment|Review2OrderReverseMixed|Review2OrderMultipleOwners|Review2OrderLogicalRoundtrip|Review2SchemaPrivateDropCancellation|Review2SchemaPrivateDropOutcomes|ReviewDependencyRestrictComplete|ReviewDependencyPrivateDeletionNonwaiting|ReviewDependencyRestrictReversedDeclaration|ReviewReplayOwnedSequence|ReviewReplayHistory|ReviewReplayHistoryPublicRestore|ReviewScalarCommentDML|ReviewScalarCommentDMLRoutes|ReviewScalarNonNullMissingOID|ReviewScalarPrivateCommentBoundary|ScalarFamilies|ScalarConstants|VolatileEffects|VolatileSequenceDependency|SequenceDropTransactionalCandidates|CorePreparedFrames|CoreAtomicity|CompleteRowAndAtomicity)$'
+RUN='^TestReferenceCheck(AlterCandidates|AlterCandidateTransactions|AlterTransactionalPublication|AlterOwnedSequenceCandidate|AlterOwnedSequenceAutoConstraint|Controls|Lifecycle|LikeAndConstraintCollisions|ExplicitTransactionAndSavepoint|DefinitionDiagnostics|Names|OutputAndUTF8Names|UnicodePosition|MixedConstraintDiagnostics|PreparedExecutionOutputEnvironment|Review2OrderReverseMixed|Review2OrderMultipleOwners|Review2OrderLogicalRoundtrip|Review2SchemaPrivateDropCancellation|Review2SchemaPrivateDropWaits|ReviewDependencyRestrictComplete|ReviewDependencyPrivateDeletionWaits|ReviewDependencyRestrictReversedDeclaration|ReviewReplayOwnedSequence|ReviewReplayHistory|ReviewReplayHistoryPublicRestore|ReviewScalarCommentDML|ReviewScalarCommentDMLRoutes|ReviewScalarNonNullMissingOID|ReviewScalarPrivateCommentBoundary|ScalarFamilies|ScalarConstants|VolatileEffects|VolatileSequenceDependency|SequenceDropTransactionalCandidates|CorePreparedFrames|CoreAtomicity|CompleteRowAndAtomicity)$'
 make check RUN="$RUN"
 make check REFERENCE=1 RUN="$RUN"
 ```
@@ -462,9 +462,10 @@ statement atomicity, exact diagnostics, dependency order and held prepared frame
 Raw native nullability and ScanType are checked before normalization. Native
 Dump/Reset/Restore phases retain cursors, atomic failed replacement, owner-bearing
 streams and repeated replay; PostgreSQL consumes unchanged replay SQL where
-applicable. Native CREATE waits/cancels behind private sequence DROP without
-publishing fragments; PostgreSQL CREATE can finish and retain an orphan after
-DROP commits. Transactional COMMENT remains rejected natively and is a real
+applicable. CREATE waits behind a private sequence DROP on both backends
+(PostgreSQL 18.6 locks referenced objects; 18.0 retained an orphan), succeeds
+after a rollback and fails 42704 after a commit, without publishing fragments.
+Transactional COMMENT remains rejected natively and is a real
 private-comment witness on PostgreSQL. These are independent backend outcomes,
 not parity exceptions or fabricated native successes.
 

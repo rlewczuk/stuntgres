@@ -36,6 +36,10 @@ func (r pgRenderer) rendering(ctx context.Context, node expr.Expr, spec expr.Ren
 	case expr.FormTemplate:
 		var text strings.Builder
 		for _, piece := range spec.Pieces {
+			if piece.Identifier {
+				text.WriteString(r.identifier(piece.Text))
+				continue
+			}
 			if piece.Text != "" {
 				text.WriteString(piece.Text)
 				continue

@@ -1209,3 +1209,11 @@ Notes for later steps (F2):
   above can go.
 - `Arguments()` still duplicates `Children()` on several nodes; preflight in
   `expression.go` and `aggregate_bind.go` still call it.
+
+The PostgreSQL 18.6 oracle drift listed in these records (UUIDv7 shifts,
+`json_strip_nulls`, EXTRACT quoting, final sigma, Hangul TBASE, lock rechecks
+of function scans, the 99-argument aggregate limit, levenshtein overflow and
+the two `CheckReview` provider-wait tests) was fixed on `fix/pg186-drift`
+(`89606a6d5` through `0af65c1f6`). The `to_date` TM collation failure is an
+upstream regression recorded as a release difference; see
+[POSTGRES_REGRESSION.md](POSTGRES_REGRESSION.md).

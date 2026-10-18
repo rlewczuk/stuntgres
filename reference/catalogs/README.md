@@ -2702,7 +2702,7 @@ not replace whole-project quickcheck, standalone feature smoke or finalcheck.
 
 The nine `TestReferenceLevenshtein` definitions independently specify distances,
 weighted substitutions, bounded exact/greater-than behavior, signed release
-int32 cases, Unicode character limits and empty bypass, strict NULL/demand,
+int64 cases and the 22003 range error, Unicode character limits and empty bypass, strict NULL/demand,
 complete diagnostics and installed identity. Direct literals/binds, fresh
 Prepare and SAME held frames assert INT4 metadata/raw values and recovery after
 execution errors. Invalid INT4 bind failures retain the pinned PostgreSQL portal
@@ -2713,11 +2713,11 @@ signatures and public/relocated qualification. The unnamed installed overloads
 still fail normal missing-signature resolution; carrying labels through the
 ordinary call grammar does not enable named matching. Parser units retain the
 prefix's empty label slots, suffix labels, value order and source coordinates.
-Bounds/ReleaseBoundedInt32 independently specifies six nonempty/max0 release
-overflow cases, covering wrapped cost sums, theoretical min/max products,
-substitution reduction, pruning-disable choices and active asymmetric residual
-slides/narrow-band extension. These pathological exact outputs are release
-witnesses, not ordinary mathematical bound or sentinel guarantees.
+Bounds/ReleaseBoundedInt64 specifies the observed PostgreSQL 18.6 results of
+the six nonempty/max0 cost cases that wrapped in 18.0 (no wrapping; one
+out-of-range error) plus 18.6's own regression case. These pathological
+outputs are release witnesses, not ordinary mathematical bound or sentinel
+guarantees.
 
 Installation requires four genuine selected identities/extension edges on both
 backends, with total native membership10 including retained DM, Metaphone and Soundex. Stored SQL uses a
@@ -2738,7 +2738,7 @@ make check RUN='^TestReferenceLevenshtein(Installation|StoredExpressions|Control
 make check REFERENCE=1 RUN='^TestReferenceLevenshtein(Installation|StoredExpressions|Controls)$'
 make check RUN='^TestReferenceDaitchMokotoff(Installation|Controls|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Installation|Controls|FeatureSmoke)$'
-make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt32|Unicode|Cancellation|ExpressionIdentity|Remap)$'
+make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt64|Unicode|Cancellation|ExpressionIdentity|Remap)$'
 make check RACE=1 RUN='^TestReferenceLevenshtein(NullAndDemand|Controls)$'
 ```
 

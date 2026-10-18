@@ -198,3 +198,15 @@ func TestRenderFormatOwnsUnknownTextFlags(t *testing.T) {
 		t.Errorf("concat replaced inherited unknown-text flags: %+v", spec)
 	}
 }
+
+func TestRenderExtractFieldIsAnIdentifier(t *testing.T) {
+	d := temporalTestTypes()
+	field := temporalTestLiteral(sqltype.String(d[sqltype.Text], "YeAr"))
+	source := temporalTestLiteral(temporalTestTimestamp(t, d[sqltype.Timestamp], 0))
+	spec := renderOf(t, DatetimeExtract{Args: [2]expr.Expr{field, source}, Field: "YeAr", Syntax: parser.SQLFunctionSyntax})
+	word, at := expr.TextPiece, expr.ArgPiece
+	want := []expr.Piece{word("EXTRACT("), expr.IdentifierPiece("YeAr"), word(" FROM "), at(0), word(")")}
+	if spec.Form != expr.FormTemplate || !reflect.DeepEqual(spec.Pieces, want) || !reflect.DeepEqual(spec.Args, []expr.RenderArg{{Expr: source, HideImplicit: true}}) {
+		t.Errorf("got %+v", spec)
+	}
+}

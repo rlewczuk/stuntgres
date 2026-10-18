@@ -597,11 +597,10 @@ join/filter copies must not replace its captured nodes. This is bounded
 function-input demand, not general predicate splitting or an optimizer that
 crosses subquery boundaries.
 
-Computed function rows have no physical row-lock identity. Rechecks refresh the
-physical contributor and rescan correlated sources; independent sources reuse
-recheck-local materialization. Each original candidate contributes at most its
-first qualifying replacement rather than a new top-level expansion. Pending marks
-and closed cursor caches remain owned by the existing execution owner.
+Computed function rows have no physical row-lock identity. As in PostgreSQL
+18.6, a recheck refreshes the physical contributor and requalifies the row with
+the function-scan tuple it was produced with; it does not rerun the function
+(18.0 did). Pending marks remain owned by the existing execution owner.
 General table functions and lateral derived-query/VALUES sources remain excluded.
 
 ## Blocking stages, bounds and shared producers
@@ -712,7 +711,7 @@ accept `WITHIN GROUP (ORDER BY sorted_args)` with matching positive-length
 argument lists. Each pair independently selects a common type (sorted argument
 first), then a collation (direct argument first). Different keys may have
 unrelated types or collations. The aggregate result never inherits a key's
-collation. There is a total 100-operand function cap, not a two-key tuple limit.
+collation. There is a total 99-argument aggregate cap, not a two-key tuple limit.
 Analysis completes common-type selection and coercion for every pair before
 resolving any ordering operator, then resolves every ordering capability before
 assigning pair collations. Consequently a later pair's type/coercion error
@@ -746,8 +745,7 @@ Cancellation/errors precede row or INSERT batch publication.
 
 These aggregate overloads remain distinct from zero-argument ranking windows.
 Existing ordering, collation and unsupported-carrier boundaries remain unchanged.
-See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates),
-including the pinned PostgreSQL 18.0 50-pair execution defect.
+See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates).
 
 
 

@@ -1234,11 +1234,11 @@ grapheme segmentation. Two nonempty operands exceeding255 characters fail22023
 or target returns the corresponding weighted insertion/deletion length before
 limit or bound checks, so an empty/256-character pair is accepted.
 
-Release compatibility follows the pinned PostgreSQL18.0 int32 arithmetic:
-signed costs, including negative values, are accepted and intermediate additions
-and products wrap. Bounded pruning remains release-specific with pathological
-costs; these are not recommended mathematical distance metrics. No newer-devel
-overflow22003 guard is substituted. Strict NULL retains INT4 metadata, while
+Release compatibility follows the pinned PostgreSQL 18.6 arithmetic: signed
+costs, including negative values, are accepted, intermediates are int64 and do
+not wrap, and a final distance outside INT4 fails 22003 `levenshtein distance
+out of range` (18.0 wrapped it). Bounded pruning remains release-specific with
+pathological costs; these are not recommended mathematical distance metrics. Strict NULL retains INT4 metadata, while
 required sibling errors still execute. Genuine installed identities and all
 arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.
@@ -1756,9 +1756,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   input. Named/reordered/default calls retain JSON metadata and symbolic replay.
   Explicit scalar-final VARIADIC is accepted without array expansion; a named
   final written argument must map to the last supplied formal position.
-  This PostgreSQL 18.0 function is STRICT STABLE: DEFAULT/CHECK/view consumers
-  are supported, but generated columns and expression/predicate indexes reject
-  it as nonimmutable. No `jsonb_strip_nulls` or JSON equality provider is added.
+  It is STRICT IMMUTABLE, as in PostgreSQL 18.1 and later (18.0 marked it
+  STABLE): generated columns and expression/predicate indexes accept it, as do
+  DEFAULT/CHECK/view consumers. No `jsonb_strip_nulls` or JSON equality
+  provider is added.
   JSON array aggregates `json_agg`, `jsonb_agg`, their `_strict` variants and
   `json_arrayagg` use ordinary grouping/FILTER/local ordering. SQL NULL is included
   by ordinary variants and omitted by strict/default ABSENT ON NULL; JSON null is
@@ -2062,11 +2063,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   and collation selection, FILTER, grouping and stored views. NULL tuples are
   retained; all four results are nonNULL even for empty global groups.
   Direct expressions use final grouped keys, once per executed call/group.
-  The function argument cap is 100 across both lists, without a smaller tuple
-  limit. These aggregate overloads remain distinct from ranking windows.
-  Custom aggregates and expanded ordering families remain outside this feature.
-  See the selected proof's PostgreSQL
-  18.0 execution-boundary caveat for 50 pairs.
+  The aggregate argument cap is 99 across both lists (PostgreSQL 18.6), without
+  a smaller tuple limit. These aggregate overloads remain distinct from ranking
+  windows. Custom aggregates and expanded ordering families remain outside this
+  feature.
 - Temporal providers retain exclusions for timezone age/finite inquiries and
   epoch `to_timestamp`.
   General named-function resolution and custom/generic optimizer-plan switching

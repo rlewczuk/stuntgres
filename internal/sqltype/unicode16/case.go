@@ -171,7 +171,6 @@ func ConvertCase(ctx context.Context, source string, operation CaseOperation, mo
 	var out strings.Builder
 	changed, copied := false, 0
 	previousAlnum, previousCased := false, false
-	hasNonignorable := false
 	for offset := 0; offset < len(source); {
 		if err := scan.step(); err != nil {
 			return "", err
@@ -198,10 +197,10 @@ func ConvertCase(ctx context.Context, source string, operation CaseOperation, mo
 			}
 		}
 		if mode == Full && index == 0 && r == 0x03A3 {
-			// PostgreSQL18.0 accepts a nonempty, entirely ignorable prefix,
-			// but not an empty prefix or a nearest uncased predecessor.
-			precedingCased := previousCased || !hasNonignorable && offset > 0
-			final, err := scan.finalSigma(source, offset+width, precedingCased)
+			// As in PostgreSQL 18.6, the nearest preceding character that is
+			// not Case_Ignorable must be cased; an entirely ignorable prefix
+			// (which 18.0 accepted) is not.
+			final, err := scan.finalSigma(source, offset+width, previousCased)
 			if err != nil {
 				return "", err
 			}
@@ -210,7 +209,6 @@ func ConvertCase(ctx context.Context, source string, operation CaseOperation, mo
 			}
 		}
 		if !caseProperty(r, caseIgnorableRanges[:]) {
-			hasNonignorable = true
 			previousCased = caseProperty(r, casedRanges[:])
 		}
 		if mapping.count != 1 || mapping.runes[0] != r {

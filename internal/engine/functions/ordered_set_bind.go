@@ -230,6 +230,11 @@ func bindHypotheticalSet(b AggregateBinder, raw parser.AggregateExpr, name parse
 		d.Hint = fmt.Sprintf("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).", raw.Name, len(raw.Args), len(raw.Order))
 		return nil, d
 	}
+	// Aggregates take one argument fewer than other functions; PostgreSQL
+	// 18.6 checks it once a variadic hypothetical-set call resolves.
+	if n > 99 {
+		return nil, expr.ErrorAt("54023", "aggregates cannot have more than 99 arguments", raw.Pos)
+	}
 	op := AggregateHypotheticalRank
 	result := b.Type(sqltype.Int8)
 	switch raw.Name {
@@ -243,8 +248,8 @@ func bindHypotheticalSet(b AggregateBinder, raw parser.AggregateExpr, name parse
 	call := AggregateCall{Operation: op, IncludeNulls: true, Direct: make([]expr.Expr, len(raw.Args)), Order: make([]AggregateSortKey, len(raw.Order)), StageWidth: 2 + len(raw.Order)}
 	// Signature transformation coerces every pair before sort operators or
 	// pair collations are examined. A later type error must win over either.
-	// The checked 100-operand cap bounds this stack scratch to 50 pairs.
-	var typmods [50]int32
+	// The checked 99-argument cap bounds this stack scratch to 49 pairs.
+	var typmods [49]int32
 	for i, key := range raw.Order {
 		pair := [2]Argument{operands[len(raw.Args)+i], operands[i]}
 		usage, err := b.CommonArgumentUsage(pair[:], "WITHIN GROUP")

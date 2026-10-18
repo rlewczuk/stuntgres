@@ -220,11 +220,12 @@ the complete (NULL,a),(NULL,b),(kept,z) rows before and after native Restore.
 Private template-analysis units retain legal NULL/string syntax and reject
 nonliteral, other literal-kind and nonempty-usage contextual placeholders.
 The Locking group uses the existing bounded public contention rendezvous. It
-checks refreshed physical/function payloads, rescan ordinality and ROWS FROM
-padding in direct/prepared commit/rollback reads, including later qualifying
-fields, nested predecessor prefixes, zero-field LEFT JOINs and independent
-volatile argument materialization. It does not assert ORDER sequence call
-counts during replacement rechecks.
+checks that rechecks refresh the physical payload but keep each row's original
+function-scan tuple (PostgreSQL 18.6), with ordinality and ROWS FROM padding in
+direct/prepared commit/rollback reads, including refreshed filters, later
+qualifying fields, nested predecessor prefixes, zero-field LEFT JOINs and
+independent volatile arguments. It does not assert ORDER sequence call counts
+during rechecks.
 The public-API smoke source is an OMP session artifact, not repository or shared
 infrastructure scaffolding. Root materializes it in an external temporary
 directory and executes it from the worktree; no smoke executable is committed.

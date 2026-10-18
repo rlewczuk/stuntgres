@@ -371,7 +371,11 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if err == nil {
 			provider, ok := auth.catalog.Relation(ref.Address)
 			original, existed := stage.base.Relation(ref.Address)
-			if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+			if !ok && existed {
+				// The provider existed when the definition was analyzed and was
+				// dropped while this statement waited for it (PostgreSQL 18.6).
+				err = sqlError("42704", "referenced relation was concurrently dropped")
+			} else if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}

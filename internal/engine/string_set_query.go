@@ -675,11 +675,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 		evaluation.setContext(ctx)
 		if !opened {
 			var err error
-			if state.functionRecheck != nil {
-				invocation, err = state.functionRecheck.cache.open(&evaluation, n)
-			} else {
-				invocation, err = openFunctionInvocation(&evaluation, n)
-			}
+			invocation, err = openFunctionInvocation(&evaluation, n)
 			if err != nil {
 				return false, err
 			}

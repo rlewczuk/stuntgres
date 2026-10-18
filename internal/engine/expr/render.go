@@ -133,16 +133,21 @@ const (
 	CastLeafOrCoercion
 )
 
-// Piece is one part of a FormTemplate: literal SQL text, an argument, or the
-// text value of a literal argument used as a keyword (NORMALIZE's form).
+// Piece is one part of a FormTemplate: literal SQL text, a word the renderer
+// quotes as an identifier (EXTRACT's field), an argument, or the text value of
+// a literal argument used as a keyword (NORMALIZE's form).
 type Piece struct {
-	Text  string
-	Arg   int
-	Value bool
+	Text       string
+	Identifier bool
+	Arg        int
+	Value      bool
 }
 
 // TextPiece is literal SQL text.
 func TextPiece(text string) Piece { return Piece{Text: text} }
+
+// IdentifierPiece is a word displayed as an identifier, quoted when needed.
+func IdentifierPiece(word string) Piece { return Piece{Text: word, Identifier: true} }
 
 // ArgPiece displays Args[i].
 func ArgPiece(i int) Piece { return Piece{Arg: i} }

@@ -1299,10 +1299,9 @@ and symbolic provider definitions; later restored demand produces fresh values.
 Execution captures temporal policy for shift arithmetic and preserves
 submicrosecond remainder without overflowing UNIX nanosecond conversion.
 
-Native applies PostgreSQL 18.6 version-7 range guards, while pinned 18.0 predates
-them. Native rejects infinite shifts and timestamps outside its 48-bit packing
-boundary; the older oracle permits observed wrapping behavior. These are explicit
-release differences, not fabricated cross-backend golden values. Computed UUID
+Native and the pinned PostgreSQL 18.6 oracle apply the same version-7 range
+guards: infinite shifts and timestamps outside the 48-bit packing boundary are
+rejected with 22008 and the release's detail text. Computed UUID
 metadata does not gain a special nonnull proof.
 
 ## Embedded Unicode data and regeneration
@@ -1337,8 +1336,8 @@ has no network, ICU/cgo, mutable startup maps or host-Go-Unicode dependency.
 Tests compare generated outputs byte-for-byte and retain the official corpus,
 original-input case context and bounded cancellation assertions.
 
-Native targets PostgreSQL 18.0's observed normalization release boundary,
-including its Hangul TBASE behavior; the official corpus is not edited to hide
-that difference. This is not a blanket Unicode-conformance claim. Registered
+Native targets PostgreSQL 18.6's observed normalization behavior: a Hangul
+LV syllable followed by U+11A7 (TBASE, not a trailing consonant) stays
+uncomposed, which 18.0 composed away. This is not a blanket Unicode-conformance claim. Registered
 provider-equivalent collations retain distinct identities through native replay,
 not interchangeable authority.
