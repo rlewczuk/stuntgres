@@ -79,6 +79,17 @@ func (e JSONBRecord) Reconstruct(info expr.Info, args []expr.Expr) (JSONBRecord,
 	e.Info, e.Args = info, args
 	return e, nil
 }
+
+// JSONBRecord implements expr.Composite.
+var _ expr.Composite = JSONBRecord{}
+
+func (e JSONBRecord) Children() []expr.Expr { return e.Args }
+func (e JSONBRecord) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBRecord", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e JSONBRecord) inputs(c expr.Context) (sqltype.Value, sqltype.Value, sqltype.Usage, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {

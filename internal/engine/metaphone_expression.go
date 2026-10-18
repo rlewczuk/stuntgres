@@ -15,6 +15,17 @@ type installedMetaphoneFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
+// Rebuild keeps the installed-routine identity; the promoted Rebuild would
+// return the bare functions node.
+func (e installedMetaphoneFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+	node, err := e.Metaphone.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	e.Metaphone = node.(functions.Metaphone)
+	return e, nil
+}
+
 func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (BoundExpr, error) {
 	var operands []functions.Argument
 	if len(raw.Args) <= 100 {

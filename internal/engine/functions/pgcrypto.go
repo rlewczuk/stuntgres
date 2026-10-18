@@ -209,6 +209,17 @@ func (e Pgcrypto) Reconstruct(info expr.Info, args []expr.Expr) (Pgcrypto, error
 	return NewPgcrypto(info, e.Plan.Name(), args)
 }
 
+// Pgcrypto implements expr.Composite.
+var _ expr.Composite = Pgcrypto{}
+
+func (e Pgcrypto) Children() []expr.Expr { return e.Args }
+func (e Pgcrypto) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Pgcrypto", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func (e Pgcrypto) Validate() error {
 	rebuilt, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || rebuilt.Plan != e.Plan {

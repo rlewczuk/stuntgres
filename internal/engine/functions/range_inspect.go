@@ -40,6 +40,17 @@ func (e RangeInspect) Reconstruct(info expr.Info, args []expr.Expr) (RangeInspec
 	}
 	return replacement, nil
 }
+
+// RangeInspect implements expr.Composite.
+var _ expr.Composite = RangeInspect{}
+
+func (e RangeInspect) Children() []expr.Expr { return e.Args }
+func (e RangeInspect) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("RangeInspect", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e RangeInspect) Validate() error {
 	replacement, err := NewRangeInspect(e.Info, e.Plan.Operation(), e.Args)
 	if err != nil || replacement.Plan != e.Plan {

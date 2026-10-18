@@ -15,6 +15,17 @@ type installedLevenshteinFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
+// Rebuild keeps the installed-routine identity; the promoted Rebuild would
+// return the bare functions node.
+func (e installedLevenshteinFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+	node, err := e.Levenshtein.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	e.Levenshtein = node.(functions.Levenshtein)
+	return e, nil
+}
+
 func (b *expressionBinder) bindInstalledLevenshtein(raw parser.FunctionExpr) (BoundExpr, error) {
 	var operands []functions.Argument
 	if len(raw.Args) <= 100 {

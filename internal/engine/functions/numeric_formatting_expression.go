@@ -35,6 +35,19 @@ func (e NumericFormatting) Reconstruct(info expr.Info, args [2]expr.Expr) (Numer
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// NumericFormatting implements expr.Composite.
+var _ expr.Composite = NumericFormatting{}
+
+func (e NumericFormatting) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e NumericFormatting) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NumericFormatting", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
 func NewNumericFormatting(ctx context.Context, info expr.Info, name string, args [2]expr.Expr, constant *string) (NumericFormatting, error) {
 	plan, err := sqltype.BindNumericFormat(ctx, name, info.Usage, args[0].ResultUsage(), constant)
 	return NumericFormatting{info, plan, args}, err

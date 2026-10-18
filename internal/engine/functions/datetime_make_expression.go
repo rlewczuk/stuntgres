@@ -163,3 +163,16 @@ func (e DatetimeMake) Reconstruct(info expr.Info, args [7]expr.Expr) (DatetimeMa
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// DatetimeMake implements expr.Composite.
+var _ expr.Composite = DatetimeMake{}
+
+func (e DatetimeMake) Children() []expr.Expr { return e.Args[:e.Count] }
+func (e DatetimeMake) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeMake", children, e.Count); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}

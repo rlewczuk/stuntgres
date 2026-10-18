@@ -44,6 +44,19 @@ func NewNetworkFormat(info expr.Info, kind sqltype.NetworkFormatKind, args [2]ex
 func (e NetworkFormat) Reconstruct(info expr.Info, args [2]expr.Expr) (NetworkFormat, error) {
 	return NewNetworkFormat(info, e.Kind, args)
 }
+
+// NetworkFormat implements expr.Composite.
+var _ expr.Composite = NetworkFormat{}
+
+func (e NetworkFormat) Children() []expr.Expr { return e.Args[:e.Kind.Arity()] }
+func (e NetworkFormat) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NetworkFormat", children, e.Kind.Arity()); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
 func (e NetworkFormat) Validate() error {
 	n, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || n.Plan != e.Plan {

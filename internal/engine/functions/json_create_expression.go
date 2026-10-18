@@ -76,6 +76,17 @@ func (e JSONCreate) Reconstruct(info expr.Info, args []expr.Expr) (JSONCreate, e
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// JSONCreate implements expr.Composite.
+var _ expr.Composite = JSONCreate{}
+
+func (e JSONCreate) Children() []expr.Expr { return e.Args }
+func (e JSONCreate) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONCreate", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func NewJSONCreate(info expr.Info, kind sqltype.JSONCreateKind, args []expr.Expr, variadic bool, unknown [2]uint64) (JSONCreate, error) {
 	expression := JSONCreate{Info: info, Kind: kind, Args: args, Variadic: variadic, Unknown: unknown}
 	return expression.Reconstruct(info, args)

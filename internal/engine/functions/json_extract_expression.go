@@ -52,6 +52,17 @@ func (e JSONExtract) Reconstruct(info expr.Info, args []expr.Expr) (JSONExtract,
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// JSONExtract implements expr.Composite.
+var _ expr.Composite = JSONExtract{}
+
+func (e JSONExtract) Children() []expr.Expr { return e.Args }
+func (e JSONExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONExtract", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e JSONExtract) Validate() error {
 	next, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil {

@@ -114,3 +114,16 @@ func (e DatetimeFormatting) Reconstruct(info expr.Info, args [2]expr.Expr) (Date
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// DatetimeFormatting implements expr.Composite.
+var _ expr.Composite = DatetimeFormatting{}
+
+func (e DatetimeFormatting) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e DatetimeFormatting) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeFormatting", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}

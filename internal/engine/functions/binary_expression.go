@@ -82,6 +82,17 @@ func (e Binary) Reconstruct(info expr.Info, args []expr.Expr) (Binary, error) {
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// Binary implements expr.Composite.
+var _ expr.Composite = Binary{}
+
+func (e Binary) Children() []expr.Expr { return e.Args }
+func (e Binary) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Binary", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func NewBinary(info expr.Info, name string, args []expr.Expr, syntax parser.FunctionSyntax) (Binary, error) {
 	var usages [4]sqltype.Usage
 	for i, arg := range args {

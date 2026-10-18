@@ -64,6 +64,17 @@ func NewMetaphone(info expr.Info, name string, args []expr.Expr) (Metaphone, err
 func (e Metaphone) Reconstruct(info expr.Info, args []expr.Expr) (Metaphone, error) {
 	return NewMetaphone(info, e.Function, args)
 }
+
+// Metaphone implements expr.Composite.
+var _ expr.Composite = Metaphone{}
+
+func (e Metaphone) Children() []expr.Expr { return e.Args }
+func (e Metaphone) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Metaphone", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e Metaphone) Validate() error {
 	if MetaphoneSignature(e.Function, len(e.Args)) == "" || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Text {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone call")

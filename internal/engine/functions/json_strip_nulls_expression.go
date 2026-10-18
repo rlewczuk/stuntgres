@@ -52,3 +52,16 @@ func (e JSONStripNulls) Reconstruct(info expr.Info, args [2]expr.Expr) (JSONStri
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// JSONStripNulls implements expr.Composite.
+var _ expr.Composite = JSONStripNulls{}
+
+func (e JSONStripNulls) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONStripNulls) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONStripNulls", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}

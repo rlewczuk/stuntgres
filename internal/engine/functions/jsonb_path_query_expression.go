@@ -68,6 +68,19 @@ func (e JSONBPathExists) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPa
 	return e, nil
 }
 
+// JSONBPathExists implements expr.Composite.
+var _ expr.Composite = JSONBPathExists{}
+
+func (e JSONBPathExists) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONBPathExists) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathExists", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
+
 // JSONBPathMatch retains immutable executable formals and written presentation.
 type JSONBPathMatch struct {
 	expr.Info
@@ -102,6 +115,19 @@ func (e JSONBPathMatch) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPat
 	}
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
+}
+
+// JSONBPathMatch implements expr.Composite.
+var _ expr.Composite = JSONBPathMatch{}
+
+func (e JSONBPathMatch) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONBPathMatch) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathMatch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
 }
 
 // JSONBPathQueryFirst retains immutable executable formals and written presentation.
@@ -140,6 +166,19 @@ func (e JSONBPathQueryFirst) Reconstruct(info expr.Info, args [4]expr.Expr) (JSO
 	return e, nil
 }
 
+// JSONBPathQueryFirst implements expr.Composite.
+var _ expr.Composite = JSONBPathQueryFirst{}
+
+func (e JSONBPathQueryFirst) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONBPathQueryFirst) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryFirst", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
+
 // JSONBPathQuery retains immutable executable formals and written presentation.
 type JSONBPathQuery struct {
 	expr.Info
@@ -174,6 +213,19 @@ func (e JSONBPathQuery) Reconstruct(info expr.Info, args [4]expr.Expr) (JSONBPat
 	}
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
+}
+
+// JSONBPathQuery implements expr.Composite.
+var _ expr.Composite = JSONBPathQuery{}
+
+func (e JSONBPathQuery) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONBPathQuery) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQuery", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
 }
 
 func (e JSONBPathQuery) Eval(c expr.Context) (sqltype.Value, error) {

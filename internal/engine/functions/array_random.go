@@ -73,6 +73,17 @@ func (e ArrayRandom) Reconstruct(info expr.Info, args []expr.Expr) (ArrayRandom,
 	e.Info, e.Args = info, args
 	return e, e.Validate()
 }
+
+// ArrayRandom implements expr.Composite.
+var _ expr.Composite = ArrayRandom{}
+
+func (e ArrayRandom) Children() []expr.Expr { return e.Args }
+func (e ArrayRandom) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayRandom", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e ArrayRandom) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {

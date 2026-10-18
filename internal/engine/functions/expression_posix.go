@@ -110,3 +110,16 @@ func NewPosixSubstring(info expr.Info, args [2]expr.Expr, syntax parser.Function
 func (e PosixSubstring) Reconstruct(info expr.Info, args [2]expr.Expr) (PosixSubstring, error) {
 	return NewPosixSubstring(info, args, e.Syntax)
 }
+
+// PosixSubstring implements expr.Composite.
+var _ expr.Composite = PosixSubstring{}
+
+func (e PosixSubstring) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e PosixSubstring) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("PosixSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}

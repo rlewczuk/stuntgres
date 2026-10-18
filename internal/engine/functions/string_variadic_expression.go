@@ -230,3 +230,14 @@ func (e StringVariadic) Reconstruct(info expr.Info, args []expr.Expr) (StringVar
 	e.Info, e.Args = info, args
 	return e, nil
 }
+
+// StringVariadic implements expr.Composite.
+var _ expr.Composite = StringVariadic{}
+
+func (e StringVariadic) Children() []expr.Expr { return e.Args }
+func (e StringVariadic) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("StringVariadic", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}

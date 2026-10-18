@@ -73,6 +73,17 @@ func (e Levenshtein) Reconstruct(info expr.Info, args []expr.Expr) (Levenshtein,
 	return NewLevenshtein(info, e.Function, args)
 }
 
+// Levenshtein implements expr.Composite.
+var _ expr.Composite = Levenshtein{}
+
+func (e Levenshtein) Children() []expr.Expr { return e.Args }
+func (e Levenshtein) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Levenshtein", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
+
 func (e Levenshtein) Validate() error {
 	if LevenshteinSignature(e.Function, len(e.Args)) == "" || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Int4 {
 		return fmt.Errorf("stuntgres: invalid stored Levenshtein call")

@@ -17,6 +17,17 @@ type installedCryptoFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
+// Rebuild keeps the installed-routine identity; the promoted Rebuild would
+// return the bare functions node.
+func (e installedCryptoFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+	node, err := e.Pgcrypto.Rebuild(info, children)
+	if err != nil {
+		return nil, err
+	}
+	e.Pgcrypto = node.(functions.Pgcrypto)
+	return e, nil
+}
+
 func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 	if err := c.FunctionContext().Err(); err != nil {
 		return err

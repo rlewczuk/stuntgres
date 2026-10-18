@@ -54,6 +54,17 @@ func (e Enum) Reconstruct(info expr.Info, args []expr.Expr) (Enum, error) {
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// Enum implements expr.Composite.
+var _ expr.Composite = Enum{}
+
+func (e Enum) Children() []expr.Expr { return e.Args }
+func (e Enum) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Enum", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	return rebuilt(e.Reconstruct(info, children))
+}
 func (e Enum) Validate() error {
 	if len(e.Args) < 1 || len(e.Args) > 2 {
 		return fmt.Errorf("stuntgres: invalid stored enum arity")

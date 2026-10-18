@@ -58,3 +58,16 @@ func (e JSONBPathQueryArray) Reconstruct(info expr.Info, args [4]expr.Expr) (JSO
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
+
+// JSONBPathQueryArray implements expr.Composite.
+var _ expr.Composite = JSONBPathQueryArray{}
+
+func (e JSONBPathQueryArray) Children() []expr.Expr { return e.Args[:len(e.Args)] }
+func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryArray", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	args := e.Args
+	copy(args[:], children)
+	return rebuilt(e.Reconstruct(info, args))
+}
