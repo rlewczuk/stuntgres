@@ -97,6 +97,12 @@ type Binder interface {
 	// the arguments for their diagnostic names, reports composite-candidate
 	// calls as unsupported, and notes the missing signature.
 	CallSignatureError(parser.FunctionExpr) error
+	// LiteralNull reports whether a bound argument is a NULL literal, looking
+	// through collation and coercion wrappers.
+	LiteralNull(expr.Expr) bool
+	// NoteVisibilitySnapshot records that execution reads catalog visibility
+	// (encoding conversion lookup), so the statement captures that snapshot.
+	NoteVisibilitySnapshot()
 	// FinishBinary finishes a selected bytea/bit call. It is a leak: string
 	// overloads route to the binary family, which the engine still binds.
 	// The binary port removes it.
