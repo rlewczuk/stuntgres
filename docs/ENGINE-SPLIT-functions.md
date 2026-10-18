@@ -158,9 +158,11 @@ Tier C has a refined plan.
   docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
-  [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [ ] UUID [ ] format
+  [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [x] UUID [x] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
-  [ ] unaccent [ ] intarray [ ] intagg [ ] uuid-ossp
+  [ ] unaccent [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
+  uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
+  `36411c4fd` format move, `0a80f30a0` uuid-ossp move, then the docs commit)
 - [ ] F4/F5 Tier B: [ ] random [ ] current time and clocks [ ] sleep
   [ ] settings reads
 - [ ] F4/F5 aggregates and windows
@@ -169,8 +171,10 @@ Tier C has a refined plan.
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
 is a genuine analyzer capability); `DefaultConsumer`, `ArrayType`,
-`CommonUsage` and `ComparisonInfo` (math). Reasons for every method are in
-the `functions` README.
+`CommonUsage` and `ComparisonInfo` (math); `CollatedInfo`,
+`RetainUntypedParameter`, `NoteCatalogText` and `InstalledRoutine` (UUID
+generation, format, uuid-ossp). Reasons for every method are in the
+`functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -310,7 +314,66 @@ branch runs had medians of 2.15 ms and 1.73 ms against 1.97 ms on master
 (allocations unchanged; time within run-to-run noise and still above the 1 ms
 target as on master). Racecheck skipped at the user's request.
 
+F4/F5 UUID generation, format and uuid-ossp record, measured at its start on
+`604ee2be6`:
+
+- `uuid_generation.go` `bindUUIDGeneration` (final `switch name`, plus
+  pgcrypto's `gen_random_uuid` when `pg_catalog` wins) needed only F3 methods.
+  The label gate exempted `uuidv7` by name, so `Definition` gained
+  `OwnsLabels`: shared gates then skip the label gate and `Bind` owns label
+  diagnostics. `uuidv4` and `uuidv7` are two definitions (exact spelling,
+  shared gates; `uuidv7` also `OwnsLabels`). `BindUUIDGeneration` is exported
+  for pgcrypto.
+- `format_expression.go` `bindFormat` sat after the gates, claimed only exact
+  `format`, and sent other spellings (`"FORMAT"`) to
+  `formatDiagnosticSignatureError`. Correction to the gate rule: shared gates
+  on a case-insensitive definition now treat other spellings as
+  resolution-only, so `format` registers case-insensitively and the engine
+  keeps no format-specific clause. Beyond F3 it needed `CollatedInfo`,
+  `RetainUntypedParameter` (the `anyParameters` retention) and
+  `NoteCatalogText` (`regclassConcat`). The glue file is deleted.
+- `uuid_ossp_expression.go` `bindInstalledUUIDOssp` is the first extension
+  family to move. `InstalledRoutine(name, Extension, signature)` resolves the
+  search path first, so lookup errors precede signature errors as before. It
+  returns an opaque handle whose `Validate` and `Attach` keep the manifest
+  check and the dependency/identity attachment in their old order. The
+  wrapper node `installedUUIDOsspFunctionExpression`, `validShape`,
+  `validate` and its ~20 switch cases stay in the engine (procedure
+  identity), so that file remains with only identity code.
+- `CallLabelError` was extracted from `ValidateCallSyntax`; UUID generation
+  and uuid-ossp used private copies of it.
+- No earlier chain predicate claims `uuidv4`, `uuidv7`, `format` or
+  `uuid_generate_v4`. `closedUUIDDefault` (DEFAULT admission) and the UUID
+  clock/entropy context stay in `uuid_generation.go`.
+
+Tests in F4/F5 UUID generation, format and uuid-ossp: added
+`TestCallLabelErrorOrder`; `TestLookupClaimsRegisteredNames` gained UUID
+generation, format and uuid-ossp cases (each failed first) and no longer
+lists `uuidv7` as unclaimed; `TestDefinitionsAreWellFormed` checks that
+`OwnsLabels` implies `SharedGates`. `uuid_ossp_expression_test.go` now binds
+through `bindFunctionProvider` (three call sites). The engine's
+`uuid_generation*_test.go`, `uuid_ossp_*_test.go` and `format_*_test.go`
+stay: they exercise engine switches (DEFAULT closure, grouping, retag,
+remap, stored identity, views). No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. Quick mode
+passed for
+`^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)`;
+with `REFERENCE=1` everything passed except the `/postgres` subtests of
+`TestReferenceUUIDGeneration{StoredConsumersAndControls,FeatureSmoke,GuardDiagnostics}`,
+which fail identically on master `604ee2be6` (the 18.6 `uuidv7` shift drift
+below; `GuardDiagnostics` is a third witness of it). Bench median 1.83 ms/op
+with 7,769 allocs/op (allocations unchanged; startup code untouched; still
+above the 1 ms target as on master). Racecheck skipped at the user's request.
+
 Notes for later steps:
+
+- `InstalledRoutine` covers the shared lookup of every installed family
+  (pgcrypto, fuzzystrmatch, unaccent, intarray, intagg): add an `Extension`
+  value and an engine handle per family. pgcrypto's `gen_random_uuid` also
+  needs the per-namespace walk that prefers `pg_catalog`; give the handle
+  lookup that ordering rather than a second method.
 
 - Families whose engine branch sits after the shared label and
   `ResolutionOnly` gates in `bindFunctionProvider` must reproduce those gates
@@ -318,9 +381,10 @@ Notes for later steps:
 - `CommonUsage` wraps the engine's `selectCommonUsage`. Its usage-only core
   could move to `sqltype` when CASE/VALUES/IN typing gets an owner; the
   method would then become a plain function.
-- `Lookup` scans the table linearly (2 definitions, 54 names) on every
-  function call before the chain. Re-measure bind cost when more families
-  register; a sorted static table would keep it `init()`-free.
+- `Lookup` scans the table linearly (6 definitions, 58 names after UUID
+  generation, format and uuid-ossp) on every function call before the chain.
+  Re-measure bind cost when more families register; a sorted static table
+  would keep it `init()`-free.
 - `functions.qualifiedName` duplicates the engine's `objectNameText` (a
   dotted join used for the 42809 message). Consolidate them when the engine's
   name helpers get an owner.
@@ -329,5 +393,6 @@ Notes for later steps:
   in the `/postgres` subtests only: `TestReferenceJSONStripNullsFeatureSmoke`
   (expects 42P17, gets success) and
   `TestReferenceUUIDGenerationStoredConsumersAndControls` /
-  `TestReferenceUUIDGenerationFeatureSmoke` (18.6 rejects out-of-range
+  `TestReferenceUUIDGenerationFeatureSmoke` /
+  `TestReferenceUUIDGenerationGuardDiagnostics` (18.6 rejects out-of-range
   `uuidv7` shifts that 18.0 accepted). Needs a separate compatibility task.
