@@ -463,10 +463,12 @@ yet.
   references in 184 files when F1 landed) and `functionInfo` conversions
   disappear.
 - **F2 — Adopt the node protocol, one switch at a time.** Walk, retag, remap,
-  volatility, deparse, node tree, generated admission, join legality. Each
-  switch gains one protocol branch and loses its per-function cases. Verify
-  views, stored defaults and checks, and native Dump/Restore selections, since
-  they exercise remap and deparse.
+  volatility, deparse, node tree, stored scalar SQL, generated admission,
+  conditional planning, join legality. Each switch gains one protocol branch
+  and loses its per-function cases; behavior beyond children goes into small
+  optional hooks (listed in the `expr` README). Verify views, stored defaults
+  and checks, and native Dump/Restore selections, since they exercise remap
+  and deparse.
 - **F3 — Binder interface and registry.** Engine dispatch consults
   `functions.Lookup` first, then falls through to the existing chain.
 - **F4 — Port inside the engine, family by family.** Convert
@@ -702,7 +704,7 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 math, UUID, format, uuid-ossp, arrays, ranges, JSON calls, string, LIKE/SIMILAR/regex, datetime and numeric formatting done; F2 and F4/F5 next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 math, UUID, format, uuid-ossp, arrays, ranges, JSON calls, string, LIKE/SIMILAR/regex, datetime and numeric formatting done; F2 six of eight switches done; F2 render hooks and F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a done; 5b next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |

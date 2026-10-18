@@ -54,8 +54,7 @@ package-level variable. Evaluation always receives a non-nil `Context`.
   `Children()` lists them in evaluation order (entries may be nil; the slice
   may alias the node and must not be modified), and `Rebuild(Info, children)`
   returns a revalidated copy with new metadata and children of the same
-  length, leaving the receiver unchanged. Rebuild is the copy-on-change
-  reconstruction that function nodes implement as `Reconstruct`.
+  length, leaving the receiver unchanged. Every function node is a member.
 - **`Walk`** visits a node and then its children depth first, skipping nil.
   The caller supplies the children enumerator, so the engine's own switch
   decides lexical boundaries (a subquery's plan is a separate frame) and falls
@@ -64,11 +63,44 @@ package-level variable. Evaluation always receives a non-nil `Context`.
   and rebuilds only when one changed, on a fresh slice with `InfoOf(node)`.
   Composite nodes never carry `UnknownNull` or `RegclassRef`.
 - A central engine switch adopts the protocol with one final
-  `case expr.Composite:` branch; the explicit cases before it keep precedence,
-  for example over engine wrappers that embed a protocol node.
-- Adopted so far: the lexical walk (`boundExpressionChildren`,
-  `query_expression_walk.go`). The SQL-deparse and node-tree render hooks are
-  designed in step 3 F2 together with the switches that call them.
+  `case expr.Composite:` branch. Explicit cases before it keep precedence:
+  engine wrappers that embed a protocol node (installed extension routines)
+  keep their cases, because their catalog identity is engine state.
+
+Optional hooks (`hooks.go`), each answering one switch's question; a node
+without a hook gets the switch's previous generic behavior:
+
+- **`Intrinsic`** (`IntrinsicVolatility`): the node's own planned volatility,
+  excluding children. Planned volatility merges it with the children;
+  generated-column admission requires it to be `Immutable` and admits every
+  child.
+- **`Folding`** (`PlanningFold`): `FoldConstant` (default) folds an immutable
+  call with literal children; `FoldNever` leaves the call to execution and
+  never counts it as constant inputs; `FoldOverlapsRoute` and
+  `FoldQuoteCapture` name engine-owned folds that the engine dispatches by
+  kind, not by node type.
+- **`StrictFolding`** (`StrictNull`): when a literal NULL child replaces the
+  call with a typed NULL: before simplifying children, after, or after with
+  only usage and position kept.
+- **`StoredProvider`** (`ValidateStoredProvider`): the node may appear in a
+  stored generation plan; validation rejects protocol nodes without it.
+- **`Retaggable`** (`Retag`): catalog retag for nodes with derived inputs. The
+  engine passes the retagged metadata and children, its change bit and a
+  `Retag` environment (retained descriptors, stored-collation remap, collation
+  derivation); the node returns whether anything changed.
+- **`Annotated`** (`Annotation`/`WithAnnotation`): an opaque engine value that
+  rebuilds keep, such as a quote-capture origin.
+
+Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
+(`joinExpressionSides`), planned volatility, generated admission
+(`generationImmutable`, `generationHasTableOID`, `validateGenerationPlan`),
+conditional planning (`simplifyConditionalNode`, `conditionalConstantInputs`),
+retag (`mapBoundExpressionReader`) and remap (`remapScalarExpression`). The
+walk keeps one explicit `Timezone` case: it visits the value before the zone,
+unlike PostgreSQL, a divergence kept until a compatibility fix. SQL deparse,
+node-tree output, stored scalar SQL and the preflight and aggregate switches
+still list function nodes; their render hooks are designed in step 3 F2's
+second session.
 
 ## What stays in the engine
 
@@ -89,8 +121,10 @@ Since step 3 (F1), `functions` nodes embed `Info` and evaluate against
 ## Testing
 
 Unit tests pin the helpers: property merging, intrinsic rules, `InfoOf`,
-the positioned errors, and the `Walk`/`Map` protocol helpers. Expression evaluation itself is covered by the engine
-and `functions` tests and the `reference/` suite.
+the positioned errors, and the `Walk`/`Map` protocol helpers. The hook
+implementations are pinned by the `functions` tests (see its README).
+Expression evaluation itself is covered by the engine and `functions` tests
+and the `reference/` suite.
 
 ```sh
 make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition)'

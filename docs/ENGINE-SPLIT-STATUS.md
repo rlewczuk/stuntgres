@@ -10,8 +10,8 @@ Last verified against `master` at `7af01d85b`.
 ## Next ready sub-steps
 
 - **2d** — remove the `expr` aliases (needs 2c ✓) *(alias removal)*.
-- **F2** — convert the remaining switches to the node protocol (needs 2c ✓)
-  *(broad rewrite)*.
+- **F2 session 2** — render hooks for deparse, node tree and stored scalar
+  SQL (needs F2 session 1 ✓) *(broad rewrite)*.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5** — port Tier A, Tier B and aggregate families one at a time
   (needs F3 ✓).
@@ -48,14 +48,15 @@ must not run alongside each other or another broad rewrite or alias removal
   - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
   - [ ] F2 — Switches converted to the node protocol *(broad rewrite; needs
     2c)*
-    - [ ] retag
-    - [ ] remap
-    - [ ] volatility
+    - [x] retag (`H_RETAG`)
+    - [x] remap (`H_REMAP`)
+    - [x] volatility (`H_VOLATILITY`)
     - [ ] deparse
     - [ ] node tree
-    - [ ] generated admission
-    - [ ] conditional plan
-    - [ ] join legality
+    - [x] generated admission (`H_GENERATED`)
+    - [x] conditional plan (`H_CONDITIONAL`)
+    - [x] join legality (`H_JOIN`; protocol membership `H_MEMBERS`, docs
+      `H_DOCS`)
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
