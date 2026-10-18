@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *typeDescriptor {
+func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *catalog.Type {
 	t.Helper()
 	key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, Name: "time_stamp"}
 	addresses := view.Lookup(key)
@@ -94,7 +94,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal(declaration, err)
 	}
 	for _, descriptor := range next.Descriptors() {
-		if typ, ok := descriptor.(*typeDescriptor); ok {
+		if typ, ok := descriptor.(*catalog.Type); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(typ.Name(), err)
 			}

@@ -259,7 +259,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 		return nil, nil
 	}
 	descriptor, _ := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-	row, ok := descriptor.(*typeDescriptor)
+	row, ok := descriptor.(*catalog.Type)
 	if !ok {
 		return nil, nil
 	}

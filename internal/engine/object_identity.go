@@ -276,7 +276,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 		display = r.name
 	}
 	switch d := d.(type) {
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		_, canonical = objectNamespace(view, d.Address())
 		r.identity = pgIdentifier(canonical)
 		r.names = []string{canonical}
@@ -295,7 +295,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 			r.description = "column " + attr + " of " + objectRelationKind(view, d) + " " + display
 			return r, nil
 		}
-	case *typeDescriptor:
+	case *catalog.Type:
 		r.identity = objectQualifiedType(view, a.ObjectID)
 		r.names = []string{r.identity}
 		display = regtypeSpelling(view, path, a.ObjectID)
@@ -332,7 +332,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 // descriptors and never get an invented namespace or simple-name field.
 func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
 	for _, descriptor := range view.Descriptors() {
-		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
+		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
 			for _, check := range domain.DomainChecks {
 				if check.OID != a.ObjectID {
 					continue

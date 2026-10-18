@@ -35,7 +35,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				return err
 			}
 			switch descriptor := descriptor.(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				copy := *descriptor
 				copy.ObjectRevision = revision
 				next.SetDescriptor(address, &copy)

@@ -20,7 +20,7 @@ import (
 // provider validation and generator/storage capture as well as installation.
 func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 	for _, descriptor := range view.Descriptors() {
-		if extension, ok := descriptor.(*extensionDescriptor); ok {
+		if extension, ok := descriptor.(*catalog.Extension); ok {
 			namespace, ok := view.Namespace(extension.TargetNamespace)
 			if !ok {
 				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
@@ -33,7 +33,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 	next := catalog.CloneState(view.State())
 	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
 	for a, d := range view.Descriptors() {
-		ns, isNamespace := d.(*namespaceDescriptor)
+		ns, isNamespace := d.(*catalog.Namespace)
 		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
 			operators.Replace(d, nil)
@@ -82,7 +82,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	temporary := make(map[ids.ObjectAddress]Descriptor)
 	for a, d := range e.catalog.state.Descriptors() {
-		if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary != (ids.SessionToken{}) {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary != (ids.SessionToken{}) {
 			temporary[a] = d
 		}
 	}
@@ -96,7 +96,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for _, address := range children {
 		descriptor := e.catalog.state.Get(address)
-		if extension, ok := descriptor.(*extensionDescriptor); ok {
+		if extension, ok := descriptor.(*catalog.Extension); ok {
 			if imported, exists := next.LookupName(catalog.DescriptorNameKey(extension)); exists && next.Get(imported) != extension {
 				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.Name())
 			}
@@ -244,7 +244,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					address := ref.Address
 					address.SubID = 0
 					switch provider := e.catalog.state.Get(address).(type) {
-					case *typeDescriptor:
+					case *catalog.Type:
 						retainBuiltin(provider.SQLType)
 					case *catalog.Relation:
 						if ref.Address.SubID != 0 || provider != captured || provider.RelationKind != catalog.CatalogRelation || !pgDependPinned(e.catalog.read(e.catalog.state), address) {
@@ -343,7 +343,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				next.SetDumpPriority(target, priority)
 			}
 			switch r := d.(type) {
-			case *namespaceDescriptor:
+			case *catalog.Namespace:
 				if target == a && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
@@ -351,14 +351,14 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.ObjectAddress = target
 				d = &n
-			case *collationDescriptor:
+			case *catalog.Collation:
 				n := *r
 				n.OID = target.ObjectID
 				if dest, ok := mapping[n.Namespace()]; ok {
 					n.ObjectNamespace = dest
 				}
 				d = &n
-			case *conversionDescriptor:
+			case *catalog.Conversion:
 				namespace, handler := r.Namespace(), r.Handler
 				if dest, ok := mapping[namespace]; ok {
 					namespace = dest

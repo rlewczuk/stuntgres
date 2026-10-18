@@ -121,7 +121,7 @@ type binding struct {
 	createUniques         []createUniqueConstraint
 	createDeclarations    []createColumnDeclaration
 	createLikes           []createLikeInput
-	createOfType          *typeDescriptor
+	createOfType          *catalog.Type
 	createInheritance     []createInheritanceInput
 	createLocalColumns    map[string]bool
 	defaults              []expr.Expr
@@ -185,7 +185,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	if err := e.RegisterCatalogProvider(namespaceProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.NamespaceProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
@@ -194,14 +194,14 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(typeProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(collationProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.CollationProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.ConversionProvider{}); err != nil {
 		return nil, err
 	}
 	for _, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
-		if err := e.RegisterCatalogProvider(foreignCatalogProvider{class}); err != nil {
+		if err := e.RegisterCatalogProvider(catalog.ForeignCatalogProvider{class}); err != nil {
 			return nil, err
 		}
 	}
@@ -210,7 +210,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			return nil, err
 		}
 	}
-	if err := e.RegisterCatalogProvider(databaseProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.DatabaseProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
@@ -219,7 +219,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(parameterProvider{e.settingsDefinitions}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(tablespaceProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {
 		return nil, err
 	}
 	for _, extension := range []struct {
@@ -239,7 +239,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
+		d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
 			d.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -251,7 +251,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.ObjectRevision = 1
 		}
@@ -262,7 +262,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	for i := range catalog.BuiltinCollations {
-		d := new(collationDescriptor)
+		d := new(catalog.Collation)
 		*d = catalog.BuiltinCollations[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		e.catalog.state.SetDescriptor(d.Address(), d)
@@ -272,7 +272,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	e.initializeBuiltinRoutines()
 	e.initializeTablespaces()
 	for i := range catalog.BuiltinConversions {
-		d := new(conversionDescriptor)
+		d := new(catalog.Conversion)
 		*d = catalog.BuiltinConversions[i]
 		d.Owner = e.authorizationDomain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
@@ -637,7 +637,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					}
 					return b, diagnostic
 				}
-				var sourceType *typeDescriptor
+				var sourceType *catalog.Type
 				if source.RelationKind == catalog.CompositeRelation {
 					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
@@ -915,7 +915,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	}
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.Namespace())
-		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.Temporary == auth.session.token {
+		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

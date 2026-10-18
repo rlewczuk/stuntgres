@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
@@ -335,7 +336,7 @@ func TestSerializablePublicationCatalogChangeSetVetoWithLiveGraph(t *testing.T) 
 	peer := serializableUnitCycle(t, e, node)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	descriptor := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "unpublished", ObjectRevision: 1}
+	descriptor := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "unpublished", ObjectRevision: 1}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
 	}

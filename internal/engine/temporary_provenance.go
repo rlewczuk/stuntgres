@@ -36,12 +36,12 @@ func storedReferenceEpochValid(view CatalogRead, consumer *catalog.Relation, ref
 			return false
 		}
 		return ref.Address.SubID == 0 || target.HasAttribute(ref.Address.SubID)
-	case *typeDescriptor:
+	case *catalog.Type:
 		// Full rendering has already compared each concrete node's exact Usage
 		// generation. Native replacement retains these builtin descriptors, not
 		// user-defined/domain generations under this exception.
 		return ref.Address.SubID == 0 && !target.SQLType.IsUserDefined() && !target.SQLType.IsDomain() && !(target.SQLType.IsArray() && target.SQLType.Element().IsDomain())
-	case *collationDescriptor:
+	case *catalog.Collation:
 		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
@@ -49,10 +49,10 @@ func storedReferenceEpochValid(view CatalogRead, consumer *catalog.Relation, ref
 			return false
 		}
 		if target.Seeded() {
-			return pgDependPinned(view, ref.Address) && (collationProvider{}).Validate(view, target) == nil
+			return pgDependPinned(view, ref.Address) && (catalog.CollationProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
-		return ok && ns.Temporary == namespace.Temporary && (collationProvider{}).Validate(view, target) == nil
+		return ok && ns.Temporary == namespace.Temporary && (catalog.CollationProvider{}).Validate(view, target) == nil
 	case *catalog.Procedure:
 		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
@@ -108,11 +108,11 @@ func storedViewReferenceValid(view CatalogRead, consumer *catalog.Relation, ref 
 	case *catalog.Relation:
 		old, ok := captured.(*catalog.Relation)
 		return ok && actual.Namespace() == old.Namespace() && actual.RelationKind == old.RelationKind
-	case *typeDescriptor:
-		old, ok := captured.(*typeDescriptor)
+	case *catalog.Type:
+		old, ok := captured.(*catalog.Type)
 		return ok && actual.SQLType == old.SQLType
-	case *collationDescriptor:
-		old, ok := captured.(*collationDescriptor)
+	case *catalog.Collation:
+		old, ok := captured.(*catalog.Collation)
 		if !ok {
 			return false
 		}
@@ -197,7 +197,7 @@ func storedCollationReferenceValid(view CatalogRead, consumer *catalog.Relation,
 	if !ok {
 		return false
 	}
-	collation, ok := target.(*collationDescriptor)
+	collation, ok := target.(*catalog.Collation)
 	if !ok {
 		return false
 	}

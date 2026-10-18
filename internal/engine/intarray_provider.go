@@ -11,12 +11,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type intarrayProvider struct{ control extensionControl }
+type intarrayProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
-func (p *intarrayProvider) Control() extensionControl { return p.control.Detached() }
+func (p *intarrayProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 
-var stockIntarray = &intarrayProvider{control: extensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
+var stockIntarray = &intarrayProvider{control: catalog.ExtensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 
 const intarrayTypeContext = "SQL statement \"CREATE TYPE query_int (\n\tINTERNALLENGTH = -1,\n\tINPUT = bqarr_in,\n\tOUTPUT = bqarr_out\n)\"\nextension script file \"intarray--1.2.sql\", near line 21"
 const intarrayInputContext = "SQL statement \"CREATE FUNCTION bqarr_in(cstring)\nRETURNS query_int\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 11"
@@ -25,7 +25,7 @@ func queryIntSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
-func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	available, err := e.displaceAssociatedArrayLocked(stage, ext.TargetNamespace, "query_int")
 	if err != nil {
 		return err
@@ -56,10 +56,10 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	acl, synthetic := stage.creationTypeACL(owner, ext.TargetNamespace)
-	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
+	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
+	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
 		return err
 	}
 	for i := range 2 {
@@ -88,7 +88,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	return nil
 }
 
-func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
+func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
 	if p != stockIntarray || ext.Name() != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()

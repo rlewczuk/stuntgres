@@ -24,7 +24,7 @@ func TestUUIDOsspZeroArity(t *testing.T) {
 	}
 }
 
-func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -72,7 +72,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) {
-			p.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
+			p.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 		},
 		func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
 		func(p *catalog.Procedure) { p.Builtin = builtinRoutineByOID[3432] },
@@ -102,11 +102,11 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 			t.Fatal("corrupt UUID member accepted", bad)
 		}
 	}
-	for _, mutate := range []func(*extensionDescriptor){
-		func(x *extensionDescriptor) { x.Version = "missing" },
-		func(x *extensionDescriptor) { x.ObjectName = "pgcrypto" },
-		func(x *extensionDescriptor) { x.Members = nil },
-		func(x *extensionDescriptor) { x.Members = []ids.ObjectAddress{address, address} },
+	for _, mutate := range []func(*catalog.Extension){
+		func(x *catalog.Extension) { x.Version = "missing" },
+		func(x *catalog.Extension) { x.ObjectName = "pgcrypto" },
+		func(x *catalog.Extension) { x.Members = nil },
+		func(x *catalog.Extension) { x.Members = []ids.ObjectAddress{address, address} },
 	} {
 		bad := *ext
 		mutate(&bad)

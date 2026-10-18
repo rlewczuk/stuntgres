@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -37,9 +38,9 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	view := e.CatalogRead()
-	collation := func(name string) *collationDescriptor {
+	collation := func(name string) *catalog.Collation {
 		for _, descriptor := range view.Descriptors() {
-			if d, ok := descriptor.(*collationDescriptor); ok && d.Name() == name {
+			if d, ok := descriptor.(*catalog.Collation); ok && d.Name() == name {
 				return d
 			}
 		}

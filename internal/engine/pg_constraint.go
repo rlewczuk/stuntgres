@@ -45,7 +45,7 @@ func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRe
 		if table, ok := descriptor.(*catalog.Relation); ok {
 			count += len(table.NotNullConstraints) + len(table.CheckConstraints) + len(table.UniqueConstraints) + len(table.ForeignKeys) + len(table.ExclusionConstraints)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok {
+		if domain, ok := descriptor.(*catalog.Type); ok {
 			count += len(domain.DomainChecks)
 		}
 	}
@@ -57,7 +57,7 @@ func capturePGConstraint(ctx context.Context, view CatalogRead, ref ids.ObjectRe
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok {
+		if domain, ok := descriptor.(*catalog.Type); ok {
 			for _, check := range domain.DomainChecks {
 				row := values[at*28 : (at+1)*28 : (at+1)*28]
 				rows[at] = row

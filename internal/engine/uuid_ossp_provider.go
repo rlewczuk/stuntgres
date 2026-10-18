@@ -10,14 +10,14 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type uuidOsspProvider struct{ control extensionControl }
+type uuidOsspProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
-func (p *uuidOsspProvider) Control() extensionControl { return p.control.Detached() }
+func (p *uuidOsspProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 
-var stockUUIDOssp = &uuidOsspProvider{control: extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
+var stockUUIDOssp = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
 
-func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	return stage.Create(proc)
 }
 
-func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
+func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid uuid-ossp manifest") }
 	if p != stockUUIDOssp || ext.Name() != "uuid-ossp" || ext.Version != p.control.Version || len(ext.Members) != 1 {
 		return invalid()

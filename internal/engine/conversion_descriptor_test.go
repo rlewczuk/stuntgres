@@ -5,13 +5,14 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *conversionDescriptor {
-	return &conversionDescriptor{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
+func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *catalog.Conversion {
+	return &catalog.Conversion{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -45,17 +46,17 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	if err := (conversionProvider{}).Validate(view, d); err != nil {
+	if err := (catalog.ConversionProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	for _, corrupt := range []func(*conversionDescriptor){
-		func(d *conversionDescriptor) { d.Source = 0 }, func(d *conversionDescriptor) { d.Destination = 9 },
-		func(d *conversionDescriptor) { d.Handler.ObjectID = 4374 }, func(d *conversionDescriptor) { d.Handler.SubID = 1 },
-		func(d *conversionDescriptor) { d.ObjectNamespace.ObjectID = 999999 }, func(d *conversionDescriptor) { d.ObjectRevision = 0 },
+	for _, corrupt := range []func(*catalog.Conversion){
+		func(d *catalog.Conversion) { d.Source = 0 }, func(d *catalog.Conversion) { d.Destination = 9 },
+		func(d *catalog.Conversion) { d.Handler.ObjectID = 4374 }, func(d *catalog.Conversion) { d.Handler.SubID = 1 },
+		func(d *catalog.Conversion) { d.ObjectNamespace.ObjectID = 999999 }, func(d *catalog.Conversion) { d.ObjectRevision = 0 },
 	} {
 		bad := *d
 		corrupt(&bad)
-		if err := (conversionProvider{}).Validate(view, &bad); err == nil {
+		if err := (catalog.ConversionProvider{}).Validate(view, &bad); err == nil {
 			t.Fatal("invalid conversion capability admitted", bad)
 		}
 	}
@@ -72,7 +73,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	}
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
 	seed.DefaultConversion = false
-	if err := (conversionProvider{}).Validate(view, &seed); err == nil {
+	if err := (catalog.ConversionProvider{}).Validate(view, &seed); err == nil {
 		t.Fatal("pinned capability/default invariant changed")
 	}
 	seed = *view.MustConversion(seed.Address())

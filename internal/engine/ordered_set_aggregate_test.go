@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
@@ -605,7 +606,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("binding input owner")
 			}
-			inputOwner := descriptor.(*typeDescriptor)
+			inputOwner := descriptor.(*catalog.Type)
 			if inputOwner.SQLType != input {
 				t.Fatal("input owner/leaf generation", inputOwner, input)
 			}
@@ -680,7 +681,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("actual result owner")
 			}
-			resultOwner := descriptor.(*typeDescriptor)
+			resultOwner := descriptor.(*catalog.Type)
 			if actual.Type != resultOwner.SQLType || resultOwner.Namespace() != inputOwner.Namespace() || resultOwner.Owner != inputOwner.Owner {
 				t.Fatal("result generation/namespace/principal authority", actual, resultOwner, inputOwner)
 			}

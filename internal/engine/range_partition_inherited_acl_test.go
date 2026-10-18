@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -50,7 +51,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		if descriptor.Kind() == ids.NamespaceObject {
 			return e.SetObjectACL(context.Background(), ref, acl)
 		}
-		typ, ok := descriptor.(*typeDescriptor)
+		typ, ok := descriptor.(*catalog.Type)
 		if !ok {
 			t.Fatal("ACL fixture is not a user type", descriptor)
 		}

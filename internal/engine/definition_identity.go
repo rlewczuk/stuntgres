@@ -98,7 +98,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 				}
 			}
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok {
+		if domain, ok := descriptor.(*catalog.Type); ok {
 			for _, check := range domain.DomainChecks {
 				if check.OID == id {
 					return true
@@ -168,7 +168,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 				reserved[helper.ID] = true
 			}
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok {
+		if domain, ok := descriptor.(*catalog.Type); ok {
 			for _, check := range domain.DomainChecks {
 				reserved[check.OID] = true
 			}
@@ -227,7 +227,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				}
 			}
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok {
+		if domain, ok := descriptor.(*catalog.Type); ok {
 			for _, check := range domain.DomainChecks {
 				if err := claim(check.OID); err != nil {
 					return err
@@ -297,13 +297,13 @@ func validateDefinitionOIDs(view CatalogRead) error {
 func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	reserved := make(map[ids.OID]bool)
 	var relations []*catalog.Relation
-	var domains []*typeDescriptor
+	var domains []*catalog.Type
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] = true
 		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			reserveDefinitionOIDs(reserved, proc)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
+		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 			reserveDefinitionOIDs(reserved, domain)
 		}
@@ -378,7 +378,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	sort.Slice(domains, func(i, j int) bool { return domains[i].Address().ObjectID < domains[j].Address().ObjectID })
 	for _, domain := range domains {
 		copy := *domain
-		var checks []domainCheckConstraint
+		var checks []catalog.DomainCheckConstraint
 		for i, check := range domain.DomainChecks {
 			id, err := remint(check.OID)
 			if err != nil {
@@ -386,7 +386,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			if id != check.OID {
 				if checks == nil {
-					checks = append([]domainCheckConstraint(nil), domain.DomainChecks...)
+					checks = append([]catalog.DomainCheckConstraint(nil), domain.DomainChecks...)
 				}
 				checks[i].OID = id
 			}

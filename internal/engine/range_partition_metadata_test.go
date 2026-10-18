@@ -167,9 +167,9 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		key := relation.Partition.Keys[0]
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)}
 		provider := view.MustCollation(address)
-		var other *collationDescriptor
+		var other *catalog.Collation
 		for _, descriptor := range view.Descriptors() {
-			if d, ok := descriptor.(*collationDescriptor); ok && d.Name() == "rp_admission_other" {
+			if d, ok := descriptor.(*catalog.Collation); ok && d.Name() == "rp_admission_other" {
 				other = d
 			}
 		}

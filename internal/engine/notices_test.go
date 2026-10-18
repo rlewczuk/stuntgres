@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -444,7 +445,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			if !ok {
 				t.Fatal("public namespace missing")
 			}
-			prior, err := e.Roles().Descriptor(descriptor.(*namespaceDescriptor).Owner)
+			prior, err := e.Roles().Descriptor(descriptor.(*catalog.Namespace).Owner)
 			if err != nil {
 				t.Fatal(err)
 			}

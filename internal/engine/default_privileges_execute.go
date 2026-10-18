@@ -60,7 +60,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	if schemas != nil {
 		schemaCount = len(schemas)
 	}
-	var updates map[defaultACLKey]*defaultACLRecord
+	var updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	for _, spec := range creators {
 		creator, err := authorization.MembershipRole(v.roles, v.state, spec)
 		if err != nil {
@@ -93,7 +93,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if err := op.Context().Err(); err != nil {
 				return Result{}, err
 			}
-			key := defaultACLKey{Creator: creator, Schema: schema, Class: class}
+			key := catalog.DefaultACLKey{Creator: creator, Schema: schema, Class: class}
 			old, exists := updates[key]
 			if !exists {
 				old = v.catalog.State().DefaultACL(key)
@@ -112,12 +112,12 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 				continue
 			}
 			if updates == nil {
-				updates = make(map[defaultACLKey]*defaultACLRecord)
+				updates = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 			}
 			if authorization.MatchesDefaultBaseline(next, creator, class, schema != (ids.ObjectAddress{})) {
 				updates[key] = nil
 			} else {
-				updates[key] = &defaultACLRecord{ACL: next}
+				updates[key] = &catalog.DefaultACLRecord{ACL: next}
 			}
 		}
 	}

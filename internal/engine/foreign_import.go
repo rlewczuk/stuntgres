@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
+func foreignMappingFor(auth AuthorizationView, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
 		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
@@ -23,7 +23,7 @@ func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*fore
 	}
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.Name()))
 }
-func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*catalog.ForeignProcedure, error) {
+func foreignHandlerFor(catalog CatalogRead, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
 	if wrapper.Handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.Name()))
 	}

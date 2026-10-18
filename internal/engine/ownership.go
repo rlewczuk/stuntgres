@@ -56,13 +56,13 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 // names. Protected catalog namespaces and immutable providers are not bulk roots.
 func ownershipRoot(view CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
-	case *foreignDescriptor:
+	case *catalog.ForeignObject:
 		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		return t.Temporary == (ids.SessionToken{}) && t.Address().ObjectID != ids.PGCatalogNamespaceOID && t.Address().ObjectID != ids.PGToastNamespaceOID && t.Address().ObjectID != 13229
 	case *catalog.Relation:
 		return t.RelationKind != catalog.CatalogRelation && t.RelationKind != catalog.IndexRelation && t.RelationKind != catalog.CompositeRelation && (t.Sequence == nil || t.Sequence.Owned == (ids.ObjectAddress{}))
-	case *typeDescriptor:
+	case *catalog.Type:
 		if !t.SQLType.IsUserDefined() || t.SQLType.IsArray() {
 			return false
 		}
@@ -71,15 +71,15 @@ func ownershipRoot(view CatalogRead, d Descriptor) bool {
 		}
 		r, ok := view.Relation(t.OwningRelation)
 		return ok && r.RelationKind == catalog.CompositeRelation
-	case *collationDescriptor:
+	case *catalog.Collation:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
-	case *conversionDescriptor:
+	case *catalog.Conversion:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *catalog.Operator:
 		return !operatorSeeded(t)
 	case *catalog.Procedure:
 		return !t.Seeded() && t.Foreign == nil
-	case *databaseDescriptor, *extensionDescriptor, *tsDictionaryDescriptor:
+	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:
 		return true
 	}
 	return false
@@ -101,17 +101,17 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		return err
 	}
 	switch old := d.(type) {
-	case *databaseDescriptor:
+	case *catalog.Database:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
-	case *foreignDescriptor:
+	case *catalog.ForeignObject:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
-	case *extensionDescriptor:
+	case *catalog.Extension:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
@@ -120,22 +120,22 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		next := *old
 		next.Owner = target
 		next.ObjectRevision = revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
-	case *collationDescriptor:
+	case *catalog.Collation:
 		next := *old
 		next.Owner = target
 		next.ObjectRevision = revision
 		return stage.Replace(&next)
-	case *conversionDescriptor:
+	case *catalog.Conversion:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
@@ -143,7 +143,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
-	case *typeDescriptor:
+	case *catalog.Type:
 		next := *old
 		next.Owner = target
 		next.ObjectRevision = revision
@@ -335,7 +335,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err != nil {
 		return fail(err)
 	}
-	var old *typeDescriptor
+	var old *catalog.Type
 	for i := range path.count() {
 		a := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
 		if a != (ids.ObjectAddress{}) {

@@ -81,7 +81,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				func(p *catalog.Procedure) { p.Signature = "23" },
 				func(p *catalog.Procedure) { p.ObjectName = "text_soundex" },
 				func(p *catalog.Procedure) {
-					p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+					p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
 				},
 				func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 			} {

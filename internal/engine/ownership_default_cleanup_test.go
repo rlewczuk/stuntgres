@@ -11,21 +11,21 @@ import (
 func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	before := catalog.CloneState(f.e.catalog.state)
-	before.SetDefaultACLs(make(map[defaultACLKey]*defaultACLRecord))
+	before.SetDefaultACLs(make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord))
 	for class := authorization.DefaultTables; class <= authorization.DefaultLargeObjects; class++ {
-		before.SetDefaultACL(defaultACLKey{Creator: f.owner, Class: class}, &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true}})
+		before.SetDefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: class}, &catalog.DefaultACLRecord{ACL: authorization.ACLValue{Explicit: true}})
 		if class <= authorization.DefaultTypes {
-			before.SetDefaultACL(defaultACLKey{Creator: f.owner, Schema: f.schema, Class: class}, &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: authorization.DefaultMask(class)}}}})
+			before.SetDefaultACL(catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: class}, &catalog.DefaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: authorization.DefaultMask(class)}}}})
 		}
 	}
-	retainedEmpty := defaultACLKey{Creator: f.member, Class: authorization.DefaultRoutines}
-	before.SetDefaultACL(retainedEmpty, &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.ExecutePrivilege, GrantOptions: authorization.ExecutePrivilege}}}})
-	baseline := defaultACLKey{Creator: f.member, Class: authorization.DefaultTables}
+	retainedEmpty := catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultRoutines}
+	before.SetDefaultACL(retainedEmpty, &catalog.DefaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.ExecutePrivilege, GrantOptions: authorization.ExecutePrivilege}}}})
+	baseline := catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultTables}
 	acl := authorization.DefaultBaseline(f.member, authorization.DefaultTables, false)
 	acl.Entries = append(acl.Entries, authorization.ACLEntry{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege})
-	before.SetDefaultACL(baseline, &defaultACLRecord{ACL: acl})
-	untouched := defaultACLKey{Creator: f.reader, Class: authorization.DefaultTypes}
-	before.SetDefaultACL(untouched, &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true}})
+	before.SetDefaultACL(baseline, &catalog.DefaultACLRecord{ACL: acl})
+	untouched := catalog.DefaultACLKey{Creator: f.reader, Class: authorization.DefaultTypes}
+	before.SetDefaultACL(untouched, &catalog.DefaultACLRecord{ACL: authorization.ACLValue{Explicit: true}})
 	f.e.catalog.state = before
 	oldACL := append([]authorization.ACLEntry(nil), before.DefaultACL(baseline).ACL.Entries...)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())

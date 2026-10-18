@@ -90,7 +90,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	next := *old
 	changed := true
-	var extension *extensionDescriptor
+	var extension *catalog.Extension
 	switch s.Action {
 	case "depends", "no_depends":
 		address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text})

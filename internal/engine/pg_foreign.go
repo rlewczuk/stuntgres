@@ -66,7 +66,7 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqlt
 func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	var descriptors []Descriptor
 	for _, d := range auth.catalog.Descriptors() {
-		if foreign, ok := d.(*foreignDescriptor); ok {
+		if foreign, ok := d.(*catalog.ForeignObject); ok {
 			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == pgUserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
 			}
@@ -100,7 +100,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			}
 			row[2], err = foreignOptionsValue(source.Columns[2].Usage.Type, relation.Foreign.Options)
 		} else {
-			d := descriptor.(*foreignDescriptor)
+			d := descriptor.(*catalog.ForeignObject)
 			if err = putOID(0, uint32(d.Address().ObjectID)); err != nil {
 				return nil, err
 			}

@@ -110,16 +110,16 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			return err
 		}
 		switch old := descriptor.(type) {
-		case *databaseDescriptor:
+		case *catalog.Database:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *namespaceDescriptor:
+		case *catalog.Namespace:
 			next := *old
 			next.ACL = nextACL
 			next.ObjectRevision = revision
 			err = stage.Replace(&next)
-		case *typeDescriptor:
+		case *catalog.Type:
 			next := *old
 			next.ACL = nextACL
 			next.ACLSyntheticDefault = false
@@ -129,11 +129,11 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *foreignDescriptor:
+		case *catalog.ForeignObject:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
-		case *parameterDescriptor:
+		case *catalog.Parameter:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			if !next.ACL.Explicit || authorization.MatchesDefaultBaseline(next.ACL, next.Owner, authorization.DefaultParameters, false) {
@@ -141,7 +141,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			} else {
 				err = stage.Replace(&next)
 			}
-		case *tablespaceDescriptor:
+		case *catalog.Tablespace:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)
@@ -172,7 +172,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			}
 			record = staged
 		}
-		var next *defaultACLRecord
+		var next *catalog.DefaultACLRecord
 		if !sources[key.Creator] {
 			acl, changed, err := authorization.OwnedACL(ctx, roles, record.ACL, key.Creator, sources)
 			if err != nil {
@@ -182,16 +182,16 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 				continue
 			}
 			if !authorization.MatchesDefaultBaseline(acl, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{})) {
-				next = &defaultACLRecord{ACL: acl}
+				next = &catalog.DefaultACLRecord{ACL: acl}
 			}
 		}
 		// Creator ownership removes the entire actual record, including a
 		// stored empty global policy. Recipient cleanup uses the key baseline.
 		if stage.DefaultReads == nil {
-			stage.DefaultReads = make(map[defaultACLKey]*defaultACLRecord)
+			stage.DefaultReads = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 		}
 		if stage.DefaultACLs == nil {
-			stage.DefaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+			stage.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 		}
 		stage.DefaultReads[key] = original
 		stage.DefaultACLs[key] = next

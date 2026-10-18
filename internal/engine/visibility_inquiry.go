@@ -263,7 +263,7 @@ func (e visibilityInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 		if e.kind == databaseCollationVersionInquiry {
 			version, err = databaseCollationActualVersion()
 		} else {
-			version, err = collationActualVersion(d.(*collationDescriptor))
+			version, err = collationActualVersion(d.(*catalog.Collation))
 		}
 		if err != nil {
 			return sqltype.Value{}, err

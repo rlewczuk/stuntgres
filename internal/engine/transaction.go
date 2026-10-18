@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -354,7 +355,7 @@ type StatementScope struct {
 	implicit                       bool
 	input                          sqltype.InputEnvironment
 	domainEvaluation               *EvalContext
-	domainPreparedChecks           map[*typeDescriptor]domainCheckProgram
+	domainPreparedChecks           map[*catalog.Type]domainCheckProgram
 	partitionPrograms              map[partitionRoutineIdentity][]expr.Expr
 	routinePrograms                []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
 	domainInputCatalog             CatalogRead

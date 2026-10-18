@@ -18,7 +18,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 	}
 	initialSchema := quoteIdentifier(catalogNamespace.Name())
 	type delta struct {
-		d                       *collationDescriptor
+		d                       *catalog.Collation
 		fixed, temporary, owner string
 	}
 	var changes []delta
@@ -89,7 +89,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view CatalogRead) error {
 	var roots []ids.ObjectAddress
 	for a, d := range view.Descriptors() {
-		if _, ok := d.(*collationDescriptor); !ok {
+		if _, ok := d.(*catalog.Collation); !ok {
 			continue
 		}
 		if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {

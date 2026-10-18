@@ -30,7 +30,7 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
-func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
+func bootstrapNamespaceDumpable(d *catalog.Namespace) bool {
 	if d.Address().ObjectID == ids.PGToastNamespaceOID {
 		return !d.ACL.Explicit && len(d.ACL.Entries) == 0
 	}
@@ -77,7 +77,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return err
 	}
 	for _, descriptor := range e.catalog.state.Descriptors() {
-		_, foreign := descriptor.(*foreignDescriptor)
+		_, foreign := descriptor.(*catalog.ForeignObject)
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Foreign != nil {
 			foreign = true
 		}
@@ -136,9 +136,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
-	var domains []*typeDescriptor
-	var collations []*collationDescriptor
-	var conversions []*conversionDescriptor
+	var domains []*catalog.Type
+	var collations []*catalog.Collation
+	var conversions []*catalog.Conversion
 	var operators []*catalog.Operator
 	type dumpSchema struct {
 		name, owner string
@@ -188,7 +188,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
 			continue
 		}
-		ns := d.(*namespaceDescriptor)
+		ns := d.(*catalog.Namespace)
 		role, err := domainRoles.Descriptor(ns.Owner)
 		if err != nil {
 			e.mu.Unlock()
@@ -262,13 +262,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		r, ok := d.(*catalog.Relation)
 		if !ok {
 			switch t := d.(type) {
-			case *databaseDescriptor:
+			case *catalog.Database:
 				continue // Destination attachment authority is never serialized.
-			case *parameterDescriptor:
+			case *catalog.Parameter:
 				e.mu.Unlock()
 				return fmt.Errorf("stuntgres: dump cannot serialize parameter ACL")
-			case *tablespaceDescriptor:
-				if err := (tablespaceProvider{}).Validate(catalogView, t); err != nil {
+			case *catalog.Tablespace:
+				if err := (catalog.TablespaceProvider{}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -329,13 +329,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
-			case *tsTemplateDescriptor, *tsDictionaryDescriptor:
+			case *catalog.TSTemplate, *catalog.TSDictionary:
 				if extensionMembership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
-			case *extensionDescriptor:
+			case *catalog.Extension:
 				if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
@@ -360,7 +360,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				viewIndices[t.Address().ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
 				continue
-			case *typeDescriptor:
+			case *catalog.Type:
 				// A recipe can regenerate synthetic type defaults, never a real
 				// explicit ACL (even one equal to the effective baseline).
 				if t.ACL.Explicit && !defaultDomainACL(t) {
@@ -392,8 +392,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
 				continue
-			case *collationDescriptor:
-				if err := (collationProvider{}).Validate(catalogView, t); err != nil {
+			case *catalog.Collation:
+				if err := (catalog.CollationProvider{}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -401,8 +401,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					collations = append(collations, t)
 				}
 				continue
-			case *conversionDescriptor:
-				if err := (conversionProvider{}).Validate(catalogView, t); err != nil {
+			case *catalog.Conversion:
+				if err := (catalog.ConversionProvider{}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -412,7 +412,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				continue
 			}
 			if d.Kind() == ids.NamespaceObject {
-				ns, valid := d.(*namespaceDescriptor)
+				ns, valid := d.(*catalog.Namespace)
 				if valid && ns.Temporary != (ids.SessionToken{}) {
 					continue
 				}
@@ -795,7 +795,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	domainNodes := make(map[ids.OID]*typeDescriptor, len(domains))
+	domainNodes := make(map[ids.OID]*catalog.Type, len(domains))
 	for _, d := range domains {
 		id := d.Address().ObjectID
 		domainNodes[id] = d

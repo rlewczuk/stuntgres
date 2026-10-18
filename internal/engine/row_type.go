@@ -46,7 +46,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	if descriptor == nil {
 		descriptor = stage.Base.Get(address)
 	}
-	array, ok := descriptor.(*typeDescriptor)
+	array, ok := descriptor.(*catalog.Type)
 	if !ok || !array.SQLType.IsArray() {
 		return false, nil
 	}
@@ -55,7 +55,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	if elementDescriptor == nil {
 		elementDescriptor = stage.Base.Get(elementAddress)
 	}
-	element, ok := elementDescriptor.(*typeDescriptor)
+	element, ok := elementDescriptor.(*catalog.Type)
 	if !ok || element.Array != array.SQLType.ID() || element.SQLType != array.SQLType.Element() || element.Namespace() != namespace {
 		return false, nil
 	}
@@ -133,10 +133,10 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 	if relation.RelationKind == catalog.CompositeRelation {
 		acl, synthetic = stage.creationTypeACL(relation.Owner, relation.Namespace())
 	}
-	if err := stage.Create(&typeDescriptor{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.Address()}); err != nil {
+	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), OwningRelation: relation.Address()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: baseline, ACLSyntheticDefault: true, OwningRelation: relation.Address()})
+	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: relation.Namespace(), ObjectRevision: relation.Revision(), Owner: relation.Owner, ACL: baseline, ACLSyntheticDefault: true, OwningRelation: relation.Address()})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *catalog.Relation) error {
@@ -148,11 +148,11 @@ func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) err
 		return nil
 	}
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}
-	row, ok := provider.inputDescriptor(address).(*typeDescriptor)
+	row, ok := provider.inputDescriptor(address).(*catalog.Type)
 	if !ok {
 		return nil
 	}
-	if staged, ok := provider.replacement(address).(*typeDescriptor); ok {
+	if staged, ok := provider.replacement(address).(*catalog.Type); ok {
 		row = staged
 	}
 	return synchronizeRowTypeMetadata(relation, row, provider.descriptor, provider.associatedArrayName, provider.replace)
@@ -161,7 +161,7 @@ func (provider *dropProvider) synchronizeRowType(relation *catalog.Relation) err
 // synchronizeRowTypeMetadata is the shared metadata-only cooking core. replace
 // records each actual effect before the next lookup, preserving row/array name
 // occupancy and provider order without constructing a catalog or stage.
-func synchronizeRowTypeMetadata(relation *catalog.Relation, row *typeDescriptor, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
+func synchronizeRowTypeMetadata(relation *catalog.Relation, row *catalog.Type, descriptor func(ids.ObjectAddress) Descriptor, associatedName func(ids.ObjectAddress, string) string, replace func(Descriptor) error) error {
 	same := row.Namespace() == relation.Namespace() && row.Name() == relation.Name()
 	if row.SQLType.IsComposite() {
 		same = same && row.SQLType.CompositeLen() == len(relation.Columns)
@@ -200,7 +200,7 @@ func synchronizeRowTypeMetadata(relation *catalog.Relation, row *typeDescriptor,
 		return err
 	}
 	if row.Array != 0 {
-		array := descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}).(*typeDescriptor)
+		array := descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}).(*catalog.Type)
 		copy := *array
 		if array.Owner != relation.Owner {
 			copy.ACL = authorization.SchemaACLOwner(array.ACL, array.Owner, relation.Owner)

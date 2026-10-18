@@ -11,7 +11,7 @@ import (
 func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range catalog.BuiltinTablespaces {
-		d := &tablespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}, ObjectRevision: 1, ObjectName: builtin.Name, Owner: owner}
+		d := &catalog.Tablespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}, ObjectRevision: 1, ObjectName: builtin.Name, Owner: owner}
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}

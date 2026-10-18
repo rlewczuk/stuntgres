@@ -43,7 +43,7 @@ type EvalContext struct {
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks       map[*catalog.Relation][]expr.Expr
-	preparedDomainChecks map[*typeDescriptor]domainCheckProgram
+	preparedDomainChecks map[*catalog.Type]domainCheckProgram
 	preparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
 	domainValue          sqltype.Value
 	domainFrameUsage     sqltype.Usage

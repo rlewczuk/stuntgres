@@ -27,7 +27,7 @@ func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *c
 		if candidate != nil && descriptor.Address() == candidate.Address() {
 			descriptor = candidate
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && domain.ObjectNamespace == namespace {
+		if domain, ok := descriptor.(*catalog.Type); ok && domain.ObjectNamespace == namespace {
 			for _, constraint := range domain.DomainChecks {
 				names[constraint.Name] = true
 			}

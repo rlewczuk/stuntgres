@@ -24,7 +24,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	view := e.CatalogRead()
 	userType := func(name string) *sqltype.Descriptor {
 		for _, d := range view.Descriptors() {
-			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
+			if typ, ok := d.(*catalog.Type); ok && typ.Name() == name {
 				return typ.SQLType
 			}
 		}

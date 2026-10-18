@@ -37,7 +37,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 		t.Fatal(err)
 	}
 }
-func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *extensionDescriptor) {
+func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -91,7 +91,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || unaccentDictionaryProviderOf(dict) != stockUnaccent {
 		t.Fatal("dictionary implementation identity")
 	}
-	if unaccentProviderOf((&catalog.Procedure{})) != nil || unaccentDictionaryProviderOf((&tsDictionaryDescriptor{})) != nil {
+	if unaccentProviderOf((&catalog.Procedure{})) != nil || unaccentDictionaryProviderOf((&catalog.TSDictionary{})) != nil {
 		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.Members {
@@ -106,7 +106,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.Address() {
 			t.Fatal("broken member placement")
 		}
-		if _, ok := d.(*tsTemplateDescriptor); ok {
+		if _, ok := d.(*catalog.TSTemplate); ok {
 			if refs := descriptorReferences(d); len(refs) != 0 {
 				t.Fatal("template acquired owner", refs)
 			}
@@ -200,7 +200,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*catalog.Extension)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
@@ -222,7 +222,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				tmpl := *source.Descriptors[ext.Members[4]].(*tsTemplateDescriptor)
+				tmpl := *source.Descriptors[ext.Members[4]].(*catalog.TSTemplate)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
@@ -232,7 +232,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.Descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
+					dict := *source.Descriptors[ext.Members[5]].(*catalog.TSDictionary)
 					dict.Extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {

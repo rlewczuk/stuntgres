@@ -132,7 +132,7 @@ func captureDataTypePrivileges(ctx context.Context, view CatalogRead, auth Autho
 				}
 				emit(ns.Name(), d.Name(), objectType, strconv.FormatInt(int64(attribute), 10))
 			}
-		case *typeDescriptor:
+		case *catalog.Type:
 			if !d.SQLType.IsDomain() {
 				continue
 			}

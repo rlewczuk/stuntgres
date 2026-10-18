@@ -133,7 +133,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &catalog.Relation{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
-	oldState.SetDescriptor(namespace, &namespaceDescriptor{ObjectAddress: namespace, Comment: "namespace"})
+	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
 	captured, err := capturePGDescription(context.Background(), old, ref, source)
@@ -231,7 +231,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	}
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		switch descriptor.(type) {
-		case *collationDescriptor, *conversionDescriptor:
+		case *catalog.Collation, *catalog.Conversion:
 			if descriptorComment(descriptor, 0) != "" || catalogDescription(descriptor, 1) != "" {
 				t.Fatal("projection widened inquiry/subobject boundary", descriptor)
 			}

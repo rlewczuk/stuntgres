@@ -63,7 +63,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 		return nil, err
 	}
 	owner, old, _ := descriptorACL(d)
-	if typ, ok := d.(*typeDescriptor); ok && typ.ACLSyntheticDefault {
+	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
 		old = authorization.ACLValue{} // Effective baseline is still raw NULL.
 	}
 	class := authorization.DefaultTypes
@@ -103,11 +103,11 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 	}
 	var next Descriptor
 	switch d := d.(type) {
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		n := *d
 		n.ACL = nextACL
 		next = &n
-	case *typeDescriptor:
+	case *catalog.Type:
 		n := *d
 		n.ACL = nextACL
 		n.ACLSyntheticDefault = false
@@ -116,11 +116,11 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 		n := *d
 		n.ACL = nextACL
 		next = &n
-	case *parameterDescriptor:
+	case *catalog.Parameter:
 		n := *d
 		n.ACL = nextACL
 		next = &n
-	case *tablespaceDescriptor:
+	case *catalog.Tablespace:
 		n := *d
 		n.ACL = nextACL
 		next = &n

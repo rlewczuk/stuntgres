@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		view.State().SetDescriptor(pgDependUnitAddress(1247, ids.OID(49501+i), 0), &typeDescriptor{SQLType: domain})
+		view.State().SetDescriptor(pgDependUnitAddress(1247, ids.OID(49501+i), 0), &catalog.Type{SQLType: domain})
 		domains = append(domains, domain)
 	}
 	literal := literalExpression{Info: expr.Info{Usage: integer.Usage()}}

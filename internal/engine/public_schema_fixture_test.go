@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -21,7 +22,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func(
 	if !ok {
 		t.Fatal("public schema fixture requires its namespace descriptor")
 	}
-	namespace, ok := descriptor.(*namespaceDescriptor)
+	namespace, ok := descriptor.(*catalog.Namespace)
 	if !ok {
 		t.Fatal("public schema fixture has a non-namespace descriptor")
 	}

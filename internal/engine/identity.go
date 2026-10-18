@@ -152,7 +152,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	if staged, ok := stage.Descriptors[table.Namespace()]; ok {
 		namespace = staged
 	}
-	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {
+	if namespace.(*catalog.Namespace).Temporary != (ids.SessionToken{}) {
 		options.Persistence = "temporary"
 	}
 	oid, err := e.catalog.allocateOIDLocked()

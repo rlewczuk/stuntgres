@@ -292,7 +292,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	next.SetDescriptor(ns.Address(), &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = catalog.CloneState(c.State())
-	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*databaseDescriptor)(nil))
+	next.SetDescriptor(catalog.CurrentDatabaseAddress, (*catalog.Database)(nil))
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	database := *c.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = e.Roles().LookupRef("pg_read_all_data")

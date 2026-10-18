@@ -156,9 +156,9 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	e := New()
 	d, _ := availableUnitSource(e, 12085)
 	empty, schema := "", "fixed_control_schema"
-	metadata := extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: &empty, Schema: &schema, Requires: []string{"first", "quote\"name", "comma,name"}}
+	metadata := catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: &empty, Schema: &schema, Requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
-	row, err := projectAvailableExtension("unaccent", metadata, &extensionDescriptor{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
+	row, err := projectAvailableExtension("unaccent", metadata, &catalog.Extension{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 		t.Fatal("registry storage shared", stored)
 	}
 	empty, schema = "", "fixed_control_schema"
-	original := extensionControl{Version: "1.1", Comment: &empty, Schema: &schema, Requires: []string{"original"}}
+	original := catalog.ExtensionControl{Version: "1.1", Comment: &empty, Schema: &schema, Requires: []string{"original"}}
 	detached := original.Detached()
 	empty, schema, original.Requires[0] = "mutated", "mutated", "mutated"
 	if *detached.Comment != "" || *detached.Schema != "fixed_control_schema" || detached.Requires[0] != "original" {

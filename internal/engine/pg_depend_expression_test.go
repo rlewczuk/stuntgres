@@ -37,7 +37,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view.State().SetDescriptor(pgDependUnitAddress(1247, 48003, 0), &typeDescriptor{SQLType: domain})
+	view.State().SetDescriptor(pgDependUnitAddress(1247, 48003, 0), &catalog.Type{SQLType: domain})
 	regclass, ok := view.LookupType(sqltype.Regclass)
 	if !ok {
 		t.Fatal("regclass")

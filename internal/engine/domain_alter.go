@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ids.ObjectRef, error) {
+func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
 	lookup := name
 	if len(name.Parts) == 2 {
 		parts := [2]parser.Identifier{name.Parts[0], name.Parts[1]}
@@ -54,7 +55,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	op := scope.op
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var original *typeDescriptor
+	var original *catalog.Type
 	var ref ids.ObjectRef
 	if err == nil {
 		original, ref, err = e.resolveAlterDomainLocked(auth, raw.Name)
@@ -68,7 +69,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	e.mu.Lock()
 	auth, err = e.authorizationLocked(op)
-	var old *typeDescriptor
+	var old *catalog.Type
 	var current ids.ObjectRef
 	if err == nil {
 		old, current, err = e.resolveAlterDomainLocked(auth, raw.Name)
@@ -105,7 +106,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		err = e.bindDomainChecks(op, auth, stage, &next, []parser.ColumnConstraint{{Check: &check, Pos: check.Pos}}, scope.input)
 		if err == nil {
 			for i, c := range next.DomainChecks {
-				if !slices.ContainsFunc(old.DomainChecks, func(prior domainCheckConstraint) bool { return prior.OID == c.OID }) {
+				if !slices.ContainsFunc(old.DomainChecks, func(prior catalog.DomainCheckConstraint) bool { return prior.OID == c.OID }) {
 					selected = i
 					break
 				}
@@ -147,7 +148,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	if validating {
 		chosen := next
-		chosen.DomainChecks = []domainCheckConstraint{next.DomainChecks[selected]}
+		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
@@ -228,7 +229,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	return Result{}, err
 }
 
-func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *typeDescriptor, value sqltype.Value, violation error) error {
+func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *catalog.Type, value sqltype.Value, violation error) error {
 	oldValue, oldUsage, oldActive, oldChecks := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
 	c.Input.DomainChecks = c
 	defer func() {
@@ -237,7 +238,7 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *ty
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *typeDescriptor, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
 	violations := make([]error, len(use.columns))
 	for i, column := range use.columns {
 		violations[i] = domainHistoricalViolation(view, use.relation, column)

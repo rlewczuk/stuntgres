@@ -18,7 +18,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if err == nil {
 		scope.routineAuth = auth
 	}
-	var typ *typeDescriptor
+	var typ *catalog.Type
 	var source *catalog.Relation
 	if err == nil {
 		var ref ids.ObjectRef

@@ -156,7 +156,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("missing cursor row type")
 	}
-	row, ok := rowDescriptor.(*typeDescriptor)
+	row, ok := rowDescriptor.(*catalog.Type)
 	if !ok || row.OwningRelation != d.Address() || row.Array != sqltype.ID(12078) {
 		t.Fatal("cursor row ownership/array association", rowDescriptor)
 	}
@@ -168,7 +168,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("missing cursor associated array")
 	}
-	array, ok := arrayDescriptor.(*typeDescriptor)
+	array, ok := arrayDescriptor.(*catalog.Type)
 	if !ok || array.SQLType != arrayType || array.OwningRelation != d.Address() {
 		t.Fatal("cursor array owner differs from view", arrayDescriptor)
 	}

@@ -12,9 +12,9 @@ import (
 func catalogDescription(d Descriptor, sub int32) string {
 	if sub == 0 {
 		switch d := d.(type) {
-		case *collationDescriptor:
+		case *catalog.Collation:
 			return collationDescription(d.OID)
-		case *conversionDescriptor:
+		case *catalog.Conversion:
 			return conversionDescription(d.OID)
 		}
 	}

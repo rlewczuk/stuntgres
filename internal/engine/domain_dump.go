@@ -51,7 +51,7 @@ func (r *domainReplayNames) arrayName(key ids.NameKey) ids.NameKey {
 	return key
 }
 
-func (r *domainReplayNames) reserve(d *typeDescriptor) error {
+func (r *domainReplayNames) reserve(d *catalog.Type) error {
 	key := catalog.DescriptorNameKey(d)
 	if incumbent := r.occupied[key]; incumbent != 0 {
 		element := r.elements[incumbent]
@@ -66,7 +66,7 @@ func (r *domainReplayNames) reserve(d *typeDescriptor) error {
 	return nil
 }
 
-func (r *domainReplayNames) associate(d *typeDescriptor) {
+func (r *domainReplayNames) associate(d *catalog.Type) {
 	if d.Array == 0 {
 		return
 	}
@@ -75,7 +75,7 @@ func (r *domainReplayNames) associate(d *typeDescriptor) {
 	r.arrays[d.SQLType.ID()], r.elements[d.Array] = d.Array, d.SQLType.ID()
 }
 
-func defaultDomainACL(d *typeDescriptor) bool {
+func defaultDomainACL(d *catalog.Type) bool {
 	if !d.ACLSyntheticDefault || !d.ACL.Explicit {
 		return false
 	}
@@ -124,7 +124,7 @@ func catalogTypeDeclarationAt(view CatalogRead, reader definitionReader, u sqlty
 		return u.Declaration()
 	}
 	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
-	if !ok || descriptor.(*typeDescriptor).SQLType != u.Type || !u.Valid() {
+	if !ok || descriptor.(*catalog.Type).SQLType != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
 	namespace, ok := definitionDescriptorAt(view, reader, descriptor.Namespace())
@@ -172,7 +172,7 @@ func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string
 	return alias, nil
 }
 
-func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, d *catalog.Type, replayNames *domainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}

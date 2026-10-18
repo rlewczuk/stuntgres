@@ -96,7 +96,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 	}
 	var leftEnum, rightEnum *sqltype.Descriptor
 	for _, d := range view.Descriptors() {
-		if d, ok := d.(*typeDescriptor); ok {
+		if d, ok := d.(*catalog.Type); ok {
 			switch d.Name() {
 			case "operator_left_enum":
 				leftEnum = d.SQLType

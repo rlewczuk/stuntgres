@@ -24,7 +24,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			committed := auth.catalog.Get(catalog.CurrentDatabaseAddress)
 			if private {
 				selected := catalog.CloneState(auth.catalog.State())
-				database := *committed.(*databaseDescriptor)
+				database := *committed.(*catalog.Database)
 				database.ACL = authorization.ACLValue{Explicit: true}
 				database.ObjectRevision++
 				selected.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
@@ -53,7 +53,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 				t.Fatal("unchanged predecessor rejected", err)
 			}
 			next := catalog.CloneState(e.catalog.state)
-			database := *committed.(*databaseDescriptor)
+			database := *committed.(*catalog.Database)
 			database.ObjectRevision++
 			next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 			e.catalog.state = next
@@ -125,7 +125,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			dbRole := retained.roles.LookupRef("pg_database_owner")
-			key := defaultACLKey{Creator: dbRole, Class: authorization.DefaultTypes}
+			key := catalog.DefaultACLKey{Creator: dbRole, Class: authorization.DefaultTypes}
 			policy := retained.catalog.State().DefaultACL(key)
 			pendingRoles := retained.roleRecord
 			if policy == nil || pendingRoles == oldRoles || retained.catalog.State() == oldCatalog || retained.pairedCatalog.State() != retained.catalog.State() || retained.catalog.Get(catalog.CurrentDatabaseAddress) != &database {

@@ -12,8 +12,8 @@ import (
 type installedFunctionExpression struct {
 	functions.InstalledText
 	procedure  *catalog.Procedure
-	dictionary *tsDictionaryDescriptor
-	template   *tsTemplateDescriptor
+	dictionary *catalog.TSDictionary
+	template   *catalog.TSTemplate
 	ref        ids.ObjectRef
 }
 

@@ -33,12 +33,12 @@ func stageCompositeFieldChecks(stage *CatalogStage, source *catalog.Relation, at
 
 func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
 	var relations []*catalog.Relation
-	var domains []*typeDescriptor
+	var domains []*catalog.Type
 	for _, descriptor := range provider.descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.CheckConstraints) != 0 {
 			relations = append(relations, relation)
 		}
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
+		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
 			domains = append(domains, domain)
 		}
 	}
@@ -93,7 +93,7 @@ func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, att
 			return err
 		}
 	}
-	slices.SortFunc(domains, func(a, b *typeDescriptor) int {
+	slices.SortFunc(domains, func(a, b *catalog.Type) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
 			return -1
 		}

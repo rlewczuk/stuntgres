@@ -9,9 +9,9 @@ import (
 )
 
 func capturePGCollation(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
-	var definitions []*collationDescriptor
+	var definitions []*catalog.Collation
 	for _, d := range view.Descriptors() {
-		if c, ok := d.(*collationDescriptor); ok {
+		if c, ok := d.(*catalog.Collation); ok {
 			definitions = append(definitions, c)
 		}
 	}

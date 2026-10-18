@@ -25,14 +25,14 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.ID())}
-	view.State().SetDescriptor(provider, &typeDescriptor{SQLType: domain})
+	view.State().SetDescriptor(provider, &catalog.Type{SQLType: domain})
 	row, err := sqltype.Composite(48102, "row_provider", "public.row_provider", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "id", Usage: integer.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.ID())}
 	relationAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(row.ID())}
-	view.State().SetDescriptor(rowAddress, &typeDescriptor{SQLType: row, OwningRelation: relationAddress})
+	view.State().SetDescriptor(rowAddress, &catalog.Type{SQLType: row, OwningRelation: relationAddress})
 	view.State().SetDescriptor(relationAddress, &catalog.Relation{ObjectAddress: relationAddress, RowType: row.ID()})
 	value := func(id ids.OID) sqltype.Value {
 		t.Helper()
@@ -115,7 +115,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	payloadAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(payloadType.ID())}
-	view.State().SetDescriptor(payloadAddress, &typeDescriptor{SQLType: payloadType})
+	view.State().SetDescriptor(payloadAddress, &catalog.Type{SQLType: payloadType})
 	literal := literalExpression{Info: expr.Info{Usage: payloadType.Usage()}, value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
 	refs, err := pgDependExpressionRefs(context.Background(), view, literal)

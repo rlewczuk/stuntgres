@@ -271,7 +271,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	for _, mutate := range []func(*catalog.Procedure){
 		func(d *catalog.Procedure) { d.Implementation = nil },
 		func(d *catalog.Procedure) {
-			d.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
+			d.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 		},
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {

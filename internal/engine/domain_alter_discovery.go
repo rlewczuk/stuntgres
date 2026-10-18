@@ -85,7 +85,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	// Include unstored derived/container declarations as graph edges too. Their
 	// later storage cannot evade the final observation by retaining an old OID.
 	for address, d := range view.Descriptors() {
-		if _, ok := d.(*typeDescriptor); ok {
+		if _, ok := d.(*catalog.Type); ok {
 			if _, err := contains(sqltype.ID(address.ObjectID)); err != nil {
 				return nil, err
 			}

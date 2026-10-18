@@ -285,7 +285,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	c.domainChanged = c.domainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors {
-		if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsUserDefined() {
+		if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsUserDefined() {
 			c.domainChanged = true
 			break
 		}

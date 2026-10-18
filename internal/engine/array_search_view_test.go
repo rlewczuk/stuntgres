@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -14,7 +15,7 @@ import (
 func TestArraySearchViewCoercions(t *testing.T) {
 	ctx := context.Background()
 	sourceEngine, targetEngine := New(), New()
-	publishCollation := func(e *Engine, id ids.OID, name string) *collationDescriptor {
+	publishCollation := func(e *Engine, id ids.OID, name string) *catalog.Collation {
 		d := collationUnitDefinition(e, id, name)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Create(d); err != nil {

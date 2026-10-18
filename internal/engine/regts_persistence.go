@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -47,7 +48,7 @@ func walkRegTSReferencesAt(view CatalogRead, reader definitionReader, value sqlt
 	}
 	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
 	descriptor, _ := definitionDescriptorAt(view, reader, address)
-	if _, ok := descriptor.(*tsDictionaryDescriptor); ok {
+	if _, ok := descriptor.(*catalog.TSDictionary); ok {
 		return record(address)
 	}
 	return nil

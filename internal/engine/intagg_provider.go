@@ -10,12 +10,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type intaggProvider struct{ control extensionControl }
+type intaggProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
-func (p *intaggProvider) Control() extensionControl { return p.control.Detached() }
+func (p *intaggProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 
-var stockIntagg = &intaggProvider{control: extensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
+var stockIntagg = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 
 var intaggMembers = [...]struct {
 	name      string
@@ -28,7 +28,7 @@ var intaggMembers = [...]struct {
 	{"int_array_enum", "1007", 23, true, catalog.FunctionRoutine},
 }
 
-func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(intaggMembers))
 	for i, member := range intaggMembers {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -69,7 +69,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 	return nil
 }
 
-func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
+func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
 	if p != stockIntagg || v.Owner() == nil || ext.Name() != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
 		return invalid()

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"sync"
@@ -52,7 +53,7 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 		ready <- struct{}{}
 		<-start
 		for range 8192 {
-			if err := (collationProvider{}).Validate(view, descriptor); err != nil {
+			if err := (catalog.CollationProvider{}).Validate(view, descriptor); err != nil {
 				errors <- fmt.Errorf("captured provider validation: %w", err)
 				return
 			}

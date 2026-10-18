@@ -174,7 +174,7 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			// seam; exhaustion must not wrap, reuse or publish anything.
 			e.catalog.state = catalog.CloneState(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.catalog.state.SetDescriptor(address, &namespaceDescriptor{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
+				e.catalog.state.SetDescriptor(address, &catalog.Namespace{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
 				e.catalog.state.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, ObjectName: "last", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
@@ -199,7 +199,7 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	if err := e.RegisterCatalogProvider(nil); err == nil {
 		t.Fatal("nil provider accepted")
 	}
-	if err := e.RegisterCatalogProvider(namespaceProvider{}); err == nil {
+	if err := e.RegisterCatalogProvider(catalog.NamespaceProvider{}); err == nil {
 		t.Fatal("duplicate provider accepted")
 	}
 	if err := e.RegisterCatalogProvider(testProvider{id: 90000}); err == nil {
@@ -516,7 +516,7 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	descriptor := &namespaceDescriptor{
+	descriptor := &catalog.Namespace{
 		ObjectAddress:  ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1},
 		ObjectName:     "feature",
 		ObjectRevision: 1,
@@ -735,7 +735,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	d := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "private", ObjectRevision: 1}
+	d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "private", ObjectRevision: 1}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}

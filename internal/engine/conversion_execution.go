@@ -8,7 +8,7 @@ import (
 // Namespace order wins first, then the released default-index OID order within
 // that namespace. Name shadowing is unrelated to directed default dispatch.
 type conversionDefault struct {
-	conversion *conversionDescriptor
+	conversion *catalog.Conversion
 	procedure  *catalog.Procedure
 }
 
@@ -22,7 +22,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.
 		defaults := make(map[[2]int]conversionDefault)
 		for _, namespace := range s.visibilityOtherPath {
 			for _, descriptor := range s.visibilityCatalog.Descriptors() {
-				d, ok := descriptor.(*conversionDescriptor)
+				d, ok := descriptor.(*catalog.Conversion)
 				if !ok || !d.DefaultConversion || d.Namespace() != namespace {
 					continue
 				}

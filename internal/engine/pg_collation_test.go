@@ -74,7 +74,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view CatalogRead) *querySou
 	}
 	count := 0
 	for _, descriptor := range view.Descriptors() {
-		if _, ok := descriptor.(*collationDescriptor); ok {
+		if _, ok := descriptor.(*catalog.Collation); ok {
 			count++
 		}
 	}
@@ -154,7 +154,7 @@ func TestPGCollationCapture(t *testing.T) {
 	c := collationUnitDefinition(e, 90000, "pgc_capture")
 	b := collationUnitDefinition(e, 90001, "pgc_empty_version")
 	b.Provider, b.Encoding, b.Collate, b.CType, b.Locale, b.Version, b.Semantics = "b", 6, nil, nil, catalog.CollationText("C.UTF-8"), catalog.CollationText(""), 811
-	for _, d := range []*collationDescriptor{c, b} {
+	for _, d := range []*catalog.Collation{c, b} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

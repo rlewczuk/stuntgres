@@ -71,7 +71,7 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege},
 		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}
-	for _, typ := range []*typeDescriptor{row, array} {
+	for _, typ := range []*catalog.Type{row, array} {
 		if len(typ.ACL.Entries) != len(expected) {
 			t.Fatal("dependent type lost or added ACL origins", typ.Name(), typ.ACL)
 		}

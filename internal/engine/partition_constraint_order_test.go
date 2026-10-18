@@ -17,8 +17,8 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 		t.Run(fmt.Sprint(insertion), func(t *testing.T) {
 			e := New()
 			state := catalog.CloneState(e.catalog.state)
-			one := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
-			two := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
+			one := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
+			two := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
 			state.SetDescriptor(one.Address(), one)
 			state.SetDescriptor(two.Address(), two)
 			names := []string{"b.c", "z", "c"}

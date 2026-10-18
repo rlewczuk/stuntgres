@@ -17,7 +17,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		return a
 	}
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		next := address(d.Extension)
 		if next == d.Extension {
 			return d
@@ -43,7 +43,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n := *d
 		n.AutoExtensions = addresses
 		return &n
-	case *extensionDescriptor:
+	case *catalog.Extension:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.TargetNamespace = address(n.TargetNamespace)
@@ -87,7 +87,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 			return d
 		}
 		return &n
-	case *tsTemplateDescriptor:
+	case *catalog.TSTemplate:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())
@@ -95,7 +95,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 		n.Init = address(n.Init)
 		n.Lexize = address(n.Lexize)
 		return &n
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())

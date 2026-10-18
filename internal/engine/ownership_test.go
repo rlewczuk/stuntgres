@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -117,8 +118,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if got != target {
 			t.Fatal("associated owner", a, got)
 		}
-		if typ, ok := old.(*typeDescriptor); ok {
-			if next.(*typeDescriptor).SQLType != typ.SQLType {
+		if typ, ok := old.(*catalog.Type); ok {
+			if next.(*catalog.Type).SQLType != typ.SQLType {
 				t.Fatal("ownership replaced codec/signature", a)
 			}
 		}
@@ -156,7 +157,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)

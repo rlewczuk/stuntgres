@@ -10,9 +10,9 @@ import (
 )
 
 func capturePGConversion(ctx context.Context, view CatalogRead, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
-	var definitions []*conversionDescriptor
+	var definitions []*catalog.Conversion
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok {
+		if d, ok := descriptor.(*catalog.Conversion); ok {
 			definitions = append(definitions, d)
 		}
 	}

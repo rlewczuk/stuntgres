@@ -42,7 +42,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
-		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
+		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
 			if typesOnly {
 				changed := false
 				for _, check := range domain.DomainChecks {
@@ -53,7 +53,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				}
 			}
 			copy := *domain
-			copy.DomainChecks = append([]domainCheckConstraint(nil), domain.DomainChecks...)
+			copy.DomainChecks = append([]catalog.DomainCheckConstraint(nil), domain.DomainChecks...)
 			for i := range copy.DomainChecks {
 				check := &copy.DomainChecks[i]
 				node, err := remapBoundExpression(check.Expression, ref, nil)

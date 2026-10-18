@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	count := 0
 	for address, descriptor := range view.Descriptors() {
-		typ, ok := descriptor.(*typeDescriptor)
+		typ, ok := descriptor.(*catalog.Type)
 		if !ok {
 			continue
 		}

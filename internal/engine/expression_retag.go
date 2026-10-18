@@ -292,16 +292,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
 		}
-		var dict *tsDictionaryDescriptor
-		var tmpl *tsTemplateDescriptor
+		var dict *catalog.TSDictionary
+		var tmpl *catalog.TSTemplate
 		if unaccentProviderOf(proc) != nil {
 			descriptor, _ = definitionDescriptorAt(view, reader, proc.Dictionary)
-			dict, ok = descriptor.(*tsDictionaryDescriptor)
+			dict, ok = descriptor.(*catalog.TSDictionary)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
 			}
 			descriptor, _ = definitionDescriptorAt(view, reader, dict.Template)
-			tmpl, ok = descriptor.(*tsTemplateDescriptor)
+			tmpl, ok = descriptor.(*catalog.TSTemplate)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
 			}

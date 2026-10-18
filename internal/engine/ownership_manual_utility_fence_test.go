@@ -231,7 +231,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						t.Fatal("actual utility did not retain its candidate without prefix")
 					}
 					var created *catalog.Relation
-					var enum, array *typeDescriptor
+					var enum, array *catalog.Type
 					switch utility {
 					case "create-sequence":
 						for _, descriptor := range candidate.descriptors {
@@ -257,14 +257,14 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 					case "create-enum":
 						for _, descriptor := range candidate.descriptors {
-							if d, ok := descriptor.(*typeDescriptor); ok && d.SQLType.IsEnum() && d.Name() == "new_enum" {
+							if d, ok := descriptor.(*catalog.Type); ok && d.SQLType.IsEnum() && d.Name() == "new_enum" {
 								enum = d
 							}
 						}
 						if enum == nil {
 							t.Fatal("CREATE ENUM did not stage actual enum descriptor")
 						}
-						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*typeDescriptor)
+						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*catalog.Type)
 						members := enum.SQLType.EnumMembers()
 						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),

@@ -151,8 +151,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 // provider supplies the rules evaluation applies.
 func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref ids.ObjectRef) (expr.Expr, error) {
 	p := r.procedure
-	var dict *tsDictionaryDescriptor
-	var tmpl *tsTemplateDescriptor
+	var dict *catalog.TSDictionary
+	var tmpl *catalog.TSTemplate
 	if unaccentProviderOf(p) != nil {
 		var ok bool
 		dict, ok = r.catalog.TSDictionary(p.Dictionary)

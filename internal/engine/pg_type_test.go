@@ -266,7 +266,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldRows := pgTypeUnitBag(t, captured, source)
-	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
+	array := func(t *testing.T, view CatalogRead, d *catalog.Type) *catalog.Type {
 		t.Helper()
 		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)})
 		if !ok || a.SQLType.Element() != d.SQLType {
@@ -287,7 +287,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		output := uint32(ext.Members[2].ObjectID)
-		for _, pair := range []struct{ d, base *typeDescriptor }{{domain, base}, {nested, domain}} {
+		for _, pair := range []struct{ d, base *catalog.Type }{{domain, base}, {nested, domain}} {
 			if pair.d.SQLType.DomainBase().Type != pair.base.SQLType {
 				t.Fatal("wrong immediate base generation")
 			}
@@ -347,7 +347,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 					root.SetDescriptor(original.Address(), &replacement)
 				}
 				bad := e.catalog.read(root)
-				for _, d := range []*typeDescriptor{nested, array(t, catalogView, nested)} {
+				for _, d := range []*catalog.Type{nested, array(t, catalogView, nested)} {
 					facts, err := pgTypeFacts(bad, d)
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {
 						t.Fatal("accepted missing/foreign immediate base", facts, err)

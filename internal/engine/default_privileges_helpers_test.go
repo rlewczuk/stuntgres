@@ -34,7 +34,7 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := catalog.CloneState(e.catalog.state)
-	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
+	namespace := &catalog.Namespace{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
 	next.SetDescriptor(schema, namespace)
 	next.BindName(catalog.DescriptorNameKey(namespace), schema)
 	e.catalog.state = next

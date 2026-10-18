@@ -439,7 +439,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	var typedSourceRef ids.ObjectRef
 	if attachment, ok := stmt.(*parser.AlterTableOf); ok && attachment.Type != nil && err == nil {
-		var typ *typeDescriptor
+		var typ *catalog.Type
 		typ, err = e.namedType(auth, *attachment.Type)
 		if err == nil {
 			var source *catalog.Relation

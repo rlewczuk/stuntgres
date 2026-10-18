@@ -43,7 +43,7 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 		return nil, nil, false
 	}
 	ns, ok := view.Descriptor(relation.Namespace())
-	namespace, namespaceOK := ns.(*namespaceDescriptor)
+	namespace, namespaceOK := ns.(*catalog.Namespace)
 	if !ok || !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return nil, nil, false
 	}

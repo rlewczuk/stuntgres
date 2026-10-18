@@ -36,12 +36,12 @@ func uuidOsspProviderOf(d *catalog.Procedure) *uuidOsspProvider {
 	return p
 }
 
-func unaccentTemplateProviderOf(d *tsTemplateDescriptor) *unaccentProvider {
+func unaccentTemplateProviderOf(d *catalog.TSTemplate) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
-func unaccentDictionaryProviderOf(d *tsDictionaryDescriptor) *unaccentProvider {
+func unaccentDictionaryProviderOf(d *catalog.TSDictionary) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }

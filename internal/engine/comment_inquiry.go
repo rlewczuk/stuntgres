@@ -105,11 +105,11 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 
 func descriptorComment(d Descriptor, sub int32) string {
 	switch d := d.(type) {
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		if sub == 0 {
 			return d.Comment
 		}
-	case *typeDescriptor:
+	case *catalog.Type:
 		if sub == 0 {
 			return d.Comment
 		}

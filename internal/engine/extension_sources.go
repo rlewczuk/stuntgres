@@ -56,7 +56,7 @@ func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.Obje
 		text := func(i int, s string) { row[i] = sqltype.String(source.Columns[i].Usage.Type, s) }
 		boolean := func(i int, b bool) { row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 		switch d := descriptor.(type) {
-		case *extensionDescriptor:
+		case *catalog.Extension:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Owner.ID()))
@@ -92,11 +92,11 @@ func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.Obje
 				}
 			}
 			text(8, parallel)
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))

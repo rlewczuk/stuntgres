@@ -69,7 +69,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		// Honest installed predecessor, distinct selected owner-private authority;
 		// this is the package overlay seam, not new database SQL admission.
 		changes = newCatalogChanges()
-		database := *committed.(*databaseDescriptor)
+		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.originals[catalog.CurrentDatabaseAddress] = committed
@@ -109,7 +109,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				dbRole := auth.roles.LookupRef("pg_database_owner")
 				old := auth.catalog.MustRelation(ref.Address)
 				selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
-				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*databaseDescriptor).Owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
+				if old.Owner != dbRole || old.Owner == actor.Ref || selectedDB.(*catalog.Database).Owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical paired selected DB ownership authority")
 				}
 				if private && selectedDB == committed {

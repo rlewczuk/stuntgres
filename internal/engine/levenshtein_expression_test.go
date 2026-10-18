@@ -83,7 +83,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Signature = "25,25" },
 		func(p *catalog.Procedure) { p.ObjectName = "levenshtein" },
 		func(p *catalog.Procedure) {
-			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
 		},
 		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 	} {

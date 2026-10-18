@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -87,7 +87,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Volatility = expr.Stable },
 		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
 		func(p *catalog.Procedure) { p.Implementation = stockIntarray }, func(p *catalog.Procedure) {
-			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2"}}
 		},
 		func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
 		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },

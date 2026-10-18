@@ -43,7 +43,7 @@ func foreignLabel(class ids.OID) string {
 		return "foreign table"
 	}
 }
-func findForeign(catalog CatalogRead, class ids.OID, name string) (*foreignDescriptor, error) {
+func findForeign(catalog CatalogRead, class ids.OID, name string) (*catalog.ForeignObject, error) {
 	a := catalog.NameAddress(ids.NameKey{ClassID: class, Name: name})
 	if d, ok := catalog.Foreign(a); ok {
 		return d, nil
@@ -89,7 +89,7 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 	name, identity := ownershipRoleOperand(role.Role)
 	return schemaOwner(auth, name, identity)
 }
-func foreignMappingAuthority(auth AuthorizationView, server *foreignDescriptor, role authorization.PrincipalRef) error {
+func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
 	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
 		return nil
 	}
@@ -98,7 +98,7 @@ func foreignMappingAuthority(auth AuthorizationView, server *foreignDescriptor, 
 	}
 	return sqlError("42501", "must be owner of foreign server "+server.Name())
 }
-func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind ForeignObjectKind, options []ForeignOption) (foreignValidation, error) {
+func foreignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, kind ForeignObjectKind, options []ForeignOption) (foreignValidation, error) {
 	if wrapper.Validator == (ids.ObjectAddress{}) {
 		return foreignValidation{}, nil
 	}
@@ -195,7 +195,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		return e.stageForeignTableLocked(scope, auth, stage, s)
 	}
 	class := foreignClass(s.Kind)
-	var old, server, wrapper *foreignDescriptor
+	var old, server, wrapper *catalog.ForeignObject
 	var role authorization.PrincipalRef
 	name := ""
 	if len(s.Name.Parts) != 0 {
@@ -287,7 +287,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		_, err = findForeign(auth.catalog, class, name)
 		return nil, nil, err
 	}
-	var next foreignDescriptor
+	var next catalog.ForeignObject
 	if old != nil {
 		if class != ids.ForeignMappingClassID && s.Owner == nil {
 			if err = auth.Check(AccessRequirement{Object: foreignRef(auth, old), OwnerOnly: true}); err != nil {
@@ -300,7 +300,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if er != nil {
 			return nil, nil, er
 		}
-		next = foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: oid}, ObjectName: name, Owner: auth.state.CurrentUser}
+		next = catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: oid}, ObjectName: name, Owner: auth.state.CurrentUser}
 	}
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
@@ -418,7 +418,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 func foreignCatalogClass(class ids.OID) bool {
 	return class == ids.ForeignWrapperClassID || class == ids.ForeignServerClassID || class == ids.ForeignMappingClassID
 }
-func foreignDependencyAddresses(d *foreignDescriptor) [4]ids.ObjectAddress {
+func foreignDependencyAddresses(d *catalog.ForeignObject) [4]ids.ObjectAddress {
 	return [4]ids.ObjectAddress{d.Wrapper, d.Server, d.Handler, d.Validator}
 }
 
@@ -438,7 +438,7 @@ func foreignCommandTag(s *parser.ForeignDDL) string {
 	return strings.ToUpper(s.Action) + " " + kind
 }
 
-func foreignMappingDiagnostic(auth AuthorizationView, role authorization.PrincipalRef, server *foreignDescriptor, exists bool) string {
+func foreignMappingDiagnostic(auth AuthorizationView, role authorization.PrincipalRef, server *catalog.ForeignObject, exists bool) string {
 	name := "public"
 	if role != (authorization.PrincipalRef{}) {
 		if descriptor, ok := auth.roles.Find(role); ok {
@@ -452,7 +452,7 @@ func foreignMappingDiagnostic(auth AuthorizationView, role authorization.Princip
 	return fmt.Sprintf(`user mapping for "%s" %s for server "%s"`, name, verb, server.Name())
 }
 
-func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescriptor, target authorization.PrincipalRef) error {
+func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.ForeignObject, target authorization.PrincipalRef) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return err

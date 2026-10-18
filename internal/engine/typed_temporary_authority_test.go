@@ -112,7 +112,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 	}
 }
 
-func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *typeDescriptor, ids.ObjectAddress) {
+func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *catalog.Type, ids.ObjectAddress) {
 	t.Helper()
 	e, owner, finishOwner, memberAddress := typedReviewACLFixture(t)
 	if member {

@@ -14,8 +14,8 @@ import (
 // extensionInstaller is the engine side of an implementation: staging needs
 // the engine and its catalog stage, which catalog code never names.
 type extensionInstaller interface {
-	extensionImplementation
-	stage(*Engine, *CatalogStage, *extensionDescriptor, authorization.PrincipalRef, AuthorizationView) error
+	catalog.ExtensionImplementation
+	stage(*Engine, *CatalogStage, *catalog.Extension, authorization.PrincipalRef, AuthorizationView) error
 }
 
 const unaccentTemplateContext = "SQL statement \"CREATE TEXT SEARCH TEMPLATE unaccent (\n\tINIT = unaccent_init,\n\tLEXIZE = unaccent_lexize\n)\"\nextension script file \"unaccent--1.1.sql\", near line 26"
@@ -30,7 +30,7 @@ func (e *Engine) registerExtension(name string, implementation extensionInstalle
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
 	if e.catalog.Extensions == nil {
-		e.catalog.Extensions = make(map[string]extensionImplementation)
+		e.catalog.Extensions = make(map[string]catalog.ExtensionImplementation)
 	}
 	if _, exists := e.catalog.Extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
@@ -167,7 +167,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &extensionDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -180,7 +180,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	return stage, nil
 }
 
-func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, 6)
 	for i, class := range [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -251,7 +251,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	tmpl := &tsTemplateDescriptor{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
+	tmpl := &catalog.TSTemplate{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
 	if stage.LookupName(catalog.DescriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.TargetNamespace)
 	}
@@ -262,7 +262,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	dict := &tsDictionaryDescriptor{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
+	dict := &catalog.TSDictionary{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
 	if stage.LookupName(catalog.DescriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.TargetNamespace)
 	}
@@ -284,14 +284,14 @@ func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 			args, result, symbol, properties, line = "internal,internal,internal,internal", "internal", "unaccent_lexize", "PARALLEL SAFE", 21
 		}
 		err.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/unaccent', '%s'\n\tLANGUAGE C %s\"\nextension script file \"unaccent--1.1.sql\", near line %d", d.Name(), args, result, symbol, properties, line)
-	case *tsTemplateDescriptor:
+	case *catalog.TSTemplate:
 		err.Code = "23505"
 		err.Schema = "pg_catalog"
 		err.Table = "pg_ts_template"
 		err.Constraint = "pg_ts_template_tmplname_index"
 		err.Detail = fmt.Sprintf("Key (tmplname, tmplnamespace)=(unaccent, %d) already exists.", ns.ObjectID)
 		err.Context = unaccentTemplateContext
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		err.Code = "23505"
 		err.Schema = "pg_catalog"
 		err.Table = "pg_ts_dict"

@@ -16,7 +16,7 @@ const nativeDatabaseLocale = "C"
 
 func databaseCollationActualVersion() (*string, error) {
 	locale := nativeDatabaseLocale
-	return collationActualVersion(&collationDescriptor{
+	return collationActualVersion(&catalog.Collation{
 		Provider: nativeDatabaseProvider, Collate: &locale, CType: &locale,
 	})
 }
@@ -44,7 +44,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view CatalogRead, roles 
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}
-	if err := (databaseProvider{}).Validate(view, database); err != nil {
+	if err := (catalog.DatabaseProvider{}).Validate(view, database); err != nil {
 		return nil, err
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {

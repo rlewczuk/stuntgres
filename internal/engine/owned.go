@@ -69,7 +69,7 @@ func ownershipRelationLocks(view CatalogRead, roots []ids.ObjectAddress) []ids.O
 		switch d := view.Get(a).(type) {
 		case *catalog.Relation:
 			group[a] = true
-		case *typeDescriptor:
+		case *catalog.Type:
 			if d.OwningRelation != (ids.ObjectAddress{}) {
 				group[d.OwningRelation] = true
 			}
@@ -184,7 +184,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			switch d := auth.catalog.Get(a).(type) {
 			case *catalog.Procedure:
 				extension = d.Extension
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				extension = d.Extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
@@ -230,13 +230,13 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			// PostgreSQL's schema and generic collation handlers retain their
 			// own eligibility checks; relation/type bulk recursion does not SET.
 			switch d.(type) {
-			case *foreignDescriptor:
-				foreign := d.(*foreignDescriptor)
+			case *catalog.ForeignObject:
+				foreign := d.(*catalog.ForeignObject)
 				err = foreignOwnershipEligibility(auth, foreign, target)
 				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
 					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
-			case *namespaceDescriptor:
+			case *catalog.Namespace:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
@@ -244,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				if err == nil {
 					err = ownershipDatabaseCreate(auth)
 				}
-			case *collationDescriptor, *conversionDescriptor, *catalog.Operator, *databaseDescriptor, *extensionDescriptor, *catalog.Procedure, *tsDictionaryDescriptor:
+			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
@@ -257,7 +257,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				break
 			}
 			switch d.(type) {
-			case *catalog.Procedure, *catalog.Operator, *tsDictionaryDescriptor:
+			case *catalog.Procedure, *catalog.Operator, *catalog.TSDictionary:
 				providersChanged = true
 			}
 		}

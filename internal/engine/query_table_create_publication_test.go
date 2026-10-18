@@ -241,7 +241,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			case "source_definition":
 				original := e.CatalogRead().Get(d.Namespace())
 				stage.querySources = []Descriptor{original}
-				next := *original.(*namespaceDescriptor)
+				next := *original.(*catalog.Namespace)
 				next.ObjectRevision++
 				peer := e.BeginCatalogStage(e.CatalogRead())
 				if err = peer.Replace(&next); err != nil {

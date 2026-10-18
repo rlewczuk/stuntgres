@@ -74,7 +74,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					default:
 						t.Fatal("unexpected real procedure", d)
 					}
-				case *tsDictionaryDescriptor:
+				case *catalog.TSDictionary:
 					noun = "text search dictionary unaccent"
 				default:
 					t.Fatal("unexpected owned member", member)

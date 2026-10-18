@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func pgcryptoUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -81,7 +81,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) {
-			p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
+			p.Implementation = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4"}}
 		},
 		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
 		func(p *catalog.Procedure) { p.Implementation = stockIntarray },
@@ -116,7 +116,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			func(p *catalog.Procedure) { p.Result = 25 },
 			func(p *catalog.Procedure) { p.Signature = "25" },
 			func(p *catalog.Procedure) {
-				p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
+				p.Implementation = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4"}}
 			},
 		} {
 			bad := *original

@@ -12,7 +12,7 @@ import (
 )
 
 // OF names are catalog object names, not SQL declaration aliases.
-func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, error) {
+func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
 	path, err := e.lookupNamespaces(auth, name, typeLookup)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.ObjectAddress) (*catalog.Relation, error) {
+func standaloneComposite(view CatalogRead, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
 		name = typeDiagnosticNameAt(view, typ, path)
@@ -46,7 +46,7 @@ func standaloneComposite(view CatalogRead, typ *typeDescriptor, path []ids.Objec
 	return source, nil
 }
 
-func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]ColumnDescriptor, []createColumnDeclaration, *typeDescriptor, error) {
+func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]ColumnDescriptor, []createColumnDeclaration, *catalog.Type, error) {
 	typ, err := e.namedType(auth, *s.OfType)
 	if err != nil {
 		return nil, nil, nil, err

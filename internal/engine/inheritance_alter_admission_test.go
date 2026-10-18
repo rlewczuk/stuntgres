@@ -482,7 +482,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Helper()
 				row, array := false, false
 				for _, effect := range effects {
-					typ, ok := effect.(*typeDescriptor)
+					typ, ok := effect.(*catalog.Type)
 					if !ok {
 						continue
 					}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqlty
 		return nil
 	}
 	descriptor, _ := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
-	d, ok := descriptor.(*collationDescriptor)
+	d, ok := descriptor.(*catalog.Collation)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")
 	}

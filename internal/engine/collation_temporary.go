@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -53,9 +54,9 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	for {
 		e.mu.Lock()
 		base := e.catalog.read(e.catalog.state)
-		var namespaces []*namespaceDescriptor
+		var namespaces []*catalog.Namespace
 		for _, d := range base.Descriptors() {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == source.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.token {
 				namespaces = append(namespaces, ns)
 			}
 		}
@@ -101,7 +102,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	}
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*namespaceDescriptor, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base CatalogRead, namespaces []*catalog.Namespace, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
 	var stage *CatalogStage
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.
@@ -135,7 +136,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		for key := range base.State().DefaultACLs() {
 			if key.Schema == ns.Address() {
 				if stage.DefaultACLs == nil {
-					stage.DefaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+					stage.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 				}
 				stage.DefaultACLs[key] = nil
 			}

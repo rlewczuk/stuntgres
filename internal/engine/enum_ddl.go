@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -33,7 +34,7 @@ func enumInsertionOrder(members []sqltype.EnumMember, at int) float32 {
 	return midpoint
 }
 
-func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ids.ObjectRef, error) {
+func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
 	// Utility object lookup has no cursor position, unlike expression type input.
 	lookupName := name
 	if len(name.Parts) == 2 {
@@ -124,7 +125,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 				changes.enumCreated = make(map[ids.ObjectAddress]bool)
 			}
 			for a, d := range stage.Descriptors {
-				if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsEnum() {
+				if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsEnum() {
 					changes.enumCreated[a] = true
 				}
 			}

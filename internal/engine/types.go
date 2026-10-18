@@ -68,7 +68,7 @@ type typeProvider struct{}
 
 func (typeProvider) ClassID() ids.OID { return ids.TypeClassID }
 func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
-	t, ok := descriptor.(*typeDescriptor)
+	t, ok := descriptor.(*catalog.Type)
 	if !ok || t.SQLType == nil || t.SQLType.ID() == 0 {
 		return fmt.Errorf("stuntgres: invalid type descriptor")
 	}
@@ -144,7 +144,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
 		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-		if !exists || owner.(*typeDescriptor).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*typeDescriptor).Owner != t.Owner {
+		if !exists || owner.(*catalog.Type).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*catalog.Type).Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
 	}

@@ -64,7 +64,7 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 type createLikeInput struct {
 	ref         ids.ObjectRef
 	source      *catalog.Relation
-	sourceType  *typeDescriptor
+	sourceType  *catalog.Type
 	offset      int
 	targetSlots []int
 	options     tableLikeMask

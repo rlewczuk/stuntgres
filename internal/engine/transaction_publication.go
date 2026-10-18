@@ -458,7 +458,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.roles = c.roles
 			}
 			for a, d := range c.descriptors {
-				if ns, ok := d.(*namespaceDescriptor); ok && !ns.TemporaryToast && ns.Temporary == session.token {
+				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == session.token {
 					session.temporaryNamespace = a
 				}
 			}

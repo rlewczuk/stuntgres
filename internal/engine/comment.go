@@ -23,7 +23,7 @@ func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error)
 	sub := a.SubID
 	a.SubID = 0
 	switch r.Get(a).(type) {
-	case *namespaceDescriptor, *typeDescriptor, *catalog.Relation:
+	case *catalog.Namespace, *catalog.Type, *catalog.Relation:
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
@@ -150,7 +150,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	}
 	var updated Descriptor
 	switch d := auth.catalog.Get(a).(type) {
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		n := *d
 		n.Comment = text
 		n.ObjectRevision = revision

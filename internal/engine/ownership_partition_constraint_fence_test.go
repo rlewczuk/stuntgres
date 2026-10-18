@@ -44,7 +44,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		// Honest predecessor plus a different selected private descriptor. This
 		// tests catalog authority, not SQL admission for transactional DB OWNER.
 		changes = newCatalogChanges()
-		database := *committed.(*databaseDescriptor)
+		database := *committed.(*catalog.Database)
 		database.Owner, database.ObjectRevision = actor, database.Revision()+1
 		changes.descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.originals[catalog.CurrentDatabaseAddress] = committed

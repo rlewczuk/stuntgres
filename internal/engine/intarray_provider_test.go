@@ -30,7 +30,7 @@ func intarrayUnitStage(t *testing.T, e *Engine, op *Operation, name, schema stri
 	return stage
 }
 
-func intarrayUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor, *typeDescriptor) {
+func intarrayUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -168,7 +168,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		defer e.DiscardCatalogStage(stage)
 		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		owner := op.RoleState().CurrentUser
-		for _, d := range []*typeDescriptor{
+		for _, d := range []*catalog.Type{
 			{SQLType: typ, ObjectNamespace: namespace, Owner: owner, ObjectRevision: revision, Array: array.ID()},
 			{SQLType: array, ObjectNamespace: namespace, Owner: owner, ObjectRevision: revision},
 		} {
@@ -191,21 +191,21 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		e, ext, base := intarrayUnitInstalled(t)
 		original := slices.Clone(ext.Members)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		for _, corrupt := range []func(*catalogState, *extensionDescriptor){
-			func(_ *catalogState, d *extensionDescriptor) { d.Members[1] = d.Members[0] },
-			func(_ *catalogState, d *extensionDescriptor) { d.Version = "1.2" },
-			func(state *catalogState, d *extensionDescriptor) { state.RemoveDescriptor(d.Members[1]) },
-			func(state *catalogState, d *extensionDescriptor) {
+		for _, corrupt := range []func(*catalogState, *catalog.Extension){
+			func(_ *catalogState, d *catalog.Extension) { d.Members[1] = d.Members[0] },
+			func(_ *catalogState, d *catalog.Extension) { d.Version = "1.2" },
+			func(state *catalogState, d *catalog.Extension) { state.RemoveDescriptor(d.Members[1]) },
+			func(state *catalogState, d *catalog.Extension) {
 				proc := *state.MustProcedure(d.Members[1])
 				proc.Result++
 				state.SetDescriptor(proc.Address(), &proc)
 			},
-			func(state *catalogState, d *extensionDescriptor) {
+			func(state *catalogState, d *catalog.Extension) {
 				proc := *state.MustProcedure(d.Members[2])
 				proc.Signature = "25"
 				state.SetDescriptor(proc.Address(), &proc)
 			},
-			func(state *catalogState, _ *extensionDescriptor) {
+			func(state *catalogState, _ *catalog.Extension) {
 				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
 				array := *state.MustType(address)
 				array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), text)
@@ -224,7 +224,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				t.Fatal("negative validation mutated original manifest")
 			}
 		}
-		mapped := remapExtensionDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.Members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
+		mapped := remapExtensionDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.Members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 65000}}).(*catalog.Extension)
 		if mapped.Members[1] == ext.Members[1] || !slices.Equal(original, ext.Members) {
 			t.Fatal("remapping aliased source membership")
 		}
@@ -236,7 +236,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 
 // Construct the namespace through the actual physical-session creation path,
 // then validate/publish it. No fabricated TEMP token or helper-script parity.
-func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *namespaceDescriptor {
+func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *catalog.Namespace {
 	t.Helper()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)

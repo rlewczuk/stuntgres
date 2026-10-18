@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.ObjectName) (*conversionDescriptor, error) {
+func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.ObjectName) (*catalog.Conversion, error) {
 	path, err := e.lookupNamespaces(auth, name, conversionLookup)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	}
 	if s.Default {
 		for _, descriptor := range e.stageRead(stage).Descriptors() {
-			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.Source == source && d.Destination == destination && d.DefaultConversion {
+			if d, ok := descriptor.(*catalog.Conversion); ok && d.Namespace() == namespace.Address && d.Source == source && d.Destination == destination && d.DefaultConversion {
 				return sqlError("42710", "default conversion for "+sqltype.EncodingName(source)+" to "+sqltype.EncodingName(destination)+" already exists")
 			}
 		}
@@ -112,7 +112,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if err != nil {
 		return err
 	}
-	return stage.Create(&conversionDescriptor{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
+	return stage.Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
 func conversionProbeResult(name string, consumed int) error {

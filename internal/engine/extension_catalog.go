@@ -27,7 +27,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	var ext ids.ObjectAddress
 	switch d := d.(type) {
-	case *extensionDescriptor:
+	case *catalog.Extension:
 		implementation, registered := v.Owner().Extensions[d.Name()]
 		if !registered || d.Version != implementation.Control().Version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
@@ -151,7 +151,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		default:
 			return invalid()
 		}
-	case *tsTemplateDescriptor:
+	case *catalog.TSTemplate:
 		if d.Name() != "unaccent" || unaccentTemplateProviderOf(d) != stockUnaccent {
 			return invalid()
 		}
@@ -162,7 +162,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 		}
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		if d.Name() != "unaccent" || unaccentDictionaryProviderOf(d) != stockUnaccent {
 			return invalid()
 		}
@@ -191,13 +191,13 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 }
 func extensionMembership(d Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		return d.Extension
 	case *catalog.Procedure:
 		return d.Extension
-	case *tsTemplateDescriptor:
+	case *catalog.TSTemplate:
 		return d.Extension
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		return d.Extension
 	}
 	return ids.ObjectAddress{}
@@ -217,7 +217,7 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 		if namespaces[descriptor.Namespace()] {
 			selected[address] = true
 		}
-		if extension, ok := descriptor.(*extensionDescriptor); ok && namespaces[extension.TargetNamespace] {
+		if extension, ok := descriptor.(*catalog.Extension); ok && namespaces[extension.TargetNamespace] {
 			selected[address] = true
 			for _, member := range extension.Members {
 				d := base.Get(member)
@@ -252,7 +252,7 @@ func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name st
 	return nil
 }
 
-func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *extensionDescriptor) error {
+func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
 	if p != stockUnaccent || len(d.Members) != 6 {
 		return invalid()

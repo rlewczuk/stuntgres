@@ -21,7 +21,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()
 	view = view.WithState(catalog.CloneState(view.State()))
-	var installed *tsDictionaryDescriptor
+	var installed *catalog.TSDictionary
 	for _, address := range ext.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			installed = d
@@ -285,7 +285,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "reg_ts_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -329,7 +329,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 func TestRegTSStoredDependencyProviders(t *testing.T) {
 	e, _, extension := extensionUnitInstalled(t)
 	view := e.CatalogRead()
-	var dictionary *tsDictionaryDescriptor
+	var dictionary *catalog.TSDictionary
 	for _, address := range extension.Members {
 		if d, ok := view.TSDictionary(address); ok {
 			dictionary = d

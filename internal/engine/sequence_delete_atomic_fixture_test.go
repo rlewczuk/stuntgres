@@ -127,7 +127,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		}
 		var namespaces, temps int
 		for a, d := range tx.catalog.descriptors {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.Temporary == s.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
 				namespaces++
 				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")

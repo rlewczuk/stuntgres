@@ -93,7 +93,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if err := stageCompositeFieldChecks(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}
-	next := stage.Descriptors[original.Address()].(*typeDescriptor)
+	next := stage.Descriptors[original.Address()].(*catalog.Type)
 	if len(next.DomainChecks) != 1 || next.DomainChecks[0].Name != "keep_check" || next.DomainChecks[0].OID != original.DomainChecks[1].OID || next.SQLType.ID() != original.SQLType.ID() || next.SQLType.DomainBase() != original.SQLType.DomainBase() {
 		t.Fatal("wrong owner or constraint pruned")
 	}
@@ -114,10 +114,10 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if err := stage.removeDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.Descriptors[original.Address()].(*typeDescriptor).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
+	if len(stage.Descriptors[original.Address()].(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {
 		t.Fatal("last removal mutated surviving capture")
 	}
-	if stage.Descriptors[original.Address()].(*typeDescriptor).SQLType.HasDomainChecks() {
+	if stage.Descriptors[original.Address()].(*catalog.Type).SQLType.HasDomainChecks() {
 		t.Fatal("empty CHECK owner retained codec authority")
 	}
 }

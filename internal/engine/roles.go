@@ -177,7 +177,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 			}
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
+	if typ, ok := d.(*catalog.Type); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
 		// Dependent row/array ownership belongs to the relation; independent
 		// composite types still carry their own named ACL dependency.
 		if !typ.SQLType.IsComposite() {
@@ -193,7 +193,7 @@ func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, de
 	}
 	owner, acl, columns := descriptorACL(d)
 	if owner == ref {
-		if typ, array := d.(*typeDescriptor); array && typ.SQLType.IsArray() {
+		if typ, array := d.(*catalog.Type); array && typ.SQLType.IsArray() {
 			// Associated array ownership is represented by its parent.
 			return false
 		}
@@ -309,26 +309,26 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	address.SubID = 0
 	d := view.Get(address)
 	name := dependencyIdentifier(d.Name())
-	if _, ok := d.(*namespaceDescriptor); ok {
+	if _, ok := d.(*catalog.Namespace); ok {
 		name = d.Name()
 	}
 	kind := "schema "
 	switch d.(type) {
-	case *databaseDescriptor:
+	case *catalog.Database:
 		kind = "database "
-	case *parameterDescriptor:
+	case *catalog.Parameter:
 		kind = "parameter "
 		name = d.Name()
-	case *tablespaceDescriptor:
+	case *catalog.Tablespace:
 		kind = "tablespace "
-	case *extensionDescriptor:
+	case *catalog.Extension:
 		kind = "extension "
 	case *catalog.Procedure:
 		kind = "function "
-	case *tsDictionaryDescriptor:
+	case *catalog.TSDictionary:
 		kind = "text search dictionary "
 	}
-	if foreign, ok := d.(*foreignDescriptor); ok {
+	if foreign, ok := d.(*catalog.ForeignObject); ok {
 		kind = foreignLabel(foreign.Address().ClassID) + " "
 		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
@@ -359,17 +359,17 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
+	if typ, ok := d.(*catalog.Type); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "type "
 		name = typeDiagnosticNameAt(view, typ, path)
 	}
-	if c, ok := d.(*collationDescriptor); ok {
+	if c, ok := d.(*catalog.Collation); ok {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "collation "
 		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "collation ")
 	}
-	if c, ok := d.(*conversionDescriptor); ok {
+	if c, ok := d.(*catalog.Conversion); ok {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "conversion "
 		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "conversion ")

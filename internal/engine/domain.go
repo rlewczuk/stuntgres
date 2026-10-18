@@ -56,7 +56,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor); ok {
+	if replacement, ok := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*catalog.Type); ok {
 		base.Type = replacement.SQLType
 	}
 	base, err = e.resolveColumnCollation(base, s.Collation, op)
@@ -101,14 +101,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &typeDescriptor{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
@@ -150,11 +150,11 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	return nil
 }
 
-func typeDiagnosticNameAt(view CatalogRead, d *typeDescriptor, path []ids.ObjectAddress) string {
+func typeDiagnosticNameAt(view CatalogRead, d *catalog.Type, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
 		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
-			return typeDiagnosticNameAt(view, element.(*typeDescriptor), path) + "[]"
+			return typeDiagnosticNameAt(view, element.(*catalog.Type), path) + "[]"
 		}
 	}
 	name := dependencyIdentifier(d.Name())
@@ -174,7 +174,7 @@ func typeDiagnosticNameAt(view CatalogRead, d *typeDescriptor, path []ids.Object
 
 func validateTypeProviders(view CatalogRead, d Descriptor) error {
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		if d.SQLType.IsDomain() {
 			base := d.SQLType.DomainBase()
 			if err := validateUsageCollation(view, base); err != nil {

@@ -26,7 +26,7 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 		return false
 	}
 	switch d := d.(type) {
-	case *typeDescriptor:
+	case *catalog.Type:
 		if d.OwningRelation != (ids.ObjectAddress{}) {
 			relation, ok := view.Relation(d.OwningRelation)
 			return !ok || relation.RelationKind == catalog.CatalogRelation
@@ -34,9 +34,9 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
 		// arrays retain their owned element's dependency even without storage.
 		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
-	case *collationDescriptor:
+	case *catalog.Collation:
 		return d.Seeded()
-	case *conversionDescriptor:
+	case *catalog.Conversion:
 		return d.Seeded()
 	case *catalog.Procedure:
 		return d.Seeded()
@@ -87,13 +87,13 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 					add(d.Address(), address, 'n')
 				}
 			}
-		case *foreignDescriptor:
+		case *catalog.ForeignObject:
 			for _, address := range foreignDependencyAddresses(d) {
 				if address != (ids.ObjectAddress{}) {
 					add(d.Address(), address, 'n')
 				}
 			}
-		case *extensionDescriptor:
+		case *catalog.Extension:
 			add(d.Address(), d.TargetNamespace, 'n')
 		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
@@ -106,25 +106,25 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 					add(d.Address(), ext.Members[0], 'n')
 				}
 			}
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Init, 'n')
 			add(d.Address(), d.Lexize, 'n')
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Template, 'n')
-		case *collationDescriptor:
+		case *catalog.Collation:
 			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 			}
-		case *conversionDescriptor:
+		case *catalog.Conversion:
 			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 				add(d.Address(), d.Handler, 'n')
 			}
-		case *typeDescriptor:
+		case *catalog.Type:
 			if pgDependPinned(view, d.Address()) {
 				continue
 			}

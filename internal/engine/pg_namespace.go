@@ -35,20 +35,20 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view CatalogRead, roles
 	}
 	count := 0
 	for _, d := range view.Descriptors() {
-		if _, ok := d.(*namespaceDescriptor); ok {
+		if _, ok := d.(*catalog.Namespace); ok {
 			count++
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
 	for address, d := range view.Descriptors() {
-		ns, ok := d.(*namespaceDescriptor)
+		ns, ok := d.(*catalog.Namespace)
 		if !ok {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if err := (namespaceProvider{}).Validate(view, ns); err != nil {
+		if err := (catalog.NamespaceProvider{}).Validate(view, ns); err != nil {
 			return nil, err
 		}
 		if address != ns.Address() {

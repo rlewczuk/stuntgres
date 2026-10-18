@@ -76,9 +76,9 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descri
 	}
 }
 
-func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*namespaceDescriptor, bool) {
+func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	descriptor, exists := a.definitionDescriptor(address)
-	namespace, ok := descriptor.(*namespaceDescriptor)
+	namespace, ok := descriptor.(*catalog.Namespace)
 	return namespace, exists && ok
 }
 
@@ -131,7 +131,7 @@ func definitionTypeAt(view CatalogRead, reader definitionReader, id sqltype.ID) 
 		return view.LookupType(id)
 	}
 	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-	typ, ok := descriptor.(*typeDescriptor)
+	typ, ok := descriptor.(*catalog.Type)
 	if !exists || !ok {
 		return nil, false
 	}
@@ -146,7 +146,7 @@ func definitionArrayAt(view CatalogRead, reader definitionReader, element *sqlty
 		return view.LookupArray(element)
 	}
 	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-	typ, ok := descriptor.(*typeDescriptor)
+	typ, ok := descriptor.(*catalog.Type)
 	if !exists || !ok || typ.SQLType != element {
 		return nil, false
 	}

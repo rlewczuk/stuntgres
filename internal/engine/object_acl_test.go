@@ -21,7 +21,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
 	view = view.WithState(catalog.CloneState(view.State()))
 	view.State().SetDescriptor(relation.Address(), relation)
-	schema := &namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
+	schema := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}
 	view.State().SetDescriptor(schema.Address(), schema)
 	check := func(address ids.ObjectAddress, want authorization.ACLValue) {
 		t.Helper()

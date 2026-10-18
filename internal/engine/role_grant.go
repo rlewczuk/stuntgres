@@ -232,7 +232,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				if candidate == nil {
 					candidate = catalog.CloneState(v.catalog.State())
 				}
-				if parameter, ok := next.(*parameterDescriptor); ok {
+				if parameter, ok := next.(*catalog.Parameter); ok {
 					installParameterGrant(candidate, parameter)
 					if candidate.Get(address) == nil {
 						changed[address] = objectGrantChange{}

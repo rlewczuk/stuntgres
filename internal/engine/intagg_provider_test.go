@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
+func intaggUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -52,7 +52,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch }, func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 			func(p *catalog.Procedure) { p.Implementation = stockUnaccent }, func(p *catalog.Procedure) { p.Implementation = stockIntarray },
 			func(p *catalog.Procedure) {
-				p.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
+				p.Implementation = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 			},
 		} {
 			state := catalog.CloneState(e.catalog.state)

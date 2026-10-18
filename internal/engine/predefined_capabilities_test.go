@@ -27,7 +27,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		d    Descriptor
 		want authorization.Privileges
 	}{
-		{&namespaceDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
+		{&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 100001}, ObjectName: "private", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
 		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100002}, ObjectName: "table", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.TableRelation, Attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
 		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100003}, ObjectName: "view", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.ViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
 		{&catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100004}, ObjectName: "materialized", Owner: owner, ACL: authorization.ACLValue{Explicit: true}, RelationKind: catalog.MaterializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},

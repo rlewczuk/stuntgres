@@ -71,7 +71,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
 					address = schemaRef(t, e, "retirement_peer").Address
 					descriptor = e.catalog.state.Get(address)
-					if descriptor.(*namespaceDescriptor).Owner != role.Ref {
+					if descriptor.(*catalog.Namespace).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
 					}
 				case "policy":

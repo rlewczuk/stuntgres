@@ -31,7 +31,7 @@ type extensionOwnerRecord struct {
 	Members []extensionMemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *extensionDescriptor) (string, error) {
+func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *catalog.Extension) (string, error) {
 	owner, err := roles.Descriptor(ext.Owner)
 	if err != nil {
 		return "", err
@@ -52,13 +52,13 @@ func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *ext
 				member.Signature = "query_int"
 			}
 			principal = d.Owner
-		case *tsDictionaryDescriptor:
+		case *catalog.TSDictionary:
 			member = extensionMemberOwner{Kind: "dictionary", Name: d.Name()}
 			principal = d.Owner
-		case *typeDescriptor:
+		case *catalog.Type:
 			member = extensionMemberOwner{Kind: "type", Name: d.Name()}
 			principal = d.Owner
-		case *tsTemplateDescriptor:
+		case *catalog.TSTemplate:
 			continue
 		default:
 			return "", fmt.Errorf("stuntgres: missing extension owner member")
@@ -283,7 +283,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
@@ -305,7 +305,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref

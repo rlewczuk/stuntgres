@@ -15,9 +15,9 @@ type catalogChanges struct {
 	originals           map[ids.ObjectAddress]Descriptor
 	descriptors         map[ids.ObjectAddress]Descriptor
 	names               map[ids.NameKey]ids.ObjectAddress
-	defaultACLs         map[defaultACLKey]*defaultACLRecord
-	defaultOriginals    map[defaultACLKey]*defaultACLRecord
-	defaultReads        map[defaultACLKey]*defaultACLRecord
+	defaultACLs         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	defaultOriginals    map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	defaultReads        map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	generators          map[ids.ObjectAddress]*sequenceGenerator
 	storage             map[ids.ObjectAddress]catalogStorageChange
 	uniqueRoots         map[ids.ObjectAddress]*logicalIndexRoot
@@ -338,7 +338,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 					continue
 				}
 				switch owner := owner.(type) {
-				case *foreignDescriptor:
+				case *catalog.ForeignObject:
 					for _, dependency := range foreignDependencyAddresses(owner) {
 						if dependency != (ids.ObjectAddress{}) && dependency == target {
 							return CatalogConflict{}

@@ -282,7 +282,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		return nil
 	}
 	for address, d := range next.Descriptors() {
-		if t, ok := d.(*typeDescriptor); ok && (t.SQLType.IsDomain() || t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.OwningRelation != (ids.ObjectAddress{})) {
+		if t, ok := d.(*catalog.Type); ok && (t.SQLType.IsDomain() || t.SQLType.IsUserDefined() || t.SQLType.IsArray() || t.OwningRelation != (ids.ObjectAddress{})) {
 			if err := visit(address); err != nil {
 				return false, err
 			}

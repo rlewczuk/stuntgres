@@ -178,7 +178,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			chain := domainUnitType(t, view, "operator_chain")
 			next := catalog.CloneState(view.State())
 			mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
-			for i, domain := range []*typeDescriptor{direct, chain} {
+			for i, domain := range []*catalog.Type{direct, chain} {
 				if !domain.SQLType.Concrete() || !domain.SQLType.Usage().Valid() || !sqltype.IsOperatorAlias(domain.SQLType.BaseType().ID()) {
 					t.Fatal("ordinary scalar domain invalidated", domain)
 				}
@@ -195,7 +195,7 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 			if changed, err := reownDomainTypes(next, mapping, false); err != nil || !changed {
 				t.Fatal("domain reownership", changed, err)
 			}
-			for i, original := range []*typeDescriptor{direct, chain} {
+			for i, original := range []*catalog.Type{direct, chain} {
 				domain := next.MustType(original.Address())
 				array := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.Array)})
 				if !domain.SQLType.Concrete() || domain.SQLType.ID() != sqltype.ID(60001+i) || array.SQLType.Concrete() || array.SQLType.Element() != domain.SQLType || array.SQLType.ID() != sqltype.ID(60003+i) || domain.Array != array.SQLType.ID() {

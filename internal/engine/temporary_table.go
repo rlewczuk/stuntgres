@@ -27,7 +27,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
-	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if op.restoreTableDestination {

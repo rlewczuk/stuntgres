@@ -70,7 +70,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 				return err
 			}
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
-			ns := &namespaceDescriptor{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
+			ns := &catalog.Namespace{ObjectAddress: namespace, ObjectName: name.Schema, ObjectRevision: 1, Owner: owner}
 			e.catalog.state.SetDescriptor(namespace, ns)
 			e.catalog.state.BindName(catalog.DescriptorNameKey(ns), namespace)
 			if e.foreignNamespaces == nil {

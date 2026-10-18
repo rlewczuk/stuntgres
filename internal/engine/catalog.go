@@ -50,7 +50,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: relation namespace is missing")
 	}
-	if r.OnCommit > parser.OnCommitDrop || r.OnCommit != parser.OnCommitUnspecified && (r.RelationKind != catalog.TableRelation || ns.(*namespaceDescriptor).Temporary == (ids.SessionToken{})) {
+	if r.OnCommit > parser.OnCommitDrop || r.OnCommit != parser.OnCommitUnspecified && (r.RelationKind != catalog.TableRelation || ns.(*catalog.Namespace).Temporary == (ids.SessionToken{})) {
 		return fmt.Errorf("stuntgres: invalid temporary table commit action")
 	}
 	found := v.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: r.Namespace(), Name: r.Name()})
@@ -549,32 +549,32 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if ref.Address.ClassID != ids.RelationClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
-	case *namespaceDescriptor:
+	case *catalog.Namespace:
 		if !namespace || ref.Address.ClassID != ids.NamespaceClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
-	case *typeDescriptor:
-		t := d.(*typeDescriptor)
+	case *catalog.Type:
+		t := d.(*catalog.Type)
 		if t.OwningRelation == (ids.ObjectAddress{}) && !t.SQLType.IsUserDefined() && !(t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
-	case *collationDescriptor:
-		if d.(*collationDescriptor).Seeded() {
+	case *catalog.Collation:
+		if d.(*catalog.Collation).Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-	case *conversionDescriptor:
-		if d.(*conversionDescriptor).Seeded() {
+	case *catalog.Conversion:
+		if d.(*catalog.Conversion).Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *catalog.Operator:
 		if operatorSeeded(d.(*catalog.Operator)) {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-	case *foreignDescriptor:
+	case *catalog.ForeignObject:
 		if err := provider.owner.catalog.Provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
 			return err
 		}
-	case *extensionDescriptor, *catalog.Procedure, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+	case *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary:
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
@@ -585,11 +585,11 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if err := objectProvider.Validate(provider.base, d); err != nil {
 			return err
 		}
-	case *parameterDescriptor:
+	case *catalog.Parameter:
 		if err := (parameterProvider{provider.owner.settingsDefinitions}).Validate(provider.base, d); err != nil {
 			return err
 		}
-	case *tablespaceDescriptor:
+	case *catalog.Tablespace:
 		return sqlError("2BP01", "cannot drop tablespace "+dependencyIdentifier(d.Name())+" because it is required by the database system")
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
@@ -608,7 +608,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsComposite() {
+	if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.OwningRelation).(*catalog.Relation); ok && backing.RelationKind == catalog.CompositeRelation {
 			if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), backing.Address()), false); err != nil {
 				return err
@@ -621,7 +621,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		}
 	}
 	if r, ok := d.(*catalog.Relation); ok && r.RowType != 0 {
-		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*typeDescriptor)
+		row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.RowType)}).(*catalog.Type)
 		if !ok || row.OwningRelation != r.Address() {
 			return CatalogConflict{}
 		}
@@ -658,7 +658,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	for address, descriptor := range s.Descriptors {
-		typ, ok := descriptor.(*typeDescriptor)
+		typ, ok := descriptor.(*catalog.Type)
 		if !ok || !typ.SQLType.IsComposite() && !typ.SQLType.IsDomain() {
 			continue
 		}
@@ -800,7 +800,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
-			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
+			if ns, ok := base.(*catalog.Namespace); ok && s.terminalCleanup && ns.Temporary != (ids.SessionToken{}) {
 				for address, d := range current.Descriptors() {
 					if _, removed := s.Removals[address]; d.Namespace() == ns.Address() && (!removed || d != s.Base.Get(address)) {
 						e.mu.Unlock()
@@ -1058,7 +1058,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		domainChanged := len(s.domainTargets) != 0
 		for _, d := range s.Descriptors {
-			if t, ok := d.(*typeDescriptor); ok && t.SQLType.IsUserDefined() {
+			if t, ok := d.(*catalog.Type); ok && t.SQLType.IsUserDefined() {
 				domainChanged = true
 				break
 			}

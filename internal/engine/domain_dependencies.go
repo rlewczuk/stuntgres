@@ -19,7 +19,7 @@ type domainDependency struct {
 	ordinal               int32
 	label                 string
 	relation              *catalog.Relation
-	domain                *typeDescriptor
+	domain                *catalog.Type
 	column                string
 	automatic             bool
 }
@@ -40,7 +40,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	for changed := true; changed; {
 		changed = false
 		for a, d := range provider.inputDescriptors() {
-			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]) {
+			if t, ok := d.(*catalog.Type); ok && !domains[a] && (t.SQLType.IsDomain() && (domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Type.ID())}] || domains[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(t.SQLType.DomainBase().Collation.ID)}]) || t.SQLType.IsArray() && domains[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(t.SQLType.Element().ID())}]) {
 				domains[a] = true
 				changed = true
 			}
@@ -76,7 +76,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
 			}
-			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*typeDescriptor)
+			row, ok := provider.retirementDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}).(*catalog.Type)
 			if !ok || row.OwningRelation != relation.Address() {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
@@ -128,7 +128,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						break
 					}
 				}
-			case *foreignDescriptor:
+			case *catalog.ForeignObject:
 				for _, dependency := range foreignDependencyAddresses(d) {
 					if dependency == (ids.ObjectAddress{}) {
 						continue
@@ -138,7 +138,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						break
 					}
 				}
-			case *extensionDescriptor:
+			case *catalog.Extension:
 				if d.TargetNamespace == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
@@ -146,16 +146,16 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *tsDictionaryDescriptor:
+			case *catalog.TSDictionary:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *tsTemplateDescriptor:
+			case *catalog.TSTemplate:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
-			case *typeDescriptor:
-				if replacement, ok := provider.replacement(a).(*typeDescriptor); ok {
+			case *catalog.Type:
+				if replacement, ok := provider.replacement(a).(*catalog.Type); ok {
 					d = replacement
 				}
 				if !domains[a] {
@@ -362,7 +362,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 		for i, target := range targets {
 			var owner ids.ObjectAddress
 			switch descriptor := provider.retirementDescriptor(target).(type) {
-			case *typeDescriptor:
+			case *catalog.Type:
 				owner = descriptor.OwningRelation
 			case *catalog.Relation:
 				if descriptor.Sequence != nil {
@@ -672,7 +672,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*namespaceDescriptor, relations []*catalog.Relation, domains []Descriptor, cascade bool) error {
+func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []Descriptor, cascade bool) error {
 	var contained []Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)
@@ -680,7 +680,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	for _, d := range domains {
 		contained = append(contained, d)
 		stage.domainTargets = append(stage.domainTargets, d.Address())
-		if extension, ok := d.(*extensionDescriptor); ok {
+		if extension, ok := d.(*catalog.Extension); ok {
 			for _, member := range extension.Members {
 				stage.domainTargets = append(stage.domainTargets, member)
 				if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), member), false); err != nil {
@@ -705,7 +705,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	for _, d := range contained {
 		label := dependencyObject(stage.Base, d.Address(), stage.dependencyPath)
 		namespaceAddress := d.Namespace()
-		if extension, ok := d.(*extensionDescriptor); ok {
+		if extension, ok := d.(*catalog.Extension); ok {
 			namespaceAddress = extension.TargetNamespace
 		}
 		namespace := stage.Base.Get(namespaceAddress).Name()
@@ -713,7 +713,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
 			root := edge.root == d.Address()
-			if extension, ok := d.(*extensionDescriptor); ok {
+			if extension, ok := d.(*catalog.Extension); ok {
 				root = root || slices.Contains(extension.Members[:], edge.root)
 			}
 			if root && !edge.automatic {
@@ -740,16 +740,16 @@ func usageDependsOn(u sqltype.Usage, target ids.ObjectAddress) bool {
 	return target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}) || target == (ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
 }
 
-func (stage *CatalogStage) removeDomainCheck(d *typeDescriptor, oid ids.OID) error {
+func (stage *CatalogStage) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
 	return stageDropProvider(nil, stage, nil, nil, nil).removeDomainCheck(d, oid)
 }
 
-func (provider *dropProvider) removeDomainCheck(d *typeDescriptor, oid ids.OID) error {
-	if replacement, ok := provider.replacement(d.Address()).(*typeDescriptor); ok {
+func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) error {
+	if replacement, ok := provider.replacement(d.Address()).(*catalog.Type); ok {
 		d = replacement
 	}
 	next := *d
-	next.DomainChecks = make([]domainCheckConstraint, 0, len(d.DomainChecks))
+	next.DomainChecks = make([]catalog.DomainCheckConstraint, 0, len(d.DomainChecks))
 	for _, check := range d.DomainChecks {
 		if check.OID != oid {
 			next.DomainChecks = append(next.DomainChecks, check)

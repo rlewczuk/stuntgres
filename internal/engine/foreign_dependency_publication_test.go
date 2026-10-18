@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -258,7 +259,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, "BEGIN")
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, "BEGIN")
-		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *foreignDescriptor) error {
+		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 			next := *old
 			next.Wrapper = target
 			var err error
@@ -286,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
-		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
+		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
@@ -385,7 +386,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	// Exercise an actual provider-valid private catalog replacement. This is
 	// not a new SQL ALTER SERVER ... WRAPPER spelling: it tests the common
 	// publisher's final candidate override when the old incoming edge is gone.
-	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
+	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
 		next := *old
 		next.Wrapper = survivor
 		var err error
@@ -435,7 +436,7 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *Session, prepare fu
 	return err
 }
 
-func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address ids.ObjectAddress, edit func(*CatalogStage, *foreignDescriptor) error) error {
+func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
 	t.Helper()
 	return fdwApplyLateUnitStage(t, e, session, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
 		e.mu.Lock()

@@ -20,7 +20,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view CatalogRead, ro
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		d, ok := descriptor.(*parameterDescriptor)
+		d, ok := descriptor.(*catalog.Parameter)
 		if !ok {
 			continue
 		}

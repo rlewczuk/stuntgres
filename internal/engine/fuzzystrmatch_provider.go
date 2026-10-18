@@ -10,12 +10,12 @@ import (
 )
 
 // Only the catalog-selected overloads are installed, not adjacent fuzzy functions.
-type fuzzystrmatchProvider struct{ control extensionControl }
+type fuzzystrmatchProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
-func (p *fuzzystrmatchProvider) Control() extensionControl { return p.control.Detached() }
+func (p *fuzzystrmatchProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
 
-var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
+var stockFuzzystrmatch = &fuzzystrmatchProvider{control: catalog.ExtensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
 
 var fuzzystrmatchMembers = [...]struct {
 	name      string
@@ -43,7 +43,7 @@ func fuzzystrmatchResult(name string, signature catalog.ProcedureSignature) ids.
 	return 0
 }
 
-func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(fuzzystrmatchMembers))
 	for i, member := range fuzzystrmatchMembers {
 		oid, err := e.catalog.allocateOIDLocked()
@@ -67,7 +67,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
+func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
 	if v.Owner() == nil || p != stockFuzzystrmatch || ext.Name() != "fuzzystrmatch" || ext.Version != p.control.Version || len(ext.Members) != len(fuzzystrmatchMembers) {
 		return invalid()

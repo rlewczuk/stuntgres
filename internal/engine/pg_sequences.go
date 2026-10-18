@@ -40,7 +40,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 				namespace = current
 			}
 		}
-		ns, ok := namespace.(*namespaceDescriptor)
+		ns, ok := namespace.(*catalog.Namespace)
 		if !ok {
 			return fmt.Errorf("stuntgres: sequence namespace missing")
 		}

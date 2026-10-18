@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -52,7 +53,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			names := make(map[string]authorization.ACLValue)
 			owners := make(map[string]authorization.PrincipalRef)
 			for _, descriptor := range before.Descriptors() {
-				if ns, ok := descriptor.(*namespaceDescriptor); ok {
+				if ns, ok := descriptor.(*catalog.Namespace); ok {
 					names[ns.Name()], owners[ns.Name()] = ns.ACL, ns.Owner
 				}
 			}
@@ -72,7 +73,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			}
 			gotNames := make(map[string]authorization.ACLValue)
 			for _, descriptor := range after.Descriptors() {
-				if ns, ok := descriptor.(*namespaceDescriptor); ok {
+				if ns, ok := descriptor.(*catalog.Namespace); ok {
 					gotNames[ns.Name()] = ns.ACL
 					if ns.Owner != owners[ns.Name()] {
 						t.Fatal("namespace owner changed", ns.Name())

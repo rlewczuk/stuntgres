@@ -14,7 +14,7 @@ import (
 func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.actor(f.owner)
-	create := func(name string) (AuthorizationView, *typeDescriptor, *typeDescriptor) {
+	create := func(name string) (AuthorizationView, *catalog.Type, *catalog.Type) {
 		t.Helper()
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 		f.e.mu.Lock()
@@ -41,9 +41,9 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		auth.state.CurrentUser = f.reader
 		return auth, base, array
 	}
-	check := func(auth AuthorizationView, base, array *typeDescriptor, allowed bool) {
+	check := func(auth AuthorizationView, base, array *catalog.Type, allowed bool) {
 		t.Helper()
-		for _, descriptor := range []*typeDescriptor{base, array} {
+		for _, descriptor := range []*catalog.Type{base, array} {
 			ref := f.e.catalog.Domain.Ref(auth.catalog.Epoch(), descriptor.Address())
 			err := auth.CanUse(ref)
 			if allowed {

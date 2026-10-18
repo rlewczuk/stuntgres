@@ -12,11 +12,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func conversionSQLName(view CatalogRead, d *conversionDescriptor) string {
+func conversionSQLName(view CatalogRead, d *catalog.Conversion) string {
 	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 }
 
-func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string) (string, error) {
+func conversionDefinition(view CatalogRead, d *catalog.Conversion, name string) (string, error) {
 	procedure, ok := view.Procedure(d.Handler)
 	if !ok || procedure.Conversion.Name() == "" {
 		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
@@ -32,7 +32,7 @@ func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
 // directly CREATED there. Only additional defaults use a collision-free helper
 // schema, which is created before owner groups and removed by the same replay.
-func conversionDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*conversionDescriptor) (statements []dumpDomain, schemas []string, err error) {
+func conversionDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*catalog.Conversion) (statements []dumpDomain, schemas []string, err error) {
 	if len(definitions) == 0 {
 		return
 	}
@@ -45,7 +45,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 	}
 	occupiedPairs := make(map[pair]bool)
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok && d.Seeded() && d.DefaultConversion {
+		if d, ok := descriptor.(*catalog.Conversion); ok && d.Seeded() && d.DefaultConversion {
 			occupiedPairs[pair{d.Namespace(), d.Source, d.Destination}] = true
 		}
 	}
@@ -59,7 +59,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 		if err = ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		if err = (conversionProvider{}).Validate(view, d); err != nil {
+		if err = (catalog.ConversionProvider{}).Validate(view, d); err != nil {
 			return nil, nil, err
 		}
 		owner, ownerErr := roles.Descriptor(d.Owner)
@@ -103,7 +103,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 	}
 	initial := quoteIdentifier(catalogNamespace.Name())
 	type delta struct {
-		d                       *conversionDescriptor
+		d                       *catalog.Conversion
 		fixed, temporary, owner string
 	}
 	var changes []delta
@@ -117,7 +117,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned conversion")
 		}
-		if err := (conversionProvider{}).Validate(view, d); err != nil {
+		if err := (catalog.ConversionProvider{}).Validate(view, d); err != nil {
 			return nil, err
 		}
 		owner, err := roles.Descriptor(d.Owner)

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 // is held.
 func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	for address, descriptor := range next.Descriptors() {
-		d, ok := descriptor.(*typeDescriptor)
+		d, ok := descriptor.(*catalog.Type)
 		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsQueryInt() {
 			continue
 		}

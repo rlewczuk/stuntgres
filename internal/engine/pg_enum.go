@@ -28,7 +28,7 @@ func capturePGEnum(ctx context.Context, view CatalogRead, ref ids.ObjectRef, sou
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		d, ok := descriptor.(*typeDescriptor)
+		d, ok := descriptor.(*catalog.Type)
 		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}
@@ -44,7 +44,7 @@ func capturePGEnum(ctx context.Context, view CatalogRead, ref ids.ObjectRef, sou
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		d, ok := descriptor.(*typeDescriptor)
+		d, ok := descriptor.(*catalog.Type)
 		if !ok || !d.SQLType.IsEnum() {
 			continue
 		}

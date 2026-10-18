@@ -25,8 +25,8 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			view := e.CatalogRead()
 			direct := domainUnitType(t, view, "network_direct")
 			chain := domainUnitType(t, view, "network_chain")
-			arrays := make([]*typeDescriptor, 2)
-			for i, domain := range []*typeDescriptor{direct, chain} {
+			arrays := make([]*catalog.Type, 2)
+			for i, domain := range []*catalog.Type{direct, chain} {
 				array, ok := view.LookupArray(domain.SQLType)
 				if !ok || array.Concrete() || !array.IsArray() || array.Element() != domain.SQLType || array.ID() != domain.Array {
 					t.Fatal("lookup-only reciprocal", domain, array, ok)
@@ -68,7 +68,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			if importedDirect.SQLType.ID() != 60001 || importedChain.SQLType.ID() != 60002 || importedChain.SQLType.DomainBase().Type != importedDirect.SQLType || importedChain.SQLType.BaseType() != physical {
 				t.Fatal("remapped chain identity", importedDirect, importedChain)
 			}
-			for i, domain := range []*typeDescriptor{importedDirect, importedChain} {
+			for i, domain := range []*catalog.Type{importedDirect, importedChain} {
 				array := next.MustType(arrays[i].Address())
 				if array.SQLType.Concrete() || !array.SQLType.IsArray() || array.SQLType.Element() != domain.SQLType || array.SQLType.ID() != sqltype.ID(60003+i) || domain.Array != array.SQLType.ID() {
 					t.Fatal("remap expanded reciprocal array authority", domain, array)

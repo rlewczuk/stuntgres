@@ -53,16 +53,16 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	wrapper := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []ForeignOption{{"a", "1"}}}
-	server := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
+	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []ForeignOption{{"a", "1"}}}
+	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
-	mapping := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, ObjectRevision: 1, Server: server.Address(), MappedRole: owner, MappedName: "postgres"}
+	mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40002}, ObjectRevision: 1, Server: server.Address(), MappedRole: owner, MappedName: "postgres"}
 	mapping.ObjectName = catalog.ForeignMappingName(server.Address(), owner)
-	public := &foreignDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, ObjectRevision: 1, Server: server.Address()}
+	public := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 40003}, ObjectRevision: 1, Server: server.Address()}
 	public.ObjectName = catalog.ForeignMappingName(server.Address(), authorization.PrincipalRef{})
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	for _, d := range []*foreignDescriptor{wrapper, server, mapping, public} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server, mapping, public} {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	e.mu.Lock()
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	e.mu.Unlock()
-	for _, d := range []*foreignDescriptor{wrapper, server} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := foreignRef(auth, d)
 		for _, grantOptions := range []bool{false, true} {
 			rights, err := auth.Effective(ref, grantOptions)
@@ -117,7 +117,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if auth.state.CurrentUser == (authorization.PrincipalRef{}) {
 		t.Fatal("missing real predefined reader")
 	}
-	for _, d := range []*foreignDescriptor{wrapper, server} {
+	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := foreignRef(auth, d)
 		want := authorization.Privileges(0)
 		if d == server {
@@ -146,7 +146,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(alter)
-	if committed, _ := e.CatalogRead().Descriptor(wrapper.Address()); committed.(*foreignDescriptor).Options[0].Value != "1" {
+	if committed, _ := e.CatalogRead().Descriptor(wrapper.Address()); committed.(*catalog.ForeignObject).Options[0].Value != "1" {
 		t.Fatal("discard mutated committed options")
 	}
 }
@@ -236,7 +236,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
-	wrapper := &foreignDescriptor{ObjectName: "wrapper", Handler: oldAddress}
+	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
