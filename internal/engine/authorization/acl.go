@@ -1,5 +1,7 @@
 package authorization
 
+import "fmt"
+
 type Privileges uint32
 
 const (
@@ -109,4 +111,33 @@ func ACLRights(acl ACLValue, owner PrincipalRef, principals []PrincipalRef, mask
 		}
 	}
 	return rights
+}
+
+// ACLItemBits converts stored privileges to PostgreSQL's aclitem bit layout.
+// The two layouts intentionally differ; unsupported bits cannot silently
+// disappear.
+func ACLItemBits(privileges Privileges) (uint32, error) {
+	var mask uint32
+	for _, pair := range [...]struct {
+		from Privileges
+		to   uint32
+	}{
+		{InsertPrivilege, 1 << 0}, {SelectPrivilege, 1 << 1},
+		{UpdatePrivilege, 1 << 2}, {DeletePrivilege, 1 << 3},
+		{TruncatePrivilege, 1 << 4}, {ReferencesPrivilege, 1 << 5},
+		{TriggerPrivilege, 1 << 6}, {ExecutePrivilege, 1 << 7},
+		{UsagePrivilege, 1 << 8}, {CreatePrivilege, 1 << 9},
+		{TemporaryPrivilege, 1 << 10}, {ConnectPrivilege, 1 << 11},
+		{SetPrivilege, 1 << 12}, {AlterSystemPrivilege, 1 << 13},
+		{MaintainPrivilege, 1 << 14},
+	} {
+		if privileges&pair.from != 0 {
+			mask |= pair.to
+			privileges &^= pair.from
+		}
+	}
+	if privileges != 0 {
+		return 0, fmt.Errorf("stuntgres: invalid stored ACL privilege")
+	}
+	return mask, nil
 }

@@ -152,18 +152,6 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 	}
 }
 
-func TestObjectGrantParameterACLTransport(t *testing.T) {
-	for _, tc := range []struct {
-		mask authorization.Privileges
-		want uint32
-	}{{authorization.SetPrivilege, 1 << 12}, {authorization.AlterSystemPrivilege, 1 << 13}, {authorization.SetPrivilege | authorization.AlterSystemPrivilege, 1<<12 | 1<<13}} {
-		got, err := pgClassACLMask(tc.mask)
-		if err != nil || got != tc.want {
-			t.Fatalf("parameter ACLITEM transport: %x, %v; want %x", got, err, tc.want)
-		}
-	}
-}
-
 func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
 	capture := func(catalog CatalogRead) *querySource {

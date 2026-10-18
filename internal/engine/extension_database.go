@@ -124,12 +124,12 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	db := v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	baseline := databaseACL(db)
+	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {
 		return Result{}, err
 	}
-	if available == 0 && authorization.ACLRights(baseline, db.owner, principals, databasePrivileges, false) == 0 {
+	if available == 0 && authorization.ACLRights(baseline, db.owner, principals, authorization.DatabasePrivileges, false) == 0 {
 		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
 	}
 	grantWarning(op, db.name, "", requested, available, all, s.Revoke)

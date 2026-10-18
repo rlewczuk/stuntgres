@@ -9,12 +9,27 @@ import (
 
 const TableGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | TruncatePrivilege | ReferencesPrivilege | TriggerPrivilege | MaintainPrivilege
 const ColumnGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | ReferencesPrivilege
+const DatabasePrivileges = CreatePrivilege | TemporaryPrivilege | ConnectPrivilege
+const DatabasePublicPrivileges = TemporaryPrivilege | ConnectPrivilege
 
 func MaterializeRelationACL(acl ACLValue, owner PrincipalRef) ACLValue {
 	if acl.Explicit {
 		return acl
 	}
 	return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: TableGrantPrivileges}}}
+}
+
+// MaterializeDatabaseACL materializes only the absent ACL. Explicit empty and
+// legacy explicit policies must never acquire PUBLIC privileges from this
+// baseline.
+func MaterializeDatabaseACL(acl ACLValue, owner PrincipalRef) ACLValue {
+	if acl.Explicit {
+		return acl
+	}
+	return ACLValue{Explicit: true, Entries: []ACLEntry{
+		{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: DatabasePublicPrivileges},
+		{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: DatabasePrivileges},
+	}}
 }
 
 // Choose one direct source, never a union of independently inherited sources.

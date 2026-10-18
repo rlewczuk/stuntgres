@@ -17,10 +17,10 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	if db.acl.Explicit || len(db.acl.Entries) != 0 {
 		t.Fatal("initial descriptor must retain NULL ACL", db.acl)
 	}
-	baseline := databaseACL(db)
+	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: databasePublicPrivileges},
-		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: databasePrivileges},
+		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.DatabasePublicPrivileges},
+		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges},
 	}}
 	if !reflect.DeepEqual(baseline, want) {
 		t.Fatal("ordinary CTc/Tc without stored grant options", baseline)
@@ -29,10 +29,10 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		acl                       authorization.ACLValue
 		ownerRights, readerRights authorization.Privileges
 	}{
-		{authorization.ACLValue{}, databasePrivileges, databasePublicPrivileges},
+		{authorization.ACLValue{}, authorization.DatabasePrivileges, authorization.DatabasePublicPrivileges},
 		{authorization.ACLValue{Explicit: true}, 0, 0},
 		{authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}}}, authorization.CreatePrivilege, 0},
-		{baseline, databasePrivileges, databasePublicPrivileges},
+		{baseline, authorization.DatabasePrivileges, authorization.DatabasePublicPrivileges},
 	} {
 		candidate := cloneCatalog(base.state)
 		next := *db
@@ -52,12 +52,12 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
 		}
-		if tc.acl.Explicit && !authorization.EqualACL(databaseACL(&next), tc.acl) {
+		if tc.acl.Explicit && !authorization.EqualACL(authorization.MaterializeDatabaseACL(next.acl, next.owner), tc.acl) {
 			t.Fatal("explicit policy gained baseline")
 		}
 	}
 	baseline.Entries[0].Privileges = 0
-	if db.acl.Explicit || databaseACL(db).Entries[0].Privileges != databasePublicPrivileges {
+	if db.acl.Explicit || authorization.MaterializeDatabaseACL(db.acl, db.owner).Entries[0].Privileges != authorization.DatabasePublicPrivileges {
 		t.Fatal("materialized baseline mutated immutable descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -70,33 +70,33 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
 	db := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	baseline := databaseACL(db)
+	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
-	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, databasePrivileges, true, false, false, false)
+	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, _, err := authorization.ChangeObjectACL(context.Background(), roles, delegated, owner, source, []authorization.ACLGrantee{{Role: target}}, databasePrivileges, false, false, false, false)
+	leaf, _, err := authorization.ChangeObjectACL(context.Background(), roles, delegated, owner, source, []authorization.ACLGrantee{{Role: target}}, authorization.DatabasePrivileges, false, false, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	before := authorization.ACLValue{Explicit: leaf.Explicit, Entries: append([]authorization.ACLEntry(nil), leaf.Entries...)}
-	if _, _, err := authorization.ChangeObjectACL(context.Background(), roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, databasePrivileges, false, true, true, false); err == nil {
+	if _, _, err := authorization.ChangeObjectACL(context.Background(), roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, false, true, true, false); err == nil {
 		t.Fatal("RESTRICT accepted dependent database grants")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := authorization.ChangeObjectACL(ctx, roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, databasePrivileges, false, true, true, true); !errors.Is(err, context.Canceled) {
+	if _, _, err := authorization.ChangeObjectACL(ctx, roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, false, true, true, true); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled cascade", err)
 	}
 	if !authorization.EqualACL(leaf, before) {
 		t.Fatal("failed mutation touched source ACL")
 	}
-	next, changed, err := authorization.ChangeObjectACL(context.Background(), roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, databasePrivileges, false, true, true, true)
+	next, changed, err := authorization.ChangeObjectACL(context.Background(), roles, leaf, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, false, true, true, true)
 	if err != nil || !changed {
 		t.Fatal("cascade", changed, err)
 	}
-	if authorization.ACLRights(next, owner, []authorization.PrincipalRef{target}, databasePrivileges, false) != databasePublicPrivileges || authorization.ACLRights(next, owner, []authorization.PrincipalRef{source}, databasePrivileges, true) != 0 {
+	if authorization.ACLRights(next, owner, []authorization.PrincipalRef{target}, authorization.DatabasePrivileges, false) != authorization.DatabasePublicPrivileges || authorization.ACLRights(next, owner, []authorization.PrincipalRef{source}, authorization.DatabasePrivileges, true) != 0 {
 		t.Fatal("cascade removed independent PUBLIC rights or retained delegated leaf", next)
 	}
 	if !authorization.EqualACL(leaf, before) {
@@ -114,7 +114,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	}
 	candidate := cloneCatalog(base.state)
 	next := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: databasePrivileges}}}
+	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.descriptors[currentDatabaseAddress] = &next
 	fresh := catalogAuthorization(e, CatalogRead{e, candidate})
 	fresh.state.CurrentUser = reader

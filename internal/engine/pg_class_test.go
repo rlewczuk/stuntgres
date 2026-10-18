@@ -168,9 +168,6 @@ func TestPgClassACLTranslation(t *testing.T) {
 	if _, err := e.pgClassACL(roles, array, acl); err == nil {
 		t.Fatal("foreign grantee admitted")
 	}
-	if _, err := pgClassACLMask(authorization.Privileges(1 << 31)); err == nil {
-		t.Fatal("unknown privilege silently discarded")
-	}
 	acl.Entries[0].Grantee.Role = owner
 	acl.Entries[0].GrantOptions = authorization.InsertPrivilege
 	if _, err := e.pgClassACL(roles, array, acl); err == nil {

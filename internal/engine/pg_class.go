@@ -146,34 +146,6 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 	return row, failure
 }
 
-// Authorization and ACLITEM intentionally have different privilege layouts.
-// Translate both masks explicitly; unsupported bits cannot silently disappear.
-func pgClassACLMask(privileges authorization.Privileges) (uint32, error) {
-	var mask uint32
-	for _, pair := range [...]struct {
-		from authorization.Privileges
-		to   uint32
-	}{
-		{authorization.InsertPrivilege, 1 << 0}, {authorization.SelectPrivilege, 1 << 1},
-		{authorization.UpdatePrivilege, 1 << 2}, {authorization.DeletePrivilege, 1 << 3},
-		{authorization.TruncatePrivilege, 1 << 4}, {authorization.ReferencesPrivilege, 1 << 5},
-		{authorization.TriggerPrivilege, 1 << 6}, {authorization.ExecutePrivilege, 1 << 7},
-		{authorization.UsagePrivilege, 1 << 8}, {authorization.CreatePrivilege, 1 << 9},
-		{authorization.TemporaryPrivilege, 1 << 10}, {authorization.ConnectPrivilege, 1 << 11},
-		{authorization.SetPrivilege, 1 << 12}, {authorization.AlterSystemPrivilege, 1 << 13},
-		{authorization.MaintainPrivilege, 1 << 14},
-	} {
-		if privileges&pair.from != 0 {
-			mask |= pair.to
-			privileges &^= pair.from
-		}
-	}
-	if privileges != 0 {
-		return 0, fmt.Errorf("stuntgres: invalid stored ACL privilege")
-	}
-	return mask, nil
-}
-
 func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor, acl authorization.ACLValue) (sqltype.Value, error) {
 	if !acl.Explicit {
 		return sqltype.Null(array), nil
@@ -199,11 +171,11 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 			}
 			grantee = uint32(entry.Grantee.Role.ID())
 		}
-		mask, err := pgClassACLMask(entry.Privileges)
+		mask, err := authorization.ACLItemBits(entry.Privileges)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		options, err := pgClassACLMask(entry.GrantOptions)
+		options, err := authorization.ACLItemBits(entry.GrantOptions)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

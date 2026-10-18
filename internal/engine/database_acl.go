@@ -8,21 +8,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-const databasePrivileges = authorization.CreatePrivilege | authorization.TemporaryPrivilege | authorization.ConnectPrivilege
-const databasePublicPrivileges = authorization.TemporaryPrivilege | authorization.ConnectPrivilege
-
-// databaseACL materializes only the absent ACL. Explicit empty and legacy
-// explicit policies must never acquire PUBLIC privileges from this baseline.
-func databaseACL(db *databaseDescriptor) authorization.ACLValue {
-	if db.acl.Explicit {
-		return db.acl
-	}
-	return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-		{Grantor: db.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: databasePublicPrivileges},
-		{Grantor: db.owner, Grantee: authorization.ACLGrantee{Role: db.owner}, Privileges: databasePrivileges},
-	}}
-}
-
 // databaseRights reads one captured catalog/role pair; callers own its coherence
 // and the engine mutex when observing live roots. It invokes no host callback.
 func databaseRights(ctx context.Context, catalog CatalogRead, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
@@ -34,7 +19,7 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 		return 0, err
 	}
 	if actor.Superuser {
-		return databasePrivileges, nil
+		return authorization.DatabasePrivileges, nil
 	}
 	principals, err := roles.RoleClosure(ctx, principal, true)
 	if err != nil {
@@ -42,11 +27,11 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 	}
 	db := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
-	rights := authorization.ACLRights(db.acl, db.owner, principals, databasePrivileges, false)
+	rights := authorization.ACLRights(db.acl, db.owner, principals, authorization.DatabasePrivileges, false)
 	if !db.acl.Explicit {
-		rights |= databasePublicPrivileges
+		rights |= authorization.DatabasePublicPrivileges
 	}
-	return rights & databasePrivileges, nil
+	return rights & authorization.DatabasePrivileges, nil
 }
 
 // checkDatabaseConnectLocked is used only at physical session publication.

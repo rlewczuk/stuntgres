@@ -286,7 +286,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 		return 0
 	}
 	if d.Kind() == DatabaseObject {
-		return databasePrivileges
+		return authorization.DatabasePrivileges
 	}
 	if d.Kind() == ProcedureObject {
 		return authorization.ExecutePrivilege
@@ -376,7 +376,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 	}
 	rights := authorization.ACLRights(acl, owner, principals, mask, grantOptions)
 	if d.Kind() == DatabaseObject && !acl.Explicit && !grantOptions {
-		rights |= databasePublicPrivileges
+		rights |= authorization.DatabasePublicPrivileges
 	}
 	if d.Kind() == ProcedureObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.ExecutePrivilege
