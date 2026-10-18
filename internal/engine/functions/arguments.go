@@ -35,6 +35,10 @@ const (
 	// ThresholdArrayArgument is a comparison operand whose unknown-NULL
 	// annotation may name an enum array, as width_bucket's thresholds may.
 	ThresholdArrayArgument
+	// RecordBaseArgument is a string-other operand that is a populate-record
+	// base: named casts to user-defined composites keep their occurrence
+	// identity.
+	RecordBaseArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }
@@ -123,6 +127,9 @@ const (
 	TextFormalArgument
 	CollatedTextFormalArgument
 	SizeFormalArgument
+	// RecordFormalArgument finalizes an operand of a fixed RECORD formal: a
+	// parameter keeps its inferred record type, others get an anonymous record.
+	RecordFormalArgument
 )
 
 type CoercionRequest struct {

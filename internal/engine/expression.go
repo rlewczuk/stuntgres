@@ -3697,6 +3697,11 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 		operand, err = b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext, thresholdArrayInput: true})
 	case functions.StringTextArgument, functions.StringOtherArgument:
 		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
+	case functions.RecordBaseArgument:
+		previous := b.jsonbRecordBase
+		b.jsonbRecordBase = true
+		operand, err = b.stringOperand(raw, false)
+		b.jsonbRecordBase = previous
 	case functions.StringProjectionArgument, functions.ProjectionArgument:
 		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
 		operand.raw = raw
@@ -3737,6 +3742,19 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		return b.finalizeOperand(operand, request.Target.Type)
 	case functions.LikeArgument:
 		return b.likeOperand(operand, request.Target.Type)
+	case functions.RecordFormalArgument:
+		var record *sqltype.Descriptor
+		if parameter, ok := argument.Expression.(parameterExpression); ok {
+			record = b.parameters[parameter.number].Type
+		}
+		if record == nil {
+			var err error
+			record, err = sqltype.RecordShape(nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return b.finalizeOperand(operand, record)
 	case functions.SizeFormalArgument:
 		node, err := b.finalizeOperand(operand, request.Target.Type)
 		if err != nil {

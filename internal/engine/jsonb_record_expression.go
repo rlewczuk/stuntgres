@@ -79,7 +79,11 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 	operands := make([]functions.Argument, len(raw.Args))
 	names := make([]string, len(raw.Args))
 	for i, arg := range raw.Args {
-		o, err := b.jsonbRecordArgument(arg, populate && i == 0)
+		intent := functions.StringOtherArgument
+		if populate && i == 0 {
+			intent = functions.RecordBaseArgument
+		}
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: intent})
 		if err != nil {
 			return nil, err
 		}
@@ -220,13 +224,6 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 func jsonbRecordUnresolved(expr BoundExpr) bool {
 	call, ok := expr.(functions.JSONBRecord)
 	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
-}
-
-func (b *expressionBinder) jsonbRecordArgument(raw parser.Expr, base bool) (functions.Argument, error) {
-	previous := b.jsonbRecordBase
-	b.jsonbRecordBase = previous || base
-	defer func() { b.jsonbRecordBase = previous }()
-	return b.AnalyzeArgument(raw, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
 }
 
 // Only the analyzed projection is frozen. The function source keeps its current

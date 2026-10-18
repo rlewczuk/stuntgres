@@ -24,7 +24,11 @@ type Definition struct {
 	// OwnsLabels exempts the definition from the shared label gate; Bind then
 	// owns every argument-label diagnostic. It requires SharedGates.
 	OwnsLabels bool
-	Bind       func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
+	// Claims, when set, is the engine chain's admission predicate for the
+	// family and replaces Names matching; Names still lists every claimed
+	// name. It keeps the chain's exact, folded or lowercased comparison.
+	Claims func(name string) bool
+	Bind   func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
 }
 
 // The static table is the registry: no init() registration. Names must not
@@ -46,6 +50,12 @@ var definitions = [...]Definition{
 // Lookup returns the definition that claims an unqualified function name.
 func Lookup(name string) (Definition, bool) {
 	for _, definition := range definitions {
+		if definition.Claims != nil {
+			if definition.Claims(name) {
+				return definition, true
+			}
+			continue
+		}
 		for _, candidate := range definition.Names {
 			if candidate == name || !definition.ExactSpelling && strings.EqualFold(candidate, name) {
 				return definition, true

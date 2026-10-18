@@ -211,13 +211,8 @@ func (b *expressionBinder) resolveFunctionColumnUsage(definition parser.Function
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
+	if err := b.CaptureTypeInput(u.Type); err != nil {
 		return sqltype.Usage{}, err
-	}
-	if u.Type.ContainsCatalogIdentifier() {
-		if err := b.captureElementInput(); err != nil {
-			return sqltype.Usage{}, err
-		}
 	}
 	return u, nil
 }
