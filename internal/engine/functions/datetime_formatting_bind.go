@@ -47,7 +47,7 @@ func bindDatetimeFormatting(b Binder, raw parser.FunctionExpr, visible bool) (ex
 	}
 	source := b.Type(selection.Source)
 	if selection.Numeric {
-		return NumericFormattingOperands(b, raw, operands, source)
+		return numericFormattingOperands(b, raw, operands, source)
 	}
 	var args [2]expr.Expr
 	properties := expr.IntrinsicProperties(DatetimeFormattingIntrinsicRule())

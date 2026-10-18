@@ -152,3 +152,20 @@ func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 func (b *expressionBinder) FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (expr.Expr, error) {
 	return b.finishBinary(name, family, pos, operands, syntax, types)
 }
+
+func (b *expressionBinder) Frame() uint32 { return b.frameID() }
+
+func (b *expressionBinder) CapturePolymorphicBody(node expr.Expr) error {
+	return b.capturePolymorphicBody(node)
+}
+
+func (b *expressionBinder) TargetSet() {
+	switch b.aggregateClause {
+	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
+		b.queryHasTargetSet = true
+	}
+}
+
+func (b *expressionBinder) RegexpSetPlacement(call functions.RegexpCall) error {
+	return b.regexpPlacement(call)
+}

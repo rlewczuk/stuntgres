@@ -168,7 +168,9 @@ Tier C has a refined plan.
   operators, SQL/JSON constructors and `IS JSON` remain) [x] arrays [x] ranges (`a46ee7c5c` seam,
   `48d987da7`/`62f610cb1` arrays, `050805a1e`/`a5be023f9` ranges, then the
   docs commit) [x] UUID [x] format
-  [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
+  [ ] binary [x] numeric formatting (`b6dc6c486` move; regexp and variadic
+  string registration: `2dbf3742f` seam, `7c8508c0b`, `528ac1aeb`; then the
+  docs commit) [ ] pgcrypto [ ] fuzzystrmatch
   [ ] unaccent [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
   uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
   `36411c4fd` format move, `0a80f30a0` uuid-ossp move, then the docs commit)
@@ -597,15 +599,49 @@ user's request.
 
 Notes for later steps (datetime, pattern, string):
 
-- `Lookup` now holds about 140 names plus the JSON predicate.
+- `Lookup` now holds 23 definitions and 207 names plus the JSON and variadic
+  string predicates; a throwaway benchmark measured 0.6 to 1 µs per miss with
+  no allocations. A sorted static table would keep it `init()`-free.
 - The binary port removes `FinishBinary`.
 - Still engine-dispatched over exported entry points: `age`/`isfinite`
-  (Tier C), `overlaps` (an F2 inline-safety hook), `regexp_*` (placement
-  callback and set wrapping; `AdmitSetReturning` does not cover the regexp
-  placement rules), the variadic string family (polymorphic body capture,
-  query frame) and `similar_to_escape` (needs a syntax-keyed definition).
+  (Tier C), `overlaps` (an F2 inline-safety hook) and `similar_to_escape`
+  (needs a syntax-keyed definition). `regexp_*`, the variadic string family
+  and `to_number` registered in the follow-up below.
 - LIKE's binder and node move together once F2 has converted the switches
   that name `likeExpression`.
+
+F4/F5 follow-up (regexp, variadic string, `to_number`), on `7af01d85b`. A
+second session (`split/functions-string-regex-datetime`) ported the same three
+families in parallel; after the tier-a merge it rebased only what master still
+dispatched by name chain onto a new branch and dropped the rest:
+
+- `regexp_*` and the variadic string family received engine state as values
+  (a placement callback, set wrapping, the query frame, body capture in an
+  engine wrapper), which kept their chain branches. Four `Binder` methods
+  replace the values so both families register: `Frame` and
+  `CapturePolymorphicBody` (genuine), `TargetSet` (genuine, the bookkeeping
+  half of `AdmitSetReturning`) and `RegexpSetPlacement` (a leak: the regexp
+  placement policy, to fold into `AdmitSetReturning`). The variadic family
+  claims through `StringVariadicFunctionName`, which lowercases rather than
+  folds (`concat_wſ` stays unclaimed); `regexp_*` uses `ExactSpelling`
+  without gates. A throwaway check confirmed no earlier chain predicate claims
+  either family's names.
+- `to_number` (numeric formatting) moved into `numeric_formatting_bind.go` and
+  registers by exact spelling behind the shared gates; `numericFormattingOperands`
+  became private to `functions`.
+
+Tests in the follow-up: `TestLookupClaimsRegisteredNames` gained the regexp,
+variadic and `to_number` claims and dropped them from the unclaimed list
+(failed before each registration). `numeric_formatting_test.go`'s `to_number`
+case binds through `bindFunctionProvider`. No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. `REFERENCE=1`
+passed for `^TestReference(Regexp|Similar|Posix|Like)`,
+`^TestReference(SearchPath|Format)` and the numeric formatting tests; in
+`^TestReferenceString` and `^TestReferenceDatetimeFormatting` the only
+failures are the `/postgres`-only drift tests listed below, which fail
+identically on master. Racecheck skipped at the user's request.
 
 Notes for later steps (JSON):
 

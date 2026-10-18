@@ -74,9 +74,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.TransactionIdentityFunctionName(name) {
 		return b.bindTransactionIdentity(raw)
 	}
-	if functions.StringVariadicFunctionName(name) {
-		return b.bindStringVariadic(raw)
-	}
 	if strings.EqualFold(name, "generate_series") {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
@@ -90,24 +87,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 			return nil, err
 		}
 		return b.bindSubscripts(raw, visible)
-	}
-	if sqltype.RegexpFunctionKind(name) != 0 {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		call, err := functions.BindRegexpCall(b, raw, visible, b.regexpPlacement)
-		if err != nil {
-			return nil, err
-		}
-		if call.Plan.ReturnsSet() {
-			switch b.aggregateClause {
-			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-				b.queryHasTargetSet = true
-			}
-			return functions.RegexpSet{RegexpCall: call}, nil
-		}
-		return functions.Regexp{RegexpCall: call}, nil
 	}
 	if strings.EqualFold(name, "unnest") {
 		return b.bindUnnest(raw)
@@ -165,8 +144,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		e := node.(functions.DatetimeOverlaps)
 		e.WrapperContext = !overlapsInlineSafe(e)
 		return e, nil
-	case "to_number":
-		return b.bindNumericFormatting(raw, visible)
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":

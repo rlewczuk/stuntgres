@@ -33,7 +33,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 			t.Fatal("overload authority", c, bound)
 		}
 	}
-	bound, err := b.bindNumericFormatting(raw("to_number", text("12"), text("FM99")), true)
+	bound, err := b.bindFunctionProvider(raw("to_number", text("12"), text("FM99")))
 	if err != nil {
 		t.Fatal(err)
 	}

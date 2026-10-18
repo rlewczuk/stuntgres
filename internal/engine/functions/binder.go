@@ -101,4 +101,18 @@ type Binder interface {
 	// overloads route to the binary family, which the engine still binds.
 	// The binary port removes it.
 	FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []Argument, syntax parser.FunctionSyntax, types *BinaryTypes) (expr.Expr, error)
+	// Frame identifies the query frame being bound; the variadic string
+	// family's quote-capture folding keys on it.
+	Frame() uint32
+	// CapturePolymorphicBody captures the builtin routines a SQL-bodied
+	// builtin selects from the node's actual argument.
+	CapturePolymorphicBody(expr.Expr) error
+	// TargetSet records a set-returning call bound directly in a clause that
+	// projects rows (SELECT, GROUP BY, ORDER BY, DISTINCT ON, windows),
+	// without AdmitSetReturning's placement rules.
+	TargetSet()
+	// RegexpSetPlacement rejects a set-returning regexp call where the
+	// current clause or consumer does not admit one (the regexp family's own
+	// placement policy).
+	RegexpSetPlacement(RegexpCall) error
 }
