@@ -141,7 +141,7 @@ Tier C has a refined plan.
   [ ] join legality
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
-  docs `DOCS`)
+  docs `9bca9b2b6`)
 - [ ] F4/F5 Tier A: [ ] math [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
   [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [ ] UUID [ ] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch

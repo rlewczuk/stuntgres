@@ -52,7 +52,7 @@ alongside another broad rewrite or alias removal (§8).
     - [ ] join legality
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
-    `DOCS`)
+    `9bca9b2b6`)
   - [ ] F4/F5 Tier A — port in place, then move
     - [ ] math
     - [ ] string
