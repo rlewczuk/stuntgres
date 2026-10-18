@@ -125,7 +125,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		}
 		arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 		raw := nullCountRaw("multirange")
-		node, err := b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
+		node, err := finishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {
 			t.Fatal(node, err)
 		}
@@ -146,7 +146,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		raw := nullCountRaw("multirange")
 		raw.Pos = parser.Position{Character: 8}
 		d := b.typ(id)
-		_, err := b.finishRangeInspect(raw, true, []functions.Argument{{Usage: d.Usage()}})
+		_, err := finishRangeInspect(b, raw, true, []functions.Argument{{Usage: d.Usage()}})
 		inspectBindingDiagnostic(t, err, "0A000", "temporal multirange construction is unsupported", "8")
 	}
 }

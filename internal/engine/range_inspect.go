@@ -1,17 +1,16 @@
 package engine
 
 import (
-	"strings"
-
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr, error) {
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	textOverload := strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper")
+// bindRangeInspect binds the range and multirange inspection and hull
+// functions. Visibility follows ordinary/FILTER children and label/count
+// validation.
+func bindRangeInspect(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [2]functions.Argument
 	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
@@ -20,11 +19,7 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
-		request := functions.AnalysisRequest{Intent: functions.ComparisonArgument}
-		if textOverload {
-			request = functions.StringArgumentAnalysis(name, i)
-		}
-		operand, err := b.AnalyzeArgument(child, request)
+		operand, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -35,39 +30,39 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
-	// Visibility follows ordinary/FILTER children and label/count validation.
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
-	if textOverload {
-		return b.finishStringFunction(raw, visible, operands)
-	}
-	return b.finishRangeInspect(raw, visible, operands)
+	return finishRangeInspect(b, raw, visible, operands)
 }
-func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
+
+// finishRangeInspect resolves and binds a range inspection call over
+// analyzed operands. The string family reaches it for lower/upper of a
+// range or multirange.
+func finishRangeInspect(b functions.Binder, raw parser.FunctionExpr, visible bool, operands []functions.Argument) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operation, known := sqltype.RangeInspectKind(name)
 	if visible && known && operation == sqltype.RangeConstruct && len(raw.ArgNames) == 0 && len(operands) == 1 && operands[0].Usage.Type != nil {
 		switch operands[0].Usage.Type.BaseType().ID() {
 		case sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange:
-			return nil, expressionError("0A000", "temporal multirange construction is unsupported", raw.Pos)
+			return nil, expr.ErrorAt("0A000", "temporal multirange construction is unsupported", raw.Pos)
 		}
 	}
 	selected, resolution := functions.ResolveRangeInspect(operation, visible && known && len(raw.ArgNames) == 0, operands)
 	if resolution != functions.Resolved {
 		if resolution == functions.UnknownPolymorphic {
-			return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+			return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 		}
 		names := make([]string, len(operands))
 		for i, operand := range operands {
 			names[i] = "unknown"
 			if typ := operand.Usage.Type; typ != nil {
-				names[i] = b.diagnosticTypeName(typ)
+				names[i] = b.DiagnosticTypeName(typ)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
+		return nil, functions.ResolutionError(raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
 	}
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
@@ -78,7 +73,7 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 	}
 	properties := expr.IntrinsicProperties(functions.RangeInspectIntrinsicRule())
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	result := sqltype.RangeInspectResult(operation, selected).Usage()
 	formalType := sqltype.ID(3831) // Released ANYRANGE formal.
@@ -86,9 +81,8 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
 		formalType = 4537 // Released ANYMULTIRANGE formal.
 	}
-	var formal [2]sqltype.ID
-	formal[0], formal[1] = formalType, formalType
-	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), rangeRoutineProvider, name, formal[:len(args)]...)
+	formal := [2]sqltype.ID{formalType, formalType}
+	info, err := b.BuiltinRoutineInfo(b.Info(result, raw.Pos, properties), functions.RangeRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}
