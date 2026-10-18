@@ -48,8 +48,11 @@ func inheritanceHasChildren(v CatalogRead, parent ObjectAddress) bool {
 
 func inheritanceChildren(v CatalogRead, parent ObjectAddress) []*relationDescriptor {
 	var children []*relationDescriptor
-	for _, descriptor := range v.state.descriptors {
-		d, ok := descriptor.(*relationDescriptor)
+	for address := range v.state.descriptors {
+		if address.ClassID != RelationClassID {
+			continue
+		}
+		d, ok := v.state.descriptors[address].(*relationDescriptor)
 		if ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
 			children = append(children, d)
 		}

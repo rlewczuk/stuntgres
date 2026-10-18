@@ -274,6 +274,39 @@ Nonmatching overloads and explicitly qualified builtins remain supported, while
 ordinary custom scalar/BETWEEN operators execute real providers.
 No passing result is claimed here; Main owns fresh native and pinned18.6 proof.
 
+`ComparisonConsumerStructuralControls` additionally checks binary seed equality
+before custom creation and with only a genuine unary `=` visible: ordinary and
+array ANY both return one `v`/BOOL row containing true. The qualified unary call
+executes int4um and returns one `v`/INT4 row containing -2. Qualified binary `=`
+in that existing schema fails42883 both while empty and while unary-only, with
+the complete no-match message, explicit-cast Hint and Position10. A matching
+binary custom masked by an earlier pg_catalog signature still permits ordinary
+and ANY equality. Seeded qualified `+` with ANY retains42809 for its non-Boolean
+result, not a missing-operator or custom-runtime diagnostic. All these guards
+reuse direct query and literal Prepare assertions, including prepare-stage errors.
+Main observed these guards passing on pinned PostgreSQL18.6 and native before
+the performance-only source remedy. Fresh selected proof after the remedy uses:
+
+```sh
+make check RUN='^TestReferenceUserOperatorComparisonConsumerStructuralControls$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorComparisonConsumerStructuralControls$'
+```
+
+Binary comparison candidate collection now records ephemeral availability from
+the authorized path's current descriptors without materializing a seed-only set.
+Any matching-arity custom descriptor, even one later masked, retains the full
+ordered materializer; unary and noncomparison operators retain that path too.
+Availability is not operand viability, a winner, or permission to execute, and
+no cross-admission cache or new semantic authority is introduced.
+Existing index units supplement the public guard with immutable predecessor,
+staged/private publication, current metadata and reconstructed-root coverage:
+
+```sh
+make check RUN='^TestUserOperatorIndex(CopyOnWrite|CurrentMetadata|PublicationAndOverlay|BootstrapAndPrincipalRemap|TemporaryCollisionReplacement)$'
+make check RUN='^TestUserOperatorIndex(CopyOnWrite|CurrentMetadata|PublicationAndOverlay|BootstrapAndPrincipalRemap|TemporaryCollisionReplacement)$' RACE=1
+```
+
+
 Selected consumer feature smoke/proof (external900s each):
 
 ```sh

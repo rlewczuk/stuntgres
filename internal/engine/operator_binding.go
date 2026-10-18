@@ -67,6 +67,8 @@ type operatorCandidateSet struct {
 	catalog     CatalogRead
 	descriptors []*operatorDescriptor
 	hasCustom   bool
+	// Presence is independent of materialization for seed-only binary comparisons.
+	available bool
 }
 
 func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool) (operatorCandidateSet, error) {
@@ -79,6 +81,26 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 		return operatorCandidateSet{}, err
 	}
 	spelling := name.Parts[len(name.Parts)-1].Text
+	if _, comparison := comparisonOperator(spelling); !unary && comparison {
+		available, custom := false, false
+		for i := 0; i < path.count() && !custom; i++ {
+			for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+				d := auth.catalog.state.descriptors[address].(*operatorDescriptor)
+				if d.left == 0 {
+					continue
+				}
+				available = true
+				if !d.seeded() {
+					custom = true
+					break
+				}
+			}
+		}
+		if !custom {
+			return operatorCandidateSet{catalog: auth.catalog, available: available}, nil
+		}
+		// Even a masked custom descriptor requires ordered signature masking below.
+	}
 	var candidates []*operatorDescriptor
 	seen := make(map[operatorSignature]bool)
 	custom := false
@@ -97,7 +119,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			custom = custom || !d.seeded()
 		}
 	}
-	return operatorCandidateSet{catalog: auth.catalog, descriptors: candidates, hasCustom: custom}, nil
+	return operatorCandidateSet{catalog: auth.catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
 }
 
 func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*operatorDescriptor, error) {

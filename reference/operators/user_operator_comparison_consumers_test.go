@@ -105,6 +105,28 @@ func TestReferenceUserOperatorComparisonConsumerStructuralControls(t *testing.T)
 	userOperatorScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		userOperatorExec(t, p, b, c,
 			"CREATE SCHEMA userop_consumer_structure",
+			"SET search_path TO userop_consumer_structure,pg_catalog,public")
+		for _, phase := range []string{"seed_only", "unary_only"} {
+			t.Run(phase, func(t *testing.T) {
+				if phase == "unary_only" {
+					userOperatorExec(t, p, b, c, "CREATE OPERATOR userop_consumer_structure.= (RIGHTARG=int4,FUNCTION=pg_catalog.int4um)")
+					userOperatorValue(t, p, b, c, "SELECT OPERATOR(userop_consumer_structure.=) 2 AS v", "INT4", int64(-2))
+				}
+				userOperatorValue(t, p, b, c, "SELECT 2 = 2 AS v", "BOOL", true)
+				userOperatorValue(t, p, b, c, "SELECT 2 = ANY(ARRAY[2]) AS v", "BOOL", true)
+				for _, query := range []string{
+					"SELECT 2 OPERATOR(userop_consumer_structure.=) 2 AS v",
+					"SELECT 2 OPERATOR(userop_consumer_structure.=) ANY(ARRAY[2]) AS v",
+				} {
+					userOperatorError(t, p, b, c, query, "42883",
+						"operator does not exist: integer userop_consumer_structure.= integer", "",
+						"No operator matches the given name and argument types. You might need to add explicit type casts.", "10", true)
+				}
+			})
+		}
+		userOperatorError(t, p, b, c, "SELECT 2 OPERATOR(pg_catalog.+) ANY(ARRAY[2]) AS v",
+			"42809", "op ANY/ALL (array) requires operator to yield boolean", "", "", "10", true)
+		userOperatorExec(t, p, b, c,
 			"CREATE OPERATOR userop_consumer_structure.= (LEFTARG=int4,RIGHTARG=int4,FUNCTION=pg_catalog.int4ne)",
 			"CREATE OPERATOR userop_consumer_structure.>= (LEFTARG=int4,RIGHTARG=int4,FUNCTION=pg_catalog.int4lt)",
 			"CREATE OPERATOR userop_consumer_structure.<= (LEFTARG=int4,RIGHTARG=int4,FUNCTION=pg_catalog.int4gt)",
@@ -139,7 +161,9 @@ func TestReferenceUserOperatorComparisonConsumerStructuralControls(t *testing.T)
 		} {
 			t.Run(tc.query, func(t *testing.T) { userOperatorValue(t, p, b, c, tc.query, tc.typ, tc.value) })
 		}
-		userOperatorExec(t, p, b, c, "SET search_path TO pg_catalog,public")
+		userOperatorExec(t, p, b, c, "SET search_path TO pg_catalog,userop_consumer_structure,public")
+		userOperatorValue(t, p, b, c, "SELECT 2 = 2 AS v", "BOOL", true)
+		userOperatorValue(t, p, b, c, "SELECT 2 = ANY(ARRAY[2]) AS v", "BOOL", true)
 		userOperatorValue(t, p, b, c, "SELECT ROW(2) IN (ROW(2)) AS v", "BOOL", true)
 		userOperatorValue(t, p, b, c, "SELECT CASE 2 WHEN 2 THEN 10 ELSE 20 END AS v", "INT4", int64(10))
 	})

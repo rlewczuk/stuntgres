@@ -145,7 +145,7 @@ func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, 
 		return b.comparisonInputType(sqltype.ID(selected.left), lt, rt), b.comparisonInputType(sqltype.ID(selected.right), rt, lt), nil
 	}
 	signature, err := sqltype.ResolveComparison(operator, lt, rt)
-	if len(set.descriptors) == 0 {
+	if !set.available {
 		err = sqlError("42883", "operator does not exist")
 	}
 	if err != nil {
@@ -219,7 +219,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 		}
 	} else {
 		signature, resolveErr := sqltype.ResolveComparison(operator, left.descriptor(), element)
-		if len(set.descriptors) == 0 {
+		if !set.available {
 			resolveErr = sqlError("42883", "operator does not exist")
 		}
 		if resolveErr != nil {

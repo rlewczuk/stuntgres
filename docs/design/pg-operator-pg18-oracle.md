@@ -680,6 +680,51 @@ sibling roots, including a shared bucket with spare capacity. This bounded
 implementation removes heterogeneous catalog scans from operator candidate and
 alias-group collection; it makes no measured speedup or startup-target claim.
 
+### Ephemeral seed-comparison availability
+
+Binary spellings recognized by the existing `comparisonOperator` use a
+presence probe after the same fresh binding authorization and namespace lookup.
+It reads address buckets and current descriptors from that captured catalog,
+ignoring unary descriptors. If no matching-arity custom descriptor occurs
+anywhere in the resolved path, the candidate set carries only its catalog and
+availability: no descriptor/signature slice or seen map is materialized.
+Availability means an arity-matching descriptor exists, not that its inputs are
+viable, its provider is executable, or its use is authorized beyond lookup.
+
+Any matching-arity custom descriptor, including one hidden by an earlier
+identical signature, conservatively falls back to the existing full ordered
+materializer on that same path/root. Only this materializer determines surviving
+custom candidates after masking. Unary and every noncomparison spelling retain
+full materialization. Ordinary comparison and scalar-array consumers test
+availability rather than materialized slice length before their unchanged static
+type resolver/error handling. No path/winner/permission cache, extra catalog
+capture, resolver, provider or per-row lookup is introduced.
+
+The existing StructuralControls public scenario independently guards seed-only
+ordinary/ANY equality, qualified operator absence in an existing namespace,
+genuine unary int4um execution and wrong-arity exclusion, and a matching custom
+masked by pg_catalog-first lookup. The seeded qualified `+` ANY witness retains
+the actual non-Boolean-result42809 diagnostic; it cannot take the comparison-only
+probe. Root observed these new guards passing on pinned PostgreSQL18.6 and native
+before authorizing the performance remedy. Existing result, shell, RHS-first,
+custom-boundary and full structural matrices remain unchanged. Existing index
+units cover current metadata, staged/private/reconstructed roots and immutable
+predecessors; no allocation-count, wiring or timing unit replaces semantic proof.
+
+The companion root-owned inheritance traversal remedy filters descriptor keys by
+RelationClassID before loading values in `inheritanceChildren`. Actual parent
+edges in the supplied CatalogRead, safe relation assertions and ObjectID sorting
+remain authoritative; `hasSubclasses` is not absence proof. It introduces no
+inheritance cache or new SQL capability. Existing diamond ordering and late
+staged/current-root admission witnesses remain its semantic guards.
+
+The owning operator README provides exact selected both-mode and index normal/
+race selectors. Root owns fresh after-edit proof, unchanged complete predicate
+and array race matrices, fixed public CPU/allocation profiles, actual smoke,
+quickcheck and cumulative review. These bounded allocation/traversal changes
+claim neither restored deadlines nor a startup-target result before observation.
+
+
 ## R17 whole-signature generic viability
 
 Released REL_18_6 `can_coerce_type` invokes `check_generic_type_consistency`
