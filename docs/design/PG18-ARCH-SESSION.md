@@ -46,7 +46,7 @@ type SessionState uint8 // Initializing, Live, Ending, Ended
 type EndReason uint8 // CleanClose, InitFailure, InvalidConnection, Terminated, Abandoned
 type ResourceKind uint8 // Settings, Temporary, PreparedSQL, Cursors, Authorization, Transaction, AdvisorySession
 
-type SessionToken struct { owner *Engine; id SessionID }
+// SessionToken: see internal/engine/ids/README.md.
 type DatabaseTarget struct { owner *Engine; id DatabaseID } // retained incarnation-bound identity
 type ResourceHandle struct { session SessionToken; kind ResourceKind; serial uint64 }
 type SessionResource interface { EndSession(SessionToken, EndReason) error }

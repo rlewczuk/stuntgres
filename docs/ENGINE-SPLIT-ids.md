@@ -123,11 +123,55 @@ lifetime across Reset and Restore.
 
 ## Status
 
-- [ ] 1a — Domain replaces the `*Engine` back-pointers
-- [ ] 1b — Owner handles replace `attachment` and `private`
-- [ ] 1c — `ids` created, declarations moved, aliases in place
+- [x] 1a — Domain replaces the `*Engine` back-pointers (`6dead324d` renames,
+  `399abdd78` cuts)
+- [x] 1b — Owner handles replace `attachment` and `private` (`f39333b2f`)
+- [x] 1c — `ids` created, declarations moved, aliases in place (`9a56cf39d`
+  accessors, `3993c587c` rewrite, `ebb5ee0dd` move)
 - [ ] 1d — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases, all in `internal/engine/ids_aliases.go`:
 
-Notes for later steps: none yet.
+- Types: `OID`, `CatalogEpoch`, `DefinitionRevision`, `ObjectAddress`,
+  `ObjectRef`, `NameKey`, `ObjectKind`, `Domain`, `SessionID`,
+  `SessionToken`, `SessionOwner`, `SessionOwnerMarker`, `TxID`, `TxRef`,
+  `TxOwner`, `TxOwnerMarker`, `CommandID`, `CommitSeq`, `RowID`, `VersionID`,
+  and the unexported `transactionIdentityState` (`ids.TxCompletion`).
+- Constants: the 18 `*ClassID` constants, the three builtin namespace OIDs,
+  the 16 `*Object` kinds, and the unexported `transactionInProgress`,
+  `transactionCommitted` and `transactionAborted` (`ids.TxInProgress`,
+  `ids.TxCommitted`, `ids.TxAborted`).
+
+Corrections to this prompt, measured at the 1a start:
+
+- `ObjectRef.owner` had 373 production and 428 test references, not about 60.
+  The type-checked rewrite in 1c made 1,222 edits in 466 files.
+- The 1a fields were not only provenance checks. `relationLockManager.end`
+  called `t.ref.owner.removeExclusionOwner(t)`; that cleanup is now
+  `Engine.endLockOwner`, which all transaction-ticket callers use.
+  `Session.Engine()` and session and notification teardown read the engine
+  from the token; `Session` and `sessionNotifications` now hold an `engine`
+  field. `publicLockOwner` and `appendBlockingPid` take a `*Domain`.
+- Comparisons against possibly-nil engine pointers (`CatalogRead.owner`,
+  `AuthorizationView.engine`, unchecked receivers) use the nil-safe
+  `domainOf`, so they keep the old short-circuit behavior.
+
+Tests: no engine test was moved or deleted. Tests were adapted mechanically
+(gofmt `a.locks.end(b) -> a.endLockOwner(b)`, `.domain` fixes, the 1c
+rewrite). Sixteen test field writes and increments now rebuild values through
+the helpers in `identity_helpers_test.go`. New: `internal/engine/ids/ids_test.go`.
+
+Notes for later steps:
+
+- Step 4 (lock): the manager no longer calls into the engine. Keep
+  exclusion cleanup in `Engine.endLockOwner`; only the session-ticket path
+  (`sessionAdvisory.EndSession`) calls the manager's `end` directly.
+- Step 5 (catalog): `StatementDescription.catalogOwner *Engine` (`types.go`)
+  is another engine back-pointer, compared with `CatalogRead.owner`; cut it
+  together with cut 1.
+- 1d: a throwaway go/types tool worked well for the 1c rewrite. It
+  type-checks `GoFiles` and `TestGoFiles` from `go list -export -deps -test`
+  export data and applies innermost edits until a fixpoint. Reuse the
+  approach to replace alias names with `ids.` names.
+- `gofmt -r` reprints whole files: apply it only to files that were already
+  gofmt-clean, or the diff picks up unrelated reformatting.

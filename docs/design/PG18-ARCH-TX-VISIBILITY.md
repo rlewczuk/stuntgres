@@ -42,7 +42,7 @@ type CommitSeq uint64
 type TxState uint8 // TxIdle, TxImplicit, TxActive, TxAborted, TxEnding
 type Isolation uint8 // ReadUncommitted, ReadCommitted, RepeatableRead, Serializable (selected characteristic)
 type TxOptions struct { Isolation Isolation; ReadOnly, Deferrable bool }
-type TxRef struct { owner *Engine; target DatabaseTarget; session SessionToken; id TxID }
+// TxRef: see internal/engine/ids/README.md.
 type SavepointRef struct { tx TxRef; serial uint64 }
 type EndResult struct { Committed bool; Next TxRef }
 type TransactionOwner interface {

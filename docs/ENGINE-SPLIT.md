@@ -96,20 +96,21 @@ through one of these fields:
 |---:|---|---|---|
 | 1 | `CatalogRead.owner *Engine` | Provenance check, plus a service locator (owner token, authorization domain, roles, providers) | Catalog-owned owner record; engine-only services become engine functions |
 | 2 | `CatalogStage.owner *Engine` | Publication orchestration | The stage stays in the engine; only its pure overlay moves (§5.5) |
-| 3 | `TxRef.owner *Engine` | Provenance check | `ids.Domain` token |
-| 4 | `TxRef.attachment *transactionOwner` | Pointer-identity check, owner lookup | Opaque marker handle embedded in `transactionOwner` |
-| 5 | `SessionToken.owner *Engine` | Provenance check | `ids.Domain` token |
-| 6 | `SessionToken.private *Session` | Identity of sessions before registration | Opaque marker handle embedded in `Session` |
+| 3 | `TxRef.owner *Engine` | Provenance check; the lock manager also called `removeExclusionOwner` through it | `ids.Domain` token; `Engine.endLockOwner` does the exclusion cleanup (done in step 1) |
+| 4 | `TxRef.attachment *transactionOwner` | Pointer-identity check, owner lookup | Sealed `ids.TxOwner` interface; `transactionOwner` embeds `ids.TxOwnerMarker` (done in step 1) |
+| 5 | `SessionToken.owner *Engine` | Provenance check; also backed `Session.Engine()` and session and notification teardown | `ids.Domain` token; `Session` and `sessionNotifications` hold their engine (done in step 1) |
+| 6 | `SessionToken.private *Session` | Identity of private maintenance sessions | Sealed `ids.SessionOwner` interface; `Session` embeds `ids.SessionOwnerMarker` (done in step 1) |
 | 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements |
 | 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog |
 | 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload |
-| 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token |
+| 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token (done in step 1) |
 | 11 | `relationLockPolicy.operation *Operation` | Asks whether a statement timeout is pending | One-method interface |
 
 The engine allocates its catalog-owner token once and never replaces it. So a
 single per-engine `ids.Domain` can serve every check that currently compares
-against `*Engine`. The marker handles keep today's pointer-identity semantics
-without naming engine types.
+against `*Engine`. The sealed owner interfaces keep today's pointer-identity
+semantics without naming engine types; the engine recovers the concrete owner
+with one checked helper per type.
 
 A few more payloads should also be opaque to keep the catalog small. They are
 not part of the knot itself:
@@ -121,7 +122,7 @@ not part of the knot itself:
 - **`expressionInfo.routineRecipe *relationDescriptor`.** It can become an
   interface; `functions.RoutineRecipeReference` already exists.
 - **`relationTicket` storing a `transactionIdentityState`.** That enum moves
-  down to `ids`.
+  down to `ids` (done in step 1 as `ids.TxCompletion`).
 
 With these cuts the core data model layers cleanly. Each row counts only the
 types new to that layer:
@@ -310,11 +311,13 @@ parallel.
 
 - Replace `TxRef.owner`, `SessionToken.owner` and `relationLockManager.engine`
   with the domain (cuts 3, 5 and 10).
-- Replace `TxRef.attachment` and `SessionToken.private` with marker handles
+- Replace `TxRef.attachment` and `SessionToken.private` with sealed
+  `ids.TxOwner` and `ids.SessionOwner` interfaces, implemented by markers
   embedded in `transactionOwner` and `Session` (cuts 4 and 6).
 - Add constructors and accessors for the unexported fields. `ObjectRef{owner:
-  ...}` literals become `domain.Ref(epoch, address)`. `TxRef` has 180 field
-  uses in 58 files and `SessionToken` 62 in 15.
+  ...}` literals become `domain.Ref(epoch, address)`. `TxRef` had 180
+  production field uses and `SessionToken` 62; `ObjectRef.owner` had 373
+  production and 428 test references. The rewrite touched 466 files.
 
 **Stays in the engine.** `Isolation`, `TxOptions` and other transaction
 options are behavior, not identity.
@@ -646,10 +649,8 @@ protocols.
 ## 7. Open decisions
 
 1. **Package names.** `ids`, `expr`, `catalog`, `lock`, `storage`,
-   `visibility`. `ids` keeps today's type names unchanged (minimal churn) and
-   holds runtime identities as well as catalog ones. An alternative is
-   `object` with `object.Address` and `object.Ref`, plus a home for
-   `SessionToken` and `TxRef`.
+   `visibility`. Settled for step 1: `ids` keeps today's type names and holds
+   runtime identities as well as catalog ones.
 2. **Shape of `expr.Context`.** One documented interface with grouped
    capabilities (proposed), or a small core with optional capability
    interfaces checked at use.
@@ -669,7 +670,7 @@ package-specific scope. This section holds the rules every session follows.
 
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
-| 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | not started |
+| 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | 1a–1c done; 1d (alias removal) pending |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | not started |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | not started |
