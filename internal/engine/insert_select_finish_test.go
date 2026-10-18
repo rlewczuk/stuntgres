@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestInsertSelectCancellationBeforeFinish(t *testing.T) {
@@ -13,7 +15,7 @@ func TestInsertSelectCancellationBeforeFinish(t *testing.T) {
 		sessionSQL(t, worker, "INSERT INTO t VALUES(9)")
 		sessionSQL(t, worker, "CREATE TABLE s(i INT)")
 		sessionSQL(t, worker, "INSERT INTO s VALUES(1),(2)")
-		var tx TxRef
+		var tx ids.TxRef
 		if explicit {
 			tx = transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(7)")

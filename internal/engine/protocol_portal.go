@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ const (
 )
 
 type protocolPortal struct {
-	tx                TxRef
+	tx                ids.TxRef
 	born              uint64 // Shared canonical cursor/portal birth frontier.
 	entry             sqlPreparedStatement
 	context           ProtocolContext

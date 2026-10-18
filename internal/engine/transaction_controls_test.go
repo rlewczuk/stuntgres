@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -180,7 +181,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			frontier := e.commitSeq
 			switch counter {
 			case "tx":
-				a.transactions.next = TxID(^uint64(0))
+				a.transactions.next = ids.TxID(^uint64(0))
 			case "frontier":
 				e.commitSeq = CommitSeq(^uint64(0))
 			case "command":
@@ -223,7 +224,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			t.Fatal("invalid Operation accepted")
 		}
 	}
-	for _, bad := range []TxRef{{}, foreignRef} {
+	for _, bad := range []ids.TxRef{{}, foreignRef} {
 		if _, err := e.Rollback(op, bad); err == nil {
 			t.Fatal("invalid ref accepted")
 		}

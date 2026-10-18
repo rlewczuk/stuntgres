@@ -57,7 +57,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 			if !errors.Is(scope.Finish(err), ErrCatalogReplaced) {
 				t.Fatal("lost replacement error")
 			}
-			if a.TransactionState() != TxIdle || a.transactions.ticket != nil || a.transactions.ref != (TxRef{}) {
+			if a.TransactionState() != TxIdle || a.transactions.ticket != nil || a.transactions.ref != (ids.TxRef{}) {
 				t.Fatal("failed end installed chain or retained old owner")
 			}
 			transactionRows(t, b, "SELECT v FROM t", 99)

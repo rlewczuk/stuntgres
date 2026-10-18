@@ -58,7 +58,7 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	TxOwnerMarker
+	ids.TxOwnerMarker
 	admission       sync.Mutex
 	copyScope       *StatementScope
 	copyDone        chan struct{}
@@ -66,8 +66,8 @@ type transactionOwner struct {
 	mu              sync.Mutex
 	session         *Session
 	state           TxState
-	ref             TxRef
-	next            TxID
+	ref             ids.TxRef
+	next            ids.TxID
 	command         CommandID
 	writes          map[ids.ObjectAddress][]rowVersion
 	deletes         map[ids.ObjectAddress]*privateDeletionRoot
@@ -112,7 +112,7 @@ func (t *transactionOwner) clear() {
 		t.protocolCycle.executed = false
 	}
 	t.state = TxIdle
-	t.ref = TxRef{}
+	t.ref = ids.TxRef{}
 	t.command = 0
 	t.writes = nil
 	t.deletes = nil
@@ -165,7 +165,7 @@ func (s *Session) TransactionState() TxState {
 }
 
 func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, start time.Time) error {
-	if t.next == TxID(^uint64(0)) {
+	if t.next == ids.TxID(^uint64(0)) {
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
 	session := op.session
@@ -204,17 +204,17 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	return nil
 }
 
-func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
+func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 	start := time.Now().UTC().Truncate(time.Microsecond)
 	if options.Isolation > Serializable {
-		return TxRef{}, errors.New("stuntgres: unsupported transaction isolation level")
+		return ids.TxRef{}, errors.New("stuntgres: unsupported transaction isolation level")
 	}
 	if err := e.transactionAdmission(op); err != nil {
-		return TxRef{}, err
+		return ids.TxRef{}, err
 	}
 	t := op.session.transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
-		return TxRef{}, err
+		return ids.TxRef{}, err
 	}
 	defer t.admission.Unlock()
 	ref, err := e.beginAdmitted(op, t, start)
@@ -233,7 +233,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 	return ref, err
 }
 
-func (t *transactionOwner) validate(ref TxRef) error {
+func (t *transactionOwner) validate(ref ids.TxRef) error {
 	if ref.Domain() != domainOf(t.session.Engine()) || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
@@ -243,7 +243,7 @@ func (t *transactionOwner) validate(ref TxRef) error {
 	return nil
 }
 
-func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
+func (e *Engine) Rollback(op *Operation, ref ids.TxRef) (EndResult, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return EndResult{}, err
 	}
@@ -259,7 +259,7 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 	return result, err
 }
 
-func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
+func (e *Engine) Commit(op *Operation, ref ids.TxRef) (EndResult, error) {
 	admissionErr := e.transactionAdmission(op)
 	if admissionErr != nil && !errors.Is(admissionErr, context.Canceled) && !errors.Is(admissionErr, context.DeadlineExceeded) {
 		return EndResult{}, admissionErr
@@ -324,7 +324,7 @@ type StatementScope struct {
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
 	activeViews                    []ids.ObjectAddress
-	txRef                          TxRef
+	txRef                          ids.TxRef
 	command                        CommandID
 	ownWrites                      map[ids.ObjectAddress][]rowVersion
 	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
@@ -358,7 +358,7 @@ type StatementScope struct {
 	domainInputCatalog             CatalogRead
 	statementStart                 time.Time
 	transactionStart               time.Time
-	timeoutRef                     TxRef // admission projection for preparse ERROR timer retirement
+	timeoutRef                     ids.TxRef // admission projection for preparse ERROR timer retirement
 	output                         sqltype.OutputEnvironment
 	initialParameters              []sqltype.Usage
 	protocolBind                   *protocolPortal

@@ -9,7 +9,7 @@ import (
 )
 
 func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
-	setup := func() (*Engine, *Session, TxRef, ids.ObjectRef) {
+	setup := func() (*Engine, *Session, ids.TxRef, ids.ObjectRef) {
 		e := New()
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE t(a INT,b INT)")

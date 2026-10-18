@@ -158,7 +158,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 
 // Rows have already been finalized, typed and detached from query scratch. Only
 // this private stage owns them; identity gaps are allowed if publication fails.
-func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d *relationDescriptor, rows [][]sqltype.Value, ref TxRef) error {
+func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d *relationDescriptor, rows [][]sqltype.Value, ref ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

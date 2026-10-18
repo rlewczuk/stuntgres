@@ -20,7 +20,7 @@ type relationLockPolicy struct {
 	timeout           time.Duration
 	statementDeadline time.Time
 	source            context.Context
-	provenance        TxRef                 // current statement owner for a persistent session request
+	provenance        ids.TxRef             // current statement owner for a persistent session request
 	operation         *Operation            // exact admitted command, atomic timeout projection only
 	completionPurpose completionLockPurpose // observational identity; never changes arbitration
 }
@@ -88,7 +88,7 @@ type lockResource struct {
 }
 type relationTicket struct {
 	manager            *relationLockManager
-	ref                TxRef
+	ref                ids.TxRef
 	session            ids.SessionToken
 	persistent         bool
 	detached           bool // prepared transaction: independent of its former physical session
@@ -111,16 +111,16 @@ func (t *relationTicket) mirrorFullXID(xid uint64) {
 func (t *relationTicket) assignedFullXID() uint64 { return atomic.LoadUint64(&t.fullXID) }
 func (t *relationTicket) ownershipEnded() bool    { return atomic.LoadUint32(&t.ended) != 0 }
 func (t *relationTicket) retireOwnership()        { atomic.StoreUint32(&t.ended, 1) }
-func (t *relationTicket) completionState() transactionIdentityState {
-	return transactionIdentityState(atomic.LoadUint32(&t.completion))
+func (t *relationTicket) completionState() ids.TxCompletion {
+	return ids.TxCompletion(atomic.LoadUint32(&t.completion))
 }
-func (t *relationTicket) mirrorCompletion(state transactionIdentityState) {
+func (t *relationTicket) mirrorCompletion(state ids.TxCompletion) {
 	atomic.StoreUint32(&t.completion, uint32(state))
 }
 
 type relationRequest struct {
 	ticket       *relationTicket
-	provenance   TxRef
+	provenance   ids.TxRef
 	ctx          context.Context
 	mode         relationLockMode
 	done         chan struct{}
@@ -152,7 +152,7 @@ type relationLockManager struct {
 	mu           sync.Mutex
 	domain       *ids.Domain // Owning engine's identity domain; provenance checks only.
 	epoch        ids.CatalogEpoch
-	owners       map[TxRef]*relationTicket
+	owners       map[ids.TxRef]*relationTicket
 	sessions     map[ids.SessionToken]*relationTicket
 	entries      map[lockResource]*relationEntry
 	keyBuckets   map[uniqueLockBucket]*uniqueLockBucketState
@@ -162,9 +162,9 @@ type relationLockManager struct {
 }
 
 func newRelationLockManager(domain *ids.Domain) *relationLockManager {
-	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
+	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[ids.TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
-func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
+func (m *relationLockManager) register(ref ids.TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	owner, private := txOwnerOf(ref), privateSessionOf(ref.Session())

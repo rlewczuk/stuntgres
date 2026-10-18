@@ -1,9 +1,12 @@
 package engine
 
-import "stuntgres/internal/engine/authorization"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+)
 
 type domainCheckIdentity struct {
-	transaction TxRef
+	transaction ids.TxRef
 	command     CommandID
 }
 

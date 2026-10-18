@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestRelationLockWaitingDeadlineAndEnd(t *testing.T) {
@@ -19,7 +21,7 @@ func TestRelationLockWaitingDeadlineAndEnd(t *testing.T) {
 					sessionSQL(t, a, "CREATE TABLE t(v INT)")
 					ra := transactionBegin(t, a)
 					sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-					var rb TxRef
+					var rb ids.TxRef
 					if explicit {
 						rb = transactionBegin(t, b)
 					}

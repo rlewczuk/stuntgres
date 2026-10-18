@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachUnitBegin(t *testing.T, e *Engine, session *Session, isolation Isolation) TxRef {
+func partitionAttachUnitBegin(t *testing.T, e *Engine, session *Session, isolation Isolation) ids.TxRef {
 	t.Helper()
 	op, err := session.Acquire(context.Background())
 	if err != nil {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Exercise the real dependency admission before any DEFAULT or CHECK demand.
@@ -87,7 +89,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				old := e.state.descriptors[ref.Address].(*relationDescriptor)
 				storage := e.storage[ref.Address]
 				generator := e.sequences[seq.Address]
-				var tx TxRef
+				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, worker)
 					sessionSQL(t, worker, "UPDATE t SET id=11 WHERE id=1")

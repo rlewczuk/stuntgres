@@ -29,13 +29,13 @@ const (
 )
 
 type indexBuildWait struct {
-	owner TxRef
+	owner ids.TxRef
 	kind  indexBuildWaitKind
 }
 
 // Engine.mu is held. This observes a frozen coordinator cohort, not registration
 // of an individual lock-manager request.
-func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner TxRef, kind indexBuildWaitKind) error {
+func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner ids.TxRef, kind indexBuildWaitKind) error {
 	if index == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -49,7 +49,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ids.ObjectAddress, owner TxRef,
 	return nil
 }
 
-func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner TxRef, kind indexBuildWaitKind) {
+func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, kind indexBuildWaitKind) {
 	e.mu.Lock()
 	if e.indexBuildWaits[index] == (indexBuildWait{owner: owner, kind: kind}) {
 		delete(e.indexBuildWaits, index)

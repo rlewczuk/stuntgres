@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -66,7 +67,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref, ticket, start := a.transactions.ref, a.transactions.ticket, a.transactions.start
-	if a.TransactionState() != TxImplicit || ref == (TxRef{}) || ticket == nil || a.transactions.command != 1 {
+	if a.TransactionState() != TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.transactions.command != 1 {
 		t.Fatal("retained implicit owner")
 	}
 	if a.transactions.admission.TryLock() {

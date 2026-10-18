@@ -17,7 +17,7 @@ type sessionTimeout struct {
 	generation uint64
 	deadline   time.Time
 	scope      *StatementScope
-	ref        TxRef
+	ref        ids.TxRef
 }
 
 type sessionTimeouts struct {
@@ -27,7 +27,7 @@ type sessionTimeouts struct {
 	idleTransactionLimit time.Duration
 	idleSessionLimit     time.Duration
 	explicit             bool
-	authority            TxRef
+	authority            ids.TxRef
 	sqlLeases            int
 	fatal                *sqlstate.Error
 }
@@ -40,7 +40,7 @@ func (slot *sessionTimeout) stop() {
 	}
 	slot.deadline = time.Time{}
 	slot.scope = nil
-	slot.ref = TxRef{}
+	slot.ref = ids.TxRef{}
 }
 
 func timeoutFatal(code string) *sqlstate.Error {
@@ -75,14 +75,14 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 		if s.timeouts.transactionLimit == 0 {
 			return
 		}
-		if slot.scope == nil && (slot.ref == (TxRef{}) || slot.ref != s.timeouts.authority) {
+		if slot.scope == nil && (slot.ref == (ids.TxRef{}) || slot.ref != s.timeouts.authority) {
 			return
 		}
 		// Released ProcessInterrupts handles already-pending statement ERROR
 		// before session FATAL. ERROR recovery will keep this budget stopped.
 		for op := range s.operations {
 			scope := op.timeoutScope
-			if scope != nil && !op.sqlFinished && (slot.scope == scope || (slot.ref != (TxRef{}) && scope.timeoutRef == slot.ref)) &&
+			if scope != nil && !op.sqlFinished && (slot.scope == scope || (slot.ref != (ids.TxRef{}) && scope.timeoutRef == slot.ref)) &&
 				(op.pendingTimeout(now) || (!op.statementDeadline.IsZero() && !now.Before(op.statementDeadline)) ||
 					errors.Is(context.Cause(op.ctx), statementTimeoutCause)) {
 				slot.stop()
@@ -137,7 +137,7 @@ func (s *Session) publishTimeoutSettingsLocked(settings *sessionSettings, assign
 	s.timeouts.idleSessionLimit = time.Duration(settings.typedValue("idle_session_timeout").number) * time.Millisecond
 	if s.timeouts.transactionLimit == 0 {
 		s.timeouts.transaction.stop()
-	} else if assignment && s.state == live && s.timeouts.transaction.deadline.IsZero() && s.timeouts.authority != (TxRef{}) {
+	} else if assignment && s.state == live && s.timeouts.transaction.deadline.IsZero() && s.timeouts.authority != (ids.TxRef{}) {
 		s.timeouts.transaction.ref = s.timeouts.authority
 		s.armTimeoutLocked(&s.timeouts.transaction, now.Add(s.timeouts.transactionLimit), "25P04")
 	}
@@ -150,7 +150,7 @@ func (s *Session) startProvisionalTimeout(scope *StatementScope) {
 	if scope.op != nil {
 		scope.op.timeoutScope = scope
 	}
-	if s.state != live || s.timeouts.authority != (TxRef{}) || s.timeouts.transactionLimit == 0 {
+	if s.state != live || s.timeouts.authority != (ids.TxRef{}) || s.timeouts.transactionLimit == 0 {
 		return
 	}
 	s.timeouts.transaction.scope = scope
@@ -159,7 +159,7 @@ func (s *Session) startProvisionalTimeout(scope *StatementScope) {
 
 // Called under Session.mu at canonical birth; adopting the provisional slot
 // neither mints a TxRef early nor restarts or allocates another runtime timer.
-func (s *Session) beginTimeoutLocked(ref TxRef, explicit bool, now time.Time) {
+func (s *Session) beginTimeoutLocked(ref ids.TxRef, explicit bool, now time.Time) {
 	s.timeouts.authority, s.timeouts.explicit = ref, explicit
 	slot := &s.timeouts.transaction
 	if slot.scope != nil && !slot.deadline.IsZero() {
@@ -176,7 +176,7 @@ func (s *Session) beginTimeoutLocked(ref TxRef, explicit bool, now time.Time) {
 
 func (s *Session) retireTransactionTimeoutLocked() {
 	s.timeouts.transaction.stop()
-	s.timeouts.authority = TxRef{}
+	s.timeouts.authority = ids.TxRef{}
 	s.timeouts.explicit = false
 }
 func (s *Session) retireTransactionTimeout() {
@@ -193,7 +193,7 @@ func (s *Session) finishScopeTimeout(scope *StatementScope, failed bool) {
 		scope.op.pendingTimeoutRequest.Store(nil)
 		scope.op.pendingTimeoutError.Store(false)
 	}
-	if slot.scope == scope || (failed && slot.ref != (TxRef{}) && (slot.ref == scope.timeoutRef || slot.ref == scope.txRef)) {
+	if slot.scope == scope || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == scope.timeoutRef || slot.ref == scope.txRef)) {
 		slot.stop()
 	}
 }

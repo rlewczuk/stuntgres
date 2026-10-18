@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	}
 	// This is the canonical non-retained control path: gate has not attached
 	// an incarnation. Disposal must borrow, not replace, the existing owner.
-	if scope.txRef != (TxRef{}) {
+	if scope.txRef != (ids.TxRef{}) {
 		t.Fatal("control unexpectedly admitted a transaction")
 	}
 	owner := session.transactions

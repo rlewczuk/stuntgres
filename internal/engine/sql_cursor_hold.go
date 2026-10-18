@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (r *cursorRegistry) hasCurrentHold(ref TxRef) bool {
+func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 	if r == nil {
 		return false
 	}
@@ -211,7 +211,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	c.values, c.count, c.storeOffset = values, count, offset
 	c.ordinalPosition, c.position, c.atEnd = savedOrdinal, savedPosition, savedEnd
 	c.authority = nil
-	c.tx = TxRef{}
+	c.tx = ids.TxRef{}
 	c.promoted = true
 	return nil
 }

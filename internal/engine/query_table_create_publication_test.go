@@ -94,7 +94,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 					rows[i][0], _ = sqltype.Integer(d.columns[0].Usage.Type, 7)
 				}
 			}
-			if err := e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{}); err != nil {
+			if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			queryCreateAssertAbsent(t, e, d)
@@ -154,7 +154,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				e.nextVersion = math.MaxUint64
 			}
 			beforeRow, beforeVersion := e.nextRow, e.nextVersion
-			err := e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{})
+			err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{})
 			if phase == "row_identity" || phase == "version_identity" {
 				want := "stuntgres: row identity exhausted"
 				if phase == "version_identity" {
@@ -315,7 +315,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	e := New()
 	stage, d := queryCreateStage(t, e, "copy", 1)
 	value, _ := sqltype.Integer(d.columns[0].Usage.Type, 7)
-	if err := e.stageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -338,7 +338,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	queryCreatePublish(t, e, ordinaryStage)
 	value, _ := sqltype.Integer(ordinary.columns[0].Usage.Type, 7)
 	discarded, d := queryCreateStage(t, e, "discarded", 1)
-	if err := e.stageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	reserved := discarded.initialTables[d.address].versions[0]
@@ -372,7 +372,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	}
 	before := e.commitSeq
 	nextStage, next := queryCreateStage(t, e, "next_copy", 1)
-	if err = e.stageQueryTableRows(context.Background(), nextStage, next, [][]sqltype.Value{{value}}, TxRef{}); err != nil {
+	if err = e.stageQueryTableRows(context.Background(), nextStage, next, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)

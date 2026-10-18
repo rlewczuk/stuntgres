@@ -14,7 +14,7 @@ type foreignActionAdmission struct {
 	ref               ids.ObjectRef
 	storage           *relationStorage
 	relation          *relationDescriptor
-	tx                TxRef
+	tx                ids.TxRef
 	jobs              []foreignKeyJob
 	writable, mutated bool
 }

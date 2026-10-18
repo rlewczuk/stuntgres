@@ -149,9 +149,9 @@ type preparedBoundarySnapshot struct {
 	indexValues     map[ids.ObjectAddress][]logicalIndexEntry
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
-	ssi             map[TxRef]serializableTransaction
-	creators        map[VersionID]TxRef
-	owners          map[TxRef]*relationTicket
+	ssi             map[ids.TxRef]serializableTransaction
+	creators        map[VersionID]ids.TxRef
+	owners          map[ids.TxRef]*relationTicket
 	resources       map[lockResource]struct{}
 	locks           map[lockResource]relationEntry
 }
@@ -168,7 +168,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		generators: maps.Clone(e.sequences), generatorValues: map[ids.ObjectAddress]sequenceGenerator{},
 		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
-		ssi: map[TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
+		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
 		owners: maps.Clone(e.locks.owners), resources: maps.Clone(entry.ticket.resources), locks: map[lockResource]relationEntry{},
 	}
 	for address, store := range e.storage {
@@ -463,7 +463,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	e := New()
 	serializableUnitRelation(t, e)
 	owners := []*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
-	refs := make([]TxRef, 2)
+	refs := make([]ids.TxRef, 2)
 	tickets := make([]*relationTicket, 2)
 	for i, owner := range owners {
 		op := transactionOperation(t, owner)

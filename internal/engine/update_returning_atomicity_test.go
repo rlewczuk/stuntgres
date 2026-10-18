@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
-			var tx TxRef
+			var tx ids.TxRef
 			if explicit {
 				tx = transactionBegin(t, s)
 				sessionSQL(t, s, "UPDATE t SET v=7 WHERE v=1")

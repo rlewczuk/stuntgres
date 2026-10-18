@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -143,7 +144,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 				}
 				s.transactions.command = CommandID(^uint64(0))
 			} else if counter == "tx" {
-				s.transactions.next = TxID(^uint64(0))
+				s.transactions.next = ids.TxID(^uint64(0))
 			} else {
 				e.diagnosticTx = ^uint32(0)
 			}
@@ -159,7 +160,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if e.commitSeq != frontier || s.TransactionState() != TxIdle || s.transactions.ticket != nil || s.transactions.retainedMessage {
 				t.Fatal("counter failure published or retained admission")
 			}
-			if counter == "tx" && s.transactions.next != TxID(^uint64(0)) || counter == "diagnostic" && e.diagnosticTx != ^uint32(0) {
+			if counter == "tx" && s.transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.diagnosticTx != ^uint32(0) {
 				t.Fatal("identity counter wrapped")
 			}
 			if got := len(e.storage[catalogRef(t, e, e.CatalogRead(), "t").Address].versions); got != 0 {

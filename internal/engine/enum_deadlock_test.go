@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 		resources[i] = lockResource{ObjectRef: e.domain.Ref(e.state.epoch, d.Address())}
 	}
 	sessions := [2]*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
-	var refs [2]TxRef
+	var refs [2]ids.TxRef
 	var tickets [2]*relationTicket
 	var pending [2]*relationRequest
 	for i, s := range sessions {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,7 +17,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
 			sessionSQL(t, s, "CREATE SEQUENCE seq START 101 CACHE 1")
-			var tx TxRef
+			var tx ids.TxRef
 			if phase == "explicit_error" || phase == "explicit_cancel" {
 				tx = transactionBegin(t, s)
 				sessionSQL(t, s, "INSERT INTO t VALUES(7)")

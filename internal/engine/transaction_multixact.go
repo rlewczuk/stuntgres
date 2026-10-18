@@ -215,7 +215,7 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 		return t.multiContributions[key]
 	}
 	live := func(member multiMember, key multiTuple) bool {
-		return member.owner != nil && !member.owner.ownershipEnded() && member.owner.completionState() != transactionAborted && getContribution(member.owner, key)&(1<<member.mode) != 0
+		return member.owner != nil && !member.owner.ownershipEnded() && member.owner.completionState() != ids.TxAborted && getContribution(member.owner, key)&(1<<member.mode) != 0
 	}
 	getRow := func(key multiTuple) multiRow {
 		if row, ok := rows[key]; ok {
@@ -303,7 +303,7 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 		if !same {
 			members := make([]multiMember, 0, len(old.members)+1)
 			for _, member := range old.members {
-				if live(member, key) || member.mode.updating() && member.owner != nil && member.owner.completionState() == transactionCommitted {
+				if live(member, key) || member.mode.updating() && member.owner != nil && member.owner.completionState() == ids.TxCommitted {
 					members = append(members, member)
 				}
 			}
@@ -347,7 +347,7 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 			rows[successor] = inherited
 			for _, member := range inherited.members {
 				running := live(member, key)
-				if member.owner == owner && !owner.ownershipEnded() && owner.completionState() != transactionAborted {
+				if member.owner == owner && !owner.ownershipEnded() && owner.completionState() != ids.TxAborted {
 					running = true
 				}
 				if running {
@@ -480,7 +480,7 @@ func (m *relationLockManager) retireMultiOwnerLocked(owner *relationTicket) {
 func (m *relationLockManager) retireMultiTupleLocked(tuple multiTuple) {
 	for _, member := range m.multiRows[tuple].members {
 		ticket := member.owner
-		if ticket != nil && !ticket.ownershipEnded() && ticket.completionState() != transactionAborted && ticket.multiContributions[tuple]&(1<<member.mode) != 0 {
+		if ticket != nil && !ticket.ownershipEnded() && ticket.completionState() != ids.TxAborted && ticket.multiContributions[tuple]&(1<<member.mode) != 0 {
 			return
 		}
 	}

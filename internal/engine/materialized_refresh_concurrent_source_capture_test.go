@@ -35,7 +35,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *relationDescriptor {
 		t.Fatal("source outer stage", skipped, err)
 	}
 	d.populated = true
-	if err := e.stageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -170,7 +170,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.domainBases = []Descriptor{provider}
-	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.address], refreshUnitRows(t, outer, 3), true, TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.address], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true

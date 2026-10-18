@@ -282,7 +282,7 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker authorization.PrincipalRef, inherited queryRowMark, locks *queryLockContext) (*querySource, error) {
 	// Metadata-only retained captures have no admitted transaction owner.
 	// Singleton execution still advertises its actual live statement snapshot.
-	if scope.txRef != (TxRef{}) {
+	if scope.txRef != (ids.TxRef{}) {
 		if _, err := e.visibilitySnapshotLocked(scope.txRef, false); err != nil {
 			return nil, err
 		}

@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"runtime"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/ids"
 	"sync/atomic"
 )
 
@@ -13,7 +13,7 @@ import (
 // fresh context: database/sql cancels its BeginTx context before driver Commit.
 type tx struct {
 	conn *conn
-	ref  engine.TxRef
+	ref  ids.TxRef
 	done atomic.Bool
 }
 

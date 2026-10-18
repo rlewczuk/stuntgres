@@ -22,7 +22,7 @@ type rowPublication struct {
 	singleSlot         int
 }
 
-func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
+func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
 	owner := txOwnerOf(ref)
 	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
@@ -33,7 +33,7 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ids.ObjectAd
 	return e.publishRows(op, ref, writes, deletes, owner.catalog, nil, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -66,7 +66,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]rowVersion, deletes map[
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {

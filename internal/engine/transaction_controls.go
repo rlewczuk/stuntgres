@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -52,17 +53,17 @@ func (e *Engine) transactionAdmission(op *Operation) error {
 }
 
 // Admission is held by the Go entrypoint or the SQL scope, never recursively.
-func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Time) (TxRef, error) {
+func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Time) (ids.TxRef, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := e.transactionAdmission(op); err != nil {
-		return TxRef{}, err
+		return ids.TxRef{}, err
 	}
 	if t.state != TxIdle {
-		return TxRef{}, errors.New("stuntgres: transaction already active")
+		return ids.TxRef{}, errors.New("stuntgres: transaction already active")
 	}
 	if err := e.beginLocked(op, t, TxActive, start); err != nil {
-		return TxRef{}, err
+		return ids.TxRef{}, err
 	}
 	ref := t.ref
 	t.mu.Unlock()
@@ -71,7 +72,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 	if err != nil {
 		t.clear()
 		t.session.retireTransactionTimeout()
-		return TxRef{}, err
+		return ids.TxRef{}, err
 	}
 	t.ticket = ticket
 	return ref, nil
@@ -87,7 +88,7 @@ func (e *Engine) endPreflight(op *Operation) error {
 	return publicationOperationLocked(e, op)
 }
 
-func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
+func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
 	chainFence := false
@@ -102,7 +103,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	}()
 	t.mu.Lock()
 	var old, candidate *relationTicket
-	var next TxRef
+	var next ids.TxRef
 	installedNext := false
 	defer func() {
 		if !installedNext {
@@ -143,7 +144,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		readOnly = t.savepoints[0].readOnly
 	}
 	if chain {
-		if t.next == TxID(^uint64(0)) {
+		if t.next == ids.TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
 		e.mu.Lock()

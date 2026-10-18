@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,7 +19,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	pin, cell, epoch := c.source.view, c.authority, c.epoch
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "COMMIT")
-	if !c.promoted || c.tx != (TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.currentSource != nil || c.state.source != nil || c.state.parameters != nil || pin.data.Load() != nil || cell.scope != nil || cell.expression != nil || c.count != 2 || c.storeOffset != 1 || c.ordinalPosition != 1 {
+	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.currentSource != nil || c.state.source != nil || c.state.parameters != nil || pin.data.Load() != nil || cell.scope != nil || cell.expression != nil || c.count != 2 || c.storeOffset != 1 || c.ordinalPosition != 1 {
 		t.Fatal("export retains producer or loses owned remainder", c, cell)
 	}
 	if c.catalog.state != nil || !reflect.DeepEqual(first.Rows.Schema(), c.schema) {

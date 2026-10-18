@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
@@ -13,7 +15,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 				s := sessionStart(t, e, nil)
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
-				var preceding TxRef
+				var preceding ids.TxRef
 				if end != "" {
 					if _, err := m.step(statement(t, "BEGIN")); err != nil {
 						t.Fatal(err)
@@ -36,7 +38,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				tx := s.transactions
-				if tx.state != TxImplicit || !tx.inBlock() || tx.ref == (TxRef{}) || tx.ref == preceding || tx.ref != m.scope.txRef || tx.ticket == nil || tx.ticket != m.scope.ticket || tx.ref.Epoch() != e.state.epoch || !m.scope.implicit {
+				if tx.state != TxImplicit || !tx.inBlock() || tx.ref == (ids.TxRef{}) || tx.ref == preceding || tx.ref != m.scope.txRef || tx.ticket == nil || tx.ticket != m.scope.ticket || tx.ref.Epoch() != e.state.epoch || !m.scope.implicit {
 					t.Fatal("reached prepared control bypassed ordinary segment authority")
 				}
 				if len(e.prepared) != 0 || e.commitSeq != 0 {

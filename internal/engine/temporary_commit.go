@@ -8,7 +8,7 @@ import (
 
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
-func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
+func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
 	if ref.Epoch() != e.state.epoch {
 		e.mu.Unlock()

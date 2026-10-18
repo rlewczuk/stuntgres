@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -81,7 +82,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT)", "CREATE TABLE r(k INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1),(2)", "INSERT INTO r VALUES(1),(2)"} {
 					sessionSQL(t, peer, q)
 				}
-				var tx TxRef
+				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, writer)
 					sessionSQL(t, writer, "UPDATE t SET v=11 WHERE id=1")

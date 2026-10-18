@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func localOwnerValue(t *testing.T, s *Session, name, want string) {
@@ -73,7 +75,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				}
 			case "foreign_ref":
 				op := transactionOperation(t, s)
-				_, err := e.Commit(op, TxRef{})
+				_, err := e.Commit(op, ids.TxRef{})
 				op.Done()
 				if err == nil {
 					t.Fatal("foreign accepted")

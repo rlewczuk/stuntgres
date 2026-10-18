@@ -41,7 +41,7 @@ func (m *relationLockManager) registerSession(token ids.SessionToken) (*relation
 
 type lockParticipant struct {
 	session  ids.SessionToken
-	prepared TxRef
+	prepared ids.TxRef
 }
 
 func (t *relationTicket) participant() lockParticipant {

@@ -32,7 +32,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 			stage, parent := queryCreateStage(t, e, "p", 1)
-			if err := e.stageQueryTableRows(context.Background(), stage, parent, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, TxRef{}); err != nil {
+			if err := e.stageQueryTableRows(context.Background(), stage, parent, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, stage)
@@ -42,7 +42,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				storage := e.storage[parent.address]
 				childStage, d := queryCreateStage(t, e, "c", 1)
 				d.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
-				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
+				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, childStage)

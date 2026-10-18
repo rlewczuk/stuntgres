@@ -48,7 +48,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 	s.mu.Unlock()
 }
 
-func timeoutMechanicsRef(s *Session, id TxID) TxRef {
+func timeoutMechanicsRef(s *Session, id ids.TxID) ids.TxRef {
 	return s.Engine().domain.Tx(s.Token(), id, 0, s.transactions, 0)
 }
 
@@ -169,7 +169,7 @@ func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 		t.Error("late previous scope stopped the new CHAIN budget")
 	}
 	s.retireTransactionTimeoutLocked()
-	if !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (TxRef{}) {
+	if !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (ids.TxRef{}) {
 		t.Error("transaction retirement retained runtime authority")
 	}
 	s.mu.Unlock()
@@ -503,7 +503,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	}
 	s.mu.Lock()
 	if s.timeouts.transactionLimit != time.Hour || s.timeouts.idleTransactionLimit != 2*time.Hour ||
-		s.timeouts.idleSessionLimit != 3*time.Hour || !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (TxRef{}) {
+		s.timeouts.idleSessionLimit != 3*time.Hour || !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (ids.TxRef{}) {
 		t.Error("rollback did not restore settings without rearming retired transaction")
 	}
 	s.mu.Unlock()

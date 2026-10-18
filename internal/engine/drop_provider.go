@@ -55,7 +55,7 @@ type preparedDrop struct {
 	observed map[ids.ObjectAddress]Descriptor
 	slots    map[ids.ObjectAddress]dropEffectSlot
 	scope    *StatementScope
-	txRef    TxRef
+	txRef    ids.TxRef
 	base     CatalogRead
 	// Authentic read returned by admission; never replaces original base proofs.
 	discovery CatalogRead

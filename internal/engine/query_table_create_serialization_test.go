@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			e := New()
 			project, anonymous := queryCreateBoundSource(t, e, 1)
 			sourceStage, sourceDescriptor := queryCreateStage(t, e, "source", 1)
-			if err := e.stageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.anonymous, TxRef{}); err != nil {
+			if err := e.stageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.anonymous, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)

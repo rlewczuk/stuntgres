@@ -569,7 +569,7 @@ type CatalogStage struct {
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
 	initialTables           map[ids.ObjectAddress]*relationStorage
-	initialTx               TxRef
+	initialTx               ids.TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []Descriptor
 	materializedSourceView  *visibilityData
@@ -1507,14 +1507,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == CommitSeq(math.MaxUint64) {
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
-		if err == nil && s.initialTx != (TxRef{}) {
+		if err == nil && s.initialTx != (ids.TxRef{}) {
 			err = e.serializablePrecommitLocked(s.initialTx)
 		}
 		commitRef := s.initialTx
 		if scope != nil {
 			commitRef = scope.txRef
 		}
-		if err == nil && commitRef != (TxRef{}) {
+		if err == nil && commitRef != (ids.TxRef{}) {
 			err = e.assignTransactionXIDLocked(commitRef)
 		}
 		if err == nil {
@@ -1552,7 +1552,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				}
 				e.commitSeq = frontier
 			}
-			if s.initialTx != (TxRef{}) {
+			if s.initialTx != (ids.TxRef{}) {
 				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
 			}
 			e.state = next
@@ -1569,7 +1569,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if s.roleCandidate != nil {
 				e.roles = s.roleCandidate
 			}
-			if commitRef != (TxRef{}) {
+			if commitRef != (ids.TxRef{}) {
 				e.recordCommitTimestampLocked(commitRef)
 			}
 			s.lifecycle = catalogPublished

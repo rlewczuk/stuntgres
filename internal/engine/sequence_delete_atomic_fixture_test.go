@@ -146,7 +146,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *relationTicket) {
 	t.Helper()
 	tx := s.transactions
-	if tx.state != TxIdle || tx.ref != (TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {
+	if tx.state != TxIdle || tx.ref != (ids.TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}
 	if len(old.resources) != 0 {

@@ -3,10 +3,12 @@ package engine
 import (
 	"errors"
 	"fmt"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type transactionIdentityRecord struct {
-	state  transactionIdentityState
+	state  ids.TxCompletion
 	ticket *relationTicket
 }
 
@@ -35,7 +37,7 @@ func multiTransactionAge(next, xid uint32) int32 {
 	}
 	return int32(next - xid)
 }
-func (e *Engine) transactionAgeLocked(ref TxRef, xid uint32) (int32, error) {
+func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
@@ -51,7 +53,7 @@ func (e *Engine) transactionAgeLocked(ref TxRef, xid uint32) (int32, error) {
 		}
 		v.ageAnchor, v.ageDemanded = anchor, true
 		if e.visibility == nil {
-			e.visibility = make(map[TxRef]transactionVisibility)
+			e.visibility = make(map[ids.TxRef]transactionVisibility)
 		}
 		e.visibility[ref] = v
 	}
@@ -77,23 +79,23 @@ func (e *Engine) transactionStatusLocked(xid uint64) (string, bool, error) {
 	if r.ticket != nil && !r.ticket.ownershipEnded() && r.ticket.assignedFullXID() == xid {
 		return "in progress", true, nil
 	}
-	if r.state == transactionCommitted {
+	if r.state == ids.TxCommitted {
 		return "committed", true, nil
 	}
 	return "aborted", true, nil
 }
-func (e *Engine) endTransactionIdentityLocked(ref TxRef, committed bool) {
+func (e *Engine) endTransactionIdentityLocked(ref ids.TxRef, committed bool) {
 	v := e.visibility[ref]
 	if v.fullXID == 0 {
 		return
 	}
 	r, ok := e.transactionHistory[v.fullXID]
-	if !ok || r.state != transactionInProgress {
+	if !ok || r.state != ids.TxInProgress {
 		return
 	}
-	r.state = transactionAborted
+	r.state = ids.TxAborted
 	if committed {
-		r.state = transactionCommitted
+		r.state = ids.TxCommitted
 	}
 	if r.ticket != nil {
 		r.ticket.mirrorCompletion(r.state)

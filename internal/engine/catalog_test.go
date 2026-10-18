@@ -397,7 +397,7 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			var ref TxRef
+			var ref ids.TxRef
 			if explicit {
 				ref, err = e.Begin(op, TxOptions{})
 				if err != nil {

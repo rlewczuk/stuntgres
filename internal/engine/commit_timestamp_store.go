@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 // Engine.mu owns identities, reserved history slots and the last-completion cache.
@@ -13,7 +15,7 @@ type commitTimestampEntry struct {
 	present bool
 }
 
-func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
+func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
@@ -28,7 +30,7 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 	xid := uint32(full)
 	if prior, ok := e.assignedLowIDs[xid]; ok {
 		record := e.transactionHistory[prior]
-		live := record.ticket == nil && record.state == transactionInProgress
+		live := record.ticket == nil && record.state == ids.TxInProgress
 		if record.ticket != nil {
 			live = !record.ticket.ownershipEnded() && record.ticket.assignedFullXID() == prior
 		}
@@ -46,7 +48,7 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 		e.commitTimestamps[full] = commitTimestampEntry{}
 	}
 	if e.visibility == nil {
-		e.visibility = make(map[TxRef]transactionVisibility)
+		e.visibility = make(map[ids.TxRef]transactionVisibility)
 	}
 	if e.transactionHistory == nil {
 		e.transactionHistory = make(map[uint64]transactionIdentityRecord)
@@ -60,7 +62,7 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 	v.assignedXID, v.fullXID = xid, full
 	if v.ticket != nil {
 		v.ticket.mirrorFullXID(full)
-		v.ticket.mirrorCompletion(transactionInProgress)
+		v.ticket.mirrorCompletion(ids.TxInProgress)
 	}
 	e.visibility[ref] = v
 	if node := e.serializable.nodes[ref]; node != nil {
@@ -71,7 +73,7 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 
 // All storage is reserved before the publisher's final no-failure region.
 // Consume completion ownership so an already-published utility cannot record twice.
-func (e *Engine) recordCommitTimestampLocked(ref TxRef) {
+func (e *Engine) recordCommitTimestampLocked(ref ids.TxRef) {
 	v := e.visibility[ref]
 	if v.assignedXID == 0 {
 		return

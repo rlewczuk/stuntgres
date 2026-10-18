@@ -64,7 +64,7 @@ func timeoutPendingControl(t *testing.T, s *Session, kind parser.SavepointContro
 	}
 }
 
-func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, TxRef, *parser.LockTable) {
+func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, ids.TxRef, *parser.LockTable) {
 	t.Helper()
 	e := New()
 	s, holder := timeoutPendingSession(t, e, 1), timeoutPendingSession(t, e, 2)
@@ -168,7 +168,7 @@ func timeoutPendingDiagnostic(t *testing.T, err error, code string) {
 	}
 }
 
-func timeoutPendingRecovery(t *testing.T, s *Session, ref TxRef, child bool) {
+func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool) {
 	t.Helper()
 	if !s.IsLive() {
 		t.Error("recoverable ERROR lost physical owner and recovery authority")

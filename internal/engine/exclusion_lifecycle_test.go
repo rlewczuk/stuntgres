@@ -5,9 +5,11 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
-func exclusionCommitWorker(t *testing.T, s *Session, ref TxRef) <-chan error {
+func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := make(chan error, 1)

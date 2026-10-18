@@ -81,7 +81,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					}
 				}
 				var early ids.ObjectRef
-				var earlyHolder TxRef
+				var earlyHolder ids.TxRef
 				earlyHeld := false
 				createHeldEarly := func() {
 					sessionSQL(t, ddl, "CREATE TABLE a.t(v INT)")

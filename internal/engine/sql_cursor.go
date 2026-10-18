@@ -27,7 +27,7 @@ const (
 )
 
 type sqlCursor struct {
-	tx                                          TxRef
+	tx                                          ids.TxRef
 	ordinal                                     uint64
 	epoch                                       ids.CatalogEpoch
 	hold, promoted                              bool
@@ -136,7 +136,7 @@ func (r *cursorRegistry) detach(match func(*sqlCursor) bool) []*sqlCursor {
 	}
 	return detached
 }
-func (r *cursorRegistry) endTransaction(ref TxRef) []*sqlCursor {
+func (r *cursorRegistry) endTransaction(ref ids.TxRef) []*sqlCursor {
 	return r.detach(func(c *sqlCursor) bool { return !c.promoted && c.tx == ref })
 }
 func (r *cursorRegistry) clear() []*sqlCursor {

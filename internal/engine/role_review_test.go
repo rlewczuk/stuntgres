@@ -536,7 +536,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			if err == nil {
 				_, err = peer.Authorization()
 			}
-			var ref TxRef
+			var ref ids.TxRef
 			if err == nil {
 				ref, err = e.Begin(peer, TxOptions{})
 			}

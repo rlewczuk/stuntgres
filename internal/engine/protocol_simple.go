@@ -2,6 +2,7 @@ package engine
 
 import (
 	"io"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -66,7 +67,7 @@ func (s *StatementScope) beginProtocolSimplePortal() error {
 	// A non-retained transaction control gates without admitting an incarnation.
 	// Its pre-execution disposal still borrows the current owner's exact fence;
 	// it must not start a new transaction or relax copyIO's resume validation.
-	if s.txRef == (TxRef{}) {
+	if s.txRef == (ids.TxRef{}) {
 		s.owner.mu.Lock()
 		s.attachTransactionLocked()
 		s.owner.mu.Unlock()

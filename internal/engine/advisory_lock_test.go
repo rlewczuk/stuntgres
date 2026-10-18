@@ -5,18 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
-func advisoryUnitOwner(t *testing.T, e *Engine) (*Session, TxRef) {
+func advisoryUnitOwner(t *testing.T, e *Engine) (*Session, ids.TxRef) {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	return s, transactionBegin(t, s)
 }
-func advisoryUnitAcquire(t *testing.T, s *Session, provenance TxRef, key lockResource, mode relationLockMode, nowait bool) (*relationRequest, error) {
+func advisoryUnitAcquire(t *testing.T, s *Session, provenance ids.TxRef, key lockResource, mode relationLockMode, nowait bool) (*relationRequest, error) {
 	t.Helper()
 	return s.Engine().locks.startAcquire(context.Background(), s.advisory.ticket, key, mode, relationLockPolicy{provenance: provenance, nowait: nowait})
 }
-func advisoryUnitGrant(t *testing.T, s *Session, provenance TxRef, key lockResource, mode relationLockMode) {
+func advisoryUnitGrant(t *testing.T, s *Session, provenance ids.TxRef, key lockResource, mode relationLockMode) {
 	t.Helper()
 	r, err := advisoryUnitAcquire(t, s, provenance, key, mode, true)
 	if err != nil || r != nil {

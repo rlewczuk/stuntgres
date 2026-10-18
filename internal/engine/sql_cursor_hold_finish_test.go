@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -221,7 +222,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				t.Fatal("canceled commit retains partial store/producer/admission")
 			}
 			s.mu.Lock()
-			retired := s.timeouts.authority == (TxRef{}) && s.timeouts.transaction.deadline.IsZero()
+			retired := s.timeouts.authority == (ids.TxRef{}) && s.timeouts.transaction.deadline.IsZero()
 			s.mu.Unlock()
 			if !retired {
 				t.Fatal("failed materialization retains transaction timeout authority")

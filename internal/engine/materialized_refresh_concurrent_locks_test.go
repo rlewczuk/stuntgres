@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -136,7 +137,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	frontier := e.commitSeq
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true

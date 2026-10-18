@@ -1,10 +1,14 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Validation is shared by prepare and commit. Only commit constructs install
 // heads, deletion maps and slot manifests; prepare transfers the private roots.
-func (e *Engine) prepareRowPublication(p *rowPublication, ref TxRef, materialize bool) error {
+func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materialize bool) error {
 	inserts, replacements := 0, 0
 	for _, row := range p.writes {
 		if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.columns) {

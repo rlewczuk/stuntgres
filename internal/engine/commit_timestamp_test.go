@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func commitTimeUnitRef(e *Engine, id TxID) TxRef {
+func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
 	return e.domain.Tx(ids.SessionToken{}, id, e.state.epoch, nil, 0)
 }
 

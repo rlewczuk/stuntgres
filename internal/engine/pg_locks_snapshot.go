@@ -24,7 +24,7 @@ const (
 // The public view joins this manager capture with a separate SSI capture.
 type pgLockOwner struct {
 	session  ids.SessionID
-	local    TxID
+	local    ids.TxID
 	prepared bool
 }
 
@@ -49,7 +49,7 @@ type pgLockRecord struct {
 	waitstart     time.Time
 }
 
-func publicLockOwner(domain *ids.Domain, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
+func publicLockOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (pgLockOwner, bool, error) {
 	token := ref.Session()
 	if ref.Domain() != domain || token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0 {
 		return pgLockOwner{}, false, nil

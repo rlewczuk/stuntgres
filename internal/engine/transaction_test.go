@@ -23,7 +23,7 @@ func transactionOperation(t *testing.T, s *Session) *Operation {
 	t.Cleanup(op.Done)
 	return op
 }
-func transactionBegin(t *testing.T, s *Session) TxRef {
+func transactionBegin(t *testing.T, s *Session) ids.TxRef {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -33,7 +33,7 @@ func transactionBegin(t *testing.T, s *Session) TxRef {
 	}
 	return ref
 }
-func transactionEnd(t *testing.T, s *Session, ref TxRef, commit bool) EndResult {
+func transactionEnd(t *testing.T, s *Session, ref ids.TxRef, commit bool) EndResult {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -173,7 +173,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 			b := sessionStart(t, e, nil)
 			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 			sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-			var ref TxRef
+			var ref ids.TxRef
 			if explicit {
 				ref = transactionBegin(t, a)
 				sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -255,7 +255,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []TxRef{{}, New().domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
+	for _, bad := range []ids.TxRef{{}, New().domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}
@@ -293,7 +293,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{Isolation: Isolation(99)}); err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("option mutation")
 	}
-	a.transactions.next = TxID(^uint64(0))
+	a.transactions.next = ids.TxID(^uint64(0))
 	if _, err := e.Begin(op, TxOptions{}); err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("identity wrapped")
 	}

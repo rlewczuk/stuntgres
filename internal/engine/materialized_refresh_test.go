@@ -16,7 +16,7 @@ func refreshUnitRelation(t *testing.T, e *Engine) *relationDescriptor {
 	defer done()
 	d.populated = true
 	rows := refreshUnitRows(t, d, 3)
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -50,7 +50,7 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		frontier := e.commitSeq
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, tc.count)
-		if err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, tc.populated, TxRef{}); err != nil {
+		if err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, tc.populated, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
 		candidate := stage.materializedReplacement.storage
@@ -88,7 +88,7 @@ func TestMaterializedRefreshSnapshots(t *testing.T) {
 	for _, populated := range []bool{true, false} {
 		current := e.state.descriptors[d.address].(*relationDescriptor)
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := e.stageMaterializedRows(context.Background(), stage, current, e.storage[d.address], nil, populated, TxRef{}); err != nil {
+		if err := e.stageMaterializedRows(context.Background(), stage, current, e.storage[d.address], nil, populated, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
 		queryCreatePublish(t, e, stage)
@@ -113,7 +113,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			if phase == "wrong_type" {
 				rows[0][0] = sqltype.Null(testUsage(e, sqltype.Text).Type)
 			}
-			err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, true, TxRef{})
+			err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, true, ids.TxRef{})
 			if phase == "wrong_width" || phase == "wrong_type" {
 				if err == nil || e.storage[d.address] != store || e.state.descriptors[d.address] != d {
 					t.Fatal("invalid row accepted", err)
@@ -195,7 +195,7 @@ func TestMaterializedRefreshPublicationCounters(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			beforeRow, beforeVersion := e.nextRow, e.nextVersion
-			if err := e.stageMaterializedRows(context.Background(), stage, d, store, refreshUnitRows(t, d, 1), true, TxRef{}); err == nil {
+			if err := e.stageMaterializedRows(context.Background(), stage, d, store, refreshUnitRows(t, d, 1), true, ids.TxRef{}); err == nil {
 				t.Fatal("overflow accepted")
 			}
 			if e.nextRow != beforeRow || e.nextVersion != beforeVersion || e.storage[d.address] != store || e.state.descriptors[d.address] != d {
@@ -213,7 +213,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			old := e.storage[d.address]
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, TxRef{}); err != nil {
+			if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())

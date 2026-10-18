@@ -379,7 +379,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
-			var tx TxRef
+			var tx ids.TxRef
 			if explicit {
 				tx = transactionBegin(t, s)
 				sessionSQL(t, s, "INSERT INTO p VALUES(3)")

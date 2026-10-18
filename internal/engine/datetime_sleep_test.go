@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -66,7 +67,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		e := New()
 		s := sessionStart(t, e, nil)
-		var ref TxRef
+		var ref ids.TxRef
 		if explicit {
 			ref = transactionBegin(t, s)
 		}

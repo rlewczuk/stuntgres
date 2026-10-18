@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 			b := sessionStart(t, e, nil)
 			sessionSQL(t, b, "CREATE TABLE t(v INT)")
 			sessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
-			var tx TxRef
+			var tx ids.TxRef
 			if explicit {
 				tx = transactionBegin(t, a)
 				sessionSQL(t, a, "INSERT INTO t VALUES(3)")

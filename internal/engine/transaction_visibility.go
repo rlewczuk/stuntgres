@@ -18,7 +18,7 @@ type visibilityGeneration struct {
 }
 
 type visibilityData struct {
-	tx                     TxRef
+	tx                     ids.TxRef
 	command                CommandID
 	frontier               CommitSeq
 	rewrittenFrontiers     map[ids.ObjectAddress]CommitSeq
@@ -289,7 +289,7 @@ func (v *VisibilityView) read() *visibilityData {
 	return data
 }
 
-func (v *VisibilityView) Tx() TxRef            { return v.read().tx }
+func (v *VisibilityView) Tx() ids.TxRef        { return v.read().tx }
 func (v *VisibilityView) Command() CommandID   { return v.read().command }
 func (v *VisibilityView) Frontier() CommitSeq  { return v.read().frontier }
 func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }

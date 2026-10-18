@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 type deleteOutcome struct {
@@ -157,7 +159,7 @@ func TestDeleteCoreQueuedCancellation(t *testing.T) {
 			sessionSQL(t, c, "INSERT INTO t VALUES(1),(2)")
 			ar := transactionBegin(t, a)
 			deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
-			var br TxRef
+			var br ids.TxRef
 			if explicit {
 				br = transactionBegin(t, b)
 				sessionSQL(t, b, "INSERT INTO t VALUES(7)")

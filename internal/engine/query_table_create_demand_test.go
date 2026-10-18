@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -59,7 +60,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		t.Fatal("source owner retained")
 	}
 	stage, d := queryCreateStage(t, e, "copy", 1)
-	if err = e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{}); err != nil {
+	if err = e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

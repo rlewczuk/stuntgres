@@ -185,7 +185,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	if stage.initialTx != (TxRef{}) && stage.initialTx != scope.txRef {
+	if stage.initialTx != (ids.TxRef{}) && stage.initialTx != scope.txRef {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}

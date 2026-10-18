@@ -40,7 +40,7 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					oldDescriptor, oldStorage := e.state.descriptors[ref.Address], e.storage[ref.Address]
 					sequence := roleTableRef(t, e, "owned")
 					oldSequence, oldGenerator := e.state.descriptors[sequence.Address], e.sequences[sequence.Address]
-					var tx TxRef
+					var tx ids.TxRef
 					if explicit {
 						tx = transactionBegin(t, s)
 					}

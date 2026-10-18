@@ -22,7 +22,7 @@ type transactionVisibility struct {
 // Admission serializes this incarnation. Register with the manager first, then
 // associate its exact ticket before any command can reach canonical assignment.
 // Neither manager nor TX synchronization is held while taking Engine.mu.
-func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
+func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error) {
 	ticket, err := e.locks.register(ref)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 		return nil, ErrCatalogReplaced
 	}
 	if e.visibility == nil {
-		e.visibility = make(map[TxRef]transactionVisibility)
+		e.visibility = make(map[ids.TxRef]transactionVisibility)
 	}
 	v := e.visibility[ref]
 	v.ticket = ticket
@@ -44,7 +44,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 	return ticket, nil
 }
 
-func (e *Engine) visibilityWriteLocked(ref TxRef) error {
+func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return ErrCatalogReplaced
 	}
@@ -58,13 +58,13 @@ func (e *Engine) visibilityWriteLocked(ref TxRef) error {
 	e.visibilityXID++
 	v.xid = e.visibilityXID
 	if e.visibility == nil {
-		e.visibility = make(map[TxRef]transactionVisibility)
+		e.visibility = make(map[ids.TxRef]transactionVisibility)
 	}
 	e.visibility[ref] = v
 	return nil
 }
 
-func (e *Engine) visibilitySnapshotLocked(ref TxRef, safeBuilder bool) (uint64, error) {
+func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
@@ -83,13 +83,13 @@ func (e *Engine) visibilitySnapshotLocked(ref TxRef, safeBuilder bool) (uint64, 
 	}
 	v.xmin, v.snapshot, v.safeBuilder = xmin, true, safeBuilder
 	if e.visibility == nil {
-		e.visibility = make(map[TxRef]transactionVisibility)
+		e.visibility = make(map[ids.TxRef]transactionVisibility)
 	}
 	e.visibility[ref] = v
 	return xmin, nil
 }
 
-func (e *Engine) endStatementVisibility(ref TxRef, stable bool) {
+func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 	if stable {
 		return
 	}
@@ -100,7 +100,7 @@ func (e *Engine) endStatementVisibility(ref TxRef, stable bool) {
 
 // Snapshot advertisement ends independently of writer/completion ownership.
 // Engine.mu is held; PREPARE retains the detached incarnation's assigned XID.
-func (e *Engine) dropVisibilitySnapshotLocked(ref TxRef) {
+func (e *Engine) dropVisibilitySnapshotLocked(ref ids.TxRef) {
 	if v, ok := e.visibility[ref]; ok {
 		v.xmin, v.snapshot, v.safeBuilder = 0, false, false
 		if v.xid == 0 && v.assignedXID == 0 && v.ticket == nil {
@@ -114,7 +114,7 @@ func (e *Engine) dropVisibilitySnapshotLocked(ref TxRef) {
 // An index publication phase retires advertisement, not its registered ticket.
 // Preserve canonical assignment and its exact mirror association for later work.
 // Engine.mu is held; lifecycle end/abort/fence still remove the whole entry.
-func (e *Engine) resetVisibilityPhaseLocked(ref TxRef) {
+func (e *Engine) resetVisibilityPhaseLocked(ref ids.TxRef) {
 	if v, ok := e.visibility[ref]; ok {
 		if v.ticket != nil {
 			// These index-only hooks retire a completed internal publication
@@ -139,7 +139,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 	}
 	// Drop every advertised builder phase before collecting the real wait cohort.
 	e.resetVisibilityPhaseLocked(s.txRef)
-	var refs []TxRef
+	var refs []ids.TxRef
 	for ref, v := range e.visibility {
 		if ref != s.txRef && ref.Epoch() == s.txRef.Epoch() && v.snapshot && !v.safeBuilder && v.xmin <= xmin {
 			refs = append(refs, ref)

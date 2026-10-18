@@ -11,7 +11,7 @@ import (
 
 type advisoryScopeOutcome struct{ err, finish error }
 
-func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource, lifetime advisoryLifetime) (*relationTicket, TxRef, <-chan advisoryScopeOutcome) {
+func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource, lifetime advisoryLifetime) (*relationTicket, ids.TxRef, <-chan advisoryScopeOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)

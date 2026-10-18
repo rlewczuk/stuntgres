@@ -4,6 +4,8 @@ import (
 	"context"
 	"maps"
 	"testing"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func domainAlterMessagePromotion(t *testing.T) {
@@ -20,7 +22,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal(err)
 			}
 			ref, ticket, start := s.transactions.ref, s.transactions.ticket, s.transactions.start
-			if ref == (TxRef{}) || ticket == nil || s.transactions.state != TxImplicit {
+			if ref == (ids.TxRef{}) || ticket == nil || s.transactions.state != TxImplicit {
 				t.Fatal("retained prefix did not acquire actual transaction ownership")
 			}
 			for _, q := range []string{"ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID", "ALTER DOMAIN public.d VALIDATE CONSTRAINT counted", "BEGIN", "SAVEPOINT keep_prefix"} {

@@ -12,7 +12,7 @@ import (
 func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	e := New()
 	parentStage, p := queryCreateStage(t, e, "p", 1)
-	if err := e.stageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, parentStage)
@@ -21,7 +21,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
-	if err := e.stageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
@@ -90,7 +90,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	lateStage, late := queryCreateStage(t, e, "late", 1)
 	inherit(late)
-	if err = e.stageQueryTableRows(context.Background(), lateStage, late, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, TxRef{}); err != nil {
+	if err = e.stageQueryTableRows(context.Background(), lateStage, late, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, lateStage)

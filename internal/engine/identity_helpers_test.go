@@ -5,11 +5,11 @@ import "stuntgres/internal/engine/ids"
 // Tests forge stale or foreign identities by changing one component of a
 // valid value; these helpers rebuild the value through its constructor.
 
-func withTxID(ref TxRef, id TxID) TxRef {
+func withTxID(ref ids.TxRef, id ids.TxID) ids.TxRef {
 	return ref.Domain().Tx(ref.Session(), id, ref.Epoch(), ref.Attachment(), ref.Diagnostic())
 }
 
-func withTxSession(ref TxRef, session ids.SessionToken) TxRef {
+func withTxSession(ref ids.TxRef, session ids.SessionToken) ids.TxRef {
 	return ref.Domain().Tx(session, ref.ID(), ref.Epoch(), ref.Attachment(), ref.Diagnostic())
 }
 

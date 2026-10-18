@@ -43,7 +43,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	w2 := &serializableTransaction{ref: second.ref, captured: true}
 	r.possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
 	e.mu.Lock()
-	e.serializable.nodes = map[TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
+	e.serializable.nodes = map[ids.TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.session.ID()))
 	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.

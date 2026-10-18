@@ -109,7 +109,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	}
 	sourceStage, sourceCopy := queryCreateStage(t, source, "copy", 1)
 	sourceCopy.columns[0].Usage = array.Usage()
-	if err = source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, [][]sqltype.Value{{value}}, TxRef{}); err != nil {
+	if err = source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)
@@ -214,7 +214,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	rows = append(rows, []sqltype.Value{sqltype.Null(sourceType)})
 	sourceStage, sourceCopy := queryCreateStage(t, source, "xid_copy", 1)
 	sourceCopy.columns[0].Usage = sourceType.Usage()
-	if err := source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, rows, TxRef{}); err != nil {
+	if err := source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)

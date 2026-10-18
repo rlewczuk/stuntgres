@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/ids"
 )
 
 func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
@@ -19,7 +21,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 			for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT,n INT)", "CREATE TABLE r(k INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1,100),(2,200)", "INSERT INTO r VALUES(1),(2)"} {
 				sessionSQL(t, peer, q)
 			}
-			var writerTx TxRef
+			var writerTx ids.TxRef
 			if mode == "rr_update" || mode == "rr_delete" {
 				writerTx = transactionBegin(t, writer)
 				sessionSQL(t, writer, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")

@@ -335,7 +335,7 @@ func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
 				}
 			}
 			const waiterCount = 8
-			waiters := make(map[ids.SessionID]TxID, waiterCount)
+			waiters := make(map[ids.SessionID]ids.TxID, waiterCount)
 			for range waiterCount {
 				_, waiter := blockingUnitOwner(t, e)
 				request, _ := pgLocksUnitRequest(t, e, waiter, resource, uniqueClaim, completionTransaction)

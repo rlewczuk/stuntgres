@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -107,7 +108,7 @@ func TestDeleteUsingContentionOutcomes(t *testing.T) {
 			for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT)", "INSERT INTO t VALUES(1,10)", "INSERT INTO s VALUES(1)"} {
 				sessionSQL(t, peer, q)
 			}
-			var writerTx TxRef
+			var writerTx ids.TxRef
 			if phase == "repeatable_update" || phase == "repeatable_delete" {
 				sessionSQL(t, writer, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 				writerTx = writer.transactions.ref

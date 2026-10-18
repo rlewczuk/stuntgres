@@ -38,7 +38,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				sessionSQL(t, worker, q)
 			}
 			a, b := catalogRef(t, e, e.CatalogRead(), "a"), catalogRef(t, e, e.CatalogRead(), "b")
-			var tx TxRef
+			var tx ids.TxRef
 			if explicit {
 				tx = transactionBegin(t, worker)
 				sessionSQL(t, worker, "INSERT INTO b VALUES(7)")

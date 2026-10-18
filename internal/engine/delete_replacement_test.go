@@ -241,7 +241,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				resource := lockResource{ObjectRef: ref, row: oldStorage.versions[1].row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
-				var wr TxRef
+				var wr ids.TxRef
 				if explicit {
 					wr = transactionBegin(t, waiter)
 					sessionSQL(t, waiter, "INSERT INTO t VALUES(7)")

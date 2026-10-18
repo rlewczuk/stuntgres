@@ -40,7 +40,7 @@ type Engine struct {
 	commitSeq            CommitSeq
 	diagnosticTx         uint32
 	visibilityXID        uint64
-	visibility           map[TxRef]transactionVisibility
+	visibility           map[ids.TxRef]transactionVisibility
 	assignedXID          uint64
 	transactionHistory   map[uint64]transactionIdentityRecord
 	transactionHorizon   uint64

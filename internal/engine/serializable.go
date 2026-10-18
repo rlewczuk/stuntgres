@@ -12,13 +12,13 @@ import (
 // No graph operation takes a peer transaction's mutex. Records outlive their
 // session while overlapping owners remain; visibility roots stay TX-owned.
 type serializableTracker struct {
-	nodes    map[TxRef]*serializableTransaction
-	creators map[VersionID]TxRef
+	nodes    map[ids.TxRef]*serializableTransaction
+	creators map[VersionID]ids.TxRef
 	order    uint64
 }
 
 type serializableTransaction struct {
-	ref                                                 TxRef
+	ref                                                 ids.TxRef
 	assignedXID                                         uint32 // Retained canonical public identity, including after completion.
 	captured, readOnly, deferrable                      bool
 	frontier                                            CommitSeq
@@ -41,7 +41,7 @@ type serializableWrite struct {
 	row               RowID
 	version, base     VersionID
 	baseBorn          CommitSeq
-	creator           TxRef
+	creator           ids.TxRef
 	deletion, rewrite bool
 }
 
@@ -58,7 +58,7 @@ func serializableError(detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to read/write dependencies among transactions", Detail: "Reason code: " + detail, Hint: "The transaction might succeed if retried."}
 }
 
-func (e *Engine) enrollSerializableLocked(ref TxRef, isolation Isolation) {
+func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
 	if ref.ID() == 0 || ref.Epoch() != e.state.epoch {
 		return
 	}
@@ -72,10 +72,10 @@ func (e *Engine) enrollSerializableLocked(ref TxRef, isolation Isolation) {
 	}
 	if node == nil {
 		if e.serializable.nodes == nil {
-			e.serializable.nodes = make(map[TxRef]*serializableTransaction)
+			e.serializable.nodes = make(map[ids.TxRef]*serializableTransaction)
 		}
 		if e.serializable.creators == nil {
-			e.serializable.creators = make(map[VersionID]TxRef)
+			e.serializable.creators = make(map[VersionID]ids.TxRef)
 		}
 		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: e.visibility[ref].assignedXID, reads: make(map[ids.ObjectAddress]struct{}), writes: make(map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
 	}
@@ -135,7 +135,7 @@ func (e *Engine) serializableEdgeLocked(current, reader, writer *serializableTra
 	return nil
 }
 
-func (e *Engine) serializablePrecommitLocked(ref TxRef) error {
+func (e *Engine) serializablePrecommitLocked(ref ids.TxRef) error {
 	node := e.serializable.nodes[ref]
 	if !serializableRelevant(node) {
 		return nil
@@ -175,7 +175,7 @@ func (e *Engine) serializablePrecommitLocked(ref TxRef) error {
 }
 
 // Called only at the callback-free installation boundary, Engine.mu held.
-func (e *Engine) serializableCommittedLocked(ref TxRef, frontier CommitSeq) {
+func (e *Engine) serializableCommittedLocked(ref ids.TxRef, frontier CommitSeq) {
 	node := e.serializable.nodes[ref]
 	if !serializableRelevant(node) {
 		return
@@ -191,7 +191,7 @@ func (e *Engine) serializableCommittedLocked(ref TxRef, frontier CommitSeq) {
 	e.resolveSerializableCandidatesLocked(node)
 }
 
-func (e *Engine) serializablePreparedLocked(ref TxRef) {
+func (e *Engine) serializablePreparedLocked(ref ids.TxRef) {
 	node := e.serializable.nodes[ref]
 	if !serializableRelevant(node) {
 		return
@@ -230,12 +230,12 @@ func (e *Engine) resolveSerializableCandidatesLocked(writer *serializableTransac
 	}
 }
 
-func (e *Engine) endSerializable(ref TxRef, committed bool) {
+func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.endSerializableLocked(ref, committed)
 }
-func (e *Engine) endSerializableLocked(ref TxRef, committed bool) {
+func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
 	e.endTransactionIdentityLocked(ref, committed)
 	delete(e.visibility, ref)
 	for index, wait := range e.indexBuildWaits {

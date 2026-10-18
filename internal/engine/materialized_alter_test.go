@@ -351,7 +351,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 		root := e.indexRoots[index.address]
 		oldEntries := slices.Clone(root.entries)
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, count), count != 0, TxRef{}); err != nil {
+		if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, count), count != 0, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
 		candidate := stage.materializedReplacement.storage
@@ -369,7 +369,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	rows := refreshUnitRows(t, d, 2)
 	rows[1] = rows[0]
-	if err := e.stageMaterializedRows(context.Background(), stage, d, old, rows, true, TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)

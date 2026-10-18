@@ -201,7 +201,7 @@ func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *relationDescriptor) 
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
 	g.inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}, columns: map[int32]inheritedColumn{g.attributes[0]: {origins: []inheritanceOrigin{{parent: c.address, attribute: c.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
-	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), stage, g, [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

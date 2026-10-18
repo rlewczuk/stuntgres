@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -190,7 +191,7 @@ func TestRelationLockCancellation(t *testing.T) {
 		t.Run(fmt.Sprint(explicit), func(t *testing.T) {
 			ra := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			var rb TxRef
+			var rb ids.TxRef
 			if explicit {
 				rb = transactionBegin(t, b)
 			}

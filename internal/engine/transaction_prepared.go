@@ -14,7 +14,7 @@ import (
 type preparedTransaction struct {
 	gid      string
 	owner    authorization.PrincipalRef
-	ref      TxRef
+	ref      ids.TxRef
 	prepared time.Time
 	database string
 	ticket   *relationTicket
@@ -85,7 +85,7 @@ func (e *Engine) finishPreparedLocked(p *preparedPublication) {
 	e.endSerializableLocked(p.entry.ref, true)
 }
 
-func (s *StatementScope) executePrepared(control *parser.TransactionControl, state TxState, ref TxRef) error {
+func (s *StatementScope) executePrepared(control *parser.TransactionControl, state TxState, ref ids.TxRef) error {
 	e, t := s.op.session.Engine(), s.owner
 	if control.Kind != parser.KindPrepareTransaction {
 		if state != TxIdle {

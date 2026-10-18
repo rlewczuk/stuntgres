@@ -66,7 +66,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 								t.Fatal("rollback chain not current")
 							}
 							controlsRequire(t, a, "ROLLBACK")
-						} else if a.TransactionState() != TxIdle || a.transactions.ref != (TxRef{}) || a.transactions.ticket != nil {
+						} else if a.TransactionState() != TxIdle || a.transactions.ref != (ids.TxRef{}) || a.transactions.ticket != nil {
 							t.Fatal("end retained owner/installed commit chain")
 						}
 						lockEmpty(t, e)

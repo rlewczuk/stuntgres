@@ -50,7 +50,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			a.lastSequence, b.lastSequence = address, address
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
 			a.preparedSQL.entries["p"], b.preparedSQL.entries["p"] = entry, entry
-			var tx TxRef
+			var tx ids.TxRef
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
 			}

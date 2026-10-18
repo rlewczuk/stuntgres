@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -63,7 +64,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				saved := e.storage[ref.Address].versions
-				var tx TxRef
+				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, a)
 					sessionSQL(t, a, "UPDATE t SET v=3 WHERE v=1")

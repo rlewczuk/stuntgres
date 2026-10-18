@@ -19,7 +19,7 @@ type notificationPublication struct {
 	count    int
 }
 
-func notificationEffects(op *Operation, ref TxRef, phase *preparedPublication, scope *StatementScope) ([]notificationAction, []Notification, error) {
+func notificationEffects(op *Operation, ref ids.TxRef, phase *preparedPublication, scope *StatementScope) ([]notificationAction, []Notification, error) {
 	// PREPARE rejects notification effects. Completion owns only the detached
 	// entry: even checking its old attachment would read a reusable live owner.
 	if phase != nil && !phase.preparing {

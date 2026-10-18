@@ -275,7 +275,7 @@ type materializedReplacement struct {
 	indexCount  int
 }
 
-func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *relationDescriptor, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx TxRef) error {
+func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *relationDescriptor, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -81,7 +81,7 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := [][]sqltype.Value{{value}}
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{}); err != nil {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	store := stage.initialTables[d.address]
@@ -220,7 +220,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := [][]sqltype.Value{{value}}
-	if err := e.stageQueryTableRows(ctx, stage, d, rows, TxRef{}); !errors.Is(err, context.Canceled) {
+	if err := e.stageQueryTableRows(ctx, stage, d, rows, ids.TxRef{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if stage.initialTables != nil || e.state != before {
@@ -228,7 +228,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	}
 	e.state = cloneCatalog(e.state)
 	e.state.epoch++
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, TxRef{}); !errors.Is(err, ErrCatalogReplaced) {
+	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	if stage.initialTables != nil {

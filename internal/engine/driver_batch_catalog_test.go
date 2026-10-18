@@ -34,7 +34,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			changes := a.transactions.catalog
 			ref := a.transactions.ref
 			a.transactions.mu.Unlock()
-			if changes == nil || changes.roles == nil || changes.rolesBase != beforeRoles || ref == (TxRef{}) {
+			if changes == nil || changes.roles == nil || changes.rolesBase != beforeRoles || ref == (ids.TxRef{}) {
 				t.Fatal("missing joint candidate authority")
 			}
 			e.mu.Lock()
