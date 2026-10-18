@@ -1430,9 +1430,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				if !ok {
 					return "", fmt.Errorf("stuntgres: invalid stored EXTRACT field")
 				}
-				// PG's catalog renderer emits raw field text, even when unsafe
-				// for replay. The child call above still advances literal capture.
-				field = literal.Value.Text
+				// PG's catalog renderer quotes the field as an identifier. The
+				// child call above still advances literal capture.
+				field = v.presentation.identifier(literal.Value.Text)
 			}
 			source, err := child(e.Args[1])
 			if err != nil {
