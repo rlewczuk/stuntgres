@@ -203,11 +203,8 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
-	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
+	if raw.ResolutionOnly {
 		return nil, b.formatDiagnosticSignatureError(raw)
-	}
-	if name == "format" {
-		return bindFormat(b, raw)
 	}
 	if parser.IdentityFunctionName(name) {
 		return b.bindIdentityFunction(raw)

@@ -28,7 +28,15 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute"} {
+	// format claims every spelling; shared gates send other spellings to the
+	// resolution-only diagnostics, as the engine's chain did.
+	for _, name := range []string{"format", "FORMAT", "Format"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}
