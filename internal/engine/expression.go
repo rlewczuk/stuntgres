@@ -107,7 +107,7 @@ type expressionInfo struct {
 	collationLeft, collationRight sqltype.CollationRef
 	collationConflictPos          parser.Position
 	routineReference              functions.RoutineReference
-	routineRecipe                 *relationDescriptor // Borrowed immutable defining recipe of a grafted stored node.
+	routineRecipe                 functions.RoutineRecipeReference // Borrowed immutable defining recipe of a grafted stored node.
 }
 
 func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.usage }
@@ -124,9 +124,6 @@ func (e expressionInfo) CallRoutineReference() functions.RoutineReference {
 }
 
 func (e expressionInfo) CallRoutineRecipeReference() functions.RoutineRecipeReference {
-	if e.routineRecipe == nil {
-		return nil
-	}
 	return e.routineRecipe
 }
 
@@ -142,7 +139,7 @@ func boundExpressionInfo(node BoundExpr) expressionInfo {
 	if call, ok := node.(interface {
 		CallRoutineRecipeReference() functions.RoutineRecipeReference
 	}); ok {
-		info.routineRecipe, _ = call.CallRoutineRecipeReference().(*relationDescriptor)
+		info.routineRecipe = call.CallRoutineRecipeReference()
 	}
 	return info
 }
