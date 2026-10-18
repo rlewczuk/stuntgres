@@ -101,8 +101,8 @@ through one of these fields:
 | 5 | `SessionToken.owner *Engine` | Provenance check; also backed `Session.Engine()` and session and notification teardown | `ids.Domain` token; `Session` and `sessionNotifications` hold their engine (done in step 1) |
 | 6 | `SessionToken.private *Session` | Identity of private maintenance sessions | Sealed `ids.SessionOwner` interface; `Session` embeds `ids.SessionOwnerMarker` (done in step 1) |
 | 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements (engine-local `ExprContext` in 2a, `expr.Context` since 2b) |
-| 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog |
-| 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload |
+| 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog (done in 5c: `rulesPayload`) |
+| 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload (done in 5c) |
 | 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token (done in step 1) |
 | 11 | `relationLockPolicy.operation *Operation` | Published the queued request and the sticky timeout ERROR into two atomic `Operation` fields | `relationTimeoutSlot`, a lock-owned atomic slot that `Operation` embeds; the policy holds a pointer to it (done in step 4a) |
 
@@ -117,8 +117,10 @@ not part of the knot itself:
 
 - **`viewDefinition`.** It is reached from relations, rule actions and policy
   presentation. It is the frozen stored-SQL presentation and holds plan IR.
+  Done in 5c: relations hold `viewPayload`, policies `policyPayload`.
 - **Extension provider pointers on `procedureDescriptor`.** These are
-  `unaccentProvider`, `pgcryptoProvider` and similar.
+  `unaccentProvider`, `pgcryptoProvider` and similar. Done in 5c: one
+  `extensionImplementation` field, also held by the catalog owner record.
 - **`expressionInfo.routineRecipe *relationDescriptor`.** It holds the
   `RoutineRecipeReference` interface since 2a, now `expr.RoutineRecipeReference`.
 - **`relationTicket` storing a `transactionIdentityState`.** That enum moves
@@ -588,6 +590,9 @@ references); the store owns it as the engine's single provenance domain.
 - Expression payloads (check, default, generation, index keys and predicates,
   domain checks, policy expressions) hold `expr.Expr`.
 
+Done; see the prompt file's 5c results. Expression payloads were already
+`expr.Expr`.
+
 **5d — Export descriptor fields.**
 
 - Run `gopls rename` per field. `relationDescriptor` alone has 7,800 field uses
@@ -712,7 +717,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 eight of nine switches done (deparse and node tree through `expr.Rendering`); F2 stored scalar SQL next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a, 5b done; 5c next |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a–5c done; 5d next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |
