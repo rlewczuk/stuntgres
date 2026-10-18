@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
@@ -11,26 +10,19 @@ import (
 func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 	for _, statement := range []bool{false, true} {
 		t.Run(map[bool]string{false: "lock", true: "statement"}[statement], func(t *testing.T) {
-			e := New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, a, "CREATE TABLE x(v INT)")
-			sessionSQL(t, a, "CREATE TABLE y(v INT)")
-			transactionBegin(t, a)
-			transactionBegin(t, b)
-			at, bt := a.transactions.ticket, b.transactions.ticket
-			t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
-			x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
-			y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
-			deadlockRequest(t, e, at, x, accessExclusive)
-			deadlockRequest(t, e, bt, y, accessExclusive)
-			r, err := e.locks.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{Timeout: time.Hour})
+			f := newLockFixture(t)
+			at, bt := f.tx(), f.tx()
+			x := f.relation()
+			y := f.relation()
+			f.request(at, x, accessExclusive)
+			f.request(bt, y, accessExclusive)
+			r, err := f.m.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{Timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
 			// Stop delivery and independently advance the absolute deadline. This proves
 			// normalization, rather than relying on a timer goroutine winning a race.
-			e.locks.mu.Lock()
+			f.m.mu.Lock()
 			r.timer.Stop()
 			expired := time.Now().Add(-time.Second)
 			if statement {
@@ -38,94 +30,68 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			} else {
 				r.deadline = expired
 			}
-			e.locks.mu.Unlock()
-			follower := deadlockRequest(t, e, bt, x, accessExclusive)
+			f.m.mu.Unlock()
+			follower := f.request(bt, x, accessExclusive)
 			code, message := "55P03", "canceling statement due to lock timeout"
 			if statement {
 				code, message = "57014", "canceling statement due to statement timeout"
 			}
-			waitsDiagnostic(t, deadlockResult(t, r), code, message)
+			waitsDiagnostic(t, f.result(r), code, message)
 			terminal := follower.Terminal()
 			if terminal {
 				t.Fatal("expired predecessor produced false cycle")
 			}
-			e.endLockOwner(at)
-			if err := deadlockResult(t, follower); err != nil {
+			f.m.End(at)
+			if err := f.result(follower); err != nil {
 				t.Fatal(err)
 			}
-			e.endLockOwner(bt)
-			lockEmpty(t, e)
+			f.m.End(bt)
+			f.empty()
 		})
 	}
 }
 
 func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
-	e := New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE x(v INT)")
-	sessionSQL(t, a, "CREATE TABLE y(v INT)")
-	transactionBegin(t, a)
-	transactionBegin(t, b)
-	at, bt := a.transactions.ticket, b.transactions.ticket
-	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
-	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
-	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
-	deadlockRequest(t, e, at, x, accessExclusive)
-	deadlockRequest(t, e, bt, y, accessExclusive)
-	if r, err := e.locks.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{NoWait: true}); r != nil || !errors.Is(err, errRelationUnavailable) {
+	f := newLockFixture(t)
+	at, bt := f.tx(), f.tx()
+	x := f.relation()
+	y := f.relation()
+	f.request(at, x, accessExclusive)
+	f.request(bt, y, accessExclusive)
+	if r, err := f.m.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{NoWait: true}); r != nil || !errors.Is(err, errRelationUnavailable) {
 		t.Fatal("NOWAIT must not enqueue", r, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	r, err := e.locks.StartAcquire(ctx, bt, x, accessExclusive, relationLockPolicy{})
+	r, err := f.m.StartAcquire(ctx, bt, x, accessExclusive, relationLockPolicy{})
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(at)
-	if err := deadlockResult(t, r); err != nil {
+	f.m.End(at)
+	if err := f.result(r); err != nil {
 		t.Fatal("acyclic grant", err)
 	}
 	cancel()
-	e.endLockOwner(bt)
-	if err := deadlockResult(t, r); err != nil {
+	f.m.End(bt)
+	if err := f.result(r); err != nil {
 		t.Fatal("later cancellation overwrote grant", err)
 	}
-	lockEmpty(t, e)
-	// A later real transaction incarnation is independent of the ended requests.
-	transactionEnd(t, a, at.Ref(), false)
-	transactionEnd(t, b, bt.Ref(), false)
-	transactionBegin(t, a)
-	next := a.transactions.ticket
+	f.empty()
+	// A later transaction incarnation of the same session is independent of the
+	// ended requests.
+	next := f.txIn(at.Session())
 	if next == at || next.Ref() == at.Ref() {
 		t.Fatal("transaction incarnation reused")
 	}
-	deadlockRequest(t, e, next, x, accessExclusive)
-	deadlockRequest(t, e, next, y, accessExclusive)
-	e.endLockOwner(at)
-	e.endLockOwner(bt)
-	lockState := e.locks.Inspect()
+	f.request(next, x, accessExclusive)
+	f.request(next, y, accessExclusive)
+	f.m.End(at)
+	f.m.End(bt)
+	lockState := f.m.Inspect()
 	held := lockState.Resources[x].Holders[next].Mode&accessExclusive != 0 && lockState.Resources[y].Holders[next].Mode&accessExclusive != 0
 	if !held {
 		t.Fatal("old end affected fresh incarnation")
 	}
-	e.endLockOwner(next)
-	lockEmpty(t, e)
-}
-
-// SQLSTATE must remain a SQL diagnostic through command admission translation.
-func TestRelationDeadlockCommandErrorIdentity(t *testing.T) {
-	e := New()
-	s := sessionStart(t, e, nil)
-	ctx, cancel := context.WithCancel(context.Background())
-	op, _, err := s.AcquireCommand(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	original := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40P01", Message: "deadlock detected"}
-	cancel()
-	if got := op.CommandError(original); got != original {
-		t.Fatalf("genuine SQL error translated: %v", got)
-	}
+	f.m.End(next)
+	f.empty()
 }

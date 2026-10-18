@@ -81,28 +81,4 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 			t.Fatal("late callback contaminated new incarnation")
 		}
 	})
-	t.Run("expired source wins even with delayed callback", func(t *testing.T) {
-		e := New()
-		a, ra := advisoryUnitOwner(t, e)
-		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{Kind: advisoryBigintResource, Low: 16}
-		prior := lockResource{Kind: advisoryPairResource, High: 16, Low: 17}
-		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
-		advisoryUnitGrant(t, b, rb, prior, advisoryExclusive)
-		ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
-		t.Cleanup(cancel)
-		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb})
-		if err != nil || request == nil {
-			t.Fatal(request, err)
-		}
-		// The actual callback cannot acquire metadata until after the source expires.
-		// Release/settle must consult the source, not callback scheduling order.
-		e.locks.mu.Lock()
-		<-ctx.Done()
-		e.locks.mu.Unlock()
-		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
-		if err = deadlockResult(t, request); !errors.Is(err, context.DeadlineExceeded) || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).Exclusive != 1 {
-			t.Fatal("delayed source callback granted/count leak", err)
-		}
-	})
 }

@@ -221,3 +221,20 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 		t.Fatalf("self reentry allocated %g times", allocations)
 	}
 }
+
+// SQLSTATE must remain a SQL diagnostic through command admission translation.
+func TestRelationDeadlockCommandErrorIdentity(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	op, _, err := s.AcquireCommand(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	original := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40P01", Message: "deadlock detected"}
+	cancel()
+	if got := op.CommandError(original); got != original {
+		t.Fatalf("genuine SQL error translated: %v", got)
+	}
+}

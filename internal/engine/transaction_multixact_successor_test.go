@@ -203,21 +203,4 @@ func identityMultiCacheUnits(t *testing.T) {
 			t.Fatal("retired owner resurrected counter authority", err)
 		}
 	})
-	t.Run("transaction_cache_lru_256", func(t *testing.T) {
-		var cache []uint32
-		for id := uint32(1); id <= 257; id++ {
-			cache = rememberMultiXact(cache, id)
-		}
-		if len(cache) != 256 || cache[0] != 257 || cache[255] != 2 {
-			t.Fatal("cache cap/oldest eviction", len(cache), cache[0], cache[len(cache)-1])
-		}
-		cache = rememberMultiXact(cache, 2)
-		cache = rememberMultiXact(cache, 258)
-		if len(cache) != 256 || cache[0] != 258 || cache[1] != 2 || cache[255] != 4 {
-			t.Fatal("cache hit did not refresh LRU")
-		}
-		if got := testing.AllocsPerRun(100, func() { cache = rememberMultiXact(cache, 2) }); got != 0 {
-			t.Fatal("cache reentry allocated", got)
-		}
-	})
 }

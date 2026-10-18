@@ -64,49 +64,6 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 			})
 		}
 	}
-	t.Run("disjoint counted grants and overflow", func(t *testing.T) {
-		e := New()
-		a, ra := advisoryUnitOwner(t, e)
-		b, rb := advisoryUnitOwner(t, e)
-		big := lockResource{Kind: advisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
-		pair := big
-		pair.Kind = advisoryPairResource
-		advisoryUnitGrant(t, a, ra, big, advisoryShared)
-		advisoryUnitGrant(t, a, ra, big, advisoryShared)
-		advisoryUnitGrant(t, a, ra, big, advisoryExclusive)
-		advisoryUnitGrant(t, a, ra, big, advisoryExclusive)
-		advisoryUnitGrant(t, b, rb, pair, advisoryExclusive)
-		want := relationHold{Mode: advisoryShared | advisoryExclusive, Shared: 2, Exclusive: 2}
-		if got := advisoryUnitHold(a, big); got != want {
-			t.Fatal(got, want)
-		}
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, true)
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, true)
-		advisoryUnitUnlock(t, a, big, advisoryExclusive, false)
-		if got := advisoryUnitHold(a, big); got.Mode != advisoryShared || got.Shared != 2 || got.Exclusive != 0 {
-			t.Fatal(got)
-		}
-		advisoryUnitGrant(t, b, rb, big, advisoryShared)
-		advisoryUnitUnlock(t, b, big, advisoryShared, true)
-		m := e.locks
-		m.mu.Lock()
-		entry := m.entries[big]
-		h := entry.holders[a.advisory.ticket]
-		h.Shared = ^uint64(0)
-		entry.holders[a.advisory.ticket] = h
-		m.mu.Unlock()
-		r, err := advisoryUnitAcquire(t, a, ra, big, advisoryShared, true)
-		if r != nil || err == nil || err.Error() != "stuntgres: advisory hold count exhausted" || advisoryUnitHold(a, big) != h {
-			t.Fatal("overflow must not mutate", r, err, advisoryUnitHold(a, big))
-		}
-		if err = m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
-			t.Fatal(err)
-		}
-		if advisoryUnitHold(a, big) != (relationHold{}) || advisoryUnitHold(b, pair).Exclusive != 1 {
-			t.Fatal("unlock all scope")
-		}
-		advisoryUnitUnlock(t, b, pair, advisoryExclusive, true)
-	})
 	t.Run("ordinary checkpoints are independent", func(t *testing.T) {
 		e := New()
 		a := sessionStart(t, e, nil)

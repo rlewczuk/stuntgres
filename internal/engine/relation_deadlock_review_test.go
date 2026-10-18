@@ -36,20 +36,12 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 		for _, interruptCloser := range []bool{false, true} {
 			name := map[bool]string{false: "caller", true: "source"}[source] + "/" + map[bool]string{false: "predecessor", true: "closer"}[interruptCloser]
 			t.Run(name, func(t *testing.T) {
-				e := New()
-				a := sessionStart(t, e, nil)
-				b := sessionStart(t, e, nil)
-				sessionSQL(t, a, "CREATE TABLE x(v INT)")
-				sessionSQL(t, a, "CREATE TABLE y(v INT)")
-				transactionBegin(t, a)
-				transactionBegin(t, b)
-				at, bt := a.transactions.ticket, b.transactions.ticket
-				t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
-				x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
-				y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
-				deadlockRequest(t, e, at, x, accessExclusive)
-				deadlockRequest(t, e, bt, y, accessExclusive)
-				first := deadlockRequest(t, e, at, y, accessExclusive)
+				f := newLockFixture(t)
+				at, bt := f.tx(), f.tx()
+				x, y := f.relation(), f.relation()
+				f.request(at, x, accessExclusive)
+				f.request(bt, y, accessExclusive)
+				first := f.request(at, y, accessExclusive)
 
 				realContext, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
@@ -59,11 +51,11 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				var interrupted, survivor *relationRequest
 				go func() {
 					var notify *relationRequest
-					e.locks.mu.Lock()
+					f.m.mu.Lock()
 					// Journal the closing request under the existing manager contract so
 					// the barrier targets detector normalization, not StartAcquire's
 					// earlier admission checks or its initial settle.
-					entry := e.locks.entries[x]
+					entry := f.m.entries[x]
 					closer = &relationRequest{ticket: bt, provenance: bt.Ref(), ctx: context.Background(), mode: accessExclusive, done: make(chan struct{}), ref: x, entry: entry}
 					bt.resources[x] = struct{}{}
 					entry.pending = append(entry.pending, closer)
@@ -79,8 +71,8 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 						interrupted.policy.Source = realContext
 					}
 					gate.armed = true
-					e.locks.detectDeadlock(closer, &notify)
-					e.locks.mu.Unlock()
+					f.m.detectDeadlock(closer, &notify)
+					f.m.mu.Unlock()
 					notifyRequests(notify)
 					close(finished)
 				}()
@@ -103,11 +95,11 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				case <-time.After(3 * time.Second):
 					t.Fatal("detector did not finish")
 				}
-				e.locks.mu.Lock()
+				f.m.mu.Lock()
 				interruptedTerminal, interruption := interrupted.terminal, interrupted.Err()
 				survivorTerminal, survivorError := survivor.terminal, survivor.Err()
-				holdsRetained := e.locks.entries[x].holders[at].Mode&accessExclusive != 0 && e.locks.entries[y].holders[bt].Mode&accessExclusive != 0
-				e.locks.mu.Unlock()
+				holdsRetained := f.m.entries[x].holders[at].Mode&accessExclusive != 0 && f.m.entries[y].holders[bt].Mode&accessExclusive != 0
+				f.m.mu.Unlock()
 				if !interruptedTerminal || !errors.Is(interruption, context.Canceled) {
 					t.Errorf("interrupted request must retain canonical cancellation, terminal=%v error=%v", interruptedTerminal, interruption)
 				}
@@ -131,12 +123,12 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				}
 				// Model Finish/end only after inspecting the detector decision. The
 				// other owner must then grant normally, never receive a delayed 40P01.
-				e.endLockOwner(interrupted.ticket)
-				if err := deadlockResult(t, survivor); err != nil {
+				f.m.End(interrupted.ticket)
+				if err := f.result(survivor); err != nil {
 					t.Errorf("survivor after interrupted owner's end: %v", err)
 				}
-				e.endLockOwner(survivor.ticket)
-				lockEmpty(t, e)
+				f.m.End(survivor.ticket)
+				f.empty()
 			})
 		}
 	}
@@ -149,78 +141,67 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 	const detections = 5
 	var previous uint64
 	for _, count := range []int{32, 128, 512} {
-		e := New()
-		holder := sessionStart(t, e, nil)
-		sessionSQL(t, holder, "CREATE TABLE readers(v INT)")
-		transactionBegin(t, holder)
-		ht := holder.transactions.ticket
-		resource := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "readers")}
-		deadlockRequest(t, e, ht, resource, accessExclusive)
+		f := newLockFixture(t)
+		ht := f.tx()
+		resource := f.relation()
+		f.request(ht, resource, accessExclusive)
 		tickets := make([]*relationTicket, 0, count)
 		requests := make([]*relationRequest, 0, count)
 		for range count {
-			s := sessionStart(t, e, nil)
-			transactionBegin(t, s)
-			ticket := s.transactions.ticket
+			ticket := f.tx()
 			tickets = append(tickets, ticket)
 			// Use the actual supported enqueue path. Background contexts avoid
 			// timer/callback allocations unrelated to the sparse graph itself.
-			r, err := e.locks.StartAcquire(context.Background(), ticket, resource, accessShare, relationLockPolicy{})
+			r, err := f.m.StartAcquire(context.Background(), ticket, resource, accessShare, relationLockPolicy{})
 			if err != nil || r == nil {
 				t.Fatalf("AS waiter %d: request=%v error=%v", len(requests), r, err)
 			}
 			requests = append(requests, r)
 		}
-		t.Cleanup(func() {
-			e.endLockOwner(ht)
-			for _, ticket := range tickets {
-				e.endLockOwner(ticket)
-			}
-		})
-		e.locks.mu.Lock()
-		entry := e.locks.entries[resource]
+		f.m.mu.Lock()
+		entry := f.m.entries[resource]
 		if len(entry.pending) != count || len(entry.holders) != 1 || entry.holders[ht].Mode != accessExclusive {
-			e.locks.mu.Unlock()
+			f.m.mu.Unlock()
 			t.Fatal("measurement requires exactly one AX holder and all AS readers pending")
 		}
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		for range detections {
 			var notify *relationRequest
-			e.locks.detectDeadlock(requests[len(requests)-1], &notify)
+			f.m.detectDeadlock(requests[len(requests)-1], &notify)
 			if notify != nil {
-				e.locks.mu.Unlock()
+				f.m.mu.Unlock()
 				t.Fatal("acyclic compatible queue produced a terminal decision")
 			}
 		}
 		runtime.ReadMemStats(&after)
 		for _, r := range requests {
 			if r.terminal || r.mode != accessShare {
-				e.locks.mu.Unlock()
+				f.m.mu.Unlock()
 				t.Fatal("compatible reader queue changed during measurement")
 			}
 		}
-		e.locks.mu.Unlock()
+		f.m.mu.Unlock()
 		bytes := (after.TotalAlloc - before.TotalAlloc) / detections
 		if previous != 0 && bytes >= 8*previous {
 			t.Errorf("sparse AX/AS detector allocation grew quadratically: %d waiters use %d bytes/detection; %d waiters used %d (require growth <8x for 4x waiters)", count, bytes, count/4, previous)
 		}
 		previous = bytes
-		e.endLockOwner(ht)
+		f.m.End(ht)
 		for _, r := range requests {
-			if err := deadlockResult(t, r); err != nil {
+			if err := f.result(r); err != nil {
 				t.Fatal("compatible reader failed after AX release", err)
 			}
-			e.locks.mu.Lock()
-			granted := e.locks.entries[resource].holders[r.ticket].Mode&accessShare != 0
-			e.locks.mu.Unlock()
+			f.m.mu.Lock()
+			granted := f.m.entries[resource].holders[r.ticket].Mode&accessShare != 0
+			f.m.mu.Unlock()
 			if !granted {
 				t.Fatal("reader was not granted after AX release")
 			}
 		}
 		for _, ticket := range tickets {
-			e.endLockOwner(ticket)
+			f.m.End(ticket)
 		}
-		lockEmpty(t, e)
+		f.empty()
 	}
 }

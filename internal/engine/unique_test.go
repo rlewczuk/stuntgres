@@ -103,9 +103,23 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A legitimate hash-collision candidate interned first sits ahead of the
+	// real key in its bucket. Hash alone must not grant equality, and provider
+	// comparison must pass over the collision to find the real key.
+	hash, err := uniqueKeyHash(context.Background(), ordering, grouping, []sqltype.Value{one})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &uniqueKeyValues{ordering: ordering, values: []sqltype.Value{two}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if first.Key() == collision.Key() {
+		t.Fatal("hash collision established equality")
 	}
 	equal, releaseEqual, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{scaled})
 	if err != nil {
@@ -114,27 +128,17 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if equal.Key() != first.Key() {
 		t.Fatal("normalized numeric equality split claims")
 	}
-	// Inject a legitimate hash-collision candidate into the same bucket. Hash
-	// alone must not grant equality, and provider comparison must find the real key.
-	e.locks.mu.Lock()
-	bucket := e.locks.keyBuckets[first.Key().bucket]
-	collision := &uniqueLockKey{bucket: first.Key().bucket, value: []sqltype.Value{two}}
-	bucket.keys = append([]*uniqueLockKey{collision}, bucket.keys...)
-	bucket.generation++
-	e.locks.mu.Unlock()
 	again, releaseAgain, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.key != first.Key() || again.key == collision {
+	if again.Key() != first.Key() || again.Key() == collision.Key() {
 		t.Fatal("hash collision established equality")
 	}
-	e.locks.mu.Lock()
-	e.locks.retireUniqueKey(collision)
-	e.locks.mu.Unlock()
 	releaseAgain()
 	releaseEqual()
 	releaseFirst()
+	releaseCollision()
 	lockState := e.locks.Inspect()
 	left := lockState.KeyBuckets
 	if left != 0 {

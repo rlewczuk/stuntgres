@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"runtime"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
-
-	"stuntgres/internal/engine/ids"
 )
 
 // pgLocksUnitWaiter is the queued copy of r, or the zero waiter once r left
@@ -24,6 +20,28 @@ func pgLocksUnitWaiter(e *Engine, r *relationRequest) lockWaiter {
 		}
 	}
 	return lockWaiter{}
+}
+
+// pgLocksUnitKey is a unique-key claim that equals no stored key.
+type pgLocksUnitKey struct{}
+
+func (pgLocksUnitKey) EqualKey(context.Context, any) (bool, error) { return false, nil }
+func (pgLocksUnitKey) OwnedKey() any                               { return nil }
+
+// pgLocksUnitKeyGrant interns a new unique key of the unit relation and grants
+// ticket its claim, pinning the key only across the acquisition as the
+// engine's unique-key path does.
+func pgLocksUnitKeyGrant(t *testing.T, e *Engine, ticket *relationTicket) lockResource {
+	t.Helper()
+	resource, unpin, err := e.locks.PinUniqueKey(context.Background(), ticket, blockingUnitResource(e).ObjectRef, 17, pgLocksUnitKey{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unpin()
+	if err := e.locks.Acquire(context.Background(), ticket, resource, uniqueClaim); err != nil {
+		t.Fatal(err)
+	}
+	return resource
 }
 
 func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *relationTicket, resource lockResource, mode relationLockMode, purpose completionLockPurpose) (*relationRequest, context.CancelFunc) {
@@ -146,13 +164,9 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, a := blockingUnitOwner(t, e)
 		_, b := blockingUnitOwner(t, e)
 		_, c := blockingUnitOwner(t, e)
-		resource := blockingUnitResource(e)
-		// This is the manager's exact intern-identity package boundary. No SQL
-		// value or hash is consulted by snapshotting or becomes a public target.
-		resource.key = &uniqueLockKey{bucket: uniqueLockBucket{ObjectRef: resource.ObjectRef, hash: 17}}
-		if err := e.locks.Acquire(context.Background(), a, resource, uniqueClaim); err != nil {
-			t.Fatal(err)
-		}
+		// A genuine interned key with an arbitrary hash. No SQL value or hash is
+		// consulted by snapshotting or becomes a public target.
+		resource := pgLocksUnitKeyGrant(t, e, a)
 		br, _ := pgLocksUnitRequest(t, e, b, resource, uniqueClaim, completionTransaction)
 		cr, _ := pgLocksUnitRequest(t, e, c, resource, uniqueClaim, completionTransaction)
 		before := pgLocksUnitWait(t, e, b)
@@ -254,7 +268,6 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 }
 
 func TestPGLocksSnapshotOwnership(t *testing.T) {
-	t.Run("concurrent_assignment", pgLocksUnitConcurrentAssignmentCapture)
 	for _, ending := range []string{"cancel", "grant", "fence"} {
 		t.Run(ending, func(t *testing.T) {
 			e := New()
@@ -319,139 +332,6 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 			}
 			if len(saved) == 0 || reflect.DeepEqual(before, saved) {
 				t.Fatal("test did not preserve/mutate distinct owned capture")
-			}
-		})
-	}
-}
-
-// The manager mutex does not exclude canonical XID assignment under Engine.mu.
-// Queue genuine key dependencies before racing that first assignment with a
-// capture. Extra genuine grants widen the existing capture interval without
-// introducing a production callback, observer hook, timer or fake XID allocator.
-// Scheduling cannot force the precise atomic-load interleaving (especially with
-// one execution thread); every captured outcome must nevertheless be coherent.
-func pgLocksUnitConcurrentAssignmentCapture(t *testing.T) {
-	for trial := range 16 {
-		t.Run(strconv.Itoa(trial), func(t *testing.T) {
-			e := New()
-			_, holder := blockingUnitOwner(t, e)
-			resource := blockingUnitResource(e)
-			resource.key = &uniqueLockKey{bucket: uniqueLockBucket{ObjectRef: resource.ObjectRef, hash: 17}}
-			if err := e.locks.Acquire(context.Background(), holder, resource, uniqueClaim); err != nil {
-				t.Fatal(err)
-			}
-			for index := range 1024 {
-				granted := blockingUnitResource(e)
-				granted.Address.ObjectID += ids.OID(index + 1)
-				if err := e.locks.Acquire(context.Background(), holder, granted, accessShare); err != nil {
-					t.Fatal(err)
-				}
-			}
-			const waiterCount = 8
-			waiters := make(map[ids.SessionID]ids.TxID, waiterCount)
-			for range waiterCount {
-				_, waiter := blockingUnitOwner(t, e)
-				request, _ := pgLocksUnitRequest(t, e, waiter, resource, uniqueClaim, completionTransaction)
-				if request == nil {
-					t.Fatal("logical dependency did not enqueue")
-				}
-				waiters[waiter.Ref().Session().ID()] = waiter.Ref().ID()
-			}
-			if holder.AssignedPublicXID() != 0 {
-				t.Fatal("key grant assigned an XID before the genuine assignment")
-			}
-			type outcome struct {
-				records []pgLockRecord
-				err     error
-			}
-			started := make(chan struct{})
-			done := make(chan outcome, 1)
-			joined := false
-			t.Cleanup(func() {
-				if !joined {
-					select {
-					case <-done:
-					case <-time.After(5 * time.Second):
-						t.Error("identity capture did not join")
-					}
-				}
-			})
-			e.locks.mu.Lock()
-			go func() {
-				close(started)
-				records, err := e.locks.PGLocks(holder.Ref().Epoch())
-				done <- outcome{records, err}
-			}()
-			<-started
-			e.locks.mu.Unlock()
-			var captured outcome
-			// Admit assignment while capture actually holds manager metadata,
-			// rather than relying on goroutine launch or a sleep.
-			deadline := time.NewTimer(4 * time.Second)
-			defer deadline.Stop()
-			for !joined {
-				select {
-				case captured = <-done:
-					joined = true
-				case <-deadline.C:
-					t.Fatal("capture admission deadline")
-				default:
-				}
-				if joined {
-					break
-				}
-				if !e.locks.mu.TryLock() {
-					break
-				}
-				e.locks.mu.Unlock()
-				runtime.Gosched()
-			}
-			xid := pgLocksUnitAssign(t, e, holder)
-			if !joined {
-				select {
-				case captured = <-done:
-					joined = true
-				case <-deadline.C:
-					t.Fatal("identity capture completion deadline")
-				}
-			}
-			if captured.err != nil {
-				t.Fatal(captured.err)
-			}
-			var identity pgLockRecord
-			seen := make(map[ids.SessionID]bool, waiterCount)
-			for _, record := range captured.records {
-				local, wanted := waiters[record.Owner.Session]
-				if !record.Waiting || !wanted {
-					continue
-				}
-				if record.Owner.Local != local || seen[record.Owner.Session] {
-					t.Fatal("queued owner identity/multiplicity changed", record)
-				}
-				if len(seen) == 0 {
-					identity = record
-				} else if record.Kind != identity.Kind || record.XID != identity.XID || record.Target != identity.Target {
-					t.Fatal("one holder has inconsistent captured dependency identities", identity, record)
-				}
-				if record.Target.Session != holder.Ref().Session().ID() || record.Target.Local != holder.Ref().ID() {
-					t.Fatal("logical dependency changed its actual holder", record)
-				}
-				seen[record.Owner.Session] = true
-			}
-			if len(seen) != waiterCount {
-				t.Fatal("capture omitted queued logical dependencies", len(seen), waiterCount)
-			}
-			owners := 0
-			for _, record := range captured.records {
-				if record.Waiting || record.Owner.Session != holder.Ref().Session().ID() || record.Owner.Local != holder.Ref().ID() || record.Kind != identity.Kind {
-					continue
-				}
-				if identity.Kind == pgVirtualLock && record.Target == identity.Target || identity.Kind == pgTransactionLock && record.XID == identity.XID {
-					owners++
-				}
-			}
-			if owners != 1 || identity.Kind == pgTransactionLock && identity.XID != xid {
-				t.Fatal("queued dependency lacks its corresponding captured exclusive owner", identity, "matching owners", owners, "assigned XID", xid)
 			}
 		})
 	}

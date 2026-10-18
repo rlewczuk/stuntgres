@@ -104,12 +104,10 @@ func TestPGLocksProjectionModes(t *testing.T) {
 			}
 		}
 	}
-	// Both advisory key spaces preserve unsigned halves, never signed OIDs.
-	for _, kind := range []lockResourceKind{advisoryBigintResource, advisoryPairResource} {
-		r, err := pgResourceRecord(lockResource{Kind: kind, High: math.MaxUint32, Low: 1 << 31}, owner, advisoryShared|advisoryExclusive)
-		if err != nil || r.Subobject != int16(kind) {
-			t.Fatal("advisory key space", r, err)
-		}
+	// Both advisory key spaces preserve unsigned halves, never signed OIDs. The
+	// lock manager's own tests pin the capture record for each key space.
+	for _, subobject := range []int16{1, 2} {
+		r := pgLockRecord{Kind: pgAdvisoryLock, Owner: owner, Mode: advisoryShared | advisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: subobject}
 		rows, err := pgLockRows(context.Background(), d, 17, []pgLockRecord{r}, nil)
 		if err != nil || len(rows) != 2 {
 			t.Fatal("held mode expansion", rows, err)

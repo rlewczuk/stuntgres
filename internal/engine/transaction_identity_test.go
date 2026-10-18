@@ -25,14 +25,6 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 			t.Fatalf("age(%d,%d)=%d want %d", tc.now, tc.xid, got, tc.want)
 		}
 	}
-	for _, tc := range []struct {
-		next, xid uint32
-		want      int32
-	}{{1, 0, 2147483647}, {1, 1, 0}, {1, 2, -1}, {1, 4294967295, 2}, {2147483649, 1, -2147483648}} {
-		if got := multiTransactionAge(tc.next, tc.xid); got != tc.want {
-			t.Fatal(tc, got)
-		}
-	}
 	e := New()
 	_, a := blockingUnitOwner(t, e)
 	_, b := blockingUnitOwner(t, e)

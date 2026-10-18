@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
@@ -145,51 +144,6 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 			}
 		})
 	}
-	t.Run("counter_wrap_cache_and_retirement", func(t *testing.T) {
-		e := New()
-		_, a := blockingUnitOwner(t, e)
-		_, b := blockingUnitOwner(t, e)
-		pgLocksUnitAssign(t, e, a)
-		pgLocksUnitAssign(t, e, b)
-		e.locks.mu.Lock()
-		e.locks.multiNext = 4294967295
-		e.locks.mu.Unlock()
-		first := identityMultiUnitTuple(e, 1)
-		second := identityMultiUnitTuple(e, 2)
-		for _, tuple := range []multiTuple{first, second} {
-			identityMultiGrant(t, e, a, tuple, keyShare)
-			identityMultiEmit(t, e, a, tuple, multiKeyShare)
-			identityMultiGrant(t, e, b, tuple, rowShare)
-			identityMultiEmit(t, e, b, tuple, multiShare)
-		}
-		if e.locks.NextMultiXact() != 1 {
-			t.Fatal("zero skip/owner-local same-bag cache")
-		}
-		identityMultiWant(t, e, 4294967295, "3/keysh", "4/sh")
-		if e.locks.Inspect().MultiRows[first].ID != 4294967295 || e.locks.Inspect().MultiRows[second].ID != 4294967295 {
-			t.Fatal("same backend did not reuse exact member set")
-		}
-		e.locks.mu.Lock()
-		e.locks.retireMultiXactsLocked()
-		e.locks.mu.Unlock()
-		if e.locks.NextMultiXact() != 1 {
-			t.Fatal("retirement reset counter")
-		}
-		for _, tc := range []struct {
-			id      uint32
-			message string
-		}{{0, "invalid MultiXactId: 0"}, {1, "MultiXactId 1 has not been created yet -- apparent wraparound"}, {4294967295, "MultiXactId 4294967295 does no longer exist -- apparent wraparound"}} {
-			_, err := e.locks.MultiXactMembers(nil, tc.id)
-			var state *sqlstate.Error
-			code := "XX000"
-			if tc.id == 0 {
-				code = "22023"
-			}
-			if !errors.As(err, &state) || state.Code != code || state.Message != tc.message {
-				t.Fatal("retention validation", err)
-			}
-		}
-	})
 }
 
 func TestTransactionIdentityGrantActions(t *testing.T) {

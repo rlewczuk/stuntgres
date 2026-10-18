@@ -95,32 +95,21 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		t.Fatal("first reversal must leave another cycle")
 	}
 	model[0].waits[0], model[0].waits[1] = model[0].waits[1], model[0].waits[0]
-	e := New()
-	sessions := make([]*Session, 4)
+	f := newLockFixture(t)
 	tickets := make([]*relationTicket, 4)
-	for i := range sessions {
-		sessions[i] = sessionStart(t, e, nil)
-		transactionBegin(t, sessions[i])
-		tickets[i] = sessions[i].transactions.ticket
-		ticket := tickets[i]
-		t.Cleanup(func() { e.endLockOwner(ticket) })
+	for i := range tickets {
+		tickets[i] = f.tx()
 	}
-	// Catalog creation belongs to an independent idle session.
-	creator := sessionStart(t, e, nil)
-	resources := make([]lockResource, 3)
-	for i, name := range []string{"x", "y", "z"} {
-		sessionSQL(t, creator, "CREATE TABLE "+name+"(v INT)")
-		resources[i] = lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), name)}
-	}
-	deadlockRequest(t, e, tickets[0], resources[0], accessShare)
-	deadlockRequest(t, e, tickets[2], resources[1], accessShare)
-	deadlockRequest(t, e, tickets[0], resources[2], accessExclusive)
+	resources := []lockResource{f.relation(), f.relation(), f.relation()}
+	f.request(tickets[0], resources[0], accessShare)
+	f.request(tickets[2], resources[1], accessShare)
+	f.request(tickets[0], resources[2], accessExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	var requests []*relationRequest
-	e.locks.mu.Lock()
+	f.m.mu.Lock()
 	enqueue := func(owner, resource int, mode relationLockMode) {
-		entry := e.locks.entries[resources[resource]]
+		entry := f.m.entries[resources[resource]]
 		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[owner].resources[resources[resource]] = struct{}{}
@@ -130,12 +119,12 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 	enqueue(3, 1, accessExclusive)
 	enqueue(0, 1, accessShare)
 	enqueue(2, 2, accessExclusive)
-	e.locks.mu.Unlock()
-	requests = append(requests, deadlockRequest(t, e, tickets[2], resources[0], accessShare))
+	f.m.mu.Unlock()
+	requests = append(requests, f.request(tickets[2], resources[0], accessShare))
 	actual := make([]deadlockModelQueue, 3)
-	e.locks.mu.Lock()
+	f.m.mu.Lock()
 	for i, resource := range resources {
-		entry := e.locks.entries[resource]
+		entry := f.m.entries[resource]
 		for ticket, mode := range entry.holders {
 			for owner, candidate := range tickets {
 				if ticket == candidate {
@@ -156,12 +145,12 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 			t.Errorf("avoidable victim: %v", r.Err())
 		}
 	}
-	e.locks.mu.Unlock()
+	f.m.mu.Unlock()
 	if !deadlockModelAcyclic(actual, 4) {
 		t.Fatal("accepted queue arrangement still has a cycle")
 	}
 	for _, ticket := range tickets {
-		e.endLockOwner(ticket)
+		f.m.End(ticket)
 	}
 	for _, r := range requests {
 		if r != nil {
@@ -172,5 +161,5 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 			}
 		}
 	}
-	lockEmpty(t, e)
+	f.empty()
 }
