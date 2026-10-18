@@ -306,13 +306,13 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						}
 					})
 					request := timeoutPendingRequest(t, s.Engine(), op)
-					if op.pendingTimeoutRequest.Load() != request {
+					if op.lockWait.request.Load() != request {
 						t.Error("queue did not publish exact operation request")
 					}
 					if phase == "lock-error-produced" {
 						timeoutPendingPublish(t, request, observed)
 						result = timeoutPendingReceive(t, returned)
-						if op.pendingTimeoutRequest.Load() != nil || !op.pendingTimeoutError.Load() {
+						if op.lockWait.request.Load() != nil || !op.lockWait.failed.Load() {
 							t.Error("terminal SQL ERROR lost sticky projection before Finish")
 						}
 					}
@@ -340,7 +340,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					}
 					release()
 					result = timeoutPendingReceive(t, finished)
-					if op.pendingTimeoutRequest.Load() != nil || op.pendingTimeoutError.Load() {
+					if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
 						t.Error("Finish retained stale pending timeout projection")
 					}
 				}
@@ -397,7 +397,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 				} else if err != nil {
 					t.Fatal(err)
 				}
-				if op.pendingTimeoutRequest.Load() != nil || op.pendingTimeoutError.Load() {
+				if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
 					t.Error("grant/non-SQL terminal retained pending timeout projection")
 				}
 			} else {

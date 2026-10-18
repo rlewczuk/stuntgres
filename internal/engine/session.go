@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -127,9 +126,8 @@ type Operation struct {
 	sqlActivity                bool
 	sqlFinished                bool // Session.mu: ERROR/completion fence, not transaction state
 	timeoutScope               *StatementScope
-	definition                 definitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	pendingTimeoutRequest      atomic.Pointer[relationRequest]
-	pendingTimeoutError        atomic.Bool
+	definition                 definitionReader    // Scoped once-only DDL cooking, restored before evaluation.
+	lockWait                   relationTimeoutSlot // queued lock request's SQL-deadline projection
 	nonstandardStrings         bool
 	restoreTableDestination    bool
 	restoreInsertAuthority     bool
@@ -356,8 +354,7 @@ func (op *Operation) Done() {
 		return
 	}
 	op.done = true
-	op.pendingTimeoutRequest.Store(nil)
-	op.pendingTimeoutError.Store(false)
+	op.lockWait.reset()
 	delete(s.operations, op)
 	op.cancel(nil)
 	if op.timerCancel != nil {

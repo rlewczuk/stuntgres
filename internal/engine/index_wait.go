@@ -66,7 +66,7 @@ const (
 
 func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completionLockPurpose) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, completionPurpose: purpose}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, completionPurpose: purpose}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{completion: owner}, transactionCompletion, policy)
 	if request != nil {
 		if s.replacementRead {

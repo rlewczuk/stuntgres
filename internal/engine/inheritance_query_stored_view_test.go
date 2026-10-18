@@ -307,7 +307,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if err = peer.gate(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.startAcquire(peerCtx, peer.ticket, lockResource{ObjectRef: parentRef}, relationExclusive, relationLockPolicy{operation: peerOp})
+			request, err := e.locks.startAcquire(peerCtx, peer.ticket, lockResource{ObjectRef: parentRef}, relationExclusive, relationLockPolicy{timeoutSlot: &peerOp.lockWait})
 			if err != nil {
 				t.Fatal(err)
 			}

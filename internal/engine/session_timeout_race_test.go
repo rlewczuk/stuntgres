@@ -87,7 +87,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			} else {
 				timeoutPendingDiagnostic(t, op.CommandError(result), "25P04")
 			}
-			if op.pendingTimeoutRequest.Load() != nil || op.pendingTimeoutError.Load() {
+			if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
 				t.Error("race completion retained timeout projection")
 			}
 			op.Done()
@@ -114,9 +114,9 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	}
 	op := timeoutPendingOperation(t, holder)
 	for _, policy := range []relationLockPolicy{
-		{operation: op},
-		{operation: op, timeout: time.Hour, statementDeadline: time.Now().Add(time.Hour)},
-		{operation: op, nowait: true, timeout: time.Hour},
+		{timeoutSlot: &op.lockWait},
+		{timeoutSlot: &op.lockWait, timeout: time.Hour, statementDeadline: time.Now().Add(time.Hour)},
+		{timeoutSlot: &op.lockWait, nowait: true, timeout: time.Hour},
 	} {
 		if allocations := testing.AllocsPerRun(100, func() {
 			request, err := manager.startAcquire(op.Context(), ticket, resource, accessExclusive, policy)
@@ -126,12 +126,12 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		}); allocations != 0 {
 			t.Fatal("immediate timeout projection allocated", allocations)
 		}
-		if op.pendingTimeoutRequest.Load() != nil || op.pendingTimeoutError.Load() {
+		if op.lockWait.request.Load() != nil || op.lockWait.failed.Load() {
 			t.Fatal("immediate grant published pending timeout")
 		}
 	}
 	blocked := timeoutPendingOperation(t, s)
-	policy := relationLockPolicy{operation: blocked, nowait: true, timeout: time.Hour}
+	policy := relationLockPolicy{timeoutSlot: &blocked.lockWait, nowait: true, timeout: time.Hour}
 	if allocations := testing.AllocsPerRun(100, func() {
 		request, err := manager.startAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, policy)
 		if request != nil || err != errRelationUnavailable {
@@ -140,14 +140,14 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatal("NOWAIT timeout projection allocated", allocations)
 	}
-	if blocked.pendingTimeoutRequest.Load() != nil || blocked.pendingTimeoutError.Load() {
+	if blocked.lockWait.request.Load() != nil || blocked.lockWait.failed.Load() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
-	request, err := manager.startAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, relationLockPolicy{operation: blocked})
+	request, err := manager.startAcquire(blocked.Context(), s.transactions.ticket, resource, accessShare, relationLockPolicy{timeoutSlot: &blocked.lockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}
-	if blocked.pendingTimeoutRequest.Load() != nil || blocked.pendingTimeoutError.Load() {
+	if blocked.lockWait.request.Load() != nil || blocked.lockWait.failed.Load() {
 		t.Fatal("disabled timeout published pending projection")
 	}
 	result, done := make(chan error, 1), make(chan struct{})

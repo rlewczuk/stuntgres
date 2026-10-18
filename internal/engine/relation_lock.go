@@ -21,7 +21,7 @@ type relationLockPolicy struct {
 	statementDeadline time.Time
 	source            context.Context
 	provenance        ids.TxRef             // current statement owner for a persistent session request
-	operation         *Operation            // exact admitted command, atomic timeout projection only
+	timeoutSlot       *relationTimeoutSlot  // admitted command's pending-timeout projection; nil when untracked
 	completionPurpose completionLockPurpose // observational identity; never changes arbitration
 }
 
@@ -567,7 +567,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		r.deadline = time.Now().Add(policy.timeout)
 	}
 	if r.tracksTimeout() {
-		policy.operation.pendingTimeoutRequest.Store(r)
+		policy.timeoutSlot.request.Store(r)
 	}
 	interrupt := func() {
 		var notify *relationRequest

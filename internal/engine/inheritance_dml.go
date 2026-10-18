@@ -63,7 +63,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			return nil
 		}
 		for _, target := range pending {
-			policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+			policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 			request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: target.ref}, rowExclusive, policy)
 			if request != nil {
 				s.admissionWaited = true

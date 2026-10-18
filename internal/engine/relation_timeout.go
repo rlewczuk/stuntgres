@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"stuntgres/internal/sqlstate"
@@ -66,8 +67,21 @@ func relationTimeoutError(state uint32) error {
 	return nil
 }
 
+// relationTimeoutSlot projects one admitted statement's queued SQL-deadline
+// request to its session timeout observer without entering manager metadata.
+// The request publishes itself on enqueue and retires on terminal outcome.
+type relationTimeoutSlot struct {
+	request atomic.Pointer[relationRequest] // exact queued timeout-tracked request
+	failed  atomic.Bool                     // sticky: a tracked request ended with a SQL timeout ERROR
+}
+
+func (slot *relationTimeoutSlot) reset() {
+	slot.request.Store(nil)
+	slot.failed.Store(false)
+}
+
 func (r *relationRequest) tracksTimeout() bool {
-	return r.policy.operation != nil && (!r.deadline.IsZero() || !r.policy.statementDeadline.IsZero())
+	return r.policy.timeoutSlot != nil && (!r.deadline.IsZero() || !r.policy.statementDeadline.IsZero())
 }
 
 // The manager owns queue/grant/retirement. This atomic claim only prevents a
@@ -102,22 +116,22 @@ func (r *relationRequest) timeoutWaitError(now time.Time) error {
 func (r *relationRequest) finishTimeout(err error) error {
 	err = r.claimTimeoutTerminal(err)
 	if r.tracksTimeout() {
-		op := r.policy.operation
+		slot := r.policy.timeoutSlot
 		if state := r.timeoutState.Load(); state == relationTimeoutLock || state == relationTimeoutStatement {
-			op.pendingTimeoutError.Store(true)
+			slot.failed.Store(true)
 		}
-		op.pendingTimeoutRequest.CompareAndSwap(r, nil)
+		slot.request.CompareAndSwap(r, nil)
 	}
 	return err
 }
 
 // Session.mu is held. Read no manager-owned fields; the immutable deadlines
 // and atomic state are published with the exact queued request pointer.
-func (op *Operation) pendingTimeout(now time.Time) bool {
-	if op.pendingTimeoutError.Load() {
+func (slot *relationTimeoutSlot) pending(now time.Time) bool {
+	if slot.failed.Load() {
 		return true
 	}
-	if r := op.pendingTimeoutRequest.Load(); r != nil {
+	if r := slot.request.Load(); r != nil {
 		for {
 			state := r.timeoutState.Load()
 			if state == relationTimeoutLock || state == relationTimeoutStatement {
@@ -141,5 +155,5 @@ func (op *Operation) pendingTimeout(now time.Time) bool {
 	}
 	// Terminal publication stores the sticky ERROR before clearing the pointer.
 	// Recheck after a concurrent retirement, rather than losing that transition.
-	return op.pendingTimeoutError.Load()
+	return slot.failed.Load()
 }

@@ -263,7 +263,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	epoch := auth.catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{operation: scope.op, timeout: scope.op.lockTimeout, statementDeadline: scope.op.statementDeadline, source: scope.op.sourceContext}
+	policy := relationLockPolicy{timeoutSlot: &scope.op.lockWait, timeout: scope.op.lockTimeout, statementDeadline: scope.op.statementDeadline, source: scope.op.sourceContext}
 	for _, ref := range refs {
 		request, err := e.locks.startAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
 		if request != nil {

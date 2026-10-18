@@ -45,7 +45,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err != nil {
 		return err
 	}
-	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	mode := accessExclusive
 	if stmt.Concurrent.Character != 0 {
 		mode = relationExclusive

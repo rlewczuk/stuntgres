@@ -199,7 +199,7 @@ func (m *relationLockManager) unlockAdvisoryHoldsLocked(t *relationTicket) *rela
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, lifetime advisoryLifetime, try bool) (bool, error) {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{operation: s.op, nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
 	ticket := s.op.session.advisory.ticket
 	if lifetime == advisoryTransaction {
 		ticket = s.ticket

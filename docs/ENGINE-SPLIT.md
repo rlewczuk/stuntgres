@@ -104,7 +104,7 @@ through one of these fields:
 | 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog |
 | 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload |
 | 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token (done in step 1) |
-| 11 | `relationLockPolicy.operation *Operation` | Asks whether a statement timeout is pending | One-method interface |
+| 11 | `relationLockPolicy.operation *Operation` | Published the queued request and the sticky timeout ERROR into two atomic `Operation` fields | `relationTimeoutSlot`, a lock-owned atomic slot that `Operation` embeds; the policy holds a pointer to it (done in step 4a) |
 
 The engine allocates its catalog-owner token once and never replaces it. So a
 single per-engine `ids.Domain` can serve every check that currently compares
@@ -500,8 +500,8 @@ lock manager part, deadlock detection, and the wait and timeout mechanics
 **Cuts.**
 
 - The engine back-pointer becomes the domain (cut 10, done in step 1).
-- `relationLockPolicy.operation` becomes a one-method timeout interface
-  (cut 11).
+- `relationLockPolicy.operation` becomes a pointer to the lock-owned
+  pending-timeout slot that `Operation` embeds (cut 11, done in 4a).
 - `EndReason` becomes a lock-local enum. The completion state comes from
   `ids`.
 

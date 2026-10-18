@@ -104,7 +104,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 				}
 				pending := entry.pending[0]
 				if len(entry.pending) != 1 || pending.mode != uniqueClaim || pending.ref.key == nil ||
-					pending.policy.operation == nil || pending.policy.operation.session != worker ||
+					pending.policy.timeoutSlot == nil ||
 					len(pending.ref.key.values) != 1 || testExport(pending.ref.key.values[0]) != int64(1) ||
 					len(entry.holders) != 1 {
 					t.Fatal("not the actual source proposal's UniqueKey queue", pending)
@@ -119,9 +119,14 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 			t.Fatal("missing source proposal key request")
 			return nil
 		}()
-		operation := request.policy.operation
+		// The request's timeout slot identifies the worker's admitted operation.
 		worker.mu.Lock()
-		scope := operation.timeoutScope
+		var scope *StatementScope
+		for operation := range worker.operations {
+			if &operation.lockWait == request.policy.timeoutSlot {
+				scope = operation.timeoutScope
+			}
+		}
 		worker.mu.Unlock()
 		if scope == nil || scope.lockedRef != ref || scope.view == nil ||
 			scope.insertConflict == nil || len(scope.insertConflict.selected) != 1 ||

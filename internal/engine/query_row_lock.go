@@ -119,7 +119,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	e := s.op.session.Engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
-	policy := relationLockPolicy{operation: s.op, nowait: mark.wait != parser.RowLockBlock, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, nowait: mark.wait != parser.RowLockBlock, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref, row: row}, mark.mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		if mark.wait == parser.RowLockSkip {

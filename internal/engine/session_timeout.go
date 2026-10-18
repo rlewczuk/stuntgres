@@ -83,7 +83,7 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 		for op := range s.operations {
 			scope := op.timeoutScope
 			if scope != nil && !op.sqlFinished && (slot.scope == scope || (slot.ref != (ids.TxRef{}) && scope.timeoutRef == slot.ref)) &&
-				(op.pendingTimeout(now) || (!op.statementDeadline.IsZero() && !now.Before(op.statementDeadline)) ||
+				(op.lockWait.pending(now) || (!op.statementDeadline.IsZero() && !now.Before(op.statementDeadline)) ||
 					errors.Is(context.Cause(op.ctx), statementTimeoutCause)) {
 				slot.stop()
 				return
@@ -190,8 +190,7 @@ func (s *Session) finishScopeTimeout(scope *StatementScope, failed bool) {
 	slot := &s.timeouts.transaction
 	if scope.op != nil && scope.op.timeoutScope == scope {
 		scope.op.sqlFinished = !scope.message
-		scope.op.pendingTimeoutRequest.Store(nil)
-		scope.op.pendingTimeoutError.Store(false)
+		scope.op.lockWait.reset()
 	}
 	if slot.scope == scope || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == scope.timeoutRef || slot.ref == scope.txRef)) {
 		slot.stop()

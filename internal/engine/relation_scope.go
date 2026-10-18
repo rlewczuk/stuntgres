@@ -148,7 +148,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	ownerOnly := false
 	rename, ifExists, tableRename := false, false, false
 	viewReplacement := false
-	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.CreateRule:
 		if !execute {

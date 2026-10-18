@@ -107,7 +107,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 
 func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode relationLockMode, storage *relationStorage) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{operation: s.op, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
