@@ -371,7 +371,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	return s.op.Context().Err()
 }
 
-func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lock bool) (bool, error) {
+func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKeyJob, rows *foreignKeyRows, child []sqltype.Value, lockParent bool) (bool, error) {
 	if err := prepareForeignKeyChild(s.op.Context(), job.comparisons, child, job.childKey, s.input); err != nil {
 		return false, err
 	}
@@ -380,7 +380,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		if err != nil || matching.row == 0 {
 			return false, err
 		}
-		if !lock || matching.born == 0 {
+		if !lockParent || matching.born == 0 {
 			return true, nil
 		}
 		if err := s.foreignKeyGrant(ref, matching.row, keyShare, rows.storage); err != nil {
