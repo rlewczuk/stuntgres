@@ -16,6 +16,7 @@ const (
 	PgcryptoExtension
 	FuzzystrmatchExtension
 	UnaccentExtension
+	IntaggExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

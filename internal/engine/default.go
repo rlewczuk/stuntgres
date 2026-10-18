@@ -473,11 +473,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return n.kind.spelling(), nil
 	case functions.CurrentDateTime:
-		return currentDateTimeSQL(n)
+		return functions.CurrentDateTimeSQL(n)
 	case functions.VersionInformation:
 		return versionInformationSQL(n)
 	case functions.TransactionTime:
-		return transactionTimeSQL(n)
+		return functions.TransactionTimeSQL(n)
 	case literalExpression:
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
 			return "", err

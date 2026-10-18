@@ -52,6 +52,8 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 		installed = proc.fuzzy == stockFuzzystrmatch
 	case functions.UnaccentExtension:
 		installed = proc.provider == stockUnaccent
+	case functions.IntaggExtension:
+		installed = proc.intagg == stockIntagg
 	default:
 		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", extension)
 	}
@@ -78,6 +80,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return stockPgcrypto.validateProcedure(r.catalog, p)
 	case p.fuzzy != nil:
 		return stockFuzzystrmatch.validateProcedure(r.catalog, p)
+	case p.intagg != nil:
+		return stockIntagg.validateProcedure(r.catalog, p)
 	case p.provider == stockUnaccent:
 		ext, ok := r.catalog.state.descriptors[p.extension].(*extensionDescriptor)
 		if !ok {
@@ -133,6 +137,11 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return installedSoundexFunctionExpression{Soundex: c, procedure: p, ref: ref}, nil
 	case functions.InstalledText:
 		return r.attachText(c, ref)
+	case functions.IntaggEnumeration:
+		if p.intagg != stockIntagg {
+			break
+		}
+		return r.attachIntaggEnumeration(c)
 	}
 	return nil, fmt.Errorf("stuntgres: invalid installed %T call", call)
 }

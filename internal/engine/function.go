@@ -35,9 +35,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.ObjectAddressFunctionName(name) {
 		return b.bindObjectAddress(raw)
 	}
-	if strings.EqualFold(name, "int_array_enum") || strings.EqualFold(name, "int_array_aggregate") {
-		return b.bindIntaggFunction(raw)
-	}
 	if strings.EqualFold(name, "pg_get_acl") {
 		return b.bindObjectACL(raw)
 	}
@@ -49,9 +46,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	if parser.VersionInformationFunctionName(name) {
 		return b.bindVersionInformation(raw)
-	}
-	if parser.TransactionTimeFunctionName(name) {
-		return b.bindTransactionTime(raw)
 	}
 	if parser.CommitTimestampFunctionName(name) {
 		return b.bindCommitTimestamp(raw)
@@ -114,8 +108,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindEnumFunction(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
-	case "pg_sleep", "pg_sleep_for", "pg_sleep_until":
-		return b.bindDatetimeSleep(raw, visible)
 	case "age", "isfinite":
 		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg BoundExpr) (BoundExpr, error) {
 			return b.identityExpression(raw, identityAge, arg)
@@ -133,8 +125,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindCommentInquiry(raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
-	case "random", "random_normal", "setseed":
-		return b.bindRandom(raw, visible)
 	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared":
 		return b.bindAdvisory(raw, visible)
 	default:

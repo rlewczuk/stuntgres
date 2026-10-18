@@ -6,7 +6,6 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,64 +26,13 @@ func (c *EvalContext) FunctionWallTime() time.Time {
 func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
-func transactionTimeSQL(e functions.TransactionTime) (string, error) {
-	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
-		return "", err
-	}
-	return e.Kind.Name() + "()", nil
+
+func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, error) {
+	input := c.Input
+	input.TransactionStart = c.FunctionWallTime()
+	return sqltype.CurrentDateTime(usage, input)
 }
-func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundExpr, error) {
-	kind := functions.TransactionTimeKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
-	var names []string
-	if len(raw.Args) != 0 {
-		var err error
-		names, _, err = b.functionArgumentTypeNames(raw)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if raw.Filter != nil {
-		if _, err := b.bindBoolean(raw.Filter, projectionContext, "FILTER"); err != nil {
-			return nil, err
-		}
-	}
-	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return nil, fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
-	if err != nil {
-		return nil, err
-	}
-	if !functions.TransactionTimeAllowed(raw, visible, kind) {
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
-	}
-	name := kind.Name()
-	if decoration := functions.TransactionTimeDecoration(raw); decoration != "" {
-		if decoration == "(*)" {
-			return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
-		}
-		owner := "an aggregate function"
-		if decoration == "OVER" {
-			owner = "a window function nor an aggregate function"
-		}
-		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
-	}
-	info := b.info(b.typ(kind.Type()).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
-	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name)
-	if err != nil {
-		return nil, err
-	}
-	return functions.TransactionTime{Info: info, Kind: kind}, nil
-}
+func (c *EvalContext) FunctionSleepArgumentPresent(arg BoundExpr) bool { return arg != nil }
 
 // Only selected time leaves may introduce volatility into this closed default.
 // Other volatile producers retain their separately owned admission rules.

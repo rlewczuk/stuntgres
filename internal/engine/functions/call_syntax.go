@@ -21,6 +21,27 @@ func ValidateCallSyntax(b Binder, raw parser.FunctionExpr) error {
 	return CallLabelError(raw)
 }
 
+// ArgumentTypeNames analyzes every argument as a plain projection operand and
+// spells it for a 42883 diagnostic: string and NULL literals are unknown,
+// labeled arguments keep their names.
+func ArgumentTypeNames(b Binder, raw parser.FunctionExpr) ([]string, error) {
+	names := make([]string, len(raw.Args))
+	for i, child := range raw.Args {
+		arg, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: ProjectionArgument})
+		if err != nil {
+			return nil, err
+		}
+		names[i] = "unknown"
+		literal, isLiteral := child.(parser.LiteralExpr)
+		deferred := isLiteral && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue)
+		if typ := arg.Usage.Type; typ != nil && !deferred && typ.DiagnosticName() != "unknown" {
+			names[i] = b.DiagnosticTypeName(typ)
+		}
+		names[i] = NamedArgumentType(raw, i, names[i])
+	}
+	return names, nil
+}
+
 // CallLabelError reports malformed, positional-after-named and duplicate
 // argument labels, in that order.
 func CallLabelError(raw parser.FunctionExpr) error {

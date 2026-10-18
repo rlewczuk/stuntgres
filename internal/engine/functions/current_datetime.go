@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"strconv"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -63,6 +64,19 @@ func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 	return nil
 }
 func CurrentDateTimeIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+
+// CurrentDateTimeSQL renders the SQL value function for the engine's deparse
+// and DEFAULT switches, until step 3 F2 gives the node a render hook.
+func CurrentDateTimeSQL(e CurrentDateTime) (string, error) {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, CurrentDateTimeIntrinsicRule())); err != nil {
+		return "", err
+	}
+	name := e.Kind.Name()
+	if e.HasPrecision {
+		name += "(" + strconv.FormatInt(int64(e.Precision), 10) + ")"
+	}
+	return name, nil
+}
 
 // CurrentDateTime implements expr.Composite as a leaf: no children, and Rebuild only takes
 // the new metadata.

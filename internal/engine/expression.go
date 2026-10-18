@@ -2457,9 +2457,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.CurrentDateTimeExpr:
 			var err error
-			node, err = b.bindCurrentDateTime(r)
+			var warning *sqlstate.Error
+			node, warning, err = functions.BindCurrentDateTime(b, r)
 			if err != nil {
 				return nil, err
+			}
+			// A held description already analyzed this syntax. Execute must
+			// still bind fresh descriptors and evaluate fresh values.
+			if warning != nil && b.op != nil && b.expected == nil {
+				b.op.emitNotice(levelWarning, *warning)
 			}
 		case parser.ForbiddenGenerationExpr:
 			return nil, expressionError(r.Code, r.Message, r.Pos)

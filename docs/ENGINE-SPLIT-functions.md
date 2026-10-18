@@ -177,11 +177,13 @@ Tier C has a refined plan.
   string registration: `2dbf3742f` seam, `7c8508c0b`, `528ac1aeb`; then the
   docs commit) [x] pgcrypto [x] fuzzystrmatch
   [x] unaccent (`a4e02ba94` seam, `c037c89d9` port, `56271aa34` move,
-  then the docs commit) [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
+  then the docs commit) [x] intarray (nothing to port) [x] intagg
+  (`50ab66515` seam, `a59940644` port, `208390a37` move, then the docs
+  commit; the aggregate path stays with the aggregates item) [x] uuid-ossp (UUID, format and
   uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
   `36411c4fd` format move, `0a80f30a0` uuid-ossp move, then the docs commit)
-- [ ] F4/F5 Tier B: [ ] random [ ] current time and clocks [ ] sleep
-  [ ] settings reads
+- [ ] F4/F5 Tier B: [x] random [x] current time and clocks [x] sleep
+  (with intagg; clock FILTER fix `920fafff4`) [ ] settings reads
 - [ ] F4/F5 aggregates and windows
 - [ ] Tier C refined (after steps 4, 5 and 7)
 
@@ -196,7 +198,8 @@ generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 (datetime), `BuiltinOperatorVisible` and `CallSignatureError` (pattern) and
 `FinishBinary` (string, a leak the binary port removed); `LiteralNull` and
 `NoteVisibilitySnapshot` (binary). The pgcrypto, fuzzystrmatch and unaccent
-port added none. Reasons for every method are in the `functions` README.
+port added none, nor did the intagg, random, clock and sleep port. Reasons
+for every method are in the `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -826,6 +829,86 @@ Notes for later steps:
 - intarray and intagg can reuse `installedExtensionRoutine` by adding an
   `Extension` value and an `Attach` case.
 - `Lookup` now scans 27 definitions with 245 names, plus the JSON and
+  variadic string predicates.
+
+F4/F5 intarray, intagg, random, clock and sleep record, measured at its start
+on `101168762` (after pgcrypto, fuzzystrmatch and unaccent):
+
+- intarray: nothing to port. The extension installs only the `query_int`
+  type and its `bqarr_in`/`bqarr_out` I/O procedures, which no call binds;
+  installation and the type codec stay in the engine and `sqltype`.
+- intagg: `int_array_enum` and `int_array_aggregate` called as functions
+  sat before the shared gates (`EqualFold`) and register case-insensitively
+  without gates. Resolution goes through `InstalledRoutine` with the new
+  `IntaggExtension` on the shared `installedExtensionRoutine`. Its `Attach`
+  takes the new `IntaggEnumeration` handoff node, applies the set-returning
+  admission the old binder did after its decoration check (EXECUTE
+  parameters, policy frames, `AdmitSetReturning`) and returns the engine's
+  `unnestExpression`. `AnalyzeIntaggArguments` and `ResolveIntagg` are
+  exported for the engine's aggregate and window binders, which read the
+  procedure identity from the handle (`resolveIntaggAggregate`). The
+  dependency is still appended without deduplication. Path lookup and the
+  pure procedure lookup now happen together before the shape check, which
+  keeps the error order (as for uuid-ossp).
+- random and sleep sat in the final switch after the gates and
+  `builtinVisible`; they register with `ExactSpelling` and `SharedGates`, and
+  `Bind` checks visibility first. Random's NULL-literal fold uses `Literal`
+  (same usage and immutable properties). Sleep keeps the unnoted
+  `ResolutionError(..., false)`. Session RNG state (`random.go`),
+  `FunctionRandomOwner` and the `EvalContext` clock and sleep methods stay;
+  the sleep methods moved into `transaction_time.go`, whose bind code left.
+- Clocks: the five `TransactionTimeFunctionName` names register
+  case-insensitively without gates. Their 42883 names come from the new
+  `functions.ArgumentTypeNames`, a copy of `functionArgumentTypeNames` over
+  `AnalyzeArgument(ProjectionArgument)`. `current_date` and the other SQL
+  value functions are syntax-dispatched: `BindCurrentDateTime` returns the
+  precision warning as a value, and the engine's syntax switch delivers it
+  under the old held-description condition. `TransactionTimeSQL` and
+  `CurrentDateTimeSQL` moved to `functions` for the deparse and DEFAULT
+  switches (F2 removes those uses); `closedTransactionTimeDefault` stays.
+- Compatibility fix (approved at the session start): the clock binder
+  analyzed FILTER with `bindBoolean` in the enclosing clause, so
+  `now() FILTER (WHERE count(*) > 0)` reported the 42809 decoration error (or
+  42883 for `now(1)`), and an SRF reported 42804. PostgreSQL 18.6 analyzes
+  FILTER as `EXPR_KIND_FILTER` first: 42803, 0A000 and 42P20 "... are not
+  allowed in FILTER". It now uses `AnalyzeFilter`, with the new
+  `TestReferenceDatetimeTxTimesFilterContext`.
+- A throwaway check confirmed that no earlier chain predicate (catalog
+  relation, ACL value, object address, access inquiry, version information,
+  commit timestamp, transaction identity, network format, blocking inquiry,
+  identity, namespace inquiry, advisory, or the fixed `pg_get_acl`,
+  `generate_series`, `generate_subscripts`, `unnest`, `current_schemas`
+  names) claims any of the 13 names.
+
+Tests: `TestLookupClaimsRegisteredNames` gained the 13 claims (folded,
+upper-case and `ſ` spellings for the case-insensitive ones) and near-miss
+non-claims (`RANDOM`, `Pg_Sleep_For`, `current_date`, `int_agg_state`,
+`query_int`, ...); `random`, `pg_sleep` and `now` left the unclaimed list.
+It failed before registration. Engine tests that called deleted methods now
+use `bindFunctionProvider` (`intagg_expression_test.go`),
+`functions.BindCurrentDateTime` (`current_datetime_test.go`) or the
+exported renderers (`current_datetime_test.go`, `transaction_time_test.go`).
+No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages) except
+`TestReferenceServerProtocol/server/malformed_messages/unknown_tag` (EOF),
+a TCP timing witness unrelated to binding that passed 5 of 5 isolated reruns.
+`make deps` lists only module paths; `functions` imports no engine state
+packages. Quick mode and `REFERENCE=1` passed, on both backends, for
+`^TestReference(Datetime(TxTimes|Current|Sleep)|Random|DeparseConstraintsReviewRandom|Intagg|QueryInt|ObjectGrantIntagg|PGAggregateIntagg|ComparisonInstalledQueryInt|SearchPath|ArrayRelationalRandom|PgcryptoRandom)`.
+Bench skipped: bind path only, no startup code changed. Racecheck skipped
+at the user's request.
+
+Notes for later steps (intagg, random, clocks, sleep):
+
+- `version_information.go` analyzes FILTER with `bindBoolean` like the clock
+  binder did, so `version() FILTER (WHERE count(*) > 0)` likely shows the
+  same divergence. Fix it with a reference witness when that family ports.
+- Set-returning admission (EXECUTE parameters, policy frame,
+  `stringSetAllowed`, target set) now also lives in the intagg `Attach`; fold
+  it into the shared admission capability with the other set-returning
+  builtins.
+- `Lookup` now scans 31 definitions with 258 names, plus the JSON and
   variadic string predicates.
 
 F2 session 1 record, measured at its start on `604ee2be6`:
