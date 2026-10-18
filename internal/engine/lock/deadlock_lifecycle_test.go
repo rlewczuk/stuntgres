@@ -1,8 +1,9 @@
-package engine
+package lock
 
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -10,26 +11,26 @@ import (
 
 func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	f := newLockFixture(t)
-	tickets := []*relationTicket{f.tx(), f.tx(), f.tx()}
+	tickets := []*Ticket{f.tx(), f.tx(), f.tx()}
 	x := f.relation()
 	y := f.relation()
-	f.request(tickets[0], x, accessExclusive)
-	f.request(tickets[1], y, accessExclusive)
+	f.request(tickets[0], x, AccessExclusive)
+	f.request(tickets[1], y, AccessExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	pending := make([]*relationRequest, 2)
 	// A disconnected already-live A<->B cycle must be diagnosed on an actual
 	// member, not C merely because C's new request reaches that cycle.
 	f.m.mu.Lock()
-	for i, resource := range []lockResource{y, x} {
+	for i, resource := range []Resource{y, x} {
 		entry := f.m.entries[resource]
-		r := &relationRequest{ticket: tickets[i], provenance: tickets[i].Ref(), ctx: ctx, mode: accessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
+		r := &relationRequest{ticket: tickets[i], provenance: tickets[i].Ref(), ctx: ctx, mode: AccessExclusive, done: make(chan struct{}), ref: resource, entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[i].resources[resource] = struct{}{}
 		pending[i] = r
 	}
 	f.m.mu.Unlock()
-	feeder := f.request(tickets[2], x, accessExclusive)
+	feeder := f.request(tickets[2], x, AccessExclusive)
 	f.m.mu.Lock()
 	victim := -1
 	for i, r := range pending {
@@ -66,15 +67,15 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	at, bt := f.tx(), f.tx()
 	x := f.relation()
 	y := f.relation()
-	f.request(at, x, accessExclusive)
-	f.request(bt, y, accessExclusive)
+	f.request(at, x, AccessExclusive)
+	f.request(bt, y, AccessExclusive)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	one, err := f.m.StartAcquire(ctx, at, y, accessExclusive, relationLockPolicy{Timeout: time.Minute})
+	one, err := f.m.StartAcquire(ctx, at, y, AccessExclusive, Policy{Timeout: time.Minute})
 	if err != nil || one == nil {
 		t.Fatal(err)
 	}
-	two := f.request(bt, x, accessExclusive)
+	two := f.request(bt, x, AccessExclusive)
 	f.m.mu.Lock()
 	victim := two
 	survivor := one
@@ -105,7 +106,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	}
 	f.empty()
 	copied := *at
-	if _, err := f.m.StartAcquire(context.Background(), &copied, x, accessShare, relationLockPolicy{}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := f.m.StartAcquire(context.Background(), &copied, x, AccessShare, Policy{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("retired copied ticket accepted", err)
 	}
 }
@@ -115,11 +116,11 @@ func TestRelationDeadlockGraphAllHolders(t *testing.T) {
 	at, bt, ct := f.tx(), f.tx(), f.tx()
 	x := f.relation()
 	y := f.relation()
-	f.request(at, x, accessShare)
-	f.request(bt, x, accessShare)
-	f.request(ct, y, accessExclusive)
-	cr := f.request(ct, x, accessExclusive)
-	ar := f.request(at, y, accessExclusive)
+	f.request(at, x, AccessShare)
+	f.request(bt, x, AccessShare)
+	f.request(ct, y, AccessExclusive)
+	cr := f.request(ct, x, AccessExclusive)
+	ar := f.request(at, y, AccessExclusive)
 	f.m.mu.Lock()
 	av, cv := ar.terminal, cr.terminal
 	f.m.mu.Unlock()

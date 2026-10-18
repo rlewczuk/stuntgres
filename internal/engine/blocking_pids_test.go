@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -276,7 +277,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			resource := blockingUnitResource(e)
 			first, later := rowUpdate, noKeyUpdate
 			if completion {
-				resource = CompletionOf(at)
+				resource = lock.CompletionOf(at)
 				first, later = transactionCompletion, transactionCompletion
 			} else {
 				resource.Row = 1

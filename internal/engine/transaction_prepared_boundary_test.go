@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -153,7 +154,7 @@ type preparedBoundarySnapshot struct {
 	creators        map[ids.VersionID]ids.TxRef
 	owners          map[ids.TxRef]*relationTicket
 	resources       map[lockResource]struct{}
-	locks           map[lockResource]lockResourceState
+	locks           map[lockResource]lock.ResourceState
 }
 
 func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoundarySnapshot {
@@ -168,7 +169,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		indexes: maps.Clone(e.indexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
-		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lockResource]lockResourceState{},
+		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lockResource]lock.ResourceState{},
 	}
 	for address, store := range e.storage {
 		value := *store

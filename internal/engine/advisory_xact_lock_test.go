@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func advisoryXactUnitTicket(s *Session, xact bool) *relationTicket {
@@ -36,7 +37,7 @@ func advisoryXactUnitHold(s *Session, key lockResource) relationHold {
 }
 
 func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
-	for _, kind := range []lockResourceKind{advisoryBigintResource, advisoryPairResource} {
+	for _, kind := range []lock.ResourceKind{advisoryBigintResource, advisoryPairResource} {
 		for _, holderXact := range []bool{false, true} {
 			for _, requestXact := range []bool{false, true} {
 				for _, held := range []relationLockMode{advisoryShared, advisoryExclusive} {

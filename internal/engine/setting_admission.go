@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"stuntgres/internal/parser"
+
+	"stuntgres/internal/engine/lock"
 )
 
 var statementTimeoutCause = errors.New("stuntgres: statement timeout")
@@ -42,7 +44,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 // CommandError translates only cancellation from this command's own timer.
 // A caller deadline or an unrelated SQL/adapter error must retain its identity.
 func (op *Operation) CommandError(err error) error {
-	var source relationSourceError
+	var source lock.SourceError
 	if errors.As(err, &source) {
 		return source.Unwrap()
 	}

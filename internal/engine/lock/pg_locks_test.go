@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -14,20 +14,20 @@ import (
 // Advisory resources project their unsigned key halves to classid/objid and
 // their key space to objsubid; relation and type resources project their OID.
 func TestPGLocksResourceRecords(t *testing.T) {
-	owner := pgLockOwner{Session: 7, Local: 9}
-	for _, kind := range []lockResourceKind{advisoryBigintResource, advisoryPairResource} {
-		r, err := pgResourceRecord(lockResource{Kind: kind, High: math.MaxUint32, Low: 1 << 31}, owner, advisoryShared|advisoryExclusive)
-		want := pgLockRecord{Kind: pgAdvisoryLock, Owner: owner, Mode: advisoryShared | advisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: int16(kind)}
+	owner := RecordOwner{Session: 7, Local: 9}
+	for _, kind := range []ResourceKind{AdvisoryBigintResource, AdvisoryPairResource} {
+		r, err := pgResourceRecord(Resource{Kind: kind, High: math.MaxUint32, Low: 1 << 31}, owner, AdvisoryShare|AdvisoryExclusive)
+		want := Record{Kind: AdvisoryRecord, Owner: owner, Mode: AdvisoryShare | AdvisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: int16(kind)}
 		if err != nil || r != want {
 			t.Fatal("advisory key space", r, err)
 		}
 	}
 	f := newLockFixture(t)
 	relation, typ := f.relation(), f.typeResource()
-	if r, err := pgResourceRecord(relation, owner, accessShare); err != nil || r != (pgLockRecord{Kind: pgRelationLock, Owner: owner, Mode: accessShare, Object: uint32(relation.Address.ObjectID)}) {
+	if r, err := pgResourceRecord(relation, owner, AccessShare); err != nil || r != (Record{Kind: RelationRecord, Owner: owner, Mode: AccessShare, Object: uint32(relation.Address.ObjectID)}) {
 		t.Fatal("relation record", r, err)
 	}
-	if r, err := pgResourceRecord(typ, owner, typeExclusive); err != nil || r != (pgLockRecord{Kind: pgObjectLock, Owner: owner, Mode: typeExclusive, Object: uint32(typ.Address.ObjectID), Class: uint32(ids.TypeClassID)}) {
+	if r, err := pgResourceRecord(typ, owner, TypeExclusive); err != nil || r != (Record{Kind: ObjectRecord, Owner: owner, Mode: TypeExclusive, Object: uint32(typ.Address.ObjectID), Class: uint32(ids.TypeClassID)}) {
 		t.Fatal("type record", r, err)
 	}
 }
@@ -44,15 +44,15 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 			f := newLockFixture(t)
 			holder := f.tx()
 			table := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999}
-			resource := lockResource{ObjectRef: f.domain.Ref(f.epoch, table)}
-			resource.key = &uniqueLockKey{bucket: uniqueLockBucket{ObjectRef: resource.ObjectRef, hash: 17}}
-			if err := f.m.Acquire(context.Background(), holder, resource, uniqueClaim); err != nil {
+			resource := Resource{ObjectRef: f.domain.Ref(f.epoch, table)}
+			resource.key = &UniqueKey{bucket: uniqueLockBucket{ObjectRef: resource.ObjectRef, hash: 17}}
+			if err := f.m.Acquire(context.Background(), holder, resource, UniqueClaim); err != nil {
 				t.Fatal(err)
 			}
 			for index := range 1024 {
-				granted := lockResource{ObjectRef: f.domain.Ref(f.epoch, table)}
+				granted := Resource{ObjectRef: f.domain.Ref(f.epoch, table)}
 				granted.Address.ObjectID += ids.OID(index + 1)
-				if err := f.m.Acquire(context.Background(), holder, granted, accessShare); err != nil {
+				if err := f.m.Acquire(context.Background(), holder, granted, AccessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -62,7 +62,7 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 				waiter := f.tx()
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				t.Cleanup(cancel)
-				request, err := f.m.StartAcquire(ctx, waiter, resource, uniqueClaim, relationLockPolicy{CompletionPurpose: completionTransaction})
+				request, err := f.m.StartAcquire(ctx, waiter, resource, UniqueClaim, Policy{CompletionPurpose: CompletionTransaction})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -75,7 +75,7 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 				t.Fatal("key grant assigned an XID before the genuine assignment")
 			}
 			type outcome struct {
-				records []pgLockRecord
+				records []Record
 				err     error
 			}
 			started := make(chan struct{})
@@ -135,7 +135,7 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 			if captured.err != nil {
 				t.Fatal(captured.err)
 			}
-			var identity pgLockRecord
+			var identity Record
 			seen := make(map[ids.SessionID]bool, waiterCount)
 			for _, record := range captured.records {
 				local, wanted := waiters[record.Owner.Session]
@@ -163,11 +163,11 @@ func TestPGLocksConcurrentAssignmentCapture(t *testing.T) {
 				if record.Waiting || record.Owner.Session != holder.Ref().Session().ID() || record.Owner.Local != holder.Ref().ID() || record.Kind != identity.Kind {
 					continue
 				}
-				if identity.Kind == pgVirtualLock && record.Target == identity.Target || identity.Kind == pgTransactionLock && record.XID == identity.XID {
+				if identity.Kind == VirtualRecord && record.Target == identity.Target || identity.Kind == TransactionRecord && record.XID == identity.XID {
 					owners++
 				}
 			}
-			if owners != 1 || identity.Kind == pgTransactionLock && identity.XID != xid {
+			if owners != 1 || identity.Kind == TransactionRecord && identity.XID != xid {
 				t.Fatal("queued dependency lacks its corresponding captured exclusive owner", identity, "matching owners", owners, "assigned XID", xid)
 			}
 		})

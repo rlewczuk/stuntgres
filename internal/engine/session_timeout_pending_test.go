@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -221,7 +222,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				name = phase + "/child"
 			}
 			t.Run(name, func(t *testing.T) {
-				s, holder, ref, lock := timeoutPendingFixture(t, child)
+				s, holder, ref, lockStatement := timeoutPendingFixture(t, child)
 				op := timeoutPendingOperation(t, s)
 				scope := timeoutPendingScope(t, op)
 				if child {
@@ -247,7 +248,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				}
 				if phase == "statement-due" {
 					timeoutPendingStatement(op, statementDeadline)
-					if err := scope.gate(lock); err != nil {
+					if err := scope.gate(lockStatement); err != nil {
 						scope.Finish(err)
 						t.Fatal(err)
 					}
@@ -266,7 +267,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("due statement ERROR accepted physical FATAL before callback delivery")
 					}
 					s.mu.Unlock()
-					result = WaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
+					result = lock.WaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
 					result = scope.Finish(result)
 				} else {
 					returned, finished := make(chan error, 1), make(chan error, 1)
@@ -276,7 +277,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					release := func() { once.Do(func() { close(resume) }) }
 					go func() {
 						defer close(done)
-						_, err := scope.Execute(lock, 0, nil)
+						_, err := scope.Execute(lockStatement, 0, nil)
 						returned <- err
 						<-resume
 						finished <- scope.Finish(err)
@@ -345,14 +346,14 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 	for _, phase := range []string{"granted-before-finish", "canceled-before-finish", "finished-statement", "previous-incarnation"} {
 		t.Run(phase, func(t *testing.T) {
-			s, holder, ref, lock := timeoutPendingFixture(t, false)
+			s, holder, ref, lockStatement := timeoutPendingFixture(t, false)
 			op := timeoutPendingOperation(t, s)
 			scope := timeoutPendingScope(t, op)
 			if phase == "granted-before-finish" || phase == "canceled-before-finish" {
 				op.lockTimeout = time.Hour
 				returned := make(chan error, 1)
 				done := make(chan struct{})
-				go func() { defer close(done); _, err := scope.Execute(lock, 0, nil); returned <- err }()
+				go func() { defer close(done); _, err := scope.Execute(lockStatement, 0, nil); returned <- err }()
 				t.Cleanup(func() {
 					op.cancel(nil)
 					select {
@@ -391,7 +392,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 				statementDeadline := s.timeouts.transaction.deadline.Add(-time.Hour)
 				s.mu.Unlock()
 				timeoutPendingStatement(op, statementDeadline)
-				if err := scope.gate(lock); err != nil {
+				if err := scope.gate(lockStatement); err != nil {
 					scope.Finish(err)
 					t.Fatal(err)
 				}

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 // pgLocksUnitWaiter is the queued copy of r, or the zero waiter once r left
@@ -197,7 +199,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		_, holder := blockingUnitOwner(t, e)
 		_, waiter := blockingUnitOwner(t, e)
 		xid := pgLocksUnitAssign(t, e, holder)
-		request, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(holder), transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), transactionCompletion, completionVirtual)
 		if request == nil {
 			t.Fatal("index completion did not enqueue")
 		}
@@ -245,7 +247,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			_, holder := blockingUnitOwner(t, e)
 			_, waiter := blockingUnitOwner(t, e)
 			xid := pgLocksUnitAssign(t, e, holder)
-			r, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(holder), transactionCompletion, purpose)
+			r, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(holder), transactionCompletion, purpose)
 			pending := pgLocksUnitWait(t, e, waiter)
 			if purpose == completionVirtual && (pending.Kind != pgVirtualLock || pending.Target.Local != holder.Ref().ID()) || purpose == completionTransaction && (pending.Kind != pgTransactionLock || pending.XID != xid) {
 				t.Fatal("caller-selected completion purpose", pending)

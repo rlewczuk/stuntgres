@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -159,7 +160,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 		if err != nil || !present {
 			return
 		}
-		kind, failure := multiLockMode(mode)
+		kind, failure := lock.MultiLockMode(mode)
 		if failure != nil {
 			err = failure
 			return

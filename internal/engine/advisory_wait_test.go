@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -166,7 +167,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		}
 		deadline := time.Now()
 		var d *sqlstate.Error
-		if err = WaitError(context.Background(), relationLockPolicy{StatementDeadline: deadline}, deadline, deadline); !errors.As(err, &d) || d.Code != "55P03" {
+		if err = lock.WaitError(context.Background(), relationLockPolicy{StatementDeadline: deadline}, deadline, deadline); !errors.As(err, &d) || d.Code != "55P03" {
 			t.Fatal("equal deadlines changed lock precedence", err)
 		}
 	})

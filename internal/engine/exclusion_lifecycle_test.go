@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error {
@@ -40,7 +41,7 @@ func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *relationT
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[CompletionOf(owner)]
+		entry := lockState.Resources[lock.CompletionOf(owner)]
 		queued := false
 		if entry != nil {
 			for _, request := range entry.Pending {

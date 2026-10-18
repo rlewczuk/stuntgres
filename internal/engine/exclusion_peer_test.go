@@ -7,6 +7,8 @@ import (
 
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func exclusionInsertAwait(t *testing.T, done <-chan deleteOutcome, count int64, code string) {
@@ -98,7 +100,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					lockState := e.locks.Inspect()
 					matched := false
 					if deferrable {
-						entry := lockState.Resources[CompletionOf(at)]
+						entry := lockState.Resources[lock.CompletionOf(at)]
 						matched = entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == transactionCompletion && entry.Pending[0].Ticket.Session() == b.token && entry.Holders[at].Mode&transactionCompletion != 0
 					} else {
 						// DELETE retains the existing exact-key grant. The eager

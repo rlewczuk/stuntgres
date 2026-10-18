@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -14,24 +14,24 @@ type uniqueLockBucket struct {
 
 type uniqueLockBucketState struct {
 	generation uint64
-	keys       []*uniqueLockKey
+	keys       []*UniqueKey
 }
 
-type uniqueLockKey struct {
+type UniqueKey struct {
 	bucket uniqueLockBucket
 	value  any // owned key value; only the claim's comparer interprets it
 }
 
-// uniqueKeyComparer decides key equality for one claim. The manager calls it
+// UniqueKeyComparer decides key equality for one claim. The manager calls it
 // only outside its mutex, so a comparison may evaluate providers.
-type uniqueKeyComparer interface {
+type UniqueKeyComparer interface {
 	EqualKey(ctx context.Context, stored any) (bool, error)
 	OwnedKey() any // an owned copy of the claimed value, interned when new
 }
 
 // Called only with the existing lock owner's mutex. Empty buckets disappear;
 // their pointer identity fences remove/recreate without a permanent tombstone.
-func (m *relationLockManager) retireUniqueKey(key *uniqueLockKey) {
+func (m *Manager) retireUniqueKey(key *UniqueKey) {
 	bucket := m.keyBuckets[key.bucket]
 	if bucket == nil {
 		return
@@ -50,30 +50,30 @@ func (m *relationLockManager) retireUniqueKey(key *uniqueLockKey) {
 // Providers run outside every manager/engine/session metadata mutex. Pinning
 // reserves the exact interned resource across StartAcquire; its normal entry
 // owns checkpoint, queue, timeout, deadlock, outcome and epoch lifetimes.
-func (m *relationLockManager) PinUniqueKey(ctx context.Context, ticket *relationTicket, ref ids.ObjectRef, hash uint64, claim uniqueKeyComparer) (lockResource, func(), error) {
+func (m *Manager) PinUniqueKey(ctx context.Context, ticket *Ticket, ref ids.ObjectRef, hash uint64, claim UniqueKeyComparer) (Resource, func(), error) {
 	identity := uniqueLockBucket{ObjectRef: ref, hash: hash}
 	for {
 		if err := ctx.Err(); err != nil {
-			return lockResource{}, nil, err
+			return Resource{}, nil, err
 		}
 		m.mu.Lock()
 		if !m.valid(ticket) || ref.Epoch != ticket.ref.Epoch() {
 			m.mu.Unlock()
-			return lockResource{}, nil, ErrCatalogReplaced
+			return Resource{}, nil, ids.ErrCatalogReplaced
 		}
 		bucket := m.keyBuckets[identity]
 		var generation uint64
-		var candidates []*uniqueLockKey
+		var candidates []*UniqueKey
 		if bucket != nil {
 			generation = bucket.generation
 			candidates = slices.Clone(bucket.keys)
 		}
 		m.mu.Unlock()
-		var found *uniqueLockKey
+		var found *UniqueKey
 		for _, key := range candidates {
 			equal, err := claim.EqualKey(ctx, key.value)
 			if err != nil {
-				return lockResource{}, nil, err
+				return Resource{}, nil, err
 			}
 			if equal {
 				found = key
@@ -87,7 +87,7 @@ func (m *relationLockManager) PinUniqueKey(ctx context.Context, ticket *relation
 		m.mu.Lock()
 		if !m.valid(ticket) {
 			m.mu.Unlock()
-			return lockResource{}, nil, ErrCatalogReplaced
+			return Resource{}, nil, ids.ErrCatalogReplaced
 		}
 		current := m.keyBuckets[identity]
 		if current != bucket || current != nil && current.generation != generation {
@@ -102,14 +102,14 @@ func (m *relationLockManager) PinUniqueKey(ctx context.Context, ticket *relation
 				}
 				m.keyBuckets[identity] = bucket
 			}
-			found = &uniqueLockKey{bucket: identity, value: owned}
+			found = &UniqueKey{bucket: identity, value: owned}
 			bucket.keys = append(bucket.keys, found)
 			bucket.generation++
 		}
-		resource := lockResource{ObjectRef: ref, key: found}
+		resource := Resource{ObjectRef: ref, key: found}
 		entry := m.entries[resource]
 		if entry == nil {
-			entry = &relationEntry{holders: make(map[*relationTicket]relationHold)}
+			entry = &relationEntry{holders: make(map[*Ticket]Hold)}
 			m.entries[resource] = entry
 		}
 		entry.pins++

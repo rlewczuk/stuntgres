@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -39,9 +39,9 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				f := newLockFixture(t)
 				at, bt := f.tx(), f.tx()
 				x, y := f.relation(), f.relation()
-				f.request(at, x, accessExclusive)
-				f.request(bt, y, accessExclusive)
-				first := f.request(at, y, accessExclusive)
+				f.request(at, x, AccessExclusive)
+				f.request(bt, y, AccessExclusive)
+				first := f.request(at, y, AccessExclusive)
 
 				realContext, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
@@ -56,7 +56,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 					// the barrier targets detector normalization, not StartAcquire's
 					// earlier admission checks or its initial settle.
 					entry := f.m.entries[x]
-					closer = &relationRequest{ticket: bt, provenance: bt.Ref(), ctx: context.Background(), mode: accessExclusive, done: make(chan struct{}), ref: x, entry: entry}
+					closer = &relationRequest{ticket: bt, provenance: bt.Ref(), ctx: context.Background(), mode: AccessExclusive, done: make(chan struct{}), ref: x, entry: entry}
 					bt.resources[x] = struct{}{}
 					entry.pending = append(entry.pending, closer)
 					interrupted, survivor = first, closer
@@ -98,7 +98,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				f.m.mu.Lock()
 				interruptedTerminal, interruption := interrupted.terminal, interrupted.Err()
 				survivorTerminal, survivorError := survivor.terminal, survivor.Err()
-				holdsRetained := f.m.entries[x].holders[at].Mode&accessExclusive != 0 && f.m.entries[y].holders[bt].Mode&accessExclusive != 0
+				holdsRetained := f.m.entries[x].holders[at].Mode&AccessExclusive != 0 && f.m.entries[y].holders[bt].Mode&AccessExclusive != 0
 				f.m.mu.Unlock()
 				if !interruptedTerminal || !errors.Is(interruption, context.Canceled) {
 					t.Errorf("interrupted request must retain canonical cancellation, terminal=%v error=%v", interruptedTerminal, interruption)
@@ -108,7 +108,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 					t.Errorf("caller cancellation fabricated SQLSTATE %s", diagnostic.Code)
 				}
 				if source && interruptedTerminal && errors.Is(interruption, context.Canceled) {
-					var original relationSourceError
+					var original SourceError
 					if !errors.As(interruption, &original) || original.error != context.Canceled {
 						t.Errorf("source cancellation lost canonical identity: %v", interruption)
 					}
@@ -144,15 +144,15 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 		f := newLockFixture(t)
 		ht := f.tx()
 		resource := f.relation()
-		f.request(ht, resource, accessExclusive)
-		tickets := make([]*relationTicket, 0, count)
+		f.request(ht, resource, AccessExclusive)
+		tickets := make([]*Ticket, 0, count)
 		requests := make([]*relationRequest, 0, count)
 		for range count {
 			ticket := f.tx()
 			tickets = append(tickets, ticket)
 			// Use the actual supported enqueue path. Background contexts avoid
 			// timer/callback allocations unrelated to the sparse graph itself.
-			r, err := f.m.StartAcquire(context.Background(), ticket, resource, accessShare, relationLockPolicy{})
+			r, err := f.m.StartAcquire(context.Background(), ticket, resource, AccessShare, Policy{})
 			if err != nil || r == nil {
 				t.Fatalf("AS waiter %d: request=%v error=%v", len(requests), r, err)
 			}
@@ -160,7 +160,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 		}
 		f.m.mu.Lock()
 		entry := f.m.entries[resource]
-		if len(entry.pending) != count || len(entry.holders) != 1 || entry.holders[ht].Mode != accessExclusive {
+		if len(entry.pending) != count || len(entry.holders) != 1 || entry.holders[ht].Mode != AccessExclusive {
 			f.m.mu.Unlock()
 			t.Fatal("measurement requires exactly one AX holder and all AS readers pending")
 		}
@@ -176,7 +176,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 		}
 		runtime.ReadMemStats(&after)
 		for _, r := range requests {
-			if r.terminal || r.mode != accessShare {
+			if r.terminal || r.mode != AccessShare {
 				f.m.mu.Unlock()
 				t.Fatal("compatible reader queue changed during measurement")
 			}
@@ -193,7 +193,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 				t.Fatal("compatible reader failed after AX release", err)
 			}
 			f.m.mu.Lock()
-			granted := f.m.entries[resource].holders[r.ticket].Mode&accessShare != 0
+			granted := f.m.entries[resource].holders[r.ticket].Mode&AccessShare != 0
 			f.m.mu.Unlock()
 			if !granted {
 				t.Fatal("reader was not granted after AX release")

@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func (c *deadlockDeadlineContext) Deadline() (time.Time, bool) {
 	return c.deadline, !c.deadline.IsZero()
 }
 
-func deadlockPublicationRun(t *testing.T, m *relationLockManager, request *relationRequest, observed, resume chan struct{}, advance func()) {
+func deadlockPublicationRun(t *testing.T, m *Manager, request *relationRequest, observed, resume chan struct{}, advance func()) {
 	t.Helper()
 	finished := make(chan struct{})
 	go func() {
@@ -62,7 +62,7 @@ func deadlockPublicationRun(t *testing.T, m *relationLockManager, request *relat
 
 // Journal a private request without running detection, as in the existing review
 // regression. This isolates detector observations from StartAcquire/settle.
-func deadlockPublicationPending(m *relationLockManager, ticket *relationTicket, ref lockResource, mode relationLockMode, ctx context.Context) *relationRequest {
+func deadlockPublicationPending(m *Manager, ticket *Ticket, ref Resource, mode Mode, ctx context.Context) *relationRequest {
 	entry := m.entries[ref]
 	r := &relationRequest{ticket: ticket, provenance: ticket.Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: ref, entry: entry}
 	ticket.resources[ref] = struct{}{}
@@ -76,8 +76,8 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			f := newLockFixture(t)
 			at, bt := f.tx(), f.tx()
 			ref := f.relation()
-			f.request(at, ref, accessShare)
-			f.request(bt, ref, accessShare)
+			f.request(at, ref, AccessShare)
+			f.request(bt, ref, AccessShare)
 			real, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			observed, resume := make(chan struct{}), make(chan struct{})
@@ -101,8 +101,8 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			// One authoritative queue guarantees observation order, independently
 			// of map iteration: both AS holders request AX conversions. Each AX
 			// has a HARD dependency on the other owner's retained AS hold.
-			victim := deadlockPublicationPending(f.m, at, ref, accessExclusive, victimContext)
-			later := deadlockPublicationPending(f.m, bt, ref, accessExclusive, laterContext)
+			victim := deadlockPublicationPending(f.m, at, ref, AccessExclusive, victimContext)
+			later := deadlockPublicationPending(f.m, bt, ref, AccessExclusive, laterContext)
 			if source {
 				victimContext.Context = context.Background()
 				victim.policy.Source = real
@@ -126,7 +126,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 				t.Errorf("interruption fabricated SQLSTATE %s", diagnostic.Code)
 			}
 			if source {
-				var original relationSourceError
+				var original SourceError
 				if !errors.As(err, &original) || original.error != context.Canceled {
 					t.Errorf("source identity lost: %v", err)
 				}
@@ -135,7 +135,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			}
 			f.m.mu.Lock()
 			collateral := later.terminal
-			holds := f.m.entries[ref].holders[at].Mode == accessShare && f.m.entries[ref].holders[bt].Mode == accessShare
+			holds := f.m.entries[ref].holders[at].Mode == AccessShare && f.m.entries[ref].holders[bt].Mode == AccessShare
 			f.m.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("collateral terminal=%v, original holds retained=%v", collateral, holds)
@@ -159,20 +159,20 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 	at, bt, ct := f.tx(), f.tx(), f.tx()
 	x := f.relation()
 	y := f.relation()
-	f.request(at, x, accessShare)
-	f.request(ct, y, accessExclusive)
-	rb := f.request(bt, x, accessExclusive)
-	rc := f.request(ct, x, accessShare)
+	f.request(at, x, AccessShare)
+	f.request(ct, y, AccessExclusive)
+	rb := f.request(bt, x, AccessExclusive)
+	rc := f.request(ct, x, AccessShare)
 	real, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	gate := &deadlockNormalizationContext{Context: real, observed: make(chan struct{}), resume: make(chan struct{}), armed: true}
 	f.m.mu.Lock()
-	ra := deadlockPublicationPending(f.m, at, y, accessShare, context.Background())
+	ra := deadlockPublicationPending(f.m, at, y, AccessShare, context.Background())
 	rb.ctx = gate
 	// Actual arrival graph: B->A hard, C->B soft, A->C hard.
 	// Moving compatible C-AS ahead of B-AX resolves it without revoking A-AS.
 	queue := f.m.entries[x].pending
-	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && f.m.entries[x].holders[at].Mode == accessShare && f.m.entries[y].holders[ct].Mode == accessExclusive
+	topology := len(queue) == 2 && queue[0] == rb && queue[1] == rc && f.m.entries[x].holders[at].Mode == AccessShare && f.m.entries[y].holders[ct].Mode == AccessExclusive
 	f.m.mu.Unlock()
 	if !topology {
 		t.Fatal("missing resolvable soft topology")
@@ -185,7 +185,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 		t.Errorf("compatible follower must grant from fresh live queues: %v", err)
 	}
 	f.m.mu.Lock()
-	fresh := len(f.m.entries[x].pending) == 0 && f.m.entries[x].holders[at].Mode == accessShare && f.m.entries[x].holders[ct].Mode == accessShare && !ra.terminal
+	fresh := len(f.m.entries[x].pending) == 0 && f.m.entries[x].holders[at].Mode == AccessShare && f.m.entries[x].holders[ct].Mode == AccessShare && !ra.terminal
 	f.m.mu.Unlock()
 	if !fresh {
 		t.Error("stale proposal, collateral victim, or missing compatible follower grant")
@@ -208,14 +208,14 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			f := newLockFixture(t)
 			at, bt := f.tx(), f.tx()
 			ref := f.relation()
-			f.request(at, ref, accessShare)
-			f.request(bt, ref, accessShare)
+			f.request(at, ref, AccessShare)
+			f.request(bt, ref, AccessShare)
 			caller := &deadlockDeadlineContext{Context: context.Background()}
 			gate := &deadlockNormalizationContext{Context: context.Background(), observed: make(chan struct{}), resume: make(chan struct{}), armed: true}
 			f.m.mu.Lock()
-			interrupted := deadlockPublicationPending(f.m, at, ref, accessExclusive, gate)
+			interrupted := deadlockPublicationPending(f.m, at, ref, AccessExclusive, gate)
 			interrupted.policy.Source = caller
-			later := deadlockPublicationPending(f.m, bt, ref, accessExclusive, context.Background())
+			later := deadlockPublicationPending(f.m, bt, ref, AccessExclusive, context.Background())
 			f.m.mu.Unlock()
 			code, message := "", ""
 			deadlockPublicationRun(t, f.m, interrupted, gate.observed, gate.resume, func() {
@@ -250,9 +250,9 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			})
 			err := f.result(interrupted)
 			if code != "" {
-				waitsDiagnostic(t, err, code, message)
+				f.diagnostic(err, code, message)
 			} else {
-				var original relationSourceError
+				var original SourceError
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &original) || original.error != context.DeadlineExceeded || !errors.Is(err, context.DeadlineExceeded) || errors.As(err, &diagnostic) {
 					t.Errorf("caller deadline must retain original identity without SQLSTATE: %v", err)
@@ -260,7 +260,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			}
 			f.m.mu.Lock()
 			collateral := later.terminal
-			holds := f.m.entries[ref].holders[at].Mode == accessShare && f.m.entries[ref].holders[bt].Mode == accessShare
+			holds := f.m.entries[ref].holders[at].Mode == AccessShare && f.m.entries[ref].holders[bt].Mode == AccessShare
 			f.m.mu.Unlock()
 			if collateral || !holds {
 				t.Errorf("deadline caused collateral terminal=%v or released holds=%v", collateral, !holds)

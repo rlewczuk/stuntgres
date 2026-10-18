@@ -20,7 +20,7 @@ func identityMultiGrant(t *testing.T, e *Engine, owner *relationTicket, tuple mu
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, owner, tuple.lockResource, mode, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(ctx, owner, tuple.Resource, mode, relationLockPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	_, waiter := blockingUnitOwner(t, e)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, waiter, first.lockResource, noKeyUpdate, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(ctx, waiter, first.Resource, noKeyUpdate, relationLockPolicy{})
 	if err != nil || request == nil {
 		t.Fatal("missing actual wait", request, err)
 	}

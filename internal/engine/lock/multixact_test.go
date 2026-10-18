@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"errors"
@@ -12,21 +12,21 @@ import (
 )
 
 // multiTuple is a row version of one fixed relation.
-func (f *lockFixture) multiTuple(row ids.RowID) multiTuple {
-	resource := lockResource{ObjectRef: f.domain.Ref(f.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999}), Row: row}
-	return multiTuple{resource, ids.VersionID(row)}
+func (f *lockFixture) multiTuple(row ids.RowID) MultiTuple {
+	resource := Resource{ObjectRef: f.domain.Ref(f.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999}), Row: row}
+	return MultiTuple{resource, ids.VersionID(row)}
 }
 
-func (f *lockFixture) multiGrant(owner *relationTicket, tuple multiTuple, mode relationLockMode) {
+func (f *lockFixture) multiGrant(owner *Ticket, tuple MultiTuple, mode Mode) {
 	f.t.Helper()
-	if err := f.result(f.request(owner, tuple.lockResource, mode)); err != nil {
+	if err := f.result(f.request(owner, tuple.Resource, mode)); err != nil {
 		f.t.Fatal(err)
 	}
 }
 
-func (f *lockFixture) multiEmit(owner *relationTicket, tuple multiTuple, mode multiMode) {
+func (f *lockFixture) multiEmit(owner *Ticket, tuple MultiTuple, mode MultiMode) {
 	f.t.Helper()
-	if err := f.m.PhysicalEvents(owner, []multiEvent{{Tuple: tuple, Mode: mode}}); err != nil {
+	if err := f.m.PhysicalEvents(owner, []MultiEvent{{Tuple: tuple, Mode: mode}}); err != nil {
 		f.t.Fatal(err)
 	}
 }
@@ -87,11 +87,11 @@ func TestMultiXactCounterWrapCacheAndRetirement(t *testing.T) {
 	f.m.mu.Unlock()
 	first := f.multiTuple(1)
 	second := f.multiTuple(2)
-	for _, tuple := range []multiTuple{first, second} {
-		f.multiGrant(a, tuple, keyShare)
-		f.multiEmit(a, tuple, multiKeyShare)
-		f.multiGrant(b, tuple, rowShare)
-		f.multiEmit(b, tuple, multiShare)
+	for _, tuple := range []MultiTuple{first, second} {
+		f.multiGrant(a, tuple, ForKeyShare)
+		f.multiEmit(a, tuple, MultiKeyShare)
+		f.multiGrant(b, tuple, ForShare)
+		f.multiEmit(b, tuple, MultiShare)
 	}
 	if f.m.NextMultiXact() != 1 {
 		t.Fatal("zero skip/owner-local same-bag cache")

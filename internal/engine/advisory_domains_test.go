@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestAdvisorySessionResourceDomains(t *testing.T) {
@@ -15,7 +16,7 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	isolated, ri := advisoryUnitOwner(t, other)
 	boundaries := [][2]uint32{{0, 0}, {0x80000000, 0}, {0x7fffffff, 0xffffffff}, {0xffffffff, 0xffffffff}}
 	for _, words := range boundaries {
-		for _, kind := range []lockResourceKind{advisoryBigintResource, advisoryPairResource} {
+		for _, kind := range []lock.ResourceKind{advisoryBigintResource, advisoryPairResource} {
 			key := lockResource{Kind: kind, High: words[0], Low: words[1]}
 			advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
 			advisoryUnitGrant(t, isolated, ri, key, advisoryExclusive)

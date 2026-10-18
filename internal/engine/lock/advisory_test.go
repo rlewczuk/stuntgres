@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -14,8 +14,8 @@ import (
 // live transaction that supplies its requests' provenance.
 type advisoryUnitParticipant struct {
 	token    ids.SessionToken
-	advisory *relationTicket
-	tx       *relationTicket
+	advisory *Ticket
+	tx       *Ticket
 }
 
 func (f *lockFixture) advisoryParticipant() advisoryUnitParticipant {
@@ -23,27 +23,27 @@ func (f *lockFixture) advisoryParticipant() advisoryUnitParticipant {
 	return advisoryUnitParticipant{token: token, advisory: f.advisory(token), tx: f.txIn(token)}
 }
 
-func (f *lockFixture) advisoryAcquire(p advisoryUnitParticipant, key lockResource, mode relationLockMode, nowait bool) (*relationRequest, error) {
-	return f.m.StartAcquire(context.Background(), p.advisory, key, mode, relationLockPolicy{Provenance: p.tx.Ref(), NoWait: nowait})
+func (f *lockFixture) advisoryAcquire(p advisoryUnitParticipant, key Resource, mode Mode, nowait bool) (*relationRequest, error) {
+	return f.m.StartAcquire(context.Background(), p.advisory, key, mode, Policy{Provenance: p.tx.Ref(), NoWait: nowait})
 }
 
-func (f *lockFixture) advisoryGrant(p advisoryUnitParticipant, key lockResource, mode relationLockMode) {
+func (f *lockFixture) advisoryGrant(p advisoryUnitParticipant, key Resource, mode Mode) {
 	f.t.Helper()
 	if r, err := f.advisoryAcquire(p, key, mode, true); err != nil || r != nil {
 		f.t.Fatal("immediate grant", r, err)
 	}
 }
 
-func (f *lockFixture) advisoryHold(p advisoryUnitParticipant, key lockResource) relationHold {
+func (f *lockFixture) advisoryHold(p advisoryUnitParticipant, key Resource) Hold {
 	f.m.mu.Lock()
 	defer f.m.mu.Unlock()
 	if entry := f.m.entries[key]; entry != nil {
 		return entry.holders[p.advisory]
 	}
-	return relationHold{}
+	return Hold{}
 }
 
-func (f *lockFixture) advisoryUnlock(p advisoryUnitParticipant, key lockResource, mode relationLockMode, want bool) {
+func (f *lockFixture) advisoryUnlock(p advisoryUnitParticipant, key Resource, mode Mode, want bool) {
 	f.t.Helper()
 	if got, err := f.m.UnlockAdvisory(p.advisory, key, mode); err != nil || got != want {
 		f.t.Fatal("exact mode unlock", got, err, want)
@@ -67,26 +67,26 @@ func (f *lockFixture) blocking(pid ids.SessionID, want ...int32) {
 func TestAdvisoryCountedGrantsAndOverflow(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	big := lockResource{Kind: advisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
+	big := Resource{Kind: AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
 	pair := big
-	pair.Kind = advisoryPairResource
-	f.advisoryGrant(a, big, advisoryShared)
-	f.advisoryGrant(a, big, advisoryShared)
-	f.advisoryGrant(a, big, advisoryExclusive)
-	f.advisoryGrant(a, big, advisoryExclusive)
-	f.advisoryGrant(b, pair, advisoryExclusive)
-	want := relationHold{Mode: advisoryShared | advisoryExclusive, Shared: 2, Exclusive: 2}
+	pair.Kind = AdvisoryPairResource
+	f.advisoryGrant(a, big, AdvisoryShare)
+	f.advisoryGrant(a, big, AdvisoryShare)
+	f.advisoryGrant(a, big, AdvisoryExclusive)
+	f.advisoryGrant(a, big, AdvisoryExclusive)
+	f.advisoryGrant(b, pair, AdvisoryExclusive)
+	want := Hold{Mode: AdvisoryShare | AdvisoryExclusive, Shared: 2, Exclusive: 2}
 	if got := f.advisoryHold(a, big); got != want {
 		t.Fatal(got, want)
 	}
-	f.advisoryUnlock(a, big, advisoryExclusive, true)
-	f.advisoryUnlock(a, big, advisoryExclusive, true)
-	f.advisoryUnlock(a, big, advisoryExclusive, false)
-	if got := f.advisoryHold(a, big); got.Mode != advisoryShared || got.Shared != 2 || got.Exclusive != 0 {
+	f.advisoryUnlock(a, big, AdvisoryExclusive, true)
+	f.advisoryUnlock(a, big, AdvisoryExclusive, true)
+	f.advisoryUnlock(a, big, AdvisoryExclusive, false)
+	if got := f.advisoryHold(a, big); got.Mode != AdvisoryShare || got.Shared != 2 || got.Exclusive != 0 {
 		t.Fatal(got)
 	}
-	f.advisoryGrant(b, big, advisoryShared)
-	f.advisoryUnlock(b, big, advisoryShared, true)
+	f.advisoryGrant(b, big, AdvisoryShare)
+	f.advisoryUnlock(b, big, AdvisoryShare, true)
 	m := f.m
 	m.mu.Lock()
 	entry := m.entries[big]
@@ -94,29 +94,29 @@ func TestAdvisoryCountedGrantsAndOverflow(t *testing.T) {
 	h.Shared = ^uint64(0)
 	entry.holders[a.advisory] = h
 	m.mu.Unlock()
-	r, err := f.advisoryAcquire(a, big, advisoryShared, true)
+	r, err := f.advisoryAcquire(a, big, AdvisoryShare, true)
 	if r != nil || err == nil || err.Error() != "stuntgres: advisory hold count exhausted" || f.advisoryHold(a, big) != h {
 		t.Fatal("overflow must not mutate", r, err, f.advisoryHold(a, big))
 	}
 	if err = m.UnlockAdvisoryAll(a.advisory); err != nil {
 		t.Fatal(err)
 	}
-	if f.advisoryHold(a, big) != (relationHold{}) || f.advisoryHold(b, pair).Exclusive != 1 {
+	if f.advisoryHold(a, big) != (Hold{}) || f.advisoryHold(b, pair).Exclusive != 1 {
 		t.Fatal("unlock all scope")
 	}
-	f.advisoryUnlock(b, pair, advisoryExclusive, true)
+	f.advisoryUnlock(b, pair, AdvisoryExclusive, true)
 }
 
 func TestAdvisoryExpiredSourceWinsDelayedCallback(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	key := lockResource{Kind: advisoryBigintResource, Low: 16}
-	prior := lockResource{Kind: advisoryPairResource, High: 16, Low: 17}
-	f.advisoryGrant(a, key, advisoryExclusive)
-	f.advisoryGrant(b, prior, advisoryExclusive)
+	key := Resource{Kind: AdvisoryBigintResource, Low: 16}
+	prior := Resource{Kind: AdvisoryPairResource, High: 16, Low: 17}
+	f.advisoryGrant(a, key, AdvisoryExclusive)
+	f.advisoryGrant(b, prior, AdvisoryExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 70*time.Millisecond)
 	t.Cleanup(cancel)
-	request, err := f.m.StartAcquire(ctx, b.advisory, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: b.tx.Ref()})
+	request, err := f.m.StartAcquire(ctx, b.advisory, key, AdvisoryExclusive, Policy{Source: ctx, Provenance: b.tx.Ref()})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -125,8 +125,8 @@ func TestAdvisoryExpiredSourceWinsDelayedCallback(t *testing.T) {
 	f.m.mu.Lock()
 	<-ctx.Done()
 	f.m.mu.Unlock()
-	f.advisoryUnlock(a, key, advisoryExclusive, true)
-	if err = f.result(request); !errors.Is(err, context.DeadlineExceeded) || f.advisoryHold(b, key) != (relationHold{}) || f.advisoryHold(b, prior).Exclusive != 1 {
+	f.advisoryUnlock(a, key, AdvisoryExclusive, true)
+	if err = f.result(request); !errors.Is(err, context.DeadlineExceeded) || f.advisoryHold(b, key) != (Hold{}) || f.advisoryHold(b, prior).Exclusive != 1 {
 		t.Fatal("delayed source callback granted/count leak", err)
 	}
 }
@@ -134,15 +134,15 @@ func TestAdvisoryExpiredSourceWinsDelayedCallback(t *testing.T) {
 func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	f := newLockFixture(t)
 	a, b := f.advisoryParticipant(), f.advisoryParticipant()
-	key := lockResource{Kind: advisoryBigintResource, Low: 187418}
-	f.advisoryGrant(a, key, advisoryExclusive)
+	key := Resource{Kind: AdvisoryBigintResource, Low: 187418}
+	f.advisoryGrant(a, key, AdvisoryExclusive)
 	m := f.m
 	sessionTicket, source := b.advisory, b.tx
 	rb := source.Ref()
 	bid, aid := b.token.ID(), int32(a.token.ID())
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := m.StartAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{Provenance: rb})
+	r, err := m.StartAcquire(ctx, sessionTicket, key, AdvisoryExclusive, Policy{Provenance: rb})
 	if err != nil || r == nil {
 		t.Fatal("persistent advisory request", r, err)
 	}
@@ -174,21 +174,21 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	// Ending the transaction must terminalize the pending request, while
 	// leaving the physical holder and the waiter's session ticket alive.
 	m.End(source)
-	if err := f.result(r); !errors.Is(err, errRelationOwnerEnded) {
+	if err := f.result(r); !errors.Is(err, ErrOwnerEnded) {
 		t.Fatal("aborted provenance", err)
 	}
 	f.blocking(bid)
 	if got := f.advisoryHold(a, key); got.Exclusive != 1 {
 		t.Fatal("abort released independent holder", got)
 	}
-	if got := f.advisoryHold(b, key); got != (relationHold{}) {
+	if got := f.advisoryHold(b, key); got != (Hold{}) {
 		t.Fatal("aborted attempt acquired a count", got)
 	}
 	fresh := f.txIn(b.token)
 	if fresh.Ref() == rb {
 		t.Fatal("wrong transaction lifetime")
 	}
-	r2, err := m.StartAcquire(ctx, sessionTicket, key, advisoryExclusive, relationLockPolicy{Provenance: fresh.Ref()})
+	r2, err := m.StartAcquire(ctx, sessionTicket, key, AdvisoryExclusive, Policy{Provenance: fresh.Ref()})
 	if err != nil || r2 == nil {
 		t.Fatal("fresh persistent request", r2, err)
 	}
@@ -203,7 +203,7 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	r2.provenance = fresh.Ref()
 	m.mu.Unlock()
 	f.blocking(bid, aid)
-	f.advisoryUnlock(a, key, advisoryExclusive, true)
+	f.advisoryUnlock(a, key, AdvisoryExclusive, true)
 	if err := f.result(r2); err != nil {
 		t.Fatal("fresh transfer", err)
 	}
@@ -218,7 +218,7 @@ func TestBlockingPidsAdvisoryAuthority(t *testing.T) {
 	if got := f.advisoryHold(b, key); got.Exclusive != 1 {
 		t.Fatal("canceled provenance leaked count", got)
 	}
-	f.advisoryUnlock(b, key, advisoryExclusive, true)
-	f.advisoryGrant(a, key, advisoryExclusive)
-	f.advisoryUnlock(a, key, advisoryExclusive, true)
+	f.advisoryUnlock(b, key, AdvisoryExclusive, true)
+	f.advisoryGrant(a, key, AdvisoryExclusive)
+	f.advisoryUnlock(a, key, AdvisoryExclusive, true)
 }

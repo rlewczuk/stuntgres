@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"errors"
@@ -10,84 +10,84 @@ import (
 
 // The existing manager arbitrates by RowID. History additionally identifies the
 // exact immutable version: a successor copies original raw xmax, not its new action.
-type multiTuple struct {
-	lockResource
+type MultiTuple struct {
+	Resource
 	Version ids.VersionID
 }
-type multiMode uint8
+type MultiMode uint8
 
 const (
-	multiKeyShare multiMode = iota
-	multiShare
-	multiNoKeyLock
-	multiUpdateLock
-	multiNoKeyAction
-	multiUpdateAction
+	MultiKeyShare MultiMode = iota
+	MultiShare
+	MultiNoKeyLock
+	MultiUpdateLock
+	MultiNoKeyAction
+	MultiUpdateAction
 )
 
-func (m multiMode) Name() string {
+func (m MultiMode) Name() string {
 	switch m {
-	case multiKeyShare:
+	case MultiKeyShare:
 		return "keysh"
-	case multiShare:
+	case MultiShare:
 		return "sh"
-	case multiNoKeyLock:
+	case MultiNoKeyLock:
 		return "fornokeyupd"
-	case multiUpdateLock:
+	case MultiUpdateLock:
 		return "forupd"
-	case multiNoKeyAction:
+	case MultiNoKeyAction:
 		return "nokeyupd"
-	case multiUpdateAction:
+	case MultiUpdateAction:
 		return "upd"
 	}
 	return ""
 }
-func (m multiMode) updating() bool { return m >= multiNoKeyAction }
-func (m multiMode) strength() uint8 {
+func (m MultiMode) updating() bool { return m >= MultiNoKeyAction }
+func (m MultiMode) strength() uint8 {
 	switch m {
-	case multiKeyShare:
+	case MultiKeyShare:
 		return 0
-	case multiShare:
+	case MultiShare:
 		return 1
-	case multiNoKeyLock, multiNoKeyAction:
+	case MultiNoKeyLock, MultiNoKeyAction:
 		return 2
 	default:
 		return 3
 	}
 }
-func multiLockMode(mode relationLockMode) (multiMode, error) {
+func MultiLockMode(mode Mode) (MultiMode, error) {
 	switch mode {
-	case keyShare:
-		return multiKeyShare, nil
-	case rowShare:
-		return multiShare, nil
-	case noKeyUpdate:
-		return multiNoKeyLock, nil
-	case rowUpdate:
-		return multiUpdateLock, nil
+	case ForKeyShare:
+		return MultiKeyShare, nil
+	case ForShare:
+		return MultiShare, nil
+	case ForNoKeyUpdate:
+		return MultiNoKeyLock, nil
+	case ForUpdate:
+		return MultiUpdateLock, nil
 	}
 	return 0, errors.New("stuntgres: invalid physical row lock mode")
 }
 
-type multiMember struct {
+type MultiMember struct {
 	XID   uint32
-	Mode  multiMode
-	owner *relationTicket
+	Mode  MultiMode
+	owner *Ticket
 }
 type multiRow struct {
 	id               uint32
-	members          []multiMember
+	members          []MultiMember
 	inheritedID      uint32
-	inheritedMembers []multiMember // Original raw xmax, before the updating event.
+	inheritedMembers []MultiMember // Original raw xmax, before the updating event.
 }
-type multiEvent struct {
-	Tuple     multiTuple
+type MultiEvent struct {
+	Tuple     MultiTuple
 	Successor ids.VersionID
-	Mode      multiMode
+	Mode      MultiMode
 }
 type multiContribution struct {
-	owner *relationTicket
-	tuple multiTuple
+	owner *Ticket
+	tuple MultiTuple
 }
 
 func nextMultiID(id uint32) uint32 {
@@ -97,7 +97,7 @@ func nextMultiID(id uint32) uint32 {
 	}
 	return id
 }
-func sameMultiMembers(a, b []multiMember) bool {
+func sameMultiMembers(a, b []MultiMember) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -108,8 +108,8 @@ func sameMultiMembers(a, b []multiMember) bool {
 	}
 	return true
 }
-func canonicalMultiMembers(members []multiMember) {
-	slices.SortFunc(members, func(a, b multiMember) int {
+func canonicalMultiMembers(members []MultiMember) {
+	slices.SortFunc(members, func(a, b MultiMember) int {
 		if a.XID < b.XID {
 			return -1
 		}
@@ -119,16 +119,16 @@ func canonicalMultiMembers(members []multiMember) {
 		return int(a.Mode) - int(b.Mode)
 	})
 }
-func (m *relationLockManager) NextMultiXact() uint32 {
+func (m *Manager) NextMultiXact() uint32 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.multiNext
 }
-func (m *relationLockManager) MultiXactMembers(owner *relationTicket, id uint32) ([]multiMember, error) {
+func (m *Manager) MultiXactMembers(owner *Ticket, id uint32) ([]MultiMember, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if owner != nil && (!m.valid(owner) || owner.OwnershipEnded()) {
-		return nil, ErrCatalogReplaced
+		return nil, ids.ErrCatalogReplaced
 	}
 	if id == 0 {
 		return nil, sqlError("22023", "invalid MultiXactId: 0")
@@ -145,16 +145,16 @@ func (m *relationLockManager) MultiXactMembers(owner *relationTicket, id uint32)
 	}
 	return nil, sqlError("XX000", fmt.Sprintf("MultiXactId %d %s -- apparent wraparound", id, message))
 }
-func (m *relationLockManager) MultiAge(owner *relationTicket, id uint32) (int32, error) {
+func (m *Manager) MultiAge(owner *Ticket, id uint32) (int32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(owner) || owner.OwnershipEnded() {
-		return 0, ErrCatalogReplaced
+		return 0, ids.ErrCatalogReplaced
 	}
 	return multiTransactionAge(m.multiNext, id), nil
 }
 
-func (m *relationLockManager) retireMultiXactsLocked() {
+func (m *Manager) retireMultiXactsLocked() {
 	clear(m.multiRows)
 	clear(m.multiHistory)
 	for _, owner := range m.owners {
@@ -163,20 +163,20 @@ func (m *relationLockManager) retireMultiXactsLocked() {
 	}
 }
 
-func (m *relationLockManager) validMultiTuple(owner *relationTicket, key multiTuple) bool {
-	return key.Kind == ordinaryResource && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == m.domain && key.Epoch == owner.ref.Epoch()
+func (m *Manager) validMultiTuple(owner *Ticket, key MultiTuple) bool {
+	return key.Kind == OrdinaryResource && key.Row != 0 && key.High == 0 && key.Low == 0 && key.Address.ClassID == ids.RelationClassID && key.Address.SubID == 0 && key.key == nil && key.completion == nil && key.Version != 0 && key.ObjectRef.Domain() == m.domain && key.Epoch == owner.ref.Epoch()
 }
 
 // No Engine/owner mutex is held. The whole batch is prepared privately before
 // publishing any history, cache, contribution or counter change under manager.mu.
-func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []multiEvent) error {
+func (m *Manager) PhysicalEvents(owner *Ticket, events []MultiEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.valid(owner) || owner.OwnershipEnded() {
-		return errRelationOwnerEnded
+		return ErrOwnerEnded
 	}
 	xid := owner.AssignedPublicXID()
 	if xid < 3 {
@@ -185,16 +185,16 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 	if len(events) == 1 && events[0].Successor == 0 {
 		event := events[0]
 		key := event.Tuple
-		entry := m.entries[key.lockResource]
+		entry := m.entries[key.Resource]
 		old := m.multiRows[key]
-		if m.validMultiTuple(owner, key) && event.Mode <= multiUpdateAction && entry != nil && entry.holders[owner].Mode&(keyShare|rowShare|noKeyUpdate|rowUpdate) != 0 {
+		if m.validMultiTuple(owner, key) && event.Mode <= MultiUpdateAction && entry != nil && entry.holders[owner].Mode&(ForKeyShare|ForShare|ForNoKeyUpdate|ForUpdate) != 0 {
 			for _, member := range old.members {
 				if member.owner != owner || member.XID != xid || owner.multiContributions[key]&(1<<member.Mode) == 0 {
 					continue
 				}
 				mode := event.Mode
-				if old.id == 0 && len(old.members) == 1 && mode == multiNoKeyAction && member.Mode.strength() > mode.strength() {
-					mode = multiUpdateAction
+				if old.id == 0 && len(old.members) == 1 && mode == MultiNoKeyAction && member.Mode.strength() > mode.strength() {
+					mode = MultiUpdateAction
 				}
 				if member.Mode == mode || !mode.updating() && member.Mode.strength() >= mode.strength() {
 					if old.id != 0 {
@@ -205,26 +205,26 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 			}
 		}
 	}
-	rows := make(map[multiTuple]multiRow, len(events)*2)
+	rows := make(map[MultiTuple]multiRow, len(events)*2)
 	contributions := make(map[multiContribution]uint8, len(events)*2)
-	getContribution := func(t *relationTicket, key multiTuple) uint8 {
+	getContribution := func(t *Ticket, key MultiTuple) uint8 {
 		c := multiContribution{t, key}
 		if bits, ok := contributions[c]; ok {
 			return bits
 		}
 		return t.multiContributions[key]
 	}
-	live := func(member multiMember, key multiTuple) bool {
+	live := func(member MultiMember, key MultiTuple) bool {
 		return member.owner != nil && !member.owner.OwnershipEnded() && member.owner.CompletionState() != ids.TxAborted && getContribution(member.owner, key)&(1<<member.Mode) != 0
 	}
-	getRow := func(key multiTuple) multiRow {
+	getRow := func(key MultiTuple) multiRow {
 		if row, ok := rows[key]; ok {
 			return row
 		}
 		return m.multiRows[key]
 	}
 	next := m.multiNext
-	var records map[uint32][]multiMember
+	var records map[uint32][]MultiMember
 	cache := owner.multiCache
 	privateCache := false
 	remember := func(id uint32) {
@@ -237,7 +237,7 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 		}
 		cache = rememberMultiXact(cache, id)
 	}
-	intern := func(members []multiMember) (uint32, error) {
+	intern := func(members []MultiMember) (uint32, error) {
 		for _, id := range cache {
 			cached := m.multiHistory[id]
 			if cached == nil {
@@ -257,7 +257,7 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 		id := next
 		next = nextMultiID(next)
 		if records == nil {
-			records = make(map[uint32][]multiMember)
+			records = make(map[uint32][]MultiMember)
 		}
 		records[id] = members
 		remember(id)
@@ -265,11 +265,11 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 	}
 	for _, event := range events {
 		key := event.Tuple
-		if !m.validMultiTuple(owner, key) || event.Mode > multiUpdateAction || event.Successor != 0 && !event.Mode.updating() {
+		if !m.validMultiTuple(owner, key) || event.Mode > MultiUpdateAction || event.Successor != 0 && !event.Mode.updating() {
 			return errors.New("stuntgres: invalid physical MultiXact event")
 		}
-		entry := m.entries[key.lockResource]
-		if entry == nil || entry.holders[owner].Mode&(keyShare|rowShare|noKeyUpdate|rowUpdate) == 0 {
+		entry := m.entries[key.Resource]
+		if entry == nil || entry.holders[owner].Mode&(ForKeyShare|ForShare|ForNoKeyUpdate|ForUpdate) == 0 {
 			return errors.New("stuntgres: physical event lacks genuine row grant")
 		}
 		old := getRow(key)
@@ -277,8 +277,8 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 			remember(old.id)
 		}
 		mode := event.Mode
-		if old.id == 0 && len(old.members) == 1 && old.members[0].owner == owner && old.members[0].XID == xid && live(old.members[0], key) && mode == multiNoKeyAction && old.members[0].Mode.strength() > mode.strength() {
-			mode = multiUpdateAction
+		if old.id == 0 && len(old.members) == 1 && old.members[0].owner == owner && old.members[0].XID == xid && live(old.members[0], key) && mode == MultiNoKeyAction && old.members[0].Mode.strength() > mode.strength() {
+			mode = MultiUpdateAction
 		}
 		if !mode.updating() {
 			sufficient := false
@@ -292,7 +292,7 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 				continue
 			}
 		}
-		pair := multiMember{xid, mode, owner}
+		pair := MultiMember{xid, mode, owner}
 		same := false
 		for _, member := range old.members {
 			if member.owner == owner && member.XID == xid && member.Mode == mode && live(member, key) {
@@ -301,7 +301,7 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 			}
 		}
 		if !same {
-			members := make([]multiMember, 0, len(old.members)+1)
+			members := make([]MultiMember, 0, len(old.members)+1)
 			for _, member := range old.members {
 				if live(member, key) || member.Mode.updating() && member.owner != nil && member.owner.CompletionState() == ids.TxCommitted {
 					members = append(members, member)
@@ -358,10 +358,10 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 		}
 	}
 	if m.multiRows == nil {
-		m.multiRows = make(map[multiTuple]multiRow)
+		m.multiRows = make(map[MultiTuple]multiRow)
 	}
 	if len(records) != 0 && m.multiHistory == nil {
-		m.multiHistory = make(map[uint32][]multiMember)
+		m.multiHistory = make(map[uint32][]MultiMember)
 	}
 	for key, row := range rows {
 		if len(row.members) == 0 {
@@ -372,7 +372,7 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 	}
 	for c, bits := range contributions {
 		if c.owner.multiContributions == nil {
-			c.owner.multiContributions = make(map[multiTuple]uint8)
+			c.owner.multiContributions = make(map[MultiTuple]uint8)
 		}
 		c.owner.multiContributions[c.tuple] = bits
 	}
@@ -388,23 +388,23 @@ func (m *relationLockManager) PhysicalEvents(owner *relationTicket, events []mul
 
 // Restore contribution provenance independently of immutable retained records.
 // Singleton current state can be restored without changing any allocated bag.
-func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket, held relationLockCheckpoint) {
+func (m *Manager) restoreMultiContributionsLocked(t *Ticket, held Checkpoint) {
 	for tuple, bits := range t.multiContributions {
-		saved := held[tuple.lockResource]
-		var granted relationLockMode
-		if entry := m.entries[tuple.lockResource]; entry != nil {
+		saved := held[tuple.Resource]
+		var granted Mode
+		if entry := m.entries[tuple.Resource]; entry != nil {
 			granted = entry.holders[t].Mode & saved.Mode
 		}
 		bits = 0
-		for mode := multiKeyShare; mode <= multiUpdateAction; mode++ {
-			required := keyShare
+		for mode := MultiKeyShare; mode <= MultiUpdateAction; mode++ {
+			required := ForKeyShare
 			switch mode {
-			case multiShare:
-				required = rowShare
-			case multiNoKeyLock, multiNoKeyAction:
-				required = noKeyUpdate
-			case multiUpdateLock, multiUpdateAction:
-				required = rowUpdate
+			case MultiShare:
+				required = ForShare
+			case MultiNoKeyLock, MultiNoKeyAction:
+				required = ForNoKeyUpdate
+			case MultiUpdateLock, MultiUpdateAction:
+				required = ForUpdate
 			}
 			if saved.Multi[tuple.Version]&(1<<mode) != 0 && granted&required != 0 {
 				bits |= 1 << mode
@@ -420,15 +420,15 @@ func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket,
 			m.retireMultiTupleLocked(tuple)
 			continue
 		}
-		members := make([]multiMember, 0, len(row.members))
+		members := make([]MultiMember, 0, len(row.members))
 		for _, member := range row.members {
 			if member.owner != t {
 				members = append(members, member)
 			}
 		}
-		for mode := multiKeyShare; mode <= multiUpdateAction; mode++ {
+		for mode := MultiKeyShare; mode <= MultiUpdateAction; mode++ {
 			if bits&(1<<mode) != 0 {
-				members = append(members, multiMember{t.AssignedPublicXID(), mode, t})
+				members = append(members, MultiMember{t.AssignedPublicXID(), mode, t})
 			}
 		}
 		canonicalMultiMembers(members)
@@ -441,13 +441,13 @@ func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket,
 	}
 }
 
-func (m *relationLockManager) retireMultiOwnerLocked(owner *relationTicket) {
+func (m *Manager) retireMultiOwnerLocked(owner *Ticket) {
 	for tuple := range owner.multiContributions {
 		m.retireMultiTupleLocked(tuple)
 	}
 }
 
-func (m *relationLockManager) retireMultiTupleLocked(tuple multiTuple) {
+func (m *Manager) retireMultiTupleLocked(tuple MultiTuple) {
 	for _, member := range m.multiRows[tuple].members {
 		ticket := member.owner
 		if ticket != nil && !ticket.OwnershipEnded() && ticket.CompletionState() != ids.TxAborted && ticket.multiContributions[tuple]&(1<<member.Mode) != 0 {

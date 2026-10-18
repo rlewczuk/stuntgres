@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -107,7 +108,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if _, duplicate := c.affectedRows[old.row]; duplicate {
 			return conflictUpdateCardinalityError()
 		}
-		lockMode, err := multiLockMode(mode)
+		lockMode, err := lock.MultiLockMode(mode)
 		if err != nil {
 			return err
 		}

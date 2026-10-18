@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -132,7 +133,7 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	completion, err := e.locks.StartAcquire(ctx, b.transactions.ticket, CompletionOf(a.transactions.ticket), transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
+	completion, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lock.CompletionOf(a.transactions.ticket), transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
 	if err != nil || completion == nil {
 		t.Fatal(completion, err)
 	}
@@ -180,7 +181,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			if mode == "statement_deadline" {
 				policy.StatementDeadline = time.Now().Add(-time.Second)
 			}
-			request, err := e.locks.StartAcquire(ctx, waiter, CompletionOf(owner), transactionCompletion, policy)
+			request, err := e.locks.StartAcquire(ctx, waiter, lock.CompletionOf(owner), transactionCompletion, policy)
 			if mode == "statement_deadline" {
 				var diagnostic *sqlstate.Error
 				if request != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "57014" {
@@ -208,12 +209,12 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					}
 					cancel()
 					// An ended exact owner is immediately complete; no new virtual authority.
-					next, err := e.locks.StartAcquire(context.Background(), waiter, CompletionOf(owner), transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
+					next, err := e.locks.StartAcquire(context.Background(), waiter, lock.CompletionOf(owner), transactionCompletion, relationLockPolicy{CompletionPurpose: completionVirtual})
 					if next != nil || err != nil {
 						t.Fatal(next, err)
 					}
 					lockState := e.locks.Inspect(waiter)
-					_, retained := lockState.Journals[waiter][CompletionOf(owner)]
+					_, retained := lockState.Journals[waiter][lock.CompletionOf(owner)]
 					terminal := request.Terminal() && request.Err() == nil
 					if retained || !terminal {
 						t.Fatal("late callback retained or retracted successful completion")

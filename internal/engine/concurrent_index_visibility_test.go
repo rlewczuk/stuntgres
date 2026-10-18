@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *Operation, context.CancelFunc) {
@@ -173,7 +174,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	}
 	sessionSQL(t, writer, "ROLLBACK")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[CompletionOf(late.transactions.ticket)]
+	entry := lockState.Resources[lock.CompletionOf(late.transactions.ticket)]
 	pending := entry != nil && len(entry.Pending) == 1
 	if !pending {
 		t.Fatal("ending XID owner released another transaction's persistent snapshot")

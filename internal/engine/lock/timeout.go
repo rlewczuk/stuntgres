@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -16,7 +16,7 @@ const (
 	relationTimeoutStatement
 )
 
-func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now time.Time) error {
+func relationTimeoutSourceCause(policy Policy, lockDeadline, now time.Time) error {
 	if policy.Source != nil {
 		if errors.Is(policy.Source.Err(), context.Canceled) {
 			return context.Canceled
@@ -32,7 +32,7 @@ func relationTimeoutSourceCause(policy relationLockPolicy, lockDeadline, now tim
 
 // Share deadline classification without constructing a discarded SQL error in
 // the lifecycle callback. Equal absolute SQL deadlines retain lock precedence.
-func relationTimeoutWinner(policy relationLockPolicy, lockDeadline, now time.Time) uint32 {
+func relationTimeoutWinner(policy Policy, lockDeadline, now time.Time) uint32 {
 	lockExpired := !lockDeadline.IsZero() && !now.Before(lockDeadline)
 	statementExpired := !policy.StatementDeadline.IsZero() && !now.Before(policy.StatementDeadline)
 	if lockExpired && (!statementExpired || !policy.StatementDeadline.Before(lockDeadline)) {
@@ -67,15 +67,15 @@ func relationTimeoutError(state uint32) error {
 	return nil
 }
 
-// relationTimeoutSlot projects one admitted statement's queued SQL-deadline
+// TimeoutSlot projects one admitted statement's queued SQL-deadline
 // request to its session timeout observer without entering manager metadata.
 // The request publishes itself on enqueue and retires on terminal outcome.
-type relationTimeoutSlot struct {
+type TimeoutSlot struct {
 	request atomic.Pointer[relationRequest] // exact queued timeout-tracked request
 	failed  atomic.Bool                     // sticky: a tracked request ended with a SQL timeout ERROR
 }
 
-func (slot *relationTimeoutSlot) Reset() {
+func (slot *TimeoutSlot) Reset() {
 	slot.request.Store(nil)
 	slot.failed.Store(false)
 }
@@ -127,7 +127,7 @@ func (r *relationRequest) finishTimeout(err error) error {
 
 // Session.mu is held. Read no manager-owned fields; the immutable deadlines
 // and atomic state are published with the exact queued request pointer.
-func (slot *relationTimeoutSlot) Pending(now time.Time) bool {
+func (slot *TimeoutSlot) Pending(now time.Time) bool {
 	if slot.failed.Load() {
 		return true
 	}

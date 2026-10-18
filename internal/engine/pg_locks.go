@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,8 @@ var pgLockModes = [...]struct {
 	{advisoryExclusive, "ExclusiveLock"},
 }
 
-func (owner pgLockOwner) virtualTransaction() string {
+// virtualTransaction renders owner as a pg_locks virtualxid.
+func virtualTransaction(owner lock.RecordOwner) string {
 	return strconv.FormatUint(uint64(owner.Session), 10) + "/" + strconv.FormatUint(uint64(owner.Local), 10)
 }
 
@@ -42,7 +44,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 		if ref.Epoch() != e.state.epoch || node.ref != ref || !serializableRelevant(node) {
 			continue
 		}
-		owner, visible, err := publicLockOwner(e.domain, ref, node.prepared)
+		owner, visible, err := lock.PublicOwner(e.domain, ref, node.prepared)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +109,7 @@ func pgLockRows(ctx context.Context, d *relationDescriptor, database uint32, ord
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			ownerText := record.Owner.virtualTransaction()
+			ownerText := virtualTransaction(record.Owner)
 			switch record.Kind {
 			case pgVirtualLock, pgTransactionLock:
 				mode := "ExclusiveLock"
@@ -178,7 +180,7 @@ func pgLockRow(d *relationDescriptor, database uint32, record pgLockRecord, mode
 		kind = "virtualxid"
 		targetText := ownerText
 		if record.Target != record.Owner {
-			targetText = record.Target.virtualTransaction()
+			targetText = virtualTransaction(record.Target)
 		}
 		text(5, targetText)
 	case pgTransactionLock:

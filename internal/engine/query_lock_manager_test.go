@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestQueryLockConditionalRowManager(t *testing.T) {
@@ -27,7 +29,7 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 				}
 				before := len(e.locks.Inspect(b.transactions.ticket).Journals[b.transactions.ticket])
 				request, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, resource, requested, relationLockPolicy{NoWait: true, Timeout: time.Hour})
-				conflict := Conflicts(requested, held)
+				conflict := lock.Conflicts(requested, held)
 				if request != nil || conflict && !errors.Is(err, errRelationUnavailable) || !conflict && err != nil {
 					t.Fatal(request, err, conflict)
 				}

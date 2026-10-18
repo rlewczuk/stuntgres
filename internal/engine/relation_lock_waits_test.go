@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"stuntgres/internal/sqlstate"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func waitsDiagnostic(t *testing.T, err error, code, message string, position ...string) {
@@ -116,7 +118,7 @@ func TestRelationLockWaitsTimeoutPrecedence(t *testing.T) {
 		{now.Add(-time.Second), now.Add(-2 * time.Second), "57014"},
 		{now, now, "55P03"},
 	} {
-		err := WaitError(context.Background(), relationLockPolicy{StatementDeadline: tc.statement}, tc.lock, now)
+		err := lock.WaitError(context.Background(), relationLockPolicy{StatementDeadline: tc.statement}, tc.lock, now)
 		message := "canceling statement due to lock timeout"
 		if tc.code == "57014" {
 			message = "canceling statement due to statement timeout"

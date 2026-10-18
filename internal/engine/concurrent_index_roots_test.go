@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *relationTicket, bu
 	for {
 		lockState := e.locks.Inspect()
 		var found *relationRequest
-		if entry := lockState.Resources[CompletionOf(owner)]; entry != nil {
+		if entry := lockState.Resources[lock.CompletionOf(owner)]; entry != nil {
 			for _, request := range entry.Pending {
 				if !request.Terminal && request.Ticket.Ref().Session() == builder.token && request.Mode == transactionCompletion {
 					found = request.Request

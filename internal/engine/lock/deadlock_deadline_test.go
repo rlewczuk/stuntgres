@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -14,9 +14,9 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			at, bt := f.tx(), f.tx()
 			x := f.relation()
 			y := f.relation()
-			f.request(at, x, accessExclusive)
-			f.request(bt, y, accessExclusive)
-			r, err := f.m.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{Timeout: time.Hour})
+			f.request(at, x, AccessExclusive)
+			f.request(bt, y, AccessExclusive)
+			r, err := f.m.StartAcquire(context.Background(), at, y, AccessExclusive, Policy{Timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
@@ -31,12 +31,12 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 				r.deadline = expired
 			}
 			f.m.mu.Unlock()
-			follower := f.request(bt, x, accessExclusive)
+			follower := f.request(bt, x, AccessExclusive)
 			code, message := "55P03", "canceling statement due to lock timeout"
 			if statement {
 				code, message = "57014", "canceling statement due to statement timeout"
 			}
-			waitsDiagnostic(t, f.result(r), code, message)
+			f.diagnostic(f.result(r), code, message)
 			terminal := follower.Terminal()
 			if terminal {
 				t.Fatal("expired predecessor produced false cycle")
@@ -56,14 +56,14 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	at, bt := f.tx(), f.tx()
 	x := f.relation()
 	y := f.relation()
-	f.request(at, x, accessExclusive)
-	f.request(bt, y, accessExclusive)
-	if r, err := f.m.StartAcquire(context.Background(), at, y, accessExclusive, relationLockPolicy{NoWait: true}); r != nil || !errors.Is(err, errRelationUnavailable) {
+	f.request(at, x, AccessExclusive)
+	f.request(bt, y, AccessExclusive)
+	if r, err := f.m.StartAcquire(context.Background(), at, y, AccessExclusive, Policy{NoWait: true}); r != nil || !errors.Is(err, ErrUnavailable) {
 		t.Fatal("NOWAIT must not enqueue", r, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	r, err := f.m.StartAcquire(ctx, bt, x, accessExclusive, relationLockPolicy{})
+	r, err := f.m.StartAcquire(ctx, bt, x, AccessExclusive, Policy{})
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}
@@ -83,12 +83,12 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	if next == at || next.Ref() == at.Ref() {
 		t.Fatal("transaction incarnation reused")
 	}
-	f.request(next, x, accessExclusive)
-	f.request(next, y, accessExclusive)
+	f.request(next, x, AccessExclusive)
+	f.request(next, y, AccessExclusive)
 	f.m.End(at)
 	f.m.End(bt)
 	lockState := f.m.Inspect()
-	held := lockState.Resources[x].Holders[next].Mode&accessExclusive != 0 && lockState.Resources[y].Holders[next].Mode&accessExclusive != 0
+	held := lockState.Resources[x].Holders[next].Mode&AccessExclusive != 0 && lockState.Resources[y].Holders[next].Mode&AccessExclusive != 0
 	if !held {
 		t.Fatal("old end affected fresh incarnation")
 	}

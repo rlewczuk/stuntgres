@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"maps"
@@ -13,85 +13,85 @@ import (
 // with the manager is immutable identity: ticket and request pointers and
 // interned unique-key values.
 
-// lockSnapshot is an owned, point-in-time copy of manager state.
-type lockSnapshot struct {
+// Snapshot is an owned, point-in-time copy of manager state.
+type Snapshot struct {
 	Epoch     ids.CatalogEpoch
-	Owners    map[ids.TxRef]*relationTicket        // registered transaction tickets
-	Sessions  map[ids.SessionToken]*relationTicket // registered session tickets
-	Resources map[lockResource]*lockResourceState
+	Owners    map[ids.TxRef]*Ticket        // registered transaction tickets
+	Sessions  map[ids.SessionToken]*Ticket // registered session tickets
+	Resources map[Resource]*ResourceState
 	// Journals holds each ticket's resource journal: the resources it holds or
 	// waits on. It covers every registered, holding or waiting ticket and the
 	// tickets passed to Inspect; a journal never allocated is nil.
-	Journals   map[*relationTicket]map[lockResource]struct{}
-	Detached   map[*relationTicket]bool // prepared tickets among Journals' keys
-	KeyBuckets int                      // live unique-key buckets
+	Journals   map[*Ticket]map[Resource]struct{}
+	Detached   map[*Ticket]bool // prepared tickets among Journals' keys
+	KeyBuckets int              // live unique-key buckets
 
-	MultiNext    uint32                      // next MultiXact ID to allocate
-	MultiHistory int                         // retained MultiXact member sets
-	MultiRows    map[multiTuple]lockMultiRow // current physical row status
+	MultiNext    uint32                  // next MultiXact ID to allocate
+	MultiHistory int                     // retained MultiXact member sets
+	MultiRows    map[MultiTuple]MultiRow // current physical row status
 	// Contributions holds each Journals ticket's physical status bits by tuple.
-	Contributions map[*relationTicket]map[multiTuple]uint8
+	Contributions map[*Ticket]map[MultiTuple]uint8
 	// UniqueDeltas holds the unique-key claims each Journals ticket's active
 	// conflict-update candidate newly acquired.
-	UniqueDeltas map[*relationTicket][]lockResource
+	UniqueDeltas map[*Ticket][]Resource
 }
 
-// lockMultiRow is a copy of one physical row version's status.
-type lockMultiRow struct {
+// MultiRow is a copy of one physical row version's status.
+type MultiRow struct {
 	ID      uint32 // MultiXact ID; zero for a single member
-	Members []multiMember
+	Members []MultiMember
 }
 
-// lockResourceState is one resource's grants and queue.
-type lockResourceState struct {
-	Holders map[*relationTicket]relationHold
-	Pending []lockWaiter // queue order; may include terminal requests not yet settled
-	Pins    int          // unique-key pins reserving the resource
+// ResourceState is one resource's grants and queue.
+type ResourceState struct {
+	Holders map[*Ticket]Hold
+	Pending []Waiter // queue order; may include terminal requests not yet settled
+	Pins    int      // unique-key pins reserving the resource
 }
 
-// lockWaiter is a copy of one queued request.
-type lockWaiter struct {
+// Waiter is a copy of one queued request.
+type Waiter struct {
 	Request    *relationRequest
-	Ticket     *relationTicket
+	Ticket     *Ticket
 	Provenance ids.TxRef // the transaction a session-ticket request belongs to
-	Resource   lockResource
-	Mode       relationLockMode
+	Resource   Resource
+	Mode       Mode
 	Terminal   bool
-	Policy     relationLockPolicy
+	Policy     Policy
 	Deadline   time.Time // lock-timeout deadline; zero when untimed
 	EnqueuedAt time.Time
 }
 
 // Inspect copies the manager state in one critical section. Pass tickets that
 // may no longer be registered to include their journals.
-func (m *relationLockManager) Inspect(tickets ...*relationTicket) lockSnapshot {
+func (m *Manager) Inspect(tickets ...*Ticket) Snapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	s := lockSnapshot{
+	s := Snapshot{
 		Epoch:      m.epoch,
 		Owners:     maps.Clone(m.owners),
 		Sessions:   maps.Clone(m.sessions),
-		Resources:  make(map[lockResource]*lockResourceState, len(m.entries)),
-		Journals:   make(map[*relationTicket]map[lockResource]struct{}),
-		Detached:   make(map[*relationTicket]bool),
+		Resources:  make(map[Resource]*ResourceState, len(m.entries)),
+		Journals:   make(map[*Ticket]map[Resource]struct{}),
+		Detached:   make(map[*Ticket]bool),
 		KeyBuckets: len(m.keyBuckets),
 
 		MultiNext:     m.multiNext,
 		MultiHistory:  len(m.multiHistory),
-		MultiRows:     make(map[multiTuple]lockMultiRow, len(m.multiRows)),
-		Contributions: make(map[*relationTicket]map[multiTuple]uint8),
-		UniqueDeltas:  make(map[*relationTicket][]lockResource),
+		MultiRows:     make(map[MultiTuple]MultiRow, len(m.multiRows)),
+		Contributions: make(map[*Ticket]map[MultiTuple]uint8),
+		UniqueDeltas:  make(map[*Ticket][]Resource),
 	}
 	for tuple, row := range m.multiRows {
-		s.MultiRows[tuple] = lockMultiRow{ID: row.id, Members: slices.Clone(row.members)}
+		s.MultiRows[tuple] = MultiRow{ID: row.id, Members: slices.Clone(row.members)}
 	}
 	if s.Owners == nil {
-		s.Owners = make(map[ids.TxRef]*relationTicket)
+		s.Owners = make(map[ids.TxRef]*Ticket)
 	}
 	if s.Sessions == nil {
-		s.Sessions = make(map[ids.SessionToken]*relationTicket)
+		s.Sessions = make(map[ids.SessionToken]*Ticket)
 	}
-	journal := func(t *relationTicket) {
+	journal := func(t *Ticket) {
 		if _, ok := s.Journals[t]; t == nil || ok {
 			return
 		}
@@ -116,13 +116,13 @@ func (m *relationLockManager) Inspect(tickets ...*relationTicket) lockSnapshot {
 		journal(t)
 	}
 	for resource, entry := range m.entries {
-		state := &lockResourceState{Holders: maps.Clone(entry.holders), Pins: entry.pins}
+		state := &ResourceState{Holders: maps.Clone(entry.holders), Pins: entry.pins}
 		for t := range entry.holders {
 			journal(t)
 		}
 		for _, r := range entry.pending {
 			journal(r.ticket)
-			state.Pending = append(state.Pending, lockWaiter{
+			state.Pending = append(state.Pending, Waiter{
 				Request: r, Ticket: r.ticket, Provenance: r.provenance, Resource: r.ref, Mode: r.mode,
 				Terminal: r.terminal, Policy: r.policy, Deadline: r.deadline, EnqueuedAt: r.enqueuedAt,
 			})
@@ -134,7 +134,7 @@ func (m *relationLockManager) Inspect(tickets ...*relationTicket) lockSnapshot {
 
 // MutexHeld reports whether some goroutine holds the manager mutex at this
 // instant. Tests use it to assert that callbacks run outside the mutex.
-func (m *relationLockManager) MutexHeld() bool {
+func (m *Manager) MutexHeld() bool {
 	if m.mu.TryLock() {
 		m.mu.Unlock()
 		return false
@@ -143,7 +143,7 @@ func (m *relationLockManager) MutexHeld() bool {
 }
 
 // Valid reports whether t was a registered live ticket.
-func (s lockSnapshot) Valid(t *relationTicket) bool {
+func (s Snapshot) Valid(t *Ticket) bool {
 	if t == nil {
 		return false
 	}
@@ -155,18 +155,18 @@ func (s lockSnapshot) Valid(t *relationTicket) bool {
 
 // Participant is t's deadlock and blocking participant: its session, or its
 // own transaction once prepared.
-func (s lockSnapshot) Participant(t *relationTicket) lockParticipant {
+func (s Snapshot) Participant(t *Ticket) Participant {
 	if s.Detached[t] {
-		return lockParticipant{Prepared: t.ref}
+		return Participant{Prepared: t.ref}
 	}
-	return lockParticipant{Session: t.session}
+	return Participant{Session: t.session}
 }
 
 // ExpireWait gives a queued request the outcome its deadlines produce at the
 // instant at, then settles its queue, exactly as its timer would. It returns
 // that outcome, or nil when the request is already terminal or nothing is due
 // at at. Tests use it to expire a wait without timing.
-func (m *relationLockManager) ExpireWait(r *relationRequest, at time.Time) error {
+func (m *Manager) ExpireWait(r *relationRequest, at time.Time) error {
 	var notify *relationRequest
 	m.mu.Lock()
 	var err error
@@ -186,7 +186,7 @@ func (m *relationLockManager) ExpireWait(r *relationRequest, at time.Time) error
 // though its lock timeout had fired first, whether or not the request has a
 // lock deadline. It uses the same terminal path as ExpireWait and does
 // nothing once the request is terminal.
-func (m *relationLockManager) ExpireLockTimeout(r *relationRequest) {
+func (m *Manager) ExpireLockTimeout(r *relationRequest) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if !r.terminal && r.ticket.manager == m {
@@ -207,10 +207,10 @@ func (r *relationRequest) Terminal() bool {
 }
 
 // Ticket is the ticket the request acquires for.
-func (r *relationRequest) Ticket() *relationTicket { return r.ticket }
+func (r *relationRequest) Ticket() *Ticket { return r.ticket }
 
 // Resource is the resource the request waits for.
-func (r *relationRequest) Resource() lockResource { return r.ref }
+func (r *relationRequest) Resource() Resource { return r.ref }
 
 // Deadline is the request's lock-timeout deadline; zero when untimed.
 func (r *relationRequest) Deadline() time.Time { return r.deadline }
@@ -226,19 +226,19 @@ func (r *relationRequest) Released() bool {
 }
 
 // CompletionOf is the resource a waiter acquires to wait for t to finish.
-func CompletionOf(t *relationTicket) lockResource { return lockResource{completion: t} }
+func CompletionOf(t *Ticket) Resource { return Resource{completion: t} }
 
 // Completion is the ticket whose completion a completion resource waits for.
-func (r lockResource) Completion() *relationTicket { return r.completion }
+func (r Resource) Completion() *Ticket { return r.completion }
 
 // Key is the interned unique key of a key resource; nil otherwise.
-func (r lockResource) Key() *uniqueLockKey { return r.key }
+func (r Resource) Key() *UniqueKey { return r.key }
 
 // Value is the key's owned value, interpreted only by its comparer.
-func (k *uniqueLockKey) Value() any { return k.value }
+func (k *UniqueKey) Value() any { return k.value }
 
 // Request is the queued timeout-tracked request; nil when none is queued.
-func (slot *relationTimeoutSlot) Request() *relationRequest { return slot.request.Load() }
+func (slot *TimeoutSlot) Request() *relationRequest { return slot.request.Load() }
 
 // Failed reports that a tracked request ended with a SQL timeout ERROR.
-func (slot *relationTimeoutSlot) Failed() bool { return slot.failed.Load() }
+func (slot *TimeoutSlot) Failed() bool { return slot.failed.Load() }

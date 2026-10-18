@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"time"
@@ -126,8 +127,8 @@ type Operation struct {
 	sqlActivity                bool
 	sqlFinished                bool // Session.mu: ERROR/completion fence, not transaction state
 	timeoutScope               *StatementScope
-	definition                 definitionReader    // Scoped once-only DDL cooking, restored before evaluation.
-	lockWait                   relationTimeoutSlot // queued lock request's SQL-deadline projection
+	definition                 definitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	lockWait                   lock.TimeoutSlot // queued lock request's SQL-deadline projection
 	nonstandardStrings         bool
 	restoreTableDestination    bool
 	restoreInsertAuthority     bool

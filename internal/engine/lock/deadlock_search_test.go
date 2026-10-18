@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -96,31 +96,31 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 	}
 	model[0].waits[0], model[0].waits[1] = model[0].waits[1], model[0].waits[0]
 	f := newLockFixture(t)
-	tickets := make([]*relationTicket, 4)
+	tickets := make([]*Ticket, 4)
 	for i := range tickets {
 		tickets[i] = f.tx()
 	}
-	resources := []lockResource{f.relation(), f.relation(), f.relation()}
-	f.request(tickets[0], resources[0], accessShare)
-	f.request(tickets[2], resources[1], accessShare)
-	f.request(tickets[0], resources[2], accessExclusive)
+	resources := []Resource{f.relation(), f.relation(), f.relation()}
+	f.request(tickets[0], resources[0], AccessShare)
+	f.request(tickets[2], resources[1], AccessShare)
+	f.request(tickets[0], resources[2], AccessExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	var requests []*relationRequest
 	f.m.mu.Lock()
-	enqueue := func(owner, resource int, mode relationLockMode) {
+	enqueue := func(owner, resource int, mode Mode) {
 		entry := f.m.entries[resources[resource]]
 		r := &relationRequest{ticket: tickets[owner], provenance: tickets[owner].Ref(), ctx: ctx, mode: mode, done: make(chan struct{}), ref: resources[resource], entry: entry}
 		entry.pending = append(entry.pending, r)
 		tickets[owner].resources[resources[resource]] = struct{}{}
 		requests = append(requests, r)
 	}
-	enqueue(1, 0, accessExclusive)
-	enqueue(3, 1, accessExclusive)
-	enqueue(0, 1, accessShare)
-	enqueue(2, 2, accessExclusive)
+	enqueue(1, 0, AccessExclusive)
+	enqueue(3, 1, AccessExclusive)
+	enqueue(0, 1, AccessShare)
+	enqueue(2, 2, AccessExclusive)
 	f.m.mu.Unlock()
-	requests = append(requests, f.request(tickets[2], resources[0], accessShare))
+	requests = append(requests, f.request(tickets[2], resources[0], AccessShare))
 	actual := make([]deadlockModelQueue, 3)
 	f.m.mu.Lock()
 	for i, resource := range resources {
@@ -128,14 +128,14 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		for ticket, mode := range entry.holders {
 			for owner, candidate := range tickets {
 				if ticket == candidate {
-					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.Mode&accessExclusive != 0})
+					actual[i].holders = append(actual[i].holders, deadlockModelWait{owner, mode.Mode&AccessExclusive != 0})
 				}
 			}
 		}
 		for _, r := range entry.pending {
 			for owner, candidate := range tickets {
 				if r.ticket == candidate {
-					actual[i].waits = append(actual[i].waits, deadlockModelWait{owner, r.mode&accessExclusive != 0})
+					actual[i].waits = append(actual[i].waits, deadlockModelWait{owner, r.mode&AccessExclusive != 0})
 				}
 			}
 		}

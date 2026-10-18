@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"fmt"
@@ -7,10 +7,10 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// blockingPid projects a blocking participant to its public PID: zero for a
+// BlockingPid projects a blocking participant to its public PID: zero for a
 // prepared transaction. Foreign, private and unnumbered sessions are not
 // visible.
-func blockingPid(token ids.SessionToken, prepared bool, domain *ids.Domain) (int32, bool, error) {
+func BlockingPid(token ids.SessionToken, prepared bool, domain *ids.Domain) (int32, bool, error) {
 	if prepared {
 		return 0, true, nil
 	}
@@ -23,7 +23,7 @@ func blockingPid(token ids.SessionToken, prepared bool, domain *ids.Domain) (int
 	return int32(token.ID()), true, nil
 }
 
-func (m *relationLockManager) validInquiryRequest(r *relationRequest, entry *relationEntry, resource lockResource) bool {
+func (m *Manager) validInquiryRequest(r *relationRequest, entry *relationEntry, resource Resource) bool {
 	if r == nil || r.terminal || r.entry != entry || r.ref != resource || !m.validRequest(r) {
 		return false
 	}
@@ -37,7 +37,7 @@ func (m *relationLockManager) validInquiryRequest(r *relationRequest, entry *rel
 	return true
 }
 
-func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relationRequest {
+func (m *Manager) pendingInquiryRequest(t *Ticket) *relationRequest {
 	if !m.valid(t) || t.detached {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relation
 // Only manager metadata is held. Inspect the authoritative journal and resource
 // queue without granting, settling, copying the graph, or invoking callbacks.
 // Pids are public session IDs, or zero for a prepared transaction.
-func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
+func (m *Manager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	token := m.domain.Session(pid)
@@ -80,8 +80,8 @@ func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 	// Deduplicate by participant, never by projected PID: prepared owners with
 	// different TxRefs must retain separate zero entries. Scanning the small
 	// resource-local prefixes avoids allocating a second identity registry.
-	appendParticipant := func(t *relationTicket) error {
-		pid, visible, err := blockingPid(t.session, t.detached, m.domain)
+	appendParticipant := func(t *Ticket) error {
+		pid, visible, err := BlockingPid(t.session, t.detached, m.domain)
 		if visible {
 			values = append(values, pid)
 		}
@@ -109,7 +109,7 @@ func (m *relationLockManager) BlockingPids(pid ids.SessionID) ([]int32, error) {
 			}
 		}
 	}
-	if r.ref.completion != nil || r.ref.Row != 0 && r.mode == noKeyUpdate {
+	if r.ref.completion != nil || r.ref.Row != 0 && r.mode == ForNoKeyUpdate {
 		return values, nil
 	}
 	for i, earlier := range r.entry.pending {

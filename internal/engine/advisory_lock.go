@@ -5,13 +5,14 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
-// queues and terminal decisions belong exclusively to relationLockManager.
+// queues and terminal decisions belong exclusively to lock.Manager.
 type sessionAdvisory struct {
 	ticket *relationTicket
-	locks  *relationLockManager
+	locks  *lock.Manager
 }
 
 func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error {

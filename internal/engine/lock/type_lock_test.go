@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"context"
@@ -14,27 +14,27 @@ func TestTypeLockLifecycle(t *testing.T) {
 	ref := resource.ObjectRef
 	at, bt := f.tx(), f.tx()
 	for _, bad := range []struct {
-		r lockResource
-		m relationLockMode
+		r Resource
+		m Mode
 	}{
-		{resource, accessExclusive},
-		{lockResource{ObjectRef: ref, Row: 1}, typeExclusive},
-		{lockResource{ObjectRef: ref, key: &uniqueLockKey{}}, typeExclusive},
-		{lockResource{ObjectRef: ref, High: 1}, typeExclusive},
+		{resource, AccessExclusive},
+		{Resource{ObjectRef: ref, Row: 1}, TypeExclusive},
+		{Resource{ObjectRef: ref, key: &UniqueKey{}}, TypeExclusive},
+		{Resource{ObjectRef: ref, High: 1}, TypeExclusive},
 	} {
-		if _, err := f.m.StartAcquire(context.Background(), at, bad.r, bad.m, relationLockPolicy{}); err == nil {
+		if _, err := f.m.StartAcquire(context.Background(), at, bad.r, bad.m, Policy{}); err == nil {
 			t.Fatal("invalid type lock admitted", bad)
 		}
 	}
 	mark := f.m.Checkpoint(at)
-	if err := f.m.Acquire(context.Background(), at, resource, typeExclusive); err != nil {
+	if err := f.m.Acquire(context.Background(), at, resource, TypeExclusive); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.m.Acquire(context.Background(), at, resource, typeExclusive); err != nil {
+	if err := f.m.Acquire(context.Background(), at, resource, TypeExclusive); err != nil {
 		t.Fatal("same ticket reentry", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := f.m.StartAcquire(ctx, bt, resource, typeExclusive, relationLockPolicy{})
+	request, err := f.m.StartAcquire(ctx, bt, resource, TypeExclusive, Policy{})
 	if err != nil || request == nil {
 		t.Fatal("same-type request did not wait", err)
 	}
@@ -42,7 +42,7 @@ func TestTypeLockLifecycle(t *testing.T) {
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	request, err = f.m.StartAcquire(context.Background(), bt, resource, typeExclusive, relationLockPolicy{})
+	request, err = f.m.StartAcquire(context.Background(), bt, resource, TypeExclusive, Policy{})
 	if err != nil || request == nil {
 		t.Fatal("cancel released holder", err)
 	}
@@ -51,7 +51,7 @@ func TestTypeLockLifecycle(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	if !Conflicts(typeExclusive, typeExclusive) || Conflicts(typeExclusive, accessShare) || deadlockMode(typeExclusive) != "ExclusiveLock" {
+	if !Conflicts(TypeExclusive, TypeExclusive) || Conflicts(TypeExclusive, AccessShare) || deadlockMode(TypeExclusive) != "ExclusiveLock" {
 		t.Fatal("type lock family semantics")
 	}
 }

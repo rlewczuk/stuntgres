@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ func pgLocksUnitCapture(t *testing.T, e *Engine) []pgLockRecord {
 	return records
 }
 
-func pgLocksUnitOwnerRecords(records []pgLockRecord, ticket *relationTicket, kind pgLockKind) []pgLockRecord {
+func pgLocksUnitOwnerRecords(records []pgLockRecord, ticket *relationTicket, kind lock.RecordKind) []pgLockRecord {
 	var result []pgLockRecord
 	for _, r := range records {
 		if r.Owner.Session == ticket.Ref().Session().ID() && r.Owner.Local == ticket.Ref().ID() && r.Kind == kind {
@@ -71,9 +72,9 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	if array.ID() != 12074 || array.Element() != rowType {
 		t.Fatal("reciprocal type identity")
 	}
-	owner := pgLockOwner{Session: 7, Local: 9}
+	owner := lock.RecordOwner{Session: 7, Local: 9}
 	cases := []struct {
-		kind pgLockKind
+		kind lock.RecordKind
 		mode relationLockMode
 		name string
 	}{
@@ -160,7 +161,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		xid = pgLocksUnitAssign(t, e, ticket)
 		e.locks.DetachPrepared(ticket)
 		_, waiter := blockingUnitOwner(t, e)
-		request, _ := pgLocksUnitRequest(t, e, waiter, CompletionOf(ticket), transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), transactionCompletion, completionVirtual)
 		e.mu.Lock()
 		e.recordCommitTimestampLocked(ticket.Ref())
 		e.mu.Unlock()
@@ -266,14 +267,14 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
 		ref := e.domain.Tx(e.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
-		if _, _, err := publicLockOwner(e.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		if _, _, err := lock.PublicOwner(e.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := publicLockOwner(e.domain, ref, true); err != nil || !ok || !owner.Prepared {
+		if owner, ok, err := lock.PublicOwner(e.domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
 		ref = withTxSession(ref, e.domain.PrivateSession(&Session{}))
-		if _, ok, err := publicLockOwner(e.domain, ref, false); err != nil || ok {
+		if _, ok, err := lock.PublicOwner(e.domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})

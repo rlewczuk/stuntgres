@@ -1,8 +1,9 @@
-package engine
+package lock
 
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/ids"
 	"testing"
 )
 
@@ -12,12 +13,12 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 		at, bt := f.tx(), f.tx()
 		aid, bid := at.Session().ID(), bt.Session().ID()
 		resource := f.relation()
-		if err := f.m.Acquire(context.Background(), at, resource, accessExclusive); err != nil {
+		if err := f.m.Acquire(context.Background(), at, resource, AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		r, err := f.m.StartAcquire(ctx, bt, resource, accessExclusive, relationLockPolicy{})
+		r, err := f.m.StartAcquire(ctx, bt, resource, AccessExclusive, Policy{})
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
@@ -41,7 +42,7 @@ func TestBlockingPidsLifecycle(t *testing.T) {
 			cancel()
 		}
 		err = f.result(r)
-		if fence && !errors.Is(err, ErrCatalogReplaced) || !fence && !errors.Is(err, context.Canceled) {
+		if fence && !errors.Is(err, ids.ErrCatalogReplaced) || !fence && !errors.Is(err, context.Canceled) {
 			t.Fatal("wrong wait terminal", err)
 		}
 		f.blocking(bid)

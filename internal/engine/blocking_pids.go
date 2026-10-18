@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -159,7 +160,7 @@ func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 }
 
 func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token ids.SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
-	pid, visible, err := blockingPid(token, prepared, domain)
+	pid, visible, err := lock.BlockingPid(token, prepared, domain)
 	if err != nil {
 		return nil, err
 	}
