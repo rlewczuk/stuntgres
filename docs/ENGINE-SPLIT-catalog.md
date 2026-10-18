@@ -36,6 +36,9 @@ provider registry, validation of core kinds, and a pure copy-on-write overlay
 - `Engine` methods that only touch this state become `catalogStore` methods.
 - `catalogStore` has no mutex. Its mutating methods carry the `Locked` suffix
   or document that the caller holds `Engine.mu`.
+- Correction found in 5a: the domain is engine-wide. It also mints session
+  tokens and transaction references and seeds the lock manager. The store owns
+  it as the engine's single provenance domain.
 
 ### 5b — Typed read API and cut 1
 
@@ -157,7 +160,9 @@ startup regression. 5f completes the step; 5g is optional.
 
 ## Status
 
-- [ ] 5a — `catalogStore` state ownership
+- [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`, then
+  the commit that records this status) *(full racecheck skipped at user
+  request; targeted RACE=1 runs passed)*
 - [ ] 5b — Typed read API, map reads migrated, writes confined, cut 1
 - [ ] 5c — View, rule, policy, extension-provider and expression payload seams
 - [ ] 5d — Descriptor names decided, fields exported
@@ -170,4 +175,66 @@ Exported names chosen: none yet.
 
 Outstanding aliases: none yet.
 
-Notes for later steps: none yet.
+5a results:
+
+- **Store.** `catalogStore` (`internal/engine/catalog_store.go`) holds
+  `domain`, `state`, `providers`, `nextOID`, `nextRevision` and
+  `nextEnumMember`. `Engine` holds it by value as `catalog` and never
+  replaces it whole. All 4,160 selector uses (about 730 in production code)
+  were rewritten to `e.catalog.<field>` by a type-checked tool, including
+  uses reached through `CatalogRead.owner` and `CatalogStage.owner`.
+- **Domain.** The store owns `ids.Domain`, as the user decided. The domain is
+  the engine's single provenance domain: it also mints session tokens
+  (`Session`, `PrivateSession`) and transaction references (`Tx`), and
+  `lock.New` receives it. Those 41 production sites read `e.catalog.domain`.
+- **Methods moved.** `allocateOIDLocked`, `revisionLocked` and
+  `allocateEnumMemberLocked`. The provider registry gained
+  `registerProviderLocked` and `provider`. `RegisterCatalogProvider` keeps
+  its nil and zero-class checks, takes `Engine.mu` and delegates.
+- **Methods kept on `Engine`.** `validateObjectRefLocked`,
+  `validateCatalogViewLocked` and `CatalogRead()` compare against or build
+  `CatalogRead.owner *Engine` (cut 1, 5b). `privateCatalogLocked`,
+  `catalogChangeLocked` and `stageCatalogBaseLocked` belong to the
+  transaction catalog journal, which stays with the transaction owner (§2.3).
+  About 30 feature methods (`bindGeneration`, `freezeQueryPresentationLocked`,
+  `reownCatalogExpressions`, ...) touch only the domain or state, but they
+  mint references or read state as feature code. Seeding helpers
+  (`registerCatalogSource`, `initialize*`) wait for 5b's write confinement.
+  Publication code still reads and assigns `e.catalog.nextRevision` directly,
+  because the frontier is committed with `state` under `Engine.mu`.
+- **Fields left out of the store.** `extensions` is the extension feature's
+  registry of provider implementations. It closes at construction, and the
+  catalog reads it only through the `CatalogRead.owner` service locator
+  (`extension_catalog.go`, cut 1). `databaseName` and `databaseNameError`
+  are construction configuration for session admission and for the
+  `NewWithSettings` calls in `Reset` and `principal_remap.go`; the catalog's
+  copy is `databaseDescriptor.name`. `foreignNamespaces` is FDW registration
+  metadata that belongs with `foreignWrappers` and `foreignValidators`.
+- **Tests.** Adapted mechanically by the same rewrite (two composite
+  literals by hand: `newEngine` and `operator_index_test.go`). None moved or
+  deleted. `TestCatalogAllocatorAndProviderBoundaries` and
+  `TestCatalogProviderRegistersBeforeInitialization` cover the moved methods.
+- **Verification.** `quickcheck` passed after each commit. Targeted
+  `make check` runs (catalog, operator index, revision frontier and
+  exhaustion, enum, Dump/Restore) passed, and so did a `RACE=1` run of the
+  catalog, publication, capture and Restore selections. The full
+  `racecheck` was skipped at the user's request. `make bench`: about 1.52 ms/op
+  and 7,769 allocations, the same as `master` at `081ea0328` (the <1 ms target
+  is already missed there). `make deps` lists only module paths. Imports are
+  unchanged.
+
+Notes for later steps:
+
+- 5a was a broad rewrite in practice (670 files). Do not run it, or a
+  similar store grouping such as 6a, alongside another broad rewrite.
+- 5b: `validateObjectRefLocked` and `validateCatalogViewLocked` compare
+  `view.owner != e`. With cut 1 they can become store methods that compare
+  domains. Domain pointers are unique per engine, because `ids.Domain` has
+  nonzero size.
+- The revision-frontier loop ("advance past `descriptorRevisionFrontier`,
+  saturating at the maximum") is duplicated in `transaction_publication.go`,
+  `sequence_temp.go` and `catalog.go` (once in `publishCatalog`, twice in
+  `replaceCatalog`). One store helper could own it.
+- `foreignNamespaces` is replaced in the same Restore publication as
+  `state` (`catalog.go`). Whoever moves the FDW state must keep that
+  publication point.
