@@ -75,7 +75,7 @@ func TestReferenceDatetimeFormattingReviewCollationDemand(t *testing.T) {
 			// Explicit release difference: PostgreSQL 18.6 looks up the
 			// indeterminate collation before checking it while matching a TM
 			// field case-insensitively, and fails internally. 18.0 and native
-			// report the intended 42P22.
+			// report the intended 42P22. See docs/POSTGRES_REGRESSION.md.
 			upper = datetimeFormattingDiagnostic("XX000", "cache lookup failed for collation 0", "", "")
 		}
 		badDay := datetimeFormattingDiagnostic("22007", `invalid value "ba" for "DD"`, "Value must be an integer.", "")
