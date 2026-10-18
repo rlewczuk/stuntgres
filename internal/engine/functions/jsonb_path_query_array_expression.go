@@ -1,7 +1,11 @@
 package functions
 
-import "stuntgres/internal/engine/expr"
-import "stuntgres/internal/sqltype"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
 
 // JSONBPathQueryArray keeps executable formals separate from written presentation.
 // Defaults are real child expressions; all supplied children evaluate normally.
@@ -75,3 +79,17 @@ func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr
 func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONBPathQueryArray) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONBPathQueryArray{}
+
+// Render implements expr.Renderable.
+func (e JSONBPathQueryArray) Render() (expr.Rendering, error) {
+	if e.WrittenCount < 2 || e.WrittenCount > 4 {
+		return expr.Rendering{}, fmt.Errorf("invalid stored JSONPath array query")
+	}
+	args, err := writtenArgs(e.Args[:], e.WrittenSlots[:e.WrittenCount], e.Labels[:], 4, true, "invalid stored JSONPath array query argument")
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return writtenCall("JSONPath array query", e.Args[:], "jsonb_path_query_array", args, e.Variadic), nil
+}

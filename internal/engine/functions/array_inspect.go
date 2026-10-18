@@ -175,3 +175,12 @@ func (e ArrayInspect) Eval(c expr.Context) (sqltype.Value, error) {
 func (e ArrayInspect) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e ArrayInspect) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = ArrayInspect{}
+
+// Render implements expr.Renderable.
+func (e ArrayInspect) Render() (expr.Rendering, error) {
+	spec := callRendering("ArrayInspect "+e.Kind.Name()+" namespace "+e.Namespace, e.Args, e.Kind.Name(), e.Args)
+	spec.SimpleCast = true
+	return spec, nil
+}

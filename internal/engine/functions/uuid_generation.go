@@ -218,3 +218,10 @@ func (e UUIDGeneration) Retag(info expr.Info, children []expr.Expr, changed bool
 	node, err := e.Reconstruct(info, children, timestamp)
 	return retagged(node, changed, err)
 }
+
+var _ expr.Renderable = UUIDGeneration{}
+
+// Render implements expr.Renderable.
+func (e UUIDGeneration) Render() (expr.Rendering, error) {
+	return callRendering("UUIDGeneration "+e.Name, e.Args, e.Name, e.Args), nil
+}

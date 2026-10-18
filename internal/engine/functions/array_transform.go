@@ -359,3 +359,27 @@ func (e ArrayTransform) Retag(info expr.Info, children []expr.Expr, changed bool
 	node, err := e.Reconstruct(info, children, next, conflict)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = ArrayTransform{}
+
+// Render implements expr.Renderable.
+func (e ArrayTransform) Render() (expr.Rendering, error) {
+	if err := e.Validate(); err != nil {
+		return expr.Rendering{}, err
+	}
+	spec := expr.Rendering{
+		Tree:   fmt.Sprintf("ArrayTransform %s namespace %s slots %v labels %v operator %t", e.Kind.Name(), e.Namespace, e.Slots, e.Labels, e.Operator),
+		Inputs: e.Args, Args: listedArgs(e.Args),
+	}
+	if e.Operator {
+		spec.Form, spec.Name, spec.Namespace, spec.Grouping = expr.FormInfix, "||", e.Namespace, expr.GroupAlways
+		return spec, nil
+	}
+	for i := range spec.Args {
+		if e.Labels[i] != "" {
+			spec.Args[i].Label = `"` + e.Labels[i] + `"`
+		}
+	}
+	spec.Form, spec.Name, spec.Quote, spec.LabelQuote, spec.SimpleCast = expr.FormCall, "pg_catalog."+e.Kind.Name(), expr.QuoteVerbatim, expr.QuoteVerbatim, true
+	return spec, nil
+}

@@ -221,3 +221,39 @@ func (e JSONKeys) PlanningFold() expr.Fold      { return expr.FoldNever }
 func (e JSONEach) PlanningFold() expr.Fold      { return expr.FoldNever }
 func (e JSONElements) PlanningFold() expr.Fold  { return expr.FoldNever }
 func (e JSONBElements) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = JSONKeys{}
+
+// Render implements expr.Renderable.
+func (e JSONKeys) Render() (expr.Rendering, error) {
+	spec := callRendering("JSONKeys "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
+}
+
+var _ expr.Renderable = JSONBElements{}
+
+// Render implements expr.Renderable.
+func (e JSONBElements) Render() (expr.Rendering, error) {
+	spec := callRendering("JSONBElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
+}
+
+var _ expr.Renderable = JSONEach{}
+
+// Render implements expr.Renderable.
+func (e JSONEach) Render() (expr.Rendering, error) {
+	spec := callRendering("JSONEach "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
+}
+
+var _ expr.Renderable = JSONElements{}
+
+// Render implements expr.Renderable.
+func (e JSONElements) Render() (expr.Rendering, error) {
+	spec := callRendering("JSONElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
+}

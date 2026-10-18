@@ -201,3 +201,15 @@ func (e JSONCreate) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 func (e JSONCreate) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (e JSONCreate) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONCreate{}
+
+// Render implements expr.Renderable.
+func (e JSONCreate) Render() (expr.Rendering, error) {
+	spec := variadicRendering(fmt.Sprintf("JSONCreate %s variadic %t", e.Kind.Name(), e.Variadic), e.Kind.Name(), e.Args, e.Variadic)
+	spec.UnknownTexts = true
+	for i := range spec.Args {
+		spec.Args[i].UnknownText = e.UnknownArgument(i)
+	}
+	return spec, nil
+}

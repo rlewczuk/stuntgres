@@ -56,17 +56,18 @@ keeping a special case, and record it in the `expr` README.
 State after the first F2 session: every function node implements
 `expr.Composite`, plus the optional hooks in the `expr` README; walk, retag,
 remap, volatility, generated admission, conditional planning and join
-legality have one protocol branch each. Still to design in the second
-session:
+legality have one protocol branch each.
 
-- the render hooks for deparse (`deparse_renderer.go`), node-tree output
-  (`deparse_tree.go`) and stored scalar SQL (`scalar_function_sql.go`, which
-  the list above missed). One spec value should serve all three renderers;
-  name quoting and implicit-cast display differ per node and must stay
-  byte-identical;
+State after the second F2 session: deparse (`deparse_renderer.go`) and
+node-tree output (`deparse_tree.go`) read one `expr.Rendering` value per node
+through the `expr.Renderable` hook. Still to do:
+
+- stored scalar SQL (`scalar_function_sql.go` and the function cases of
+  `default.go`, which the list above missed) adopts the same `Rendering`,
+  extended with what replay needs (see the session 2 notes); its output must
+  stay byte-identical;
 - removing `Arguments()` where it duplicates `Children()`, once no switch
-  calls it (deparse and node tree still do; `Timezone.Arguments` is the
-  deparse order, which matches `Children`).
+  calls it (preflight and aggregate binding still do).
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -152,11 +153,12 @@ Tier C has a refined plan.
 - [x] F1 — Generics removed (`69aeb6167` generics, `5ec01573f`
   `functionInfo`, docs `937962c4f`)
 - [ ] F2 — Switches converted: [x] retag [x] remap [x] volatility
-  [ ] deparse [ ] node tree [x] generated admission [x] conditional plan
-  [x] join legality (session 1: `c6de24e8f` members, `144458647` join,
-  `5d7935b7d` volatility, `4c54eaf54` conditional, `1fa051e96` generated,
-  `1e6bd8aec` retag, `c703fd8d9` remap, `09fc24b0a` math helpers, docs
-  `ec2fba8bd`)
+  [x] deparse [x] node tree [x] generated admission [x] conditional plan
+  [x] join legality [ ] stored scalar SQL (session 1: `c6de24e8f` members,
+  `144458647` join, `5d7935b7d` volatility, `4c54eaf54` conditional,
+  `1fa051e96` generated, `1e6bd8aec` retag, `c703fd8d9` remap, `09fc24b0a`
+  math helpers, docs `ec2fba8bd`; session 2: `68cbeefed` node tree,
+  `42ec6b7e5` deparse, then the docs commit)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
@@ -1135,3 +1137,75 @@ Notes for later steps (F2):
   `view_literals.go` 11 and a few smaller ones. They are not in this
   prompt's list; convert them after the render hooks, reusing the existing
   hooks where they fit.
+
+F2 session 2 record (deparse and node tree; stored scalar SQL was left for a
+later session by agreement), measured at its start on `ae1fc88b1`:
+
+- Function-node cases removed: node tree 55 (`appendBoundTree`), deparse 55
+  (`pgRenderer.sql`, about 60 case lines) plus the coercion case's
+  `simpleFunctionCall` type switch. Each switch has one final
+  `case expr.Renderable:` branch after the installed-routine wrapper cases.
+- One hook, `expr.Renderable`, returns one `expr.Rendering` value (see the
+  `expr` README). Node tree reads `Tree`/`Inputs`; the deparser reads the SQL
+  form through `deparse_rendering.go`. The value encodes every per-node
+  difference the old cases had: four name-quoting rules (only under
+  quote_all_identifiers, verbatim, `r.identifier`, `pgIdentifier`), three
+  infix grouping rules (ordinary precedence; ArraySearch membership groups by
+  precedence in every mode with plain operand parents; ArrayTransform `||`
+  always), per-argument implicit-cast display, function-argument position,
+  unknown-text flags that replace the inherited one only for `format` and
+  JSON creation, display casts with three bare-argument rules (String
+  textual, OVERLAPS local clock, pg_size_pretty), and `SimpleCast`.
+- `Rendering.Inputs` is not `Children`: AT TIME ZONE lists the value first,
+  and SQL-syntax EXTRACT and the written-slot calls list their inputs in tree
+  order, which differs from written order.
+- `Render` runs the union of the validation the two renderers ran, so node
+  tree now also validates `ArrayTransform`, `JSONExtract`, `DatetimeSleep`
+  and the written-slot calls, and deparse also validates `CurrentDateTime`.
+  This only rejects corrupted nodes; one integrity message changed
+  (a non-literal NORMALIZE form is now "invalid deparse syntax keyword").
+- Deleted: `datetimeOverlapsPublicSQL`. Kept for stored scalar SQL:
+  `renderBinaryCall`, `regexpSQL`, `datetimeMakeSQL`, `stringSpecialSQL`,
+  `versionInformationSQL`, `functions.*SQL` and `CurrentDateTimeSQL`/
+  `TransactionTimeSQL`. `functions.Binary.Operator` is new; the engine's
+  `jsonbContainmentName`-style predicates stay for binding and stored SQL.
+- Byte identity: a throwaway probe (not committed) bound 332 expressions
+  covering every node and form into views, CHECK constraints, expression
+  indexes, generated columns and defaults, and compared pg_get_viewdef
+  (plain and pretty), pg_get_constraintdef, pg_get_expr, pg_get_indexdef and
+  `conbin`/`adbin` text with quote_all_identifiers off and on: identical on
+  master and after each commit. Views mostly deparse from raw trees; the
+  CHECK, index and node-tree paths exercise the bound renderer.
+
+Verification in F2 session 2: `make quickcheck` passed after each commit;
+quick-mode and `REFERENCE=1` selections
+`^TestReference(View|Generated|Default|Check|Deparse)`,
+`^TestReference(Datetime|Regexp|Regex|Similar|Posix|Timezone|AtTimeZone|String)`,
+`^TestReference(Binary|Array|Range|JSON|Math|Format|UUID|Network|Enum|Random|NullCount)`
+and `^TestReference.*(Dump|Restore|StoredConsumers)` passed on the stuntgres
+side. Their only failures were `/postgres` subtests where PostgreSQL 18.6
+differs from expectations written for 18.0: the drift listed in session 1
+plus `JSONStripNullsStable`, `JSONStripNullsFeatureSmoke`,
+`UUIDGenerationFeatureSmoke` and `UUIDGenerationGuardDiagnostics`. Racecheck
+skipped at the user's request; no bench (deparse is not on the startup path).
+
+Tests in F2 session 2: added `functions/render_test.go`
+(`TestRenderTimezoneTreeKeepsWrittenOrder`,
+`TestRenderBinaryTreeMarksTrimSyntax`, `TestRenderArrayTransformValidates`,
+`TestRenderLeafValidatesIntrinsicProperties`, `TestRenderBinaryForms`,
+`TestRenderStringSpecialSyntax`, `TestRenderWrittenSlotsKeepLabels`,
+`TestRenderFormatOwnsUnknownTextFlags`). No test moved, was adapted or was
+deleted.
+
+Notes for later steps (F2):
+
+- Stored scalar SQL is the next switch. It should read the same
+  `Rendering`, adding what replay needs: `pg_catalog.` names and
+  `OPERATOR(pg_catalog.op)` spellings, replay variants where display and
+  replay differ (POSIX `SUBSTRING ... FROM`, EXTRACT's field literal,
+  `SIMILAR TO ... ESCAPE`, the lower-case SQL value functions), per-argument
+  CAST transport (NAME, base conversions, ANY-typed literals in `format`,
+  `concat` and JSON creation) and the snapshot flags. Then the helpers kept
+  above can go.
+- `Arguments()` still duplicates `Children()` on several nodes; preflight in
+  `expression.go` and `aggregate_bind.go` still call it.

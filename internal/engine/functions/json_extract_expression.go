@@ -89,3 +89,19 @@ func (e JSONExtract) Validate() error {
 func (e JSONExtract) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONExtract) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONExtract{}
+
+// Render implements expr.Renderable.
+func (e JSONExtract) Render() (expr.Rendering, error) {
+	if err := e.Validate(); err != nil {
+		return expr.Rendering{}, err
+	}
+	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), renderArgs(e.Args), e.Variadic)
+	if len(e.Labels) > 0 {
+		for i := range spec.Args {
+			spec.Args[i].Label = e.Labels[i]
+		}
+	}
+	return spec, nil
+}

@@ -128,3 +128,15 @@ func (e Format) Retag(info expr.Info, children []expr.Expr, changed bool, env ex
 	e.Info, e.Args, e.Int4 = info, children, int4
 	return e, changed, nil
 }
+
+var _ expr.Renderable = Format{}
+
+// Render implements expr.Renderable.
+func (e Format) Render() (expr.Rendering, error) {
+	spec := variadicRendering(fmt.Sprintf("Format variadic %t", e.Variadic), "format", e.Args, e.Variadic)
+	spec.UnknownTexts = true
+	for i := range spec.Args {
+		spec.Args[i].UnknownText = e.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
+	}
+	return spec, nil
+}

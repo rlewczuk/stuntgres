@@ -159,3 +159,16 @@ func (e ArraySearch) Retag(info expr.Info, children []expr.Expr, changed bool, e
 	node, err := e.Reconstruct(info, children, array, info.Usage.Type, integer, next, conflict)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = ArraySearch{}
+
+// Render implements expr.Renderable.
+func (e ArraySearch) Render() (expr.Rendering, error) {
+	spec := callRendering("ArraySearch "+e.Plan.Name()+" namespace "+e.Namespace, e.Args, e.Plan.Name(), e.Args)
+	if e.Plan.Membership() {
+		spec.Form, spec.Namespace, spec.Grouping = expr.FormInfix, e.Namespace, expr.GroupNested
+		return spec, nil
+	}
+	spec.SimpleCast = true
+	return spec, nil
+}

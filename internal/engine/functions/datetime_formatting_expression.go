@@ -133,3 +133,10 @@ func (e DatetimeFormatting) IntrinsicVolatility() expr.Volatility { return expr.
 func (e DatetimeFormatting) StrictNull() expr.Strict { return expr.StrictAfter }
 
 func (e DatetimeFormatting) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = DatetimeFormatting{}
+
+// Render implements expr.Renderable.
+func (e DatetimeFormatting) Render() (expr.Rendering, error) {
+	return callRendering("Datetime "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:]), nil
+}

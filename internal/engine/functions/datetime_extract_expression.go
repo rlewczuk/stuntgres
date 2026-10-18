@@ -194,3 +194,16 @@ func (e DatetimeExtract) Retag(info expr.Info, children []expr.Expr, changed boo
 	node, planChanged, err := e.Reconstruct(info, args, env.Type)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeExtract{}
+
+// Render implements expr.Renderable.
+func (e DatetimeExtract) Render() (expr.Rendering, error) {
+	spec := callRendering("Datetime extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments())
+	if e.Syntax == parser.SQLFunctionSyntax {
+		// The field displays as written, like PostgreSQL's ruleutils.
+		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[1])
+		spec.Pieces = []expr.Piece{expr.TextPiece("EXTRACT(" + e.Field + " FROM "), expr.ArgPiece(0), expr.TextPiece(")")}
+	}
+	return spec, nil
+}

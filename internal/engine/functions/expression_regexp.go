@@ -232,3 +232,26 @@ func (e RegexpSet) Retag(info expr.Info, children []expr.Expr, changed bool, env
 	call, err := e.retag(info, children, env)
 	return retagged(RegexpSet{call}, changed, err)
 }
+
+var _ expr.Renderable = Regexp{}
+
+// Render implements expr.Renderable.
+func (e Regexp) Render() (expr.Rendering, error) {
+	return e.RegexpCall.rendering("Regexp "), nil
+}
+
+var _ expr.Renderable = RegexpSet{}
+
+// Render implements expr.Renderable.
+func (e RegexpSet) Render() (expr.Rendering, error) {
+	return e.RegexpCall.rendering("RegexpSet "), nil
+}
+
+// rendering lists the written arguments with their labels.
+func (call RegexpCall) rendering(tree string) expr.Rendering {
+	args := make([]expr.RenderArg, len(call.Args))
+	for i, slot := range call.WrittenSlots[:len(call.Args)] {
+		args[i] = expr.RenderArg{Expr: call.Args[slot], Label: call.Labels[i]}
+	}
+	return writtenCall(tree+call.Plan.Name(), call.Args, call.Plan.Name(), args, false)
+}

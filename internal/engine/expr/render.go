@@ -1,0 +1,151 @@
+package expr
+
+import "stuntgres/internal/sqltype"
+
+// Renderable nodes describe their own presentation. One Rendering value serves
+// every engine renderer that lists nodes: the node-tree output and the
+// PostgreSQL deparser. The renderers own quoting, literal transport and
+// parenthesization; the node only states what it looks like.
+type Renderable interface {
+	// Render validates the node and returns its presentation. Its errors are
+	// integrity errors of a corrupted node; a node bound by the engine renders.
+	Render() (Rendering, error)
+}
+
+// Rendering is a node's presentation, read by each renderer for the parts it
+// needs.
+type Rendering struct {
+	// Tree is the node-tree header after "node ", for example
+	// "Math pg_size_pretty". An empty Tree means the node has no node-tree form.
+	Tree string
+	// Inputs are the node-tree children in output order; nil entries are skipped.
+	Inputs []Expr
+
+	// Form is the SQL shape; FormNone means the node has no SQL form.
+	Form Form
+	// Text is the FormLeaf SQL text, exactly as displayed.
+	Text string
+	// Name is the FormCall function name or the FormInfix operator spelling.
+	Name string
+	// Namespace is the FormInfix operator schema; "" and pg_catalog display
+	// the bare spelling, any other schema displays OPERATOR(schema.op).
+	Namespace string
+	// Quote is how the deparser quotes a FormCall Name.
+	Quote Quote
+	// LabelQuote is how the deparser quotes argument labels.
+	LabelQuote Quote
+	// Args are the call arguments in written order, the two infix operands, or
+	// the arguments that template pieces refer to.
+	Args []RenderArg
+	// Variadic marks the last call argument VARIADIC.
+	Variadic bool
+	// UnknownTexts makes each argument's UnknownText replace the flag the
+	// deparser inherited from the enclosing call.
+	UnknownTexts bool
+	// Grouping is how the deparser parenthesizes a FormInfix operator.
+	Grouping Grouping
+	// Pieces are the FormTemplate keyword syntax, rendered in order.
+	Pieces []Piece
+	// SimpleCast is set for calls whose explicit cast the deparser displays
+	// without parentheses around the call in pretty mode.
+	SimpleCast bool
+}
+
+// Form is a node's SQL shape.
+type Form uint8
+
+const (
+	// FormNone has no SQL form.
+	FormNone Form = iota
+	// FormLeaf displays Text.
+	FormLeaf
+	// FormCall displays Name(arg, ...), with labels and VARIADIC.
+	FormCall
+	// FormInfix displays Args[0] operator Args[1].
+	FormInfix
+	// FormTemplate displays Pieces, the keyword syntax of SQL-standard calls.
+	FormTemplate
+)
+
+// Quote is how the deparser quotes a name or label.
+type Quote uint8
+
+const (
+	// QuoteOnRequest quotes only under quote_all_identifiers.
+	QuoteOnRequest Quote = iota
+	// QuoteVerbatim displays the text as written; nodes pre-quote fixed names
+	// that PostgreSQL always quotes, such as "substring".
+	QuoteVerbatim
+	// QuoteIdentifier quotes when needed and under quote_all_identifiers.
+	QuoteIdentifier
+	// QuoteWhenNeeded quotes only when the identifier needs it, regardless of
+	// quote_all_identifiers.
+	QuoteWhenNeeded
+)
+
+// Grouping is how the deparser parenthesizes a FormInfix operator.
+type Grouping uint8
+
+const (
+	// GroupPrecedence is the ordinary operator rule: operands see the operator
+	// as their parent, and the operator is grouped outside pretty mode or by
+	// precedence against its own parent.
+	GroupPrecedence Grouping = iota
+	// GroupNested renders operands without an operator parent and groups the
+	// operator only by precedence against its own parent, in every mode.
+	GroupNested
+	// GroupAlways always parenthesizes the operator.
+	GroupAlways
+)
+
+// RenderArg is one argument or operand and how the deparser displays it.
+type RenderArg struct {
+	Expr Expr
+	// Label is the named-notation label; "" is positional.
+	Label string
+	// HideImplicit hides the argument's implicit coercions, as keyword syntax
+	// and operator operands do; call arguments show them.
+	HideImplicit bool
+	// Listed renders the argument in a function-argument position, where
+	// pretty mode drops parentheses around COLLATE and nested casts.
+	Listed bool
+	// UnknownText displays an untyped text literal without its annotation;
+	// it applies when the Rendering sets UnknownTexts.
+	UnknownText bool
+	// Cast is a display-only cast to the argument's resolved formal type;
+	// a nil Cast.Type displays none.
+	Cast sqltype.Usage
+	// CastForm is when the displayed cast keeps the argument unparenthesized
+	// in pretty mode.
+	CastForm CastForm
+}
+
+// CastForm is when a displayed argument cast leaves its argument bare in
+// pretty mode.
+type CastForm uint8
+
+const (
+	// CastParenthesized always parenthesizes the argument.
+	CastParenthesized CastForm = iota
+	// CastLeaf leaves column references and literals bare.
+	CastLeaf
+	// CastLeafOrCoercion also leaves coercions bare.
+	CastLeafOrCoercion
+)
+
+// Piece is one part of a FormTemplate: literal SQL text, an argument, or the
+// text value of a literal argument used as a keyword (NORMALIZE's form).
+type Piece struct {
+	Text  string
+	Arg   int
+	Value bool
+}
+
+// TextPiece is literal SQL text.
+func TextPiece(text string) Piece { return Piece{Text: text} }
+
+// ArgPiece displays Args[i].
+func ArgPiece(i int) Piece { return Piece{Arg: i} }
+
+// ValuePiece displays the text value of the literal Args[i].
+func ValuePiece(i int) Piece { return Piece{Arg: i, Value: true} }

@@ -156,3 +156,10 @@ func (e DatetimeBin) Retag(info expr.Info, children []expr.Expr, changed bool, e
 	node, planChanged, err := e.Reconstruct(info, args, env.Type)
 	return retagged(node, changed || planChanged, err)
 }
+
+var _ expr.Renderable = DatetimeBin{}
+
+// Render implements expr.Renderable.
+func (e DatetimeBin) Render() (expr.Rendering, error) {
+	return callRendering("Datetime binning", e.Arguments(), "date_bin", e.Arguments()), nil
+}

@@ -391,3 +391,83 @@ func (e String) Retag(info expr.Info, children []expr.Expr, changed bool, env ex
 	node, err := e.Reconstruct(info, children, text)
 	return retagged(node, changed, err)
 }
+
+var _ expr.Renderable = String{}
+
+// Render implements expr.Renderable.
+func (e String) Render() (expr.Rendering, error) {
+	return e.rendering()
+}
+
+func (e String) rendering() (expr.Rendering, error) {
+	name := e.Plan.Name()
+	tree := "String " + name
+	if name == "||" {
+		return infixRendering(tree, e.Args, "", "||", e.Args[0], e.Args[1]), nil
+	}
+	if e.Syntax == parser.OrdinaryStringSyntax || e.Syntax == parser.PrefixStringSyntax {
+		return e.callRendering(tree)
+	}
+	spec := expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormTemplate, Args: hiddenArgs(e.Args...)}
+	text, arg := expr.TextPiece, expr.ArgPiece
+	var err error
+	switch e.Syntax {
+	case parser.TrimStringSyntax:
+		spec.Pieces, err = trimPieces(name, len(e.Args))
+	case parser.PositionStringSyntax:
+		if name != "position" || len(e.Args) != 2 {
+			return expr.Rendering{}, fmt.Errorf("stuntgres: invalid POSITION syntax provider")
+		}
+		spec.Pieces, err = syntaxPieces(name, len(e.Args))
+	case parser.OverlayStringSyntax, parser.SubstringStringSyntax:
+		spec.Pieces, err = syntaxPieces(name, len(e.Args))
+	case parser.NormalizeStringSyntax:
+		spec.Pieces = []expr.Piece{text("NORMALIZE("), arg(0)}
+		if len(e.Args) == 2 {
+			spec.Pieces = append(spec.Pieces, text(", "), expr.ValuePiece(1))
+		}
+		spec.Pieces = append(spec.Pieces, text(")"))
+	case parser.NormalizedStringSyntax:
+		spec.Pieces = []expr.Piece{text("("), arg(0), text(" IS ")}
+		if len(e.Args) == 2 {
+			spec.Pieces = append(spec.Pieces, expr.ValuePiece(1), text(" "))
+		}
+		spec.Pieces = append(spec.Pieces, text("NORMALIZED)"))
+	default:
+		err = fmt.Errorf("stuntgres: invalid special string syntax")
+	}
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return spec, nil
+}
+
+// callRendering displays an ordinary call or the ^@ prefix operator. Textual
+// arguments display the provider's resolved formal conversion.
+func (e String) callRendering(tree string) (expr.Rendering, error) {
+	name := e.Plan.Name()
+	args := renderArgs(e.Args)
+	for i, arg := range e.Args {
+		args[i].Listed = e.Syntax == parser.OrdinaryStringSyntax
+		if target := e.Plan.ArgumentUsage(i); e.Textual[i] && arg.ResultUsage().Type != target.Type {
+			args[i].Cast, args[i].CastForm = target, expr.CastLeafOrCoercion
+		}
+		if name == "parse_ident" && !e.Textual[0] {
+			args[i].Label = "strict"
+			if e.Textual[i] {
+				args[i].Label = "str"
+			}
+		}
+	}
+	if e.Syntax == parser.PrefixStringSyntax {
+		return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormInfix, Name: "^@", Args: args}, nil
+	}
+	quote := expr.QuoteVerbatim
+	switch name {
+	case "normalize", "overlay", "left", "right", "substring":
+		name = `"` + name + `"`
+	case "position":
+		quote = expr.QuoteIdentifier
+	}
+	return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormCall, Name: name, Quote: quote, LabelQuote: expr.QuoteVerbatim, Args: args}, nil
+}

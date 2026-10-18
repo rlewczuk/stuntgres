@@ -260,3 +260,16 @@ func (x DatetimeSleep) Retag(info expr.Info, children []expr.Expr, changed bool,
 	node, err := x.Reconstruct(info, children[0], clock)
 	return retagged(node, true, err)
 }
+
+var _ expr.Renderable = DatetimeSleep{}
+
+// Render implements expr.Renderable.
+func (e DatetimeSleep) Render() (expr.Rendering, error) {
+	if !e.Validate(expr.PropertiesMatch(e.Property, DatetimeSleepIntrinsicRule()), e.Arg != nil) {
+		return expr.Rendering{}, fmt.Errorf("stuntgres: invalid datetime sleep signature")
+	}
+	args := []expr.Expr{e.Arg}
+	spec := callRendering("DatetimeSleep "+e.Kind.Name(), args, e.Kind.Name(), args)
+	spec.SimpleCast = true
+	return spec, nil
+}

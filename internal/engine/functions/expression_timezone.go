@@ -91,3 +91,17 @@ func (e Timezone) IntrinsicVolatility() expr.Volatility { return stableIf(e.Intr
 func (e Timezone) StrictNull() expr.Strict { return expr.StrictBefore }
 
 func (e Timezone) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = Timezone{}
+
+// Render implements expr.Renderable.
+func (e Timezone) Render() (expr.Rendering, error) {
+	if e.Function {
+		return callRendering("Datetime timezone", e.Arguments(), "timezone", e.Arguments()), nil
+	}
+	text, arg := expr.TextPiece, expr.ArgPiece
+	if e.Local {
+		return expr.Rendering{Tree: "AtLocal", Inputs: []expr.Expr{e.Value}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value), Pieces: []expr.Piece{text("("), arg(0), text(" AT LOCAL)")}}, nil
+	}
+	return expr.Rendering{Tree: "AtTimeZone", Inputs: []expr.Expr{e.Value, e.Zone}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value, e.Zone), Pieces: []expr.Piece{text("("), arg(0), text(" AT TIME ZONE "), arg(1), text(")")}}, nil
+}

@@ -1,7 +1,11 @@
 package functions
 
-import "stuntgres/internal/engine/expr"
-import "stuntgres/internal/sqltype"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
 
 // JSONBSet keeps mutation-family executable formals separate from written presentation.
 // Defaults are real child expressions; all supplied children evaluate normally.
@@ -76,3 +80,17 @@ func (e JSONBSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, erro
 func (e JSONBSet) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e JSONBSet) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONBSet{}
+
+// Render implements expr.Renderable.
+func (e JSONBSet) Render() (expr.Rendering, error) {
+	if e.Count < 4 || e.Count > 5 || e.WrittenCount < 3 || e.WrittenCount > e.Count {
+		return expr.Rendering{}, fmt.Errorf("invalid stored JSONB replacement")
+	}
+	args, err := writtenArgs(e.Args[:], e.WrittenSlots[:e.WrittenCount], e.Labels[:], e.Count, true, "invalid stored JSONB replacement argument")
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return writtenCall("JSONB replacement "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), args, e.Variadic), nil
+}

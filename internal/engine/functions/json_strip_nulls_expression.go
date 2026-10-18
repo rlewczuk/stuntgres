@@ -1,7 +1,11 @@
 package functions
 
-import "stuntgres/internal/engine/expr"
-import "stuntgres/internal/sqltype"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
 
 // JSONStripNulls separates written evaluation order from executable formals.
 type JSONStripNulls struct {
@@ -69,3 +73,17 @@ func (e JSONStripNulls) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 func (e JSONStripNulls) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
 func (e JSONStripNulls) ValidateStoredProvider() error { return nil }
+
+var _ expr.Renderable = JSONStripNulls{}
+
+// Render implements expr.Renderable.
+func (e JSONStripNulls) Render() (expr.Rendering, error) {
+	if e.WrittenCount < 1 || e.WrittenCount > 2 {
+		return expr.Rendering{}, fmt.Errorf("invalid stored JSON stripping")
+	}
+	args, err := writtenArgs(e.Args[:], e.WrittenSlots[:e.WrittenCount], e.Labels[:], 2, true, "invalid stored JSON stripping argument")
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return writtenCall("JSON stripping", e.Args[:], "json_strip_nulls", args, e.Variadic), nil
+}

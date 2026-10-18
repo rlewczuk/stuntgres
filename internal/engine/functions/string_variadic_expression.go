@@ -259,3 +259,16 @@ func (e StringVariadic) WithAnnotation(origin any) expr.Expr {
 	e.Origin = origin
 	return e
 }
+
+var _ expr.Renderable = StringVariadic{}
+
+// Render implements expr.Renderable.
+func (e StringVariadic) Render() (expr.Rendering, error) {
+	return variadicRendering(fmt.Sprintf("StringVariadic %s variadic %t anyelement %t", e.Name, e.Variadic, e.AnyElement), e.Name, e.Args, e.Variadic), nil
+}
+
+// variadicRendering is a variadic-capable call in function-argument position,
+// shared by StringVariadic, JSONCreate and Format.
+func variadicRendering(tree, name string, args []expr.Expr, variadic bool) expr.Rendering {
+	return expr.Rendering{Tree: tree, Inputs: args, Form: expr.FormCall, Name: name, Quote: expr.QuoteIdentifier, Args: listedArgs(args), Variadic: variadic}
+}

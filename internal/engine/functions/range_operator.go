@@ -65,3 +65,12 @@ func (e RangeOperator) Validate() error {
 func (e RangeOperator) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
 func (e RangeOperator) ValidateStoredProvider() error { return e.Validate() }
+
+var _ expr.Renderable = RangeOperator{}
+
+// Render implements expr.Renderable.
+func (e RangeOperator) Render() (expr.Rendering, error) {
+	spec := callRendering("RangeOperator "+e.Plan.Name()+" namespace "+e.Namespace, e.Args[:], e.Plan.Name(), e.Args[:])
+	spec.Form, spec.Namespace = expr.FormInfix, e.Namespace
+	return spec, nil
+}

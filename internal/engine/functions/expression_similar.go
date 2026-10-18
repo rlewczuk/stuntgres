@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -311,4 +313,42 @@ func (e LikeEscape) Retag(info expr.Info, children []expr.Expr, changed bool, en
 	}
 	node, err := e.Reconstruct(info, children[0], children[1])
 	return retagged(node, true, err)
+}
+
+var _ expr.Renderable = LikeEscape{}
+
+// Render implements expr.Renderable.
+func (e LikeEscape) Render() (expr.Rendering, error) {
+	inputs := []expr.Expr{e.Pattern, e.Escape}
+	return expr.Rendering{Tree: "LikeEscape", Inputs: inputs, Form: expr.FormCall, Name: "pg_catalog.like_escape", Quote: expr.QuoteVerbatim, Args: hiddenArgs(inputs...)}, nil
+}
+
+var _ expr.Renderable = Similar{}
+
+// Render implements expr.Renderable.
+func (e Similar) Render() (expr.Rendering, error) {
+	return infixRendering("Similar "+e.Operator, []expr.Expr{e.Left, e.Right}, "", e.Operator, e.Left, e.Right), nil
+}
+
+var _ expr.Renderable = SimilarEscape{}
+
+// Render implements expr.Renderable.
+func (e SimilarEscape) Render() (expr.Rendering, error) {
+	args := hiddenArgs(e.Pattern, e.Escape)
+	if e.Omitted {
+		args = args[:1]
+	}
+	return expr.Rendering{Tree: fmt.Sprintf("SimilarEscape omitted %t", e.Omitted), Inputs: []expr.Expr{e.Pattern, e.Escape}, Form: expr.FormCall, Name: "similar_to_escape", Quote: expr.QuoteVerbatim, Args: args}, nil
+}
+
+var _ expr.Renderable = SimilarSubstring{}
+
+// Render implements expr.Renderable.
+func (e SimilarSubstring) Render() (expr.Rendering, error) {
+	spec := expr.Rendering{Tree: fmt.Sprintf("SimilarSubstring syntax %d", e.Syntax), Inputs: e.Args[:], Form: expr.FormCall, Name: `"substring"`, Quote: expr.QuoteVerbatim, Args: hiddenArgs(e.Args[:]...)}
+	if e.Syntax == parser.SQLFunctionSyntax {
+		text, arg := expr.TextPiece, expr.ArgPiece
+		spec.Form, spec.Pieces = expr.FormTemplate, []expr.Piece{text("SUBSTRING("), arg(0), text(" SIMILAR "), arg(1), text(" ESCAPE "), arg(2), text(")")}
+	}
+	return spec, nil
 }

@@ -73,8 +73,8 @@ func (e TransactionTime) Validate(intrinsicMatch bool) error {
 	return nil
 }
 
-// TransactionTimeSQL renders a stored call for the engine's deparse and
-// DEFAULT switches, until step 3 F2 gives the node a render hook.
+// TransactionTimeSQL renders a stored call for Render and the engine's stored
+// scalar SQL switch.
 func TransactionTimeSQL(e TransactionTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
@@ -154,3 +154,14 @@ func (e TransactionTime) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 func (e TransactionTime) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }
 
 func (e TransactionTime) PlanningFold() expr.Fold { return expr.FoldNever }
+
+var _ expr.Renderable = TransactionTime{}
+
+// Render implements expr.Renderable.
+func (e TransactionTime) Render() (expr.Rendering, error) {
+	text, err := TransactionTimeSQL(e)
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return expr.Rendering{Tree: fmt.Sprintf("TransactionTime kind %d", e.Kind), Form: expr.FormLeaf, Text: text}, nil
+}

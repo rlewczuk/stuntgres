@@ -254,3 +254,10 @@ func (e DatetimeZoneCalendar) Retag(info expr.Info, children []expr.Expr, change
 	node, providerChanged, err := e.Reconstruct(info, args)
 	return retagged(node, changed || providerChanged, err)
 }
+
+var _ expr.Renderable = DatetimeZoneCalendar{}
+
+// Render implements expr.Renderable.
+func (e DatetimeZoneCalendar) Render() (expr.Rendering, error) {
+	return callRendering("Datetime "+e.Name, e.Arguments(), e.Name, e.Arguments()), nil
+}
