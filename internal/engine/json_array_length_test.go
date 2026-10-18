@@ -33,7 +33,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
+			expr := functions.Binary{Info: functionInfo(expressionInfo{Usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
 			if err != nil {
 				t.Fatal(err)
@@ -42,7 +42,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			next, ok := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			next, ok := rebound.(functions.Binary)
 			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[sqltype.Int4] || next.Args[0].ResultUsage().Type != replacement[id] {
 				t.Fatal(rebound)
 			}
@@ -75,7 +75,7 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			expr, ok := bound.(functions.Binary)
 			if !ok || expr.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
 				t.Fatal(bound, b.parameters[1])
 			}
@@ -114,7 +114,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: usage}), Plan: plan, Args: []BoundExpr{arg}}
+			expr := functions.Binary{Info: functionInfo(expressionInfo{Usage: usage}), Plan: plan, Args: []BoundExpr{arg}}
 			got, err = renderer.sql(context.Background(), expr, pgRenderParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {

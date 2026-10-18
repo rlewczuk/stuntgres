@@ -1,13 +1,14 @@
 package functions
 
+import "stuntgres/internal/engine/expr"
 import "stuntgres/internal/sqltype"
 
 // JSONBSet keeps mutation-family executable formals separate from written presentation.
 // Defaults are real child expressions; all supplied children evaluate normally.
-type JSONBSet[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONBSet struct {
+	expr.Info
 	Plan         sqltype.JSONBSetPlan
-	Args         [5]E
+	Args         [5]expr.Expr
 	Count        int
 	WrittenCount int
 	WrittenSlots [5]uint8
@@ -15,9 +16,9 @@ type JSONBSet[E Expression[C], C Context, P any] struct {
 	Variadic     bool
 }
 
-func (e *JSONBSet[E, C, P]) Arguments() []E { return e.Args[:e.Count] }
+func (e *JSONBSet) Arguments() []expr.Expr { return e.Args[:e.Count] }
 
-func (e JSONBSet[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONBSet) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -46,7 +47,7 @@ func (e JSONBSet[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return e.Plan.Evaluate(ctx, values[:e.Count])
 }
 
-func (e JSONBSet[E, C, P]) Reconstruct(info Info[P], args [5]E) (JSONBSet[E, C, P], error) {
+func (e JSONBSet) Reconstruct(info expr.Info, args [5]expr.Expr) (JSONBSet, error) {
 	var usages [5]sqltype.Usage
 	for i := range e.Count {
 		usages[i] = args[i].ResultUsage()

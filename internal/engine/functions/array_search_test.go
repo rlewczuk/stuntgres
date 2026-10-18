@@ -6,28 +6,29 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type arraySearchTestContext struct{ context.Context }
+type arraySearchTestContext struct {
+	unitCapabilities
+	context.Context
+}
 
 func (c *arraySearchTestContext) FunctionContext() context.Context { return c.Context }
 func (c *arraySearchTestContext) FunctionInput() sqltype.InputEnvironment {
 	return sqltype.InputEnvironment{}
 }
 
-type arraySearchTestExpression interface {
-	Expression[*arraySearchTestContext]
-}
 type arraySearchTestArgument struct {
-	Info[struct{}]
+	expr.Info
 	value sqltype.Value
 	order *[]int
 	index int
 	err   error
 }
 
-func (a arraySearchTestArgument) Eval(*arraySearchTestContext) (sqltype.Value, error) {
+func (a arraySearchTestArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if a.order != nil {
 		*a.order = append(*a.order, a.index)
 	}
@@ -41,7 +42,7 @@ func arraySearchTestTypes() map[sqltype.ID]*sqltype.Descriptor {
 	return types
 }
 func arraySearchTestLiteral(v sqltype.Value) arraySearchTestArgument {
-	return arraySearchTestArgument{Info: Info[struct{}]{Usage: v.Type().Usage()}, value: v}
+	return arraySearchTestArgument{Info: expr.Info{Usage: v.Type().Usage()}, value: v}
 }
 
 func TestArraySearchCarrierDemand(t *testing.T) {
@@ -63,9 +64,9 @@ func TestArraySearchCarrierDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := []arraySearchTestExpression{arraySearchTestLiteral(payload), arraySearchTestLiteral(seven), arraySearchTestLiteral(start)}
-	call := NewArraySearch[arraySearchTestExpression, *arraySearchTestContext](Info[struct{}]{Usage: integer.Usage()}, plan, args, "")
-	c := &arraySearchTestContext{context.Background()}
+	args := []expr.Expr{arraySearchTestLiteral(payload), arraySearchTestLiteral(seven), arraySearchTestLiteral(start)}
+	call := NewArraySearch(expr.Info{Usage: integer.Usage()}, plan, args, "")
+	c := &arraySearchTestContext{Context: context.Background()}
 	got, err := call.Eval(c)
 	number, numberErr := got.Integer()
 	if err != nil || numberErr != nil || number != 0 || got.Type() != integer {
@@ -79,14 +80,14 @@ func TestArraySearchCarrierDemand(t *testing.T) {
 	}
 	var order []int
 	failure := errors.New("reached array argument")
-	args[0] = arraySearchTestArgument{Info: Info[struct{}]{Usage: array.Usage()}, value: sqltype.Null(array), order: &order, index: 0}
-	args[1] = arraySearchTestArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: seven, order: &order, index: 1, err: failure}
-	args[2] = arraySearchTestArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: start, order: &order, index: 2}
+	args[0] = arraySearchTestArgument{Info: expr.Info{Usage: array.Usage()}, value: sqltype.Null(array), order: &order, index: 0}
+	args[1] = arraySearchTestArgument{Info: expr.Info{Usage: integer.Usage()}, value: seven, order: &order, index: 1, err: failure}
+	args[2] = arraySearchTestArgument{Info: expr.Info{Usage: integer.Usage()}, value: start, order: &order, index: 2}
 	if _, err := call.Eval(c); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
 	order = nil
-	args[1] = arraySearchTestArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: seven, order: &order, index: 1}
+	args[1] = arraySearchTestArgument{Info: expr.Info{Usage: integer.Usage()}, value: seven, order: &order, index: 1}
 	got, err = call.Eval(c)
 	if err != nil || !got.IsNull() || got.Type() != integer || !reflect.DeepEqual(order, []int{0, 1, 2}) {
 		t.Fatal(got, order, err)
@@ -94,14 +95,14 @@ func TestArraySearchCarrierDemand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	order = nil
-	if _, err := call.Eval(&arraySearchTestContext{ctx}); !errors.Is(err, context.Canceled) || len(order) != 0 {
+	if _, err := call.Eval(&arraySearchTestContext{Context: ctx}); !errors.Is(err, context.Canceled) || len(order) != 0 {
 		t.Fatal(order, err)
 	}
 }
 
 func TestArraySearchCarrierReconstruct(t *testing.T) {
 	source, target := arraySearchTestTypes(), arraySearchTestTypes()
-	makeCall := func(types map[sqltype.ID]*sqltype.Descriptor) ArraySearch[arraySearchTestExpression, *arraySearchTestContext, struct{}] {
+	makeCall := func(types map[sqltype.ID]*sqltype.Descriptor) ArraySearch {
 		array, integer := types[1007], types[sqltype.Int4]
 		payload, err := array.Input(context.Background(), "[-2:-1]={1,NULL}", -1)
 		if err != nil {
@@ -115,7 +116,7 @@ func TestArraySearchCarrierReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return NewArraySearch[arraySearchTestExpression, *arraySearchTestContext](Info[struct{}]{Usage: array.Usage()}, plan, []arraySearchTestExpression{arraySearchTestLiteral(payload), arraySearchTestLiteral(one)}, "pg_catalog")
+		return NewArraySearch(expr.Info{Usage: array.Usage()}, plan, []expr.Expr{arraySearchTestLiteral(payload), arraySearchTestLiteral(one)}, "pg_catalog")
 	}
 	old, mapped := makeCall(source), makeCall(target)
 	ref, conflict := mapped.Plan.InputCollation()
@@ -129,8 +130,8 @@ func TestArraySearchCarrierReconstruct(t *testing.T) {
 	if old.Plan.Array() != source[1007] || old.Usage.Type != source[1007] || old.Args[0].ResultUsage().Type != source[1007] || rebuilt.Plan.Array() != target[1007] || rebuilt.Namespace != old.Namespace {
 		t.Fatal("mutated descriptor authority")
 	}
-	for _, call := range []ArraySearch[arraySearchTestExpression, *arraySearchTestContext, struct{}]{old, rebuilt} {
-		value, err := call.Eval(&arraySearchTestContext{context.Background()})
+	for _, call := range []ArraySearch{old, rebuilt} {
+		value, err := call.Eval(&arraySearchTestContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -177,7 +178,7 @@ func TestArraySearchSelectionFacts(t *testing.T) {
 	if _, valid := ArraySearchLeafUsage(integer.Usage()); valid {
 		t.Fatal("scalar array slot")
 	}
-	args := []Argument[arraySearchTestExpression]{{Usage: array.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}
+	args := []Argument{{Usage: array.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}
 	targets, valid := SelectArraySearch("array_position", args, array.Usage(), integer.Usage(), integer.Usage())
 	if !valid || targets[0].Type != array || targets[1].Type != integer || targets[2].Type != integer {
 		t.Fatal(targets, valid)

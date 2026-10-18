@@ -24,7 +24,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		return x
 	}
 	node := bind("pi()")
-	original, ok := node.(functions.Math[BoundExpr, ExprContext, ExprProperties])
+	original, ok := node.(functions.Math)
 	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || plannedVolatility(node) != Immutable {
 		t.Fatal(node)
 	}
@@ -62,7 +62,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if err != nil || !changed || next.ResultUsage().Type == original.Usage.Type {
 		t.Fatal("pi result owner retag", next, changed, err)
 	}
-	reminted := next.(functions.Math[BoundExpr, ExprContext, ExprProperties])
+	reminted := next.(functions.Math)
 	if reminted.Plan.ResultUsage() != reminted.Usage || original.Plan.ResultUsage() != original.Usage {
 		t.Fatal("retag mutated or retained old provider")
 	}

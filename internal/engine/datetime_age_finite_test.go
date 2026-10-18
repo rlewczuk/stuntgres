@@ -37,7 +37,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties])
+		e := node.(functions.DatetimeAgeFinite)
 		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
@@ -52,7 +52,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties])
+		rebound := next.(functions.DatetimeAgeFinite)
 		if rebound.ResultUsage().Type != replacements[tc.result] || rebound.ResultUsage().Type == e.ResultUsage().Type {
 			t.Fatal("retained result authority")
 		}

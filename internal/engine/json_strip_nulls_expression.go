@@ -12,10 +12,10 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels := [2]string{"target", "strip_in_arrays"}
 	ids := [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
-	var small [2]functions.Argument[BoundExpr]
+	var small [2]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 	if !visible || raw.ResolutionOnly || name != "json_strip_nulls" || len(operands) > 2 {
 		return signature()
 	}
-	e := functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]{WrittenCount: len(operands), Variadic: raw.Variadic}
+	e := functions.JSONStripNulls{WrittenCount: len(operands), Variadic: raw.Variadic}
 	var supplied [2]bool
 	for i, o := range operands {
 		slot := i
@@ -116,7 +116,7 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 	return e, nil
 }
 
-func jsonStripNullsSQL(e functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonStripNullsSQL(e functions.JSONStripNulls, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.WrittenCount < 1 || e.WrittenCount > 2 {
 		return "", fmt.Errorf("invalid stored JSON stripping")
 	}

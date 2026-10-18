@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUIDExtractKind) functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties] {
+func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUIDExtractKind) functions.UUIDExtract {
 	t.Helper()
 	d := b.typ(sqltype.UUID)
 	value, err := d.Input(context.Background(), "00000000-0000-7000-8000-000000000000", -1)
@@ -17,7 +17,7 @@ func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUI
 		t.Fatal(err)
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
-	node, err := functions.NewUUIDExtract[BoundExpr, ExprContext](functionInfo(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), kind, BoundExpr(arg))
+	node, err := functions.NewUUIDExtract(functionInfo(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), kind, BoundExpr(arg))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := rewritten.(functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties])
+	next := rewritten.(functions.UUIDExtract)
 	if _, ok := next.Arg.(groupExpression); !ok || !next.Properties().StageDependent {
 		t.Fatal("group child/stage rewrite lost")
 	}
@@ -74,7 +74,7 @@ func TestUUIDExtractRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}
-		next := mapped.(functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties])
+		next := mapped.(functions.UUIDExtract)
 		if next.Validate() != nil || next.ResultUsage().Type != fresh.typ(kind.Result()) || next.Arg.ResultUsage().Type != fresh.typ(sqltype.UUID) {
 			t.Fatal("stale descriptors")
 		}

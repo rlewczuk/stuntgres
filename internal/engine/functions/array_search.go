@@ -4,27 +4,23 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type ArraySearchContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type ArraySearch[E Expression[C], C ArraySearchContext, P any] struct {
-	Info[P]
+type ArraySearch struct {
+	expr.Info
 	Plan      sqltype.ArraySearchPlan
-	Args      []E
+	Args      []expr.Expr
 	Namespace string
 }
 
-func NewArraySearch[E Expression[C], C ArraySearchContext, P any](info Info[P], plan sqltype.ArraySearchPlan, args []E, namespace string) ArraySearch[E, C, P] {
-	return ArraySearch[E, C, P]{Info: info, Plan: plan, Args: args, Namespace: namespace}
+func NewArraySearch(info expr.Info, plan sqltype.ArraySearchPlan, args []expr.Expr, namespace string) ArraySearch {
+	return ArraySearch{Info: info, Plan: plan, Args: args, Namespace: namespace}
 }
 
-func (e ArraySearch[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e ArraySearch) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -42,7 +38,7 @@ func (e ArraySearch[E, C, P]) Eval(c C) (sqltype.Value, error) {
 
 // Reconstruct receives only descriptors and comparison facts already mapped by
 // the engine. The selected old plan and borrowed arguments remain untouched.
-func (e ArraySearch[E, C, P]) Reconstruct(info Info[P], args []E, array, result, integer *sqltype.Descriptor, ref sqltype.CollationRef, conflict bool) (ArraySearch[E, C, P], error) {
+func (e ArraySearch) Reconstruct(info expr.Info, args []expr.Expr, array, result, integer *sqltype.Descriptor, ref sqltype.CollationRef, conflict bool) (ArraySearch, error) {
 	plan, err := sqltype.BindArraySearch(e.Plan.Name(), array, result, integer, ref, conflict)
 	if err != nil {
 		return e, err
@@ -51,7 +47,7 @@ func (e ArraySearch[E, C, P]) Reconstruct(info Info[P], args []E, array, result,
 	return e, nil
 }
 
-func (e ArraySearch[E, C, P]) Validate() error {
+func (e ArraySearch) Validate() error {
 	if len(e.Args) < 2 || len(e.Args) > 3 {
 		return fmt.Errorf("stuntgres: invalid stored array search arity")
 	}
@@ -63,8 +59,8 @@ func (e ArraySearch[E, C, P]) Validate() error {
 	return nil
 }
 
-func AnalyzeArraySearch[E any](b ArgumentAnalyzer[E], raw []parser.Expr) ([]Argument[E], error) {
-	args := make([]Argument[E], len(raw))
+func AnalyzeArraySearch(b ArgumentAnalyzer, raw []parser.Expr) ([]Argument, error) {
+	args := make([]Argument, len(raw))
 	for i, arg := range raw {
 		next, err := b.AnalyzeArgument(arg, AnalysisRequest{Intent: ComparisonArgument})
 		if err != nil {
@@ -99,7 +95,7 @@ func ArraySearchLeafUsage(usage sqltype.Usage) (sqltype.Usage, bool) {
 
 // Targets are supplied by the engine's generation-owned association lookup.
 // Probe every known edge before converting any literal or parameter occurrence.
-func SelectArraySearch[E any](name string, args []Argument[E], array, common, integer sqltype.Usage) ([3]sqltype.Usage, bool) {
+func SelectArraySearch(name string, args []Argument, array, common, integer sqltype.Usage) ([3]sqltype.Usage, bool) {
 	targets := [3]sqltype.Usage{array, common}
 	if name == "array_replace" {
 		targets[2] = common
@@ -117,8 +113,8 @@ func SelectArraySearch[E any](name string, args []Argument[E], array, common, in
 	return targets, true
 }
 
-func FinishArraySearch[E any](b ArgumentCoercer[E], name string, args []Argument[E], targets [3]sqltype.Usage) ([]E, error) {
-	result := make([]E, len(args))
+func FinishArraySearch(b ArgumentCoercer, name string, args []Argument, targets [3]sqltype.Usage) ([]expr.Expr, error) {
+	result := make([]expr.Expr, len(args))
 	for i, arg := range args {
 		next, err := b.CoerceArgument(arg, CoercionRequest{Intent: ConditionalArgument, Target: targets[i], Label: name})
 		if err != nil {

@@ -22,7 +22,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 	if name == "width_bucket" && len(raw.Args) == 2 {
 		return b.bindThresholdBucket(raw, visible)
 	}
-	args, unknown, err := functions.AnalyzeDirectArguments[BoundExpr](b, raw.Args)
+	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 	}
 	usage := b.typ(signature.Result).Usage()
 	info := b.info(usage, raw.Pos, properties)
-	node, err := functions.NewMath[BoundExpr, ExprContext](functionInfo(info), name, args)
+	node, err := functions.NewMath(functionInfo(info), name, args)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +107,13 @@ func mathModifiers(raw parser.FunctionExpr, name string) error {
 }
 
 func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	operands := make([]functions.Argument[BoundExpr], len(raw.Args))
+	operands := make([]functions.Argument, len(raw.Args))
 	for i, child := range raw.Args {
 		operand, err := b.comparisonOperandPolicy(child, expressionPolicy{context: projectionContext, thresholdArrayInput: i == 1})
 		if err != nil {
 			return nil, err
 		}
-		operands[i] = functions.Argument[BoundExpr]{Expression: operand.node, Raw: operand.raw}
+		operands[i] = functions.Argument{Expression: operand.node, Raw: operand.raw}
 		if operand.node != nil {
 			operands[i].Usage = operand.node.ResultUsage()
 		}
@@ -196,5 +196,5 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	return functions.Math[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: args}, nil
+	return functions.Math{Info: functionInfo(info), Plan: plan, Args: args}, nil
 }

@@ -17,7 +17,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 	if len(raw.Args) <= 100 {
 		args = make([]BoundExpr, len(raw.Args))
 	}
-	var first functions.Argument[BoundExpr]
+	var first functions.Argument
 	for i, r := range raw.Args {
 		operand, err := b.AnalyzeArgument(r, functions.StringVariadicAnalysis(name, i))
 		if i == 0 && textInput {
@@ -79,7 +79,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 		return nil, d
 	}
 	text := b.typ(sqltype.Text).Usage()
-	node := functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: functions.StringVariadicIntrinsicStable(name), Frame: b.frameID()}
+	node := functions.StringVariadic{Name: name, Args: args, Variadic: raw.Variadic && concatenation, Stable: functions.StringVariadicIntrinsicStable(name), Frame: b.frameID()}
 	if textInput && len(args) > 0 {
 		args[0], err = functions.CoerceStringVariadicFirst(b, first, text)
 		if err != nil {

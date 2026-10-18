@@ -31,7 +31,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	args, unknown, err := functions.AnalyzeDirectArguments[BoundExpr](b, raw.Args)
+	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 			return literalExpression{b.info(usage, raw.Pos, ExprProperties{}), sqltype.Null(usage.Type)}, nil
 		}
 	}
-	return functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args}, nil
+	return functions.Random{Info: functionInfo(info), Name: name, Args: args}, nil
 }
 
 func randomLiteralNull(arg BoundExpr) bool {

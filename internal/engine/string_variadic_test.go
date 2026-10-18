@@ -76,7 +76,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin])
+	node := bound.(functions.StringVariadic)
 	oldGroup := quoteCaptureCandidate{}
 	_, _, err = foldStringVariadic(&EvalContext{Context: ctx, quoteCaptures: &oldGroup}, node)
 	if err != nil || len(oldGroup.entries) != 1 {
@@ -87,7 +87,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	fresh := retagged.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin])
+	fresh := retagged.(functions.StringVariadic)
 	if fresh.Usage.Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Int4] || node.Usage.Type == fresh.Usage.Type || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
 		t.Fatal("retag source mutated or authority not replaced")
 	}
@@ -121,18 +121,18 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		return ref
 	}, nil)
-	if err != nil || remapped.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]).Origin.owner != targetRef || stamped.Origin != origins[2] {
+	if err != nil || quoteOriginOf(remapped.(functions.StringVariadic)).owner != targetRef || quoteOriginOf(stamped) != origins[2] {
 		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
 	}
 	stampedRetagged, _, err := retagBoundTypes(binder.bindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
-	if err != nil || stampedRetagged.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]).Origin != stamped.Origin {
+	if err != nil || stampedRetagged.(functions.StringVariadic).Origin != stamped.Origin {
 		t.Fatal("view quote origin lost during typed retag", err)
 	}
 	collision := quoteCaptureCandidate{}
 	for i, origin := range origins {
 		input := string(rune('a' + i))
 		source := literalExpression{expressionInfo: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, input)}
-		occurrence := functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]{Info: functionInfo(expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 17}}), Name: "quote_ident", Frame: 1, Args: []BoundExpr{source}}
+		occurrence := functions.StringVariadic{Info: functionInfo(expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 17}}), Name: "quote_ident", Frame: 1, Args: []BoundExpr{source}}
 		ambient := origin
 		if origin.owner != (ids.ObjectRef{}) && origin.attribute == 0 {
 			occurrence = occurrence.WithOrigin(origin)
@@ -170,7 +170,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("view replacement retained prior defining revision")
 	}
 	sealed := quoteCaptureCandidate{entries: published, sealed: true}
-	missing := functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]{Info: functionInfo(expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 19}}), Name: "quote_ident", Frame: 1, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, "local")}}}
+	missing := functions.StringVariadic{Info: functionInfo(expressionInfo{Usage: node.Usage, Pos: parser.Position{Offset: 19}}), Name: "quote_ident", Frame: 1, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: node.Usage}, value: sqltype.String(node.Usage.Type, "local")}}}
 	_, _, err = foldStringVariadic(&EvalContext{Context: ctx, quoteCaptures: &sealed}, missing)
 	if err != nil || sealed.private || len(sealed.entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
@@ -238,7 +238,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			}
 			for _, predicate := range predicates {
 				walkBoundExpression(predicate, func(expression BoundExpr) {
-					if quote, ok := expression.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]); ok && quote.Origin != (quoteOrigin{}) {
+					if quote, ok := expression.(functions.StringVariadic); ok && quoteOriginOf(quote) != (quoteOrigin{}) {
 						t.Fatal("execution lowering stamped the stored source tree")
 					}
 				})
@@ -422,8 +422,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			seen[want] = true
 		}
 		for _, attribute := range relation.attributes[1:3] {
-			node := relation.defaults[attribute].expression.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin])
-			if node.Origin != (quoteOrigin{}) {
+			node := relation.defaults[attribute].expression.(functions.StringVariadic)
+			if quoteOriginOf(node) != (quoteOrigin{}) {
 				t.Fatal("MERGE stamped catalog DEFAULT source")
 			}
 		}
@@ -617,7 +617,7 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 	for _, name := range []string{"concat", "quote_ident", "quote_literal"} {
 		text := strings.Repeat("'a", 8192)
 		arg := literalExpression{expressionInfo: expressionInfo{Usage: types[sqltype.Text].Usage()}, value: sqltype.String(types[sqltype.Text], text)}
-		node := functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]{Info: functionInfo(expressionInfo{Usage: types[sqltype.Text].Usage()}), Name: name, Args: []BoundExpr{arg}}
+		node := functions.StringVariadic{Info: functionInfo(expressionInfo{Usage: types[sqltype.Text].Usage()}), Name: name, Args: []BoundExpr{arg}}
 		group := quoteCaptureCandidate{}
 		ctx := &formatWorkContext{Context: context.Background(), checks: 4}
 		var err error

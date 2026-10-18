@@ -29,7 +29,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	uuid := b.typ(sqltype.UUID)
 	iv := b.typ(sqltype.Interval)
 	argument := literalExpression{expressionInfo{Usage: iv.Usage()}, sqltype.Null(iv)}
-	expr := functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "uuidv7", Args: []BoundExpr{argument}}
+	expr := functions.UUIDGeneration{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "uuidv7", Args: []BoundExpr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
 	stored, err := b.bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -40,14 +40,14 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("UUID retag", changed, err)
 	}
-	n := rebound.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties])
+	n := rebound.(functions.UUIDGeneration)
 	if n.Timestamp != other.typ(sqltype.Timestamptz) || n.ResultUsage().Type != other.typ(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.typ(sqltype.Interval) || n.Properties() != stored.Properties() {
 		t.Fatal("retag lost descriptor/dependence")
 	}
 	if generationImmutable(expr) {
 		t.Fatal("UUID admitted to immutable consumer")
 	}
-	if closedUUIDDefault(functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}) {
+	if closedUUIDDefault(functions.Random{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}) {
 		t.Fatal("unrelated volatile default admitted")
 	}
 }
@@ -67,7 +67,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := analyzed.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]); !ok || analyzed.Properties().Volatility != Volatile {
+		if _, ok := analyzed.(functions.UUIDGeneration); !ok || analyzed.Properties().Volatility != Volatile {
 			t.Fatal("analysis lost symbolic volatile provider", analyzed)
 		}
 		for _, preflight := range []bool{false, true} {
@@ -95,7 +95,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 			}
 		}
 		// Planning cannot erase the original definition used by Dump/deparse.
-		if _, ok := analyzed.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]); !ok || analyzed.Properties().Volatility != Volatile {
+		if _, ok := analyzed.(functions.UUIDGeneration); !ok || analyzed.Properties().Volatility != Volatile {
 			t.Fatal("analysis mutated")
 		}
 	}
@@ -108,7 +108,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := planned.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]); !ok || plannedVolatility(planned) != Volatile || generationImmutable(planned) {
+		if _, ok := planned.(functions.UUIDGeneration); !ok || plannedVolatility(planned) != Volatile || generationImmutable(planned) {
 			t.Fatal("real provider admitted as immutable", planned)
 		}
 	}

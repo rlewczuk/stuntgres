@@ -12,10 +12,10 @@ import (
 // The candidates are only this PG18 function family's homogeneous signatures.
 func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [2]functions.Argument[BoundExpr]
+	var small [2]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > 2 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -76,7 +76,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		}
 		return b.identityExpression(raw, identityAge, arg)
 	}
-	e := functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]{Count: len(operands)}
+	e := functions.DatetimeAgeFinite{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeAgeFiniteIntrinsicStable(name, e.Count) {
 		properties.Volatility = Stable

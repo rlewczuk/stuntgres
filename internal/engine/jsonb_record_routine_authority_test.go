@@ -62,7 +62,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-			call, ok := node.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+			call, ok := node.(functions.JSONBRecord)
 			if !ok {
 				t.Fatal("original JSONB carrier", node)
 			}
@@ -149,7 +149,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				if err != nil {
 					t.Fatal("actual FROM completion", err)
 				}
-				next := completed.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+				next := completed.(functions.JSONBRecord)
 				if !next.Definitions || next.Unresolved || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Name != call.Name || !reflect.DeepEqual(next.Args, call.Args) || next.RecordUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != Stable || next.Properties().StageDependent != tc.set {
 					t.Fatal("completion lost authority/layout/properties", next)
 				}
@@ -219,7 +219,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual foreign retag", err)
 			}
-			retagged := mapped.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+			retagged := mapped.(functions.JSONBRecord)
 			if retagged.Name != call.Name || len(retagged.Args) != len(call.Args) || retagged.Definitions != call.Definitions || retagged.Unresolved != call.Unresolved || retagged.SourcePosition() != call.SourcePosition() || retagged.Properties() != call.Properties() {
 				t.Fatal("retag changed physical carrier contract", retagged)
 			}
@@ -261,7 +261,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	recipe := view.state.descriptors[ref.Address].(*relationDescriptor)
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "jsonb_to_record('{}'::jsonb)")
 	original := append([]expressionDependency(nil), binder.dependencies...)
-	call := node.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	call := node.(functions.JSONBRecord)
 	captured, err := expressionRoutineDescriptor(call)
 	if err != nil || captured == nil {
 		t.Fatal("original stored-call descriptor", err)
@@ -280,7 +280,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal("complete grafted occurrence", err)
 	}
-	finished := completed.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	finished := completed.(functions.JSONBRecord)
 	shape := finished.ResultUsage().Type
 	if !shape.IsComposite() || shape.CompositeLen() != 2 || shape.CompositeMember(0).Usage.Type.ID() != sqltype.Int4 || shape.CompositeMember(1).Usage.Type.ID() != sqltype.Text {
 		t.Fatal("actual completed layout")
@@ -294,7 +294,7 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, retained := range []BoundExpr{grafted, finished, rebuilt, retagged} {
-		next := retained.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+		next := retained.(functions.JSONBRecord)
 		if next.Info.RoutineReference != captured || next.Info.RoutineRecipeReference != recipe || next.SourcePosition() != call.SourcePosition() || next.Definitions != (i != 0) || next.Unresolved != (i == 0) || next.Name != call.Name || len(next.Args) != len(call.Args) || next.Args[0].ResultUsage() != call.Args[0].ResultUsage() {
 			t.Fatal("stored chain lost original authority/arguments", next)
 		}

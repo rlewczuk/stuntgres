@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -21,8 +22,8 @@ func TestStringCaseRuntimeDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	var order []int
-	node := String[stringUnitExpression, *stringUnitContext, struct{}]{Info: Info[struct{}]{Usage: usage}, Plan: plan, Textual: [4]bool{true}, Args: []stringUnitExpression{
-		stringUnitArgument{Info: Info[struct{}]{Usage: usage}, value: sqltype.String(text, "İ"), order: &order, index: 0},
+	node := String{Info: expr.Info{Usage: usage}, Plan: plan, Textual: [4]bool{true}, Args: []expr.Expr{
+		stringUnitArgument{Info: expr.Info{Usage: usage}, value: sqltype.String(text, "İ"), order: &order, index: 0},
 	}}
 	got, err := node.Eval(&stringUnitContext{Context: context.Background()})
 	s, textErr := got.Text()

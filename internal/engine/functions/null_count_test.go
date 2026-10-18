@@ -3,29 +3,29 @@ package functions
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-type nullCountUnitContext struct{ context.Context }
+type nullCountUnitContext struct {
+	unitCapabilities
+	context.Context
+}
 
 func (c *nullCountUnitContext) FunctionContext() context.Context { return c.Context }
-func (*nullCountUnitContext) WholeRowNullPresence(nullCountUnitExpression) (bool, bool, error) {
+func (*nullCountUnitContext) WholeRowNullPresence(expr.Expr) (bool, bool, error) {
 	return false, false, nil
 }
 
-type nullCountUnitExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*nullCountUnitContext) (sqltype.Value, error)
-}
 type nullCountUnitArgument struct {
-	Info[struct{}]
+	expr.Info
 	value sqltype.Value
 	err   error
 	calls *int
 }
 
-func (w nullCountUnitArgument) Eval(*nullCountUnitContext) (sqltype.Value, error) {
+func (w nullCountUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if w.calls != nil {
 		*w.calls++
 	}
@@ -34,7 +34,7 @@ func (w nullCountUnitArgument) Eval(*nullCountUnitContext) (sqltype.Value, error
 func TestNullCountTypedEvaluation(t *testing.T) {
 	types := formatUnitTypes()
 	ctx := context.Background()
-	var args []nullCountUnitExpression
+	var args []expr.Expr
 	for _, tc := range []struct {
 		id    sqltype.ID
 		input string
@@ -48,10 +48,10 @@ func TestNullCountTypedEvaluation(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		args = append(args, nullCountUnitArgument{Info: Info[struct{}]{Usage: typ.Usage()}, value: value}, nullCountUnitArgument{Info: Info[struct{}]{Usage: typ.Usage()}, value: sqltype.Null(typ)})
+		args = append(args, nullCountUnitArgument{Info: expr.Info{Usage: typ.Usage()}, value: value}, nullCountUnitArgument{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)})
 	}
 	for _, kind := range []NullCountKind{CountNulls, CountNonnulls} {
-		call := NullCount[nullCountUnitExpression, *nullCountUnitContext, struct{}]{Info: Info[struct{}]{Usage: types[sqltype.Int4].Usage()}, Kind: kind, Args: args}
+		call := NullCount{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, Kind: kind, Args: args}
 		for range 2 {
 			value, err := call.Eval(&nullCountUnitContext{Context: ctx})
 			n, _ := value.Integer()
@@ -71,9 +71,9 @@ func TestNullCountTypedEvaluation(t *testing.T) {
 	calls := 0
 	sentinel := errors.New("child failure")
 	typ := types[sqltype.Text]
-	first := nullCountUnitArgument{Info: Info[struct{}]{Usage: typ.Usage()}, value: sqltype.Null(typ), calls: &calls}
-	last := nullCountUnitArgument{Info: Info[struct{}]{Usage: typ.Usage()}, value: sqltype.String(typ, ""), calls: &calls}
-	call := NullCount[nullCountUnitExpression, *nullCountUnitContext, struct{}]{Info: Info[struct{}]{Usage: types[sqltype.Int4].Usage()}, Kind: CountNulls, Args: []nullCountUnitExpression{first, last}}
+	first := nullCountUnitArgument{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ), calls: &calls}
+	last := nullCountUnitArgument{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.String(typ, ""), calls: &calls}
+	call := NullCount{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, Kind: CountNulls, Args: []expr.Expr{first, last}}
 	value, err := call.Eval(&nullCountUnitContext{Context: ctx})
 	n, _ := value.Integer()
 	if err != nil || n != 1 || calls != 2 {
@@ -99,7 +99,7 @@ func TestNullCountTypedEvaluation(t *testing.T) {
 	}
 	first.err = nil
 	first.value = sqltype.Value{}
-	call.Args = []nullCountUnitExpression{first}
+	call.Args = []expr.Expr{first}
 	if value, err := call.Eval(&nullCountUnitContext{Context: ctx}); err == nil || value.Type() != nil {
 		t.Fatal("zero value counted", value, err)
 	}
@@ -108,7 +108,7 @@ func TestNullCountTypedEvaluation(t *testing.T) {
 	if value, err := call.Eval(&nullCountUnitContext{Context: ctx}); err == nil || value.Type() != nil {
 		t.Fatal("type mismatch counted", value, err)
 	}
-	if _, err := (NullCount[nullCountUnitExpression, *nullCountUnitContext, struct{}]{}).Eval(&nullCountUnitContext{Context: ctx}); err == nil {
+	if _, err := (NullCount{}).Eval(&nullCountUnitContext{Context: ctx}); err == nil {
 		t.Fatal("zero call accepted")
 	}
 }

@@ -7,10 +7,10 @@ import (
 )
 
 func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var stack [4]functions.Argument[BoundExpr]
+	var stack [4]functions.Argument
 	operands := stack[:min(len(raw.Args), 4)]
 	if len(raw.Args) > 4 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -37,7 +37,7 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		return resolution(selection.Resolution == functions.Ambiguous)
 	}
 	signature := selection.Signature
-	e := functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]{Syntax: raw.Syntax}
+	e := functions.DatetimeOverlaps{Syntax: raw.Syntax}
 	properties := ExprProperties{Volatility: Immutable}
 	var local [4]bool
 	for i, o := range operands {

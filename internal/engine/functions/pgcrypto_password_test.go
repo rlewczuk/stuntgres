@@ -6,11 +6,13 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type pgcryptoEntropyUnitContext struct {
+	unitCapabilities
 	context.Context
 	calls   int
 	failure error
@@ -32,13 +34,14 @@ func (c *pgcryptoEntropyUnitContext) FunctionPgcryptoEntropy(dst []byte) error {
 }
 
 type pgcryptoEntropyArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	failure error
 	index   int
 }
 
-func (a pgcryptoEntropyArgument) Eval(c *pgcryptoEntropyUnitContext) (sqltype.Value, error) {
+func (a pgcryptoEntropyArgument) Eval(ec expr.Context) (sqltype.Value, error) {
+	c := ec.(*pgcryptoEntropyUnitContext)
 	c.order = append(c.order, a.index)
 	return a.value, a.failure
 }
@@ -66,8 +69,8 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 		if v.null {
 			name = sqltype.Null(text)
 		}
-		args := []pgcryptoEntropyArgument{{Info: Info[struct{}]{Usage: text.Usage()}, value: name, index: 0}, {Info: Info[struct{}]{Usage: integer.Usage()}, value: count, index: 1}}
-		call, err := NewPgcrypto[pgcryptoEntropyArgument, *pgcryptoEntropyUnitContext](Info[struct{}]{Usage: text.Usage()}, "gen_salt", args)
+		args := []pgcryptoEntropyArgument{{Info: expr.Info{Usage: text.Usage()}, value: name, index: 0}, {Info: expr.Info{Usage: integer.Usage()}, value: count, index: 1}}
+		call, err := NewPgcrypto(expr.Info{Usage: text.Usage()}, "gen_salt", unitArgs(args))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,10 +115,10 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 	}
 	count, _ := sqltype.Integer(integer, 4)
 	failure := errors.New("reached sibling")
-	call, err := NewPgcrypto[pgcryptoEntropyArgument, *pgcryptoEntropyUnitContext](Info[struct{}]{Usage: text.Usage()}, "gen_salt", []pgcryptoEntropyArgument{
-		{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), index: 0},
-		{Info: Info[struct{}]{Usage: integer.Usage()}, value: count, failure: failure, index: 1},
-	})
+	call, err := NewPgcrypto(expr.Info{Usage: text.Usage()}, "gen_salt", unitArgs([]pgcryptoEntropyArgument{
+		{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), index: 0},
+		{Info: expr.Info{Usage: integer.Usage()}, value: count, failure: failure, index: 1},
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

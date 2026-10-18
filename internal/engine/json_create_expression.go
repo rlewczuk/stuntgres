@@ -11,12 +11,12 @@ import (
 
 func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, error) {
 	kind := functions.JSONCreateKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
-	var operands []functions.Argument[BoundExpr]
-	var small [2]functions.Argument[BoundExpr]
+	var operands []functions.Argument
+	var small [2]functions.Argument
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, r := range raw.Args {
 		o, err := b.AnalyzeArgument(r, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
@@ -127,7 +127,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[0].SourcePosition())
 	}
 	info := b.info(b.typ(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)
-	node, err := functions.NewJSONCreate[BoundExpr, ExprContext](functionInfo(info), kind, args, raw.Variadic, unknown)
+	node, err := functions.NewJSONCreate(functionInfo(info), kind, args, raw.Variadic, unknown)
 	if err != nil {
 		return nil, err
 	}

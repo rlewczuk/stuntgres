@@ -7,13 +7,13 @@ import (
 )
 
 func (b *expressionBinder) resolveNtileSignature(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
-	var small [1]functions.Argument[BoundExpr]
+	var small [1]functions.Argument
 	var names [1]string
 	arguments, types := small[:], names[:]
 	if len(raw.Args) <= 1 {
 		arguments, types = arguments[:len(raw.Args)], types[:len(raw.Args)]
 	} else {
-		arguments = make([]functions.Argument[BoundExpr], len(raw.Args))
+		arguments = make([]functions.Argument, len(raw.Args))
 		types = make([]string, len(raw.Args))
 	}
 	for i, child := range raw.Args {

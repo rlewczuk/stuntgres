@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -27,18 +28,18 @@ func TestJSONArrayLengthRuntimeDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			var order []int
-			expr := Binary[binaryUnitExpression, *binaryUnitContext, struct{}]{Info: Info[struct{}]{Usage: usage}, Plan: plan, Args: []binaryUnitExpression{
-				binaryUnitArgument{Info: Info[struct{}]{Usage: source.Usage()}, value: value, order: &order, index: 0},
+			node := Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: []expr.Expr{
+				binaryUnitArgument{Info: expr.Info{Usage: source.Usage()}, value: value, order: &order, index: 0},
 			}}
-			got, err := expr.Eval(&binaryUnitContext{Context: context.Background()})
+			got, err := node.Eval(&binaryUnitContext{Context: context.Background()})
 			n, intErr := got.Integer()
 			if err != nil || intErr != nil || n != 3 || !reflect.DeepEqual(order, []int{0}) {
 				t.Fatal(got, order, err, intErr)
 			}
 			failure := errors.New("length child failure")
-			expr.Args[0] = binaryUnitArgument{Info: Info[struct{}]{Usage: source.Usage()}, err: failure, order: &order, index: 0}
+			node.Args[0] = binaryUnitArgument{Info: expr.Info{Usage: source.Usage()}, err: failure, order: &order, index: 0}
 			order = nil
-			if _, err := expr.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
+			if _, err := node.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
 				t.Fatal(order, err)
 			}
 		})

@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -16,7 +17,7 @@ func SoundexSignature(name string, count int) string {
 	return ""
 }
 
-func SoundexInput[E any](name string, args []Argument[E], text sqltype.Usage) Resolution {
+func SoundexInput(name string, args []Argument, text sqltype.Usage) Resolution {
 	if SoundexSignature(name, len(args)) == "" {
 		return Missing
 	}
@@ -30,8 +31,8 @@ func SoundexInput[E any](name string, args []Argument[E], text sqltype.Usage) Re
 	return Resolved
 }
 
-func CoerceSoundexArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[E], text sqltype.Usage) ([]E, error) {
-	children := make([]E, len(args))
+func CoerceSoundexArguments(b ArgumentCoercer, args []Argument, text sqltype.Usage) ([]expr.Expr, error) {
+	children := make([]expr.Expr, len(args))
 	for i, arg := range args {
 		child, err := b.CoerceArgument(arg, CoercionRequest{Intent: DirectFormalArgument, Target: text})
 		if err != nil {
@@ -42,22 +43,22 @@ func CoerceSoundexArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[E]
 	return children, nil
 }
 
-type Soundex[E Expression[C], C Context, P any] struct {
-	Info[P]
+type Soundex struct {
+	expr.Info
 	Function string
-	Args []E
+	Args     []expr.Expr
 }
 
-func NewSoundex[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Soundex[E, C, P], error) {
-	call := Soundex[E, C, P]{Info: info, Function: name, Args: args}
+func NewSoundex(info expr.Info, name string, args []expr.Expr) (Soundex, error) {
+	call := Soundex{Info: info, Function: name, Args: args}
 	return call, call.Validate()
 }
 
-func (e Soundex[E, C, P]) Reconstruct(info Info[P], args []E) (Soundex[E, C, P], error) {
-	return NewSoundex[E, C](info, e.Function, args)
+func (e Soundex) Reconstruct(info expr.Info, args []expr.Expr) (Soundex, error) {
+	return NewSoundex(info, e.Function, args)
 }
 
-func (e Soundex[E, C, P]) Validate() error {
+func (e Soundex) Validate() error {
 	result := sqltype.Text
 	if e.Function == "difference" {
 		result = sqltype.Int4
@@ -73,7 +74,7 @@ func (e Soundex[E, C, P]) Validate() error {
 	return nil
 }
 
-func (e Soundex[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Soundex) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

@@ -297,7 +297,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			return literalExpression{e.expressionInfo, sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
 			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
@@ -344,31 +344,31 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.right, err = child(e.right)
 		}
 		expression = e
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		e.Pattern, err = child(e.Pattern)
 		if err == nil {
 			e.Escape, err = child(e.Escape)
 		}
 		expression = e
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		e.Pattern, err = child(e.Pattern)
 		if err == nil {
 			e.Escape, err = child(e.Escape)
 		}
 		expression = e
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		for i, arg := range e.Args {
 			e.Args[i], err = child(arg)
 			if err != nil {
@@ -376,7 +376,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		for i, arg := range e.Args {
 			e.Args[i], err = child(arg)
 			if err != nil {
@@ -397,7 +397,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.comparisons[i] = pair
 		}
 		expression = e
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i, arg := range e.Args {
 			e.Args[i], err = child(arg)
@@ -406,7 +406,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i, arg := range e.Args {
 			e.Args[i], err = child(arg)
@@ -434,23 +434,23 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		arg, failure := child(e.Args[0])
 		err = failure
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		return e.MapChildren(func(arg BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, arg, decisiveDefaults) })
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		arg, failure := child(e.Args[0])
 		err = failure
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			arg, replaced, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -469,14 +469,14 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.Args = args
 		}
 		return e, changed, nil
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		arg, failure := child(e.Args[0])
 		err = failure
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err // Cardinality belongs to its query stage.
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		arg, failure := child(e.Args[0])
 		err = failure
 		if changed {
@@ -531,7 +531,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		expression = e
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -555,7 +555,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -567,7 +567,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -578,7 +578,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -594,7 +594,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		e, changed = next, changed || did
 		expression = e
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -610,7 +610,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -626,7 +626,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
 				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
@@ -642,7 +642,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -658,7 +658,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -670,7 +670,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		next, did, failure := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
@@ -679,7 +679,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = next
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -691,7 +691,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -703,7 +703,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -715,7 +715,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -727,7 +727,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -739,7 +739,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -751,7 +751,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -768,7 +768,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -785,7 +785,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
@@ -797,7 +797,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -823,7 +823,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		var did bool
 		e, did, err = mapArrayRandomChildren(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
@@ -831,7 +831,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		var did bool
 		e, did, err = mapArrayTransformChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -841,7 +841,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		var did bool
 		e, did, err = mapArrayInspectChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -851,7 +851,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		var did bool
 		e, did, err = mapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -891,7 +891,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			changed = changed || did
 		}
 		expression = e
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -899,7 +899,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		e.Arg = arg
 		changed = changed || did
 		expression = e
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		var did bool
 		e, did, err = mapNetworkFormatChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -909,7 +909,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		var did bool
 		e, did, err = mapRangeOperatorChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -919,7 +919,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -938,7 +938,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.Args = args
 		}
 		expression = e
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -957,7 +957,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.Args = args
 		}
 		expression = e
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -983,7 +983,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		if len(e.Args) != 0 {
 			node, did, failure := simplifyConditional(c, e.Args[0], decisiveDefaults)
 			if failure != nil {
@@ -1000,7 +1000,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1019,7 +1019,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.Args = args
 		}
 		expression = e
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -1208,7 +1208,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e.args = args
 		}
 		expression = e
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1355,7 +1355,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		e.child = next
 		changed = changed || did
 		expression = e
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1378,7 +1378,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			e = next
 		}
 		expression = e
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1398,7 +1398,7 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		node, folded, failure := foldStringVariadic(c, e)
 		return node, changed || folded, failure
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1453,7 +1453,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	}
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		return literal(e.Value) && (e.Local || literal(e.Zone))
 	case collationExpression:
 		return literal(e.child)
@@ -1467,17 +1467,17 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case likeExpression:
 		return literal(e.left) && literal(e.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		return literal(e.Pattern) && literal(e.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		return literal(e.Left) && literal(e.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		return literal(e.Left) && literal(e.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return literal(e.Pattern) && literal(e.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		return literal(e.Args[0]) && literal(e.Args[1]) && literal(e.Args[2])
 	case rowComparisonExpression:
 		for _, pair := range e.comparisons {
@@ -1486,7 +1486,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
@@ -1520,115 +1520,115 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return literal(e.Arg)
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		return false
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		if e.Plan.Name() == "string_to_table" {
 			return false
 		}
@@ -1638,9 +1638,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		return false // Volatile even for strict NULL, empty and singleton arrays.
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		if e.IntrinsicStable() {
 			return false
 		}
@@ -1650,14 +1650,14 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
@@ -1670,39 +1670,39 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return false
 	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
 		return false
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return literal(e.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for _, arg := range e.Args[:e.Kind.Arity()] {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		return literal(e.Args[0]) && literal(e.Args[1])
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
@@ -1753,9 +1753,9 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case jsonPredicateExpression:
 		return literal(e.child)
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		return false // All eight JSON creation functions are intrinsically STABLE.
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		if e.IntrinsicStable() {
 			return false
 		}
@@ -1765,7 +1765,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		return false // Intrinsically STABLE, even with literal children.
 	}
 	return false

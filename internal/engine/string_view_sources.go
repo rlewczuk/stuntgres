@@ -41,11 +41,11 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 		}
 		var shape *sqltype.Descriptor
 		switch record := root.calls[i].(type) {
-		case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+		case functions.JSONRecord:
 			if record.Defined {
 				shape = record.ResultUsage().Type
 			}
-		case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+		case functions.JSONBRecord:
 			if record.Definitions {
 				shape = record.RecordUsage().Type.BaseType()
 			}

@@ -56,7 +56,7 @@ func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, e
 // Expanded variadic path elements form one non-NULL array argument. A NULL
 // element is not a NULL formal; explicit VARIADIC retains the array child.
 func strictRoutineArguments(node BoundExpr, visit func(BoundExpr)) {
-	if expression, ok := node.(functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]); ok && !expression.Variadic {
+	if expression, ok := node.(functions.JSONExtract); ok && !expression.Variadic {
 		visit(expression.Args[0])
 		return
 	}

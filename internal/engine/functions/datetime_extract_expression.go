@@ -2,28 +2,24 @@ package functions
 
 import (
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeExtractContext[E any] interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type DatetimeExtract[E Expression[C], C DatetimeExtractContext[E], P any] struct {
-	Info[P]
+type DatetimeExtract struct {
+	expr.Info
 	Plan               sqltype.DatetimeExtractPlan
-	Args               [2]E
+	Args               [2]expr.Expr
 	Syntax             parser.FunctionSyntax
 	Field              string
 	DateWrapperContext bool
 }
 
-func (e DatetimeExtract[E, C, P]) Arguments() []E { return e.Args[:] }
+func (e DatetimeExtract) Arguments() []expr.Expr { return e.Args[:] }
 
-func (e DatetimeExtract[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -55,7 +51,7 @@ type DatetimeExtractPreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeExtract[E any](visible, variadic bool, args []Argument[E]) DatetimeExtractPreparation {
+func PrepareDatetimeExtract(visible, variadic bool, args []Argument) DatetimeExtractPreparation {
 	if !visible || variadic || len(args) != 2 {
 		return DatetimeExtractPreparation{}
 	}
@@ -73,7 +69,7 @@ func PrepareDatetimeExtract[E any](visible, variadic bool, args []Argument[E]) D
 	return p
 }
 
-func ResolveDatetimeExtract[E any](prepared DatetimeExtractPreparation, operands []Argument[E], types TemporalTypes) TemporalSelection {
+func ResolveDatetimeExtract(prepared DatetimeExtractPreparation, operands []Argument, types TemporalTypes) TemporalSelection {
 	if len(prepared.candidates) == 0 {
 		return TemporalSelection{Resolution: Missing}
 	}
@@ -159,7 +155,7 @@ func DatetimeExtractWrapperContext(name string, selected sqltype.ID, immutableAr
 	return name == "date_part" && selected == sqltype.Date && immutableArguments
 }
 
-func (e DatetimeExtract[E, C, P]) Reconstruct(info Info[P], args [2]E, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeExtract[E, C, P], bool, error) {
+func (e DatetimeExtract) Reconstruct(info expr.Info, args [2]expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeExtract, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

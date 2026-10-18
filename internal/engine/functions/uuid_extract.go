@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,18 +45,18 @@ func (k UUIDExtractKind) Result() sqltype.ID {
 
 // UUIDExtract is a strict immutable unary scalar. UUID parsing and timestamp
 // presentation remain owned by sqltype and the session's ordinary adapters.
-type UUIDExtract[E Expression[C], C LiteralContext[E], P any] struct {
-	Info[P]
+type UUIDExtract struct {
+	expr.Info
 	Kind UUIDExtractKind
-	Arg  E
+	Arg  expr.Expr
 }
 
-func NewUUIDExtract[E Expression[C], C LiteralContext[E], P any](info Info[P], kind UUIDExtractKind, arg E) (UUIDExtract[E, C, P], error) {
-	e := UUIDExtract[E, C, P]{Info: info, Kind: kind, Arg: arg}
+func NewUUIDExtract(info expr.Info, kind UUIDExtractKind, arg expr.Expr) (UUIDExtract, error) {
+	e := UUIDExtract{Info: info, Kind: kind, Arg: arg}
 	return e, e.Validate()
 }
 
-func (e UUIDExtract[E, C, P]) Validate() error {
+func (e UUIDExtract) Validate() error {
 	if e.Kind.Name() == "" || any(e.Arg) == nil || !e.Usage.Valid() || e.Usage.Type.ID() != e.Kind.Result() || e.Usage != e.Usage.Type.Usage() {
 		return fmt.Errorf("stuntgres: invalid stored UUID extraction provider")
 	}
@@ -66,11 +67,11 @@ func (e UUIDExtract[E, C, P]) Validate() error {
 	return nil
 }
 
-func (e UUIDExtract[E, C, P]) Reconstruct(info Info[P], arg E) (UUIDExtract[E, C, P], error) {
-	return NewUUIDExtract[E, C](info, e.Kind, arg)
+func (e UUIDExtract) Reconstruct(info expr.Info, arg expr.Expr) (UUIDExtract, error) {
+	return NewUUIDExtract(info, e.Kind, arg)
 }
 
-func (e UUIDExtract[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e UUIDExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

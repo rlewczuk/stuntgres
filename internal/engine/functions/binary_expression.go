@@ -2,22 +2,19 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type BinaryContext[E any] interface {
-	LiteralContext[E]
-	FunctionBinaryConversion(int, int) (*sqltype.EncodingConversionHandler, error)
-}
-type Binary[E Expression[C], C BinaryContext[E], P any] struct {
-	Info[P]
+type Binary struct {
+	expr.Info
 	Plan   sqltype.BinaryPlan
-	Args   []E
+	Args   []expr.Expr
 	Syntax parser.FunctionSyntax
 }
 
-func (e Binary[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Binary) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -40,7 +37,7 @@ func (e Binary[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
 }
-func (e Binary[E, C, P]) ValidateSyntax() error {
+func (e Binary) ValidateSyntax() error {
 	if e.Syntax == parser.OrdinaryFunctionSyntax {
 		return nil
 	}
@@ -62,7 +59,7 @@ func (e Binary[E, C, P]) ValidateSyntax() error {
 	}
 	return fmt.Errorf("stuntgres: invalid stored binary syntax")
 }
-func (e Binary[E, C, P]) Validate() error {
+func (e Binary) Validate() error {
 	var usages [4]sqltype.Usage
 	for i, arg := range e.Args {
 		usages[i] = arg.ResultUsage()
@@ -73,7 +70,7 @@ func (e Binary[E, C, P]) Validate() error {
 	}
 	return nil
 }
-func (e Binary[E, C, P]) Reconstruct(info Info[P], args []E) (Binary[E, C, P], error) {
+func (e Binary) Reconstruct(info expr.Info, args []expr.Expr) (Binary, error) {
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
@@ -85,16 +82,16 @@ func (e Binary[E, C, P]) Reconstruct(info Info[P], args []E) (Binary[E, C, P], e
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func NewBinary[E Expression[C], C BinaryContext[E], P any](info Info[P], name string, args []E, syntax parser.FunctionSyntax) (Binary[E, C, P], error) {
+func NewBinary(info expr.Info, name string, args []expr.Expr, syntax parser.FunctionSyntax) (Binary, error) {
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindBinary(name, info.Usage, usages[:len(args)]...)
 	if err != nil {
-		return Binary[E, C, P]{}, err
+		return Binary{}, err
 	}
-	node := Binary[E, C, P]{info, plan, args, syntax}
+	node := Binary{info, plan, args, syntax}
 	return node, node.ValidateSyntax()
 }
 func BinaryTextType(d *sqltype.Descriptor) bool {
@@ -113,7 +110,7 @@ func BinaryDefaultAllowed(name string, count int) bool {
 
 // BinaryBitCandidate identifies only the released measurement/slice overloads.
 // Unknowns acquire the BIT family only when a known BIT/VARBIT operand selects it.
-func BinaryBitCandidate[E any](name string, variadic bool, args []Argument[E]) bool {
+func BinaryBitCandidate(name string, variadic bool, args []Argument) bool {
 	if variadic {
 		return false
 	}
@@ -257,7 +254,7 @@ func (t *BinaryTypes) Usage(id sqltype.ID) sqltype.Usage {
 	}
 	return sqltype.Usage{}
 }
-func BinaryArgumentDemand[E any](name string, family sqltype.ID, args []Argument[E], knownOnly bool) (demand BinaryDemand) {
+func BinaryArgumentDemand(name string, family sqltype.ID, args []Argument, knownOnly bool) (demand BinaryDemand) {
 	for i, arg := range args {
 		if !knownOnly || arg.Usage.Type != nil {
 			demand |= binaryTypeDemand(BinaryArgumentID(name, i, family))
@@ -299,7 +296,7 @@ type BinaryPreparation struct {
 	kind      binarySelectionKind
 }
 
-func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, args []Argument[E]) BinaryPreparation {
+func PrepareBinary(name string, visible, variadic, defaultConsumer bool, args []Argument) BinaryPreparation {
 	selected := BinaryPreparation{Selection: BinarySelection{Family: sqltype.Bytea}}
 	missing := BinaryPreparation{Selection: BinarySelection{Family: sqltype.Bytea, Resolution: Missing}}
 	bits := BinaryBitCandidate(name, variadic, args)
@@ -423,7 +420,7 @@ func binaryAccessArgumentID(name string, index, candidate int) sqltype.ID {
 	}
 	return BinaryArgumentID(name, index, sqltype.Bytea)
 }
-func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argument[E], types *BinaryTypes) BinarySelection {
+func ResolveBinary(prepared BinaryPreparation, name string, args []Argument, types *BinaryTypes) BinarySelection {
 	selection := prepared.Selection
 	if selection.Resolution != Resolved || selection.Route != BinaryCall {
 		return selection
@@ -481,7 +478,7 @@ func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argume
 	}
 	return selection
 }
-func BinaryArgumentsViable[E any](name string, family sqltype.ID, args []Argument[E], types *BinaryTypes) bool {
+func BinaryArgumentsViable(name string, family sqltype.ID, args []Argument, types *BinaryTypes) bool {
 	valid := true
 	for i, arg := range args {
 		if arg.Usage.Type != nil {
@@ -491,8 +488,8 @@ func BinaryArgumentsViable[E any](name string, family sqltype.ID, args []Argumen
 	}
 	return valid
 }
-func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, family sqltype.ID, arguments []Argument[E], types *BinaryTypes) ([]E, error) {
-	args := make([]E, len(arguments))
+func CoerceBinaryArguments(b ArgumentCoercer, name string, family sqltype.ID, arguments []Argument, types *BinaryTypes) ([]expr.Expr, error) {
+	args := make([]expr.Expr, len(arguments))
 	for i, argument := range arguments {
 		target := types.Usage(BinaryArgumentID(name, i, family))
 		intent := LikeArgument

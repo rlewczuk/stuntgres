@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestJSONStripNullsExpressionDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, written := range []int{1, 2} {
-		base := JSONStripNulls[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.JSON].Usage()}, Plan: plan, WrittenCount: written, WrittenSlots: [2]uint8{0, 1}}
+		base := JSONStripNulls{Info: expr.Info{Usage: d[sqltype.JSON].Usage()}, Plan: plan, WrittenCount: written, WrittenSlots: [2]uint8{0, 1}}
 		if written == 2 {
 			base.WrittenSlots = [2]uint8{1, 0}
 		}
@@ -24,7 +25,7 @@ func TestJSONStripNullsExpressionDemand(t *testing.T) {
 			var order []int
 			failure := errors.New("ordinary child failure after strict NULL")
 			for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
-				a := temporalTestArgument{Info: Info[struct{}]{Usage: d[id].Usage()}, value: sqltype.Null(d[id]), order: &order, index: i}
+				a := temporalTestArgument{Info: expr.Info{Usage: d[id].Usage()}, value: sqltype.Null(d[id]), order: &order, index: i}
 				if failing == i {
 					a.err = failure
 				}
@@ -54,8 +55,8 @@ func TestJSONStripNullsExpressionDemand(t *testing.T) {
 
 func TestJSONStripNullsExpressionReconstruct(t *testing.T) {
 	d, fresh := temporalTestTypes(), temporalTestTypes()
-	e := JSONStripNulls[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.JSON].Usage()}, WrittenCount: 2, WrittenSlots: [2]uint8{1, 0}, Labels: [2]string{"strip_in_arrays", "target"}}
-	var args [2]temporalTestExpression
+	e := JSONStripNulls{Info: expr.Info{Usage: d[sqltype.JSON].Usage()}, WrittenCount: 2, WrittenSlots: [2]uint8{1, 0}, Labels: [2]string{"strip_in_arrays", "target"}}
+	var args [2]expr.Expr
 	for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
 		e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
 		args[i] = temporalTestLiteral(sqltype.Null(fresh[id]))
@@ -65,7 +66,7 @@ func TestJSONStripNullsExpressionReconstruct(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Plan = plan
-	next, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSON].Usage()}, args)
+	next, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSON].Usage()}, args)
 	if err != nil || next.Usage.Type != fresh[sqltype.JSON] || next.WrittenSlots != e.WrittenSlots || next.Labels != e.Labels || next.WrittenCount != 2 {
 		t.Fatal(next, err)
 	}
@@ -74,7 +75,7 @@ func TestJSONStripNullsExpressionReconstruct(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	args[0] = e.Args[0]
-	if _, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSON].Usage()}, args); err == nil {
+	if _, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSON].Usage()}, args); err == nil {
 		t.Fatal("accepted foreign target authority")
 	}
 }

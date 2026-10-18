@@ -1,21 +1,22 @@
 package functions
 
+import "stuntgres/internal/engine/expr"
 import "stuntgres/internal/sqltype"
 
 // JSONStripNulls separates written evaluation order from executable formals.
-type JSONStripNulls[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONStripNulls struct {
+	expr.Info
 	Plan         sqltype.JSONStripNullsPlan
-	Args         [2]E
+	Args         [2]expr.Expr
 	WrittenCount int
 	WrittenSlots [2]uint8
 	Labels       [2]string
 	Variadic     bool
 }
 
-func (e *JSONStripNulls[E, C, P]) Arguments() []E { return e.Args[:] }
+func (e *JSONStripNulls) Arguments() []expr.Expr { return e.Args[:] }
 
-func (e JSONStripNulls[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONStripNulls) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -43,7 +44,7 @@ func (e JSONStripNulls[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return e.Plan.Evaluate(ctx, values[0], values[1])
 }
 
-func (e JSONStripNulls[E, C, P]) Reconstruct(info Info[P], args [2]E) (JSONStripNulls[E, C, P], error) {
+func (e JSONStripNulls) Reconstruct(info expr.Info, args [2]expr.Expr) (JSONStripNulls, error) {
 	plan, err := sqltype.BindJSONStripNulls(info.Usage, args[0].ResultUsage(), args[1].ResultUsage())
 	if err != nil {
 		return e, err

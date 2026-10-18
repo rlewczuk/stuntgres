@@ -15,10 +15,10 @@ func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, er
 func (c *EvalContext) FunctionSleepArgumentPresent(arg BoundExpr) bool { return arg != nil }
 
 func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [1]functions.Argument[BoundExpr]
+	var small [1]functions.Argument
 	operands := small[:min(len(raw.Args), 1)]
 	if len(raw.Args) > 1 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		operand, err := functions.AnalyzeDatetimeSleepArgument(b, child)
@@ -65,5 +65,5 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewDatetimeSleep[BoundExpr, ExprContext](functionInfo(info), kind, arg, clockUsage)
+	return functions.NewDatetimeSleep(functionInfo(info), kind, arg, clockUsage)
 }

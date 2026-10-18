@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"runtime"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -59,22 +60,15 @@ func uuidInfiniteInterval(months, days int32, micros int64) bool {
 	return months == math.MinInt32 && days == math.MinInt32 && micros == math.MinInt64 || months == math.MaxInt32 && days == math.MaxInt32 && micros == math.MaxInt64
 }
 
-type UUIDGenerationContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-	FunctionUUIDReady() error
-	FunctionUUIDTime() int64
-	FunctionUUIDEntropy([]byte) error
-}
-type UUIDGeneration[E Expression[C], C UUIDGenerationContext, P any] struct {
-	Info[P]
+type UUIDGeneration struct {
+	expr.Info
 	Name      string
-	Args      []E
+	Args      []expr.Expr
 	Timestamp *sqltype.Descriptor
 	Addition  sqltype.Arithmetic
 }
 
-func (e UUIDGeneration[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e UUIDGeneration) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -166,11 +160,11 @@ func UUIDShiftCompatible(usage, target sqltype.Usage) bool {
 	_, err := sqltype.PlanCoercion(usage, target, sqltype.Implicit)
 	return err == nil
 }
-func CoerceUUIDShift[E any, B ArgumentCoercer[E]](b B, argument Argument[E], target sqltype.Usage) (E, error) {
+func CoerceUUIDShift(b ArgumentCoercer, argument Argument, target sqltype.Usage) (expr.Expr, error) {
 	return b.CoerceArgument(argument, CoercionRequest{Intent: DirectFormalArgument, Target: target, AtRaw: true})
 }
-func NewUUIDGeneration[E Expression[C], C UUIDGenerationContext, P any](info Info[P], name string, args []E, timestamp *sqltype.Descriptor) (UUIDGeneration[E, C, P], error) {
-	node := UUIDGeneration[E, C, P]{Info: info, Name: name, Args: args, Timestamp: timestamp}
+func NewUUIDGeneration(info expr.Info, name string, args []expr.Expr, timestamp *sqltype.Descriptor) (UUIDGeneration, error) {
+	node := UUIDGeneration{Info: info, Name: name, Args: args, Timestamp: timestamp}
 	if len(args) != 0 {
 		var err error
 		node.Addition, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, timestamp, args[0].ResultUsage().Type, timestamp)
@@ -180,7 +174,7 @@ func NewUUIDGeneration[E Expression[C], C UUIDGenerationContext, P any](info Inf
 	}
 	return node, nil
 }
-func (e UUIDGeneration[E, C, P]) Reconstruct(info Info[P], args []E, timestamp *sqltype.Descriptor) (UUIDGeneration[E, C, P], error) {
+func (e UUIDGeneration) Reconstruct(info expr.Info, args []expr.Expr, timestamp *sqltype.Descriptor) (UUIDGeneration, error) {
 	next, err := NewUUIDGeneration(info, e.Name, args, timestamp)
 	if err != nil {
 		return e, err

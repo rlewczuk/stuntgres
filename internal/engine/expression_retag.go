@@ -181,11 +181,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.target = targets[0]
 		n.expressionInfo = info
 		rebound = n
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
 		n.Info = functionInfo(info)
 		rebound = n
@@ -213,7 +213,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 		}
 		rebound = n
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -223,14 +223,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -240,14 +240,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -257,7 +257,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -543,7 +543,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		if len(n.Args) != 0 {
 			next := child(n.Args[0])
 			if changed {
@@ -559,11 +559,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			n.Info = functionInfo(info)
 		}
 		rebound = n
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		n.Args = children(n.Args)
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		n.Arg = child(n.Arg)
 		clockType := retainedType(n.ClockUsage.Type)
 		changed = changed || clockType != n.ClockUsage.Type
@@ -698,7 +698,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -713,7 +713,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err
@@ -727,7 +727,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -743,7 +743,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -759,7 +759,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -775,7 +775,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -791,7 +791,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -807,7 +807,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -823,7 +823,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -835,7 +835,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		var did bool
 		n, did, err = mapJSONExtractChildren(n, mapChild)
 		if err != nil {
@@ -846,7 +846,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -858,7 +858,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -870,7 +870,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -882,7 +882,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -894,7 +894,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -906,7 +906,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -918,7 +918,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -930,7 +930,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -942,7 +942,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -954,7 +954,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -977,7 +977,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, text)
 		rebound = n
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -987,7 +987,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		ref, conflict := n.Sort.InputCollation()
 		ref = comparisonCollation(ref)
 		n.Args = children(n.Args)
@@ -999,7 +999,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, ref, conflict)
 		rebound = n
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -1009,7 +1009,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		ref, conflict := n.Plan.InputCollation()
 		ref = comparisonCollation(ref)
 		n.Args = children(n.Args)
@@ -1067,7 +1067,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err
@@ -1077,7 +1077,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Arg)
 		rebound = n
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for i := range n.Kind.Arity() {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -1089,7 +1089,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -1101,7 +1101,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -1116,7 +1116,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -1131,7 +1131,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		ref, conflict := n.Plan.InputCollation()
 		ref = comparisonCollation(ref)
 		n.Args = children(n.Args)
@@ -1159,7 +1159,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		n.Args = children(n.Args)
 		n.Info = functionInfo(info)
 		rebound = n
@@ -1172,13 +1172,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.child = child(n.child)
 		n.expressionInfo = info
 		rebound = n
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		n.Args = children(n.Args)
 		if err == nil {
 			n, err = n.Reconstruct(functionInfo(info), n.Args)
 		}
 		rebound = n
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		n.Args = append([]BoundExpr(nil), n.Args...)
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
@@ -1187,7 +1187,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			n, err = n.Reconstruct(functionInfo(info), n.Args)
 		}
 		rebound = n
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		n.Args = children(n.Args)
 		int4 := retainedType(n.Int4)
 		changed = changed || int4 != n.Int4
@@ -1273,13 +1273,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case identityExpression:
 		n.expressionInfo = info
 		rebound = n
-	case functions.CurrentDateTime[ExprContext, ExprProperties]:
+	case functions.CurrentDateTime:
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.VersionInformation[ExprContext, ExprProperties]:
+	case functions.VersionInformation:
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.TransactionTime[ExprContext, ExprProperties]:
+	case functions.TransactionTime:
 		n.Info = functionInfo(info)
 		rebound = n
 	case domainValueExpression:
@@ -1309,7 +1309,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		n.Value = child(n.Value)
 		if !n.Local {
 			n.Zone = child(n.Zone)
@@ -1401,7 +1401,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		if !changed {
 			return node, false, err
@@ -1414,7 +1414,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
@@ -1428,7 +1428,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
@@ -1442,7 +1442,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		if !changed {
 			return node, false, err
@@ -1455,7 +1455,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}
@@ -1470,7 +1470,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
 		}

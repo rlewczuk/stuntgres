@@ -37,7 +37,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if !ok || len(source.calls) != 1 || len(ns.columns) != 2 || ns.columns[0].descriptor.Usage.Type.ID() != sqltype.Int4 || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Text {
 		t.Fatal("lost definition usage", node, ns)
 	}
-	call := source.calls[0].(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	call := source.calls[0].(functions.JSONBRecord)
 	if isQuerySet(call) || !validFunctionSourceCall(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
@@ -65,7 +65,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("record generation not remapped", err)
 	}
-	next := mapped.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	next := mapped.(functions.JSONBRecord)
 	if next.ResultUsage().Type == call.ResultUsage().Type || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Int4] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSONB] {
 		t.Fatal("source-owned record usage retained")
 	}
@@ -196,7 +196,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 		if !jsonbRecordUnresolved(base) {
 			t.Fatal("lost explicit unresolved marker", base)
 		}
-		original := base.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+		original := base.(functions.JSONBRecord)
 		rebuilt, err := original.Reconstruct(original.Info, original.Args)
 		if err != nil || !rebuilt.Unresolved {
 			t.Fatal("reconstruction registered unknown layout", err)
@@ -235,9 +235,9 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	callFor := func(typ *sqltype.Descriptor) functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties] {
-		call := functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]{
-			Info: functions.Info[ExprProperties]{Usage: typ.Usage(), Pos: parser.Position{Offset: 40}},
+	callFor := func(typ *sqltype.Descriptor) functions.JSONBRecord {
+		call := functions.JSONBRecord{
+			Info: expressionInfo{Usage: typ.Usage(), Pos: parser.Position{Offset: 40}},
 			Name: "jsonb_populate_record",
 		}
 		args := []BoundExpr{
@@ -479,12 +479,12 @@ func TestJSONBRecordLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}
-		call := root.(*functionFromNode).calls[0].(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+		call := root.(*functionFromNode).calls[0].(functions.JSONBRecord)
 		if !call.Definitions || call.Unresolved || len(namespace.columns) != 2 || call.RecordUsage().Type.CompositeMember(0).Name != "a" {
 			t.Fatal("lost caller layout", call, namespace)
 		}
 		if tc.nullInner {
-			inner, ok := call.Args[0].(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+			inner, ok := call.Args[0].(functions.JSONBRecord)
 			if !ok || !inner.Unresolved || inner.Definitions || inner.ResultUsage().Type.CompositeLen() != 0 {
 				t.Fatal("context replaced or supplied a descriptor to real inner expression", call.Args[0])
 			}

@@ -27,7 +27,7 @@ func (c *EvalContext) FunctionWallTime() time.Time {
 func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
-func transactionTimeSQL(e functions.TransactionTime[ExprContext, ExprProperties]) (string, error) {
+func transactionTimeSQL(e functions.TransactionTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
@@ -83,7 +83,7 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 	if err != nil {
 		return nil, err
 	}
-	return functions.TransactionTime[ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
+	return functions.TransactionTime{Info: functionInfo(info), Kind: kind}, nil
 }
 
 // Only selected time leaves may introduce volatility into this closed default.
@@ -97,11 +97,11 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case functions.TransactionTime[ExprContext, ExprProperties]:
+	case functions.TransactionTime:
 		return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		return n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
-	case rowExpression, fieldExpression, functions.Posix[BoundExpr, ExprContext, ExprProperties], functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties], functions.Similar[BoundExpr, ExprContext, ExprProperties], functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties], functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties], functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case rowExpression, fieldExpression, functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -123,20 +123,20 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case commitTimestampExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return closedTransactionTimeDefault(n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for _, arg := range n.Args[:n.Kind.Arity()] {
 			if !closedTransactionTimeDefault(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], functions.RangeInspect[BoundExpr, ExprContext, ExprProperties], functions.Enum[BoundExpr, ExprContext, ExprProperties], functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -148,11 +148,11 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties], functions.JSONBSet[BoundExpr, ExprContext, ExprProperties], functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties], functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, ExprContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, ExprContext, ExprProperties], functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties], functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties], functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties], functions.String[BoundExpr, ExprContext, ExprProperties], functions.Timezone[BoundExpr, ExprContext, ExprProperties], functions.Math[BoundExpr, ExprContext, ExprProperties], functions.NullCount[BoundExpr, ExprContext, ExprProperties], functions.Format[BoundExpr, ExprContext, ExprProperties], functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, ExprContext, ExprProperties], caseExpression:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

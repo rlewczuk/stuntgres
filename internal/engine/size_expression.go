@@ -10,7 +10,7 @@ import (
 // resolving signatures, while retaining unknowns for occurrence-owned inference.
 func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var operand functions.Argument[BoundExpr]
+	var operand functions.Argument
 	var names []string
 	if len(raw.Args) <= 100 && len(raw.Args) != 1 {
 		names = make([]string, len(raw.Args))
@@ -70,7 +70,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 		resultType = b.typ(id)
 	}
 	info := b.info(resultType.Usage(), raw.Pos, arg.Properties())
-	node, err := functions.NewSize[BoundExpr, ExprContext](functionInfo(info), name, arg, target.Usage())
+	node, err := functions.NewSize(functionInfo(info), name, arg, target.Usage())
 	if err != nil {
 		return nil, err
 	}

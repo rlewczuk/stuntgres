@@ -1,24 +1,25 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type Posix[E Expression[C], C RegexpContext, P any] struct {
-	Info[P]
-	Left, Right         E
+type Posix struct {
+	expr.Info
+	Left, Right         expr.Expr
 	Provider            sqltype.PosixPlan
 	Operator, Namespace string
 }
-type PosixSubstring[E Expression[C], C RegexpContext, P any] struct {
-	Info[P]
-	Args     [2]E
+type PosixSubstring struct {
+	expr.Info
+	Args     [2]expr.Expr
 	Provider sqltype.PosixSubstringPlan
 	Syntax   parser.FunctionSyntax
 }
 
-func (e Posix[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Posix) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -37,7 +38,7 @@ func (e Posix[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Provider.Evaluate(ctx, a, b, c.FunctionRegexExecution())
 }
-func (e PosixSubstring[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e PosixSubstring) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -73,7 +74,7 @@ func PatternTextType(d *sqltype.Descriptor) bool {
 func PatternAllowed(visible bool, left, right sqltype.Usage) bool {
 	return visible && PatternTextType(left.Type) && PatternTextType(right.Type)
 }
-func CoercePatternArguments[E any, B ArgumentCoercer[E]](b B, left, right Argument[E], text sqltype.Usage) (l, r E, err error) {
+func CoercePatternArguments(b ArgumentCoercer, left, right Argument, text sqltype.Usage) (l, r expr.Expr, err error) {
 	target := text
 	if d := left.Usage.Type; d != nil && (d.BaseType().ID() == sqltype.Name || d.BaseType().ID() == sqltype.BPChar) {
 		target = d.BaseType().Usage()
@@ -85,7 +86,7 @@ func CoercePatternArguments[E any, B ArgumentCoercer[E]](b B, left, right Argume
 	r, err = b.CoerceArgument(right, CoercionRequest{Intent: LikeArgument, Target: text})
 	return l, r, err
 }
-func CoercePosixSubstringArguments[E any, B ArgumentCoercer[E]](b B, operands []Argument[E], text sqltype.Usage) (args [2]E, err error) {
+func CoercePosixSubstringArguments(b ArgumentCoercer, operands []Argument, text sqltype.Usage) (args [2]expr.Expr, err error) {
 	for i, operand := range operands {
 		args[i], err = b.CoerceArgument(operand, CoercionRequest{Intent: LikeArgument, Target: text})
 		if err != nil {
@@ -94,18 +95,18 @@ func CoercePosixSubstringArguments[E any, B ArgumentCoercer[E]](b B, operands []
 	}
 	return args, nil
 }
-func NewPosix[E Expression[C], C RegexpContext, P any](info Info[P], left, right E, operator, namespace string, collation sqltype.CollationRef, conflict bool) (Posix[E, C, P], error) {
+func NewPosix(info expr.Info, left, right expr.Expr, operator, namespace string, collation sqltype.CollationRef, conflict bool) (Posix, error) {
 	provider, err := sqltype.BindPosix(operator, left.ResultUsage(), right.ResultUsage(), info.Usage, collation, conflict)
-	return Posix[E, C, P]{info, left, right, provider, operator, namespace}, err
+	return Posix{info, left, right, provider, operator, namespace}, err
 }
-func (e Posix[E, C, P]) Reconstruct(info Info[P], left, right E, collation sqltype.CollationRef, conflict bool) (Posix[E, C, P], error) {
-	return NewPosix[E, C](info, left, right, e.Operator, e.Namespace, collation, conflict)
+func (e Posix) Reconstruct(info expr.Info, left, right expr.Expr, collation sqltype.CollationRef, conflict bool) (Posix, error) {
+	return NewPosix(info, left, right, e.Operator, e.Namespace, collation, conflict)
 }
-func NewPosixSubstring[E Expression[C], C RegexpContext, P any](info Info[P], args [2]E, syntax parser.FunctionSyntax) (PosixSubstring[E, C, P], error) {
+func NewPosixSubstring(info expr.Info, args [2]expr.Expr, syntax parser.FunctionSyntax) (PosixSubstring, error) {
 	usages := [2]sqltype.Usage{args[0].ResultUsage(), args[1].ResultUsage()}
 	provider, err := sqltype.BindPosixSubstring(usages, info.Usage, info.Usage.Collation, info.CollationConflict)
-	return PosixSubstring[E, C, P]{info, args, provider, syntax}, err
+	return PosixSubstring{info, args, provider, syntax}, err
 }
-func (e PosixSubstring[E, C, P]) Reconstruct(info Info[P], args [2]E) (PosixSubstring[E, C, P], error) {
-	return NewPosixSubstring[E, C](info, args, e.Syntax)
+func (e PosixSubstring) Reconstruct(info expr.Info, args [2]expr.Expr) (PosixSubstring, error) {
+	return NewPosixSubstring(info, args, e.Syntax)
 }

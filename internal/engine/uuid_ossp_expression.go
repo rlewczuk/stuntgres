@@ -12,7 +12,7 @@ import (
 // The embedded name selects the shared v4 kernel only. SQL authority and stored
 // recipes always use the captured installed procedure, never a builtin alias.
 type installedUUIDOsspFunctionExpression struct {
-	functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]
+	functions.UUIDGeneration
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -80,7 +80,7 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 	}
 	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
 	info.RoutineReference = proc
-	call, err := functions.NewUUIDGeneration[BoundExpr, ExprContext](functionInfo(info), "uuidv4", nil, nil)
+	call, err := functions.NewUUIDGeneration(functionInfo(info), "uuidv4", nil, nil)
 	if err != nil {
 		return nil, err
 	}

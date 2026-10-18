@@ -206,7 +206,7 @@ func generationImmutable(node BoundExpr) bool {
 		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		return false
 	case collationExpression:
 		return one(n.child)
@@ -239,19 +239,19 @@ func generationImmutable(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		return both(n.Pattern, n.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		return both(n.Left, n.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		return both(n.Left, n.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return both(n.Pattern, n.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		return args(n.Args[:])
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		return args(n.Args[:])
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return args(n.Args)
 	case conditionalExpression:
 		return !n.comparison.SessionDependent() && args(n.args)
@@ -265,53 +265,53 @@ func generationImmutable(node BoundExpr) bool {
 			}
 		}
 		return true
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return n.Plan.Immutable() && args(n.Args)
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return args(n.Arguments())
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		return args(n.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		return !n.IntrinsicStable() && args(n.Arguments())
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		return !n.IntrinsicStable() && both(n.Value, n.Zone)
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return false
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return args(n.Arguments())
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return args(n.Arguments())
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return args(n.Arguments())
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return args(n.Arguments())
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return false
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return false
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return !n.Plan.SessionDependent() && args(n.Args)
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], unnestExpression:
+	case functions.ArrayRandom, unnestExpression:
 		return false
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		return !n.IntrinsicStable() && args(n.Args)
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		return args(n.Args)
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		return !n.Plan.SessionDependent() && args(n.Args)
 	case aclValueExpression:
 		return n.kind != aclExplode && args(n.arguments())
@@ -323,19 +323,19 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case commitTimestampExpression:
 		return false
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return generationImmutable(n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		return args(n.Args[:])
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return args(n.Args)
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		return false
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		return args(n.Args)
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
@@ -353,11 +353,11 @@ func generationImmutable(node BoundExpr) bool {
 		return n.Property.Volatility == Immutable && args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		return false
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		return !n.IntrinsicStable() && args(n.Args)
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		return false
 	default:
 		return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
@@ -528,19 +528,19 @@ func generationHasTableOID(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		return both(n.Pattern, n.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		return both(n.Left, n.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		return both(n.Left, n.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return both(n.Pattern, n.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		return args(n.Args[:])
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		return args(n.Args[:])
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
@@ -554,51 +554,51 @@ func generationHasTableOID(node BoundExpr) bool {
 			}
 		}
 		return false
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return args(n.Args)
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return args(n.Arguments())
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return args(n.Arguments())
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return args(n.Arguments())
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		return args(n.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		return args(n.Arguments())
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		return args(n.Arguments())
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return args(n.Arguments())
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return args(n.Arguments())
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return args(n.Arguments())
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return args(n.Arguments())
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return args(n.Arguments())
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return args(n.Arguments())
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return args(n.Arguments())
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return args(n.Args[:])
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return args(n.Args[:])
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return args(n.Args)
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		return args(n.Args)
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		return args(n.Args)
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		return args(n.Args)
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		return args(n.Args)
 	case aclValueExpression:
 		return args(n.arguments())
@@ -612,19 +612,19 @@ func generationHasTableOID(node BoundExpr) bool {
 		return n.arg != nil && generationHasTableOID(n.arg)
 	case commitTimestampExpression:
 		return n.arg != nil && generationHasTableOID(n.arg)
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return generationHasTableOID(n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		return args(n.Args[:])
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return args(n.Args)
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		return args(n.Args)
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		return args(n.Args)
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
@@ -642,15 +642,15 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		return args(n.Args)
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		return args(n.Args)
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		return args(n.Args)
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		return args(n.Args)
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		return both(n.Value, n.Zone)
 	default:
 		return false
@@ -897,7 +897,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case coercionExpression:
 		return child(n.child)
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		return pair(n.Value, n.Zone)
 	case selectedOperatorExpression:
 		return child(n.provider)
@@ -934,19 +934,19 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case likeExpression:
 		return pair(n.left, n.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		return pair(n.Pattern, n.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		return pair(n.Left, n.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		return pair(n.Left, n.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return pair(n.Pattern, n.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		return args(n.Args[:])
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		return args(n.Args[:])
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
@@ -960,60 +960,60 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			}
 		}
 		return nil
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return args(n.Args)
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return args(n.Arguments())
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return args(n.Arguments())
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return args(n.Arguments())
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		return args(n.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		return args(n.Arguments())
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		return args(n.Arguments())
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return args(n.Arguments())
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return args(n.Arguments())
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return args(n.Arguments())
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return args(n.Arguments())
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return args(n.Arguments())
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return args(n.Arguments())
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return args(n.Arguments())
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return args(n.Arguments())
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return args(n.Args[:])
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return args(n.Args[:])
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return args(n.Args)
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return args(n.Args)
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return args(n.Args)
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return args(n.Args)
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		return args(n.Args)
 	case aclValueExpression:
 		if err := n.validateStored(); err != nil {
@@ -1048,28 +1048,28 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			return validateGenerationPlan(view, d, n.arg)
 		}
 		return nil
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return validateGenerationPlan(view, d, n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return args(n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return args(n.Args[:])
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return args(n.Args)
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		return args(n.Args)
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		return args(n.Args)
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		return args(n.Args)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
@@ -1087,11 +1087,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		return args(n.Args)
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		return args(n.Args)
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		return args(n.Args)
 	default:
 		return fmt.Errorf("stuntgres: unsupported generation plan provider %T", node)

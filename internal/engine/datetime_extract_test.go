@@ -45,7 +45,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(source, api, err)
 			}
-			e := node.(functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties])
+			e := node.(functions.DatetimeExtract)
 			result := sqltype.Numeric
 			if api == "date_part" {
 				result = sqltype.Float8
@@ -65,7 +65,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}
-			rebound := next.(functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties])
+			rebound := next.(functions.DatetimeExtract)
 			if rebound.ResultUsage().Type != replacements[result] || rebound.ResultUsage().Type == e.ResultUsage().Type {
 				t.Fatal("result authority retained")
 			}
@@ -150,7 +150,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e := node.(functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties])
+			e := node.(functions.DatetimeExtract)
 			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}

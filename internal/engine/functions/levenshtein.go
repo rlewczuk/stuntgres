@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -23,7 +24,7 @@ func LevenshteinSignature(name string, count int) string {
 	return ""
 }
 
-func LevenshteinInput[E any](name string, args []Argument[E], text, integer sqltype.Usage) Resolution {
+func LevenshteinInput(name string, args []Argument, text, integer sqltype.Usage) Resolution {
 	if LevenshteinSignature(name, len(args)) == "" {
 		return Missing
 	}
@@ -41,8 +42,8 @@ func LevenshteinInput[E any](name string, args []Argument[E], text, integer sqlt
 	return Resolved
 }
 
-func CoerceLevenshteinArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[E], text, integer sqltype.Usage) ([]E, error) {
-	children := make([]E, len(args))
+func CoerceLevenshteinArguments(b ArgumentCoercer, args []Argument, text, integer sqltype.Usage) ([]expr.Expr, error) {
+	children := make([]expr.Expr, len(args))
 	for i, arg := range args {
 		target := text
 		if i >= 2 {
@@ -57,22 +58,22 @@ func CoerceLevenshteinArguments[E any, B ArgumentCoercer[E]](b B, args []Argumen
 	return children, nil
 }
 
-type Levenshtein[E Expression[C], C Context, P any] struct {
-	Info[P]
+type Levenshtein struct {
+	expr.Info
 	Function string
-	Args     []E
+	Args     []expr.Expr
 }
 
-func NewLevenshtein[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Levenshtein[E, C, P], error) {
-	call := Levenshtein[E, C, P]{Info: info, Function: name, Args: args}
+func NewLevenshtein(info expr.Info, name string, args []expr.Expr) (Levenshtein, error) {
+	call := Levenshtein{Info: info, Function: name, Args: args}
 	return call, call.Validate()
 }
 
-func (e Levenshtein[E, C, P]) Reconstruct(info Info[P], args []E) (Levenshtein[E, C, P], error) {
-	return NewLevenshtein[E, C](info, e.Function, args)
+func (e Levenshtein) Reconstruct(info expr.Info, args []expr.Expr) (Levenshtein, error) {
+	return NewLevenshtein(info, e.Function, args)
 }
 
-func (e Levenshtein[E, C, P]) Validate() error {
+func (e Levenshtein) Validate() error {
 	if LevenshteinSignature(e.Function, len(e.Args)) == "" || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Int4 {
 		return fmt.Errorf("stuntgres: invalid stored Levenshtein call")
 	}
@@ -88,7 +89,7 @@ func (e Levenshtein[E, C, P]) Validate() error {
 	return nil
 }
 
-func (e Levenshtein[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Levenshtein) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

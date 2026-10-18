@@ -92,7 +92,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 		namespace = raw.Name.Parts[0].Text
 	}
 	info := b.info(result.Usage(), parser.ExpressionStart(raw), properties)
-	node, err := functions.NewRangeOperator[BoundExpr, ExprContext](functionInfo(info), op, args, namespace)
+	node, err := functions.NewRangeOperator(functionInfo(info), op, args, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, 
 	node.Info = functionInfo(info)
 	return node, nil
 }
-func rangeOperatorSQL(e functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func rangeOperatorSQL(e functions.RangeOperator, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
 	left, err := child(e.Args[0])
 	if err != nil {
 		return "", err
@@ -121,7 +121,7 @@ func rangeOperatorSQL(e functions.RangeOperator[BoundExpr, ExprContext, ExprProp
 	}
 	return "(" + left + " " + operator(e.Namespace, e.Plan.Name()) + " " + right + ")", nil
 }
-func mapRangeOperatorChildren(e functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapRangeOperatorChildren(e functions.RangeOperator, child func(BoundExpr) (BoundExpr, bool, error)) (functions.RangeOperator, bool, error) {
 	changed := false
 	for i, arg := range e.Args {
 		next, did, err := child(arg)

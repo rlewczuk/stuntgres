@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,11 +16,11 @@ func TestDatetimeOverlapsOnceOnlyChildrenAndErrorOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := DatetimeOverlaps[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.Bool].Usage()}, Plan: plan}
+	e := DatetimeOverlaps{Info: expr.Info{Usage: d[sqltype.Bool].Usage()}, Plan: plan}
 	order := []int{}
 	for i, n := range [...]int64{0, 2 * 86400000000, 86400000000, 3 * 86400000000} {
 		value := temporalTestTimestamp(t, d[sqltype.Timestamp], n)
-		e.Args[i] = temporalTestArgument{Info: Info[struct{}]{Usage: value.Type().Usage()}, value: value, order: &order, index: i}
+		e.Args[i] = temporalTestArgument{Info: expr.Info{Usage: value.Type().Usage()}, value: value, order: &order, index: i}
 	}
 	first := e.Args[0].(temporalTestArgument)
 	first.value = sqltype.Null(first.ResultUsage().Type)

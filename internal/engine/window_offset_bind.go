@@ -9,13 +9,13 @@ import (
 func windowOffsetName(name string) bool { return name == "lead" || name == "lag" }
 
 func (b *expressionBinder) resolveWindowOffsetSignature(raw parser.AggregateExpr, name parser.ObjectName) (value, offset, fallback BoundExpr, usage sqltype.Usage, err error) {
-	var small [3]functions.Argument[BoundExpr]
+	var small [3]functions.Argument
 	var names [3]string
 	arguments, types := small[:], names[:]
 	if len(raw.Args) <= 3 {
 		arguments, types = arguments[:len(raw.Args)], types[:len(raw.Args)]
 	} else {
-		arguments = make([]functions.Argument[BoundExpr], len(raw.Args))
+		arguments = make([]functions.Argument, len(raw.Args))
 		types = make([]string, len(raw.Args))
 	}
 	for i, child := range raw.Args {

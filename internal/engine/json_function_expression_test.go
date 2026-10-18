@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input string, offset int) functions.JSONKeys[BoundExpr, ExprContext, ExprProperties] {
+func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input string, offset int) functions.JSONKeys {
 	t.Helper()
 	v, err := d.Input(context.Background(), input, -1)
 	if err != nil {
@@ -28,7 +28,7 @@ func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input s
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
+	return functions.JSONKeys{Info: functionInfo(expressionInfo{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: ExprProperties{StageDependent: true}}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
 }
 
 func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
@@ -49,7 +49,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call, ok := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+		call, ok := node.(functions.Binary)
 		if !ok || call.Plan.Name() != tc.name || node.ResultUsage().Type.ID() != tc.id || node.Properties().Volatility != Immutable || node.Properties().StageDependent {
 			t.Fatal(node)
 		}
@@ -94,7 +94,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		marker, ok := node.(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties])
+		marker, ok := node.(functions.JSONKeys)
 		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != Immutable || !b.queryHasTargetSet || !isQuerySet(marker) {
 			t.Fatal(node)
 		}
@@ -134,7 +134,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := mapped.(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties])
+	next := mapped.(functions.JSONKeys)
 	if next.ResultUsage().Type != fresh[sqltype.Text] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 		t.Fatal(next)
 	}
@@ -184,7 +184,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rewritten.(*functionFromNode).calls[0].(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]).Args[0] != other.Args[0] || root.calls[0].(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]).Args[0] != original.Args[0] {
+	if rewritten.(*functionFromNode).calls[0].(functions.JSONKeys).Args[0] != other.Args[0] || root.calls[0].(functions.JSONKeys).Args[0] != original.Args[0] {
 		t.Fatal("mutated retained query")
 	}
 }

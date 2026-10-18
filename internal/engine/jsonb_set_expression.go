@@ -20,10 +20,10 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 		labels[3] = "insert_after"
 	}
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
-	var small [5]functions.Argument[BoundExpr]
+	var small [5]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -57,7 +57,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	if !visible || raw.ResolutionOnly || (name != "jsonb_set" && name != "jsonb_set_lax" && name != "jsonb_insert") || len(operands) > count {
 		return signature()
 	}
-	e := functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]{Count: count, WrittenCount: len(operands), Variadic: raw.Variadic}
+	e := functions.JSONBSet{Count: count, WrittenCount: len(operands), Variadic: raw.Variadic}
 	var supplied [5]bool
 	for i, o := range operands {
 		slot := i
@@ -140,7 +140,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	return e, nil
 }
 
-func jsonbSetSQL(e functions.JSONBSet[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbSetSQL(e functions.JSONBSet, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.Count < 4 || e.Count > 5 || e.WrittenCount < 3 || e.WrittenCount > e.Count {
 		return "", fmt.Errorf("invalid stored JSONB replacement")
 	}

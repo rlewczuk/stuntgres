@@ -15,7 +15,7 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	if len(raw.Args) != 1 {
 		types = make([]string, len(raw.Args))
 	}
-	var operand functions.Argument[BoundExpr]
+	var operand functions.Argument
 	for i, child := range raw.Args {
 		bound, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {

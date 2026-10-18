@@ -1,25 +1,21 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeZoneCalendarContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type DatetimeZoneCalendar[E Expression[C], C DatetimeZoneCalendarContext[E], P any] struct {
-	Info[P]
+type DatetimeZoneCalendar struct {
+	expr.Info
 	Name     string
-	Args     [3]E
+	Args     [3]expr.Expr
 	Count    int
 	Provider sqltype.Arithmetic
 }
 
-func (e DatetimeZoneCalendar[E, C, P]) Arguments() []E { return e.Args[:e.Count] }
+func (e DatetimeZoneCalendar) Arguments() []expr.Expr { return e.Args[:e.Count] }
 
-func (e DatetimeZoneCalendar[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeZoneCalendar) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -51,7 +47,7 @@ func (e DatetimeZoneCalendar[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return sqltype.CalendarArithmetic(ctx, e.Provider, values[0], values[1], name, c.FunctionInput())
 }
 
-func (e DatetimeZoneCalendar[E, C, P]) IntrinsicStable() bool { return e.Count == 2 }
+func (e DatetimeZoneCalendar) IntrinsicStable() bool { return e.Count == 2 }
 
 type datetimeZoneSignature struct {
 	name   string
@@ -101,7 +97,7 @@ type DatetimeZonePreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeZone[E any](name string, visible, variadic bool, args []Argument[E]) DatetimeZonePreparation {
+func PrepareDatetimeZone(name string, visible, variadic bool, args []Argument) DatetimeZonePreparation {
 	if !visible || variadic {
 		return DatetimeZonePreparation{}
 	}
@@ -120,7 +116,7 @@ func PrepareDatetimeZone[E any](name string, visible, variadic bool, args []Argu
 	return p
 }
 
-func ResolveDatetimeZone[E any](prepared DatetimeZonePreparation, name string, operands []Argument[E], types TemporalTypes) DatetimeZoneSelection {
+func ResolveDatetimeZone(prepared DatetimeZonePreparation, name string, operands []Argument, types TemporalTypes) DatetimeZoneSelection {
 	if len(prepared.candidates) == 0 {
 		return DatetimeZoneSelection{Resolution: Missing}
 	}
@@ -214,7 +210,7 @@ func (s DatetimeZoneSelection) IntrinsicStable() bool {
 	return s.Name != "timezone" && s.Count == 2 || s.Name == "timezone" && (s.Count == 1 || s.Args[1] == sqltype.Timetz && s.Args[0] == sqltype.Text)
 }
 
-func (e DatetimeZoneCalendar[E, C, P]) Reconstruct(info Info[P], args [3]E) (DatetimeZoneCalendar[E, C, P], bool, error) {
+func (e DatetimeZoneCalendar) Reconstruct(info expr.Info, args [3]expr.Expr) (DatetimeZoneCalendar, bool, error) {
 	op := sqltype.ArithmeticAdd
 	if e.Name == "date_subtract" {
 		op = sqltype.ArithmeticSubtract

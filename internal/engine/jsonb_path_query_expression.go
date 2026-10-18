@@ -14,10 +14,10 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 	const count = 4
 	labels := [4]string{"target", "path", "vars", "silent"}
 	ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-	var small [4]functions.Argument[BoundExpr]
+	var small [4]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -159,28 +159,28 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathExists{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_match" {
 		plan, err := sqltype.BindJSONBPathMatch(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathMatch{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query_first" {
 		plan, err := sqltype.BindJSONBPathQueryFirst(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathQueryFirst{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query" {
 		plan, err := sqltype.BindJSONBPathQuery(b.typ(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
-		return functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
+		return functions.JSONBPathQuery{Info: functionInfo(info), Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	return nil, fmt.Errorf("invalid JSONPath query provider")
 }
@@ -193,19 +193,19 @@ func jsonbPathQueryFunctionName(name string) bool {
 	return false
 }
 
-func jsonbPathExistsSQL(e functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathExistsSQL(e functions.JSONBPathExists, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	return jsonbPathQueryCallSQL(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, name, render, identifier)
 }
 
-func jsonbPathMatchSQL(e functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathMatchSQL(e functions.JSONBPathMatch, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	return jsonbPathQueryCallSQL(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, name, render, identifier)
 }
 
-func jsonbPathQueryFirstSQL(e functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathQueryFirstSQL(e functions.JSONBPathQueryFirst, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	return jsonbPathQueryCallSQL(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, name, render, identifier)
 }
 
-func jsonbPathQuerySQL(e functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathQuerySQL(e functions.JSONBPathQuery, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	return jsonbPathQueryCallSQL(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, name, render, identifier)
 }
 

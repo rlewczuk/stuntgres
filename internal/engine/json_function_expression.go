@@ -11,7 +11,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	if jsonRecordFunction(name) {
 		return b.bindJSONRecord(raw, visible)
 	}
-	var operand functions.Argument[BoundExpr]
+	var operand functions.Argument
 	var singleName [1]string
 	var names []string
 	if len(raw.Args) <= 1 {
@@ -110,14 +110,14 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		info.Property = properties
 		if definition.Elements {
 			if definition.Input == sqltype.JSONB {
-				return functions.NewJSONBElements[BoundExpr, ExprContext](functionInfo(info), name, arg)
+				return functions.NewJSONBElements(functionInfo(info), name, arg)
 			}
-			return functions.NewJSONElements[BoundExpr, ExprContext](functionInfo(info), name, arg)
+			return functions.NewJSONElements(functionInfo(info), name, arg)
 		}
 		if definition.Each {
-			return functions.NewJSONEach[BoundExpr, ExprContext](functionInfo(info), name, arg)
+			return functions.NewJSONEach(functionInfo(info), name, arg)
 		}
-		return functions.NewJSONKeys[BoundExpr, ExprContext](functionInfo(info), name, arg)
+		return functions.NewJSONKeys(functionInfo(info), name, arg)
 	}
-	return functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary(functionInfo(info), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
 }

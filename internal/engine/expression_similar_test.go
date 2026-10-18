@@ -30,13 +30,13 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	normalizer := functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Pattern: literal("a"), Escape: literal("ab"), Provider: ep}
+	normalizer := functions.SimilarEscape{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Pattern: literal("a"), Escape: literal("ab"), Provider: ep}
 	mp, err := sqltype.BindSimilar("~", text.Usage(), text.Usage(), boolean.Usage(), text.Usage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	null := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
-	node := functions.Similar[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: null, Right: normalizer, Provider: mp, Operator: "~"}
+	node := functions.Similar{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: null, Right: normalizer, Provider: mp, Operator: "~"}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, node)
 	state(t, err, "22025")
 	normalizer.Pattern = null
@@ -56,9 +56,9 @@ func TestSimilarDependencyChildren(t *testing.T) {
 	source := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 0}
 	pattern := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 1}
 	escape := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 2}
-	helper := functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Pattern: pattern, Escape: escape}
-	predicate := functions.Similar[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: source, Right: helper}
-	extraction := functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Args: [3]BoundExpr{source, pattern, escape}}
+	helper := functions.SimilarEscape{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Pattern: pattern, Escape: escape}
+	predicate := functions.Similar{Info: functionInfo(expressionInfo{Usage: boolean.Usage()}), Left: source, Right: helper}
+	extraction := functions.SimilarSubstring{Info: functionInfo(expressionInfo{Usage: text.Usage()}), Args: [3]BoundExpr{source, pattern, escape}}
 	for _, node := range []BoundExpr{predicate, extraction} {
 		var slots []int
 		walkBoundExpression(node, func(n BoundExpr) {

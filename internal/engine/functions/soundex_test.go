@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,7 +26,10 @@ func TestSoundexKernel(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	for _, tc := range []struct { left, right string; want int32 }{
+	for _, tc := range []struct {
+		left, right string
+		want        int32
+	}{
 		{"Anne", "Ann", 4}, {"Anne", "Andrew", 2}, {"Anne", "Margaret", 0}, {"", "", 4}, {"", "!?", 4}, {"", "A", 0}, {"A", "B", 3},
 	} {
 		got, err := SoundexDifference(context.Background(), tc.left, tc.right)
@@ -56,20 +60,24 @@ func TestSoundexKernel(t *testing.T) {
 func TestSoundexExpression(t *testing.T) {
 	types := formatUnitTypes()
 	text, integer := types[sqltype.Text], types[sqltype.Int4]
-	for _, tc := range []struct { name string; count int; signature string }{{"soundex", 1, "25"}, {"difference", 2, "25,25"}, {"text_soundex", 1, ""}, {"soundex", 2, ""}, {"difference", 1, ""}} {
+	for _, tc := range []struct {
+		name      string
+		count     int
+		signature string
+	}{{"soundex", 1, "25"}, {"difference", 2, "25,25"}, {"text_soundex", 1, ""}, {"soundex", 2, ""}, {"difference", 1, ""}} {
 		if got := SoundexSignature(tc.name, tc.count); got != tc.signature {
 			t.Fatal(tc, got)
 		}
 	}
-	if SoundexInput("soundex", []Argument[struct{}]{{Usage: integer.Usage()}}, text.Usage()) != Missing {
+	if SoundexInput("soundex", []Argument{{Usage: integer.Usage()}}, text.Usage()) != Missing {
 		t.Fatal("implicit integer-to-text overload admitted")
 	}
 	var order []int
-	args := []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.String(text, "Ann"), order: &order, index: 1},
+	args := []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "Ann"), order: &order, index: 1},
 	}
-	call, err := NewSoundex[binaryUnitExpression, *binaryUnitContext](Info[struct{}]{Usage: integer.Usage()}, "difference", args)
+	call, err := NewSoundex(expr.Info{Usage: integer.Usage()}, "difference", args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +86,7 @@ func TestSoundexExpression(t *testing.T) {
 		t.Fatal(value, order, err)
 	}
 	failure := errors.New("demanded sibling")
-	args[1] = binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, err: failure, order: &order, index: 1}
+	args[1] = binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, err: failure, order: &order, index: 1}
 	order = nil
 	if _, err := call.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
@@ -86,7 +94,7 @@ func TestSoundexExpression(t *testing.T) {
 	if _, err := call.Reconstruct(call.Info, args[:1]); err == nil {
 		t.Fatal("invalid arity reconstruction")
 	}
-	if _, err := call.Reconstruct(Info[struct{}]{Usage: text.Usage()}, args); err == nil {
+	if _, err := call.Reconstruct(expr.Info{Usage: text.Usage()}, args); err == nil {
 		t.Fatal("invalid result reconstruction")
 	}
 }

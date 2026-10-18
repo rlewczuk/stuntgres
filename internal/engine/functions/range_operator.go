@@ -2,18 +2,19 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 // RangeOperator is an infix scalar, not an invocable SQL function or SRF.
-type RangeOperator[E Expression[C], C LiteralContext[E], P any] struct {
-	Info[P]
+type RangeOperator struct {
+	expr.Info
 	Plan      sqltype.RangeOperatorPlan
-	Args      [2]E
+	Args      [2]expr.Expr
 	Namespace string
 }
 
-func (e RangeOperator[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e RangeOperator) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -33,14 +34,14 @@ func (e RangeOperator[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values)
 }
-func NewRangeOperator[E Expression[C], C LiteralContext[E], P any](info Info[P], op sqltype.RangeOperator, args [2]E, namespace string) (RangeOperator[E, C, P], error) {
+func NewRangeOperator(info expr.Info, op sqltype.RangeOperator, args [2]expr.Expr, namespace string) (RangeOperator, error) {
 	plan, err := sqltype.BindRangeOperator(op, info.Usage, args[0].ResultUsage(), args[1].ResultUsage())
-	return RangeOperator[E, C, P]{info, plan, args, namespace}, err
+	return RangeOperator{info, plan, args, namespace}, err
 }
-func (e RangeOperator[E, C, P]) Reconstruct(info Info[P], args [2]E) (RangeOperator[E, C, P], error) {
-	return NewRangeOperator[E, C](info, e.Plan.Operation(), args, e.Namespace)
+func (e RangeOperator) Reconstruct(info expr.Info, args [2]expr.Expr) (RangeOperator, error) {
+	return NewRangeOperator(info, e.Plan.Operation(), args, e.Namespace)
 }
-func (e RangeOperator[E, C, P]) Validate() error {
+func (e RangeOperator) Validate() error {
 	n, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || n.Plan != e.Plan {
 		return fmt.Errorf("stuntgres: invalid stored range operator provider")

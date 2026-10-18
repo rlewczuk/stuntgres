@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func versionInformationUnitLeaf(t *testing.T, b *expressionBinder, kind functions.VersionInformationKind) functions.VersionInformation[ExprContext, ExprProperties] {
+func versionInformationUnitLeaf(t *testing.T, b *expressionBinder, kind functions.VersionInformationKind) functions.VersionInformation {
 	t.Helper()
 	node, err := b.bindFunction(parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: kind.Name()}}},
@@ -21,7 +21,7 @@ func versionInformationUnitLeaf(t *testing.T, b *expressionBinder, kind function
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, ok := node.(functions.VersionInformation[ExprContext, ExprProperties])
+	leaf, ok := node.(functions.VersionInformation)
 	if !ok {
 		t.Fatalf("unexpected carrier %T", node)
 	}
@@ -90,7 +90,7 @@ func TestVersionInformationRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(functions.VersionInformation[ExprContext, ExprProperties])
+		copy := remapped.(functions.VersionInformation)
 		if copy.Kind != kind || copy.Pos != leaf.Pos || copy.Usage.Type == leaf.Usage.Type || copy.RoutineReference == nil || copy.RoutineReference.RoutineOID() != leaf.RoutineReference.RoutineOID() || copy.Validate(expr.PropertiesMatch(copy.Property, kind.IntrinsicRule())) != nil {
 			t.Fatal("lost remap identity", leaf, copy)
 		}

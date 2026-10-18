@@ -30,7 +30,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+		node := functions.DatetimeFormatting{Info: functionInfo(expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
 			literalExpression{expressionInfo{Usage: source.Usage()}, sqltype.Null(source)},
 			literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, template)},
 		}}
@@ -57,7 +57,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("provider rebind", rebound, changed, err)
 		}
-		retained := rebound.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties])
+		retained := rebound.(functions.DatetimeFormatting)
 		value, err = retained.Eval(&EvalContext{Context: ctx})
 		if err != nil || value.Type() != replacements[signature.result] || node.ResultUsage().Type != result {
 			t.Fatal("rebind changed source authority or retained obsolete result", value, err)
@@ -97,7 +97,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(signature, err)
 		}
-		node, ok := bound.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties])
+		node, ok := bound.(functions.DatetimeFormatting)
 		if !ok || node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable {
 			t.Fatal("signature authority", signature, bound)
 		}
@@ -107,7 +107,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := bound.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]); !ok {
+	if _, ok := bound.(functions.NumericFormatting); !ok {
 		t.Fatal("numeric overload did not route to its owner", bound)
 	}
 	for _, c := range []struct {

@@ -13,12 +13,12 @@ import (
 func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	textOverload := strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper")
-	var small [2]functions.Argument[BoundExpr]
-	var operands []functions.Argument[BoundExpr]
+	var small [2]functions.Argument
+	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		request := functions.AnalysisRequest{Intent: functions.ComparisonArgument}
@@ -46,7 +46,7 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 	}
 	return b.finishRangeInspect(raw, visible, operands)
 }
-func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible bool, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
+func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operation, known := sqltype.RangeInspectKind(name)
 	if visible && known && operation == sqltype.RangeConstruct && len(raw.ArgNames) == 0 && len(operands) == 1 && operands[0].Usage.Type != nil {
@@ -93,7 +93,7 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewRangeInspect[BoundExpr, ExprContext](functionInfo(info), operation, args)
+	return functions.NewRangeInspect(functionInfo(info), operation, args)
 }
 
 // The selected text/range overloads share diagnostic ordering, not coercion

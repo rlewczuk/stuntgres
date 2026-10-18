@@ -272,7 +272,7 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if len(raw.Args) != 2 {
 		return nil, b.functionSignatureError(raw)
 	}
-	var operands [2]functions.Argument[BoundExpr]
+	var operands [2]functions.Argument
 	var names []string
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -305,5 +305,5 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewLikeEscape[BoundExpr, ExprContext](functionInfo(info), pattern, escape)
+	return functions.NewLikeEscape(functionInfo(info), pattern, escape)
 }

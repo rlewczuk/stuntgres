@@ -5,15 +5,19 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqltype/unicode16"
 )
 
-type versionInformationUnitContext struct{ ctx context.Context }
+type versionInformationUnitContext struct {
+	unitCapabilities
+	ctx context.Context
+}
 
 func (c versionInformationUnitContext) FunctionContext() context.Context { return c.ctx }
-func (c versionInformationUnitContext) FunctionPropertiesMatch(p, rule IntrinsicPropertyRule) bool {
-	return p == rule
+func (c versionInformationUnitContext) FunctionPropertiesMatch(p expr.Properties, rule IntrinsicPropertyRule) bool {
+	return expr.PropertiesMatch(p, rule)
 }
 
 func TestVersionInformationCarrier(t *testing.T) {
@@ -42,10 +46,10 @@ func TestVersionInformationCarrier(t *testing.T) {
 		{VersionInformationICU, "", true},
 	} {
 		t.Run(tc.kind.Name(), func(t *testing.T) {
-			e := VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]{
-				Info: Info[IntrinsicPropertyRule]{Usage: text.Usage(), Property: tc.kind.IntrinsicRule()}, Kind: tc.kind,
+			e := VersionInformation{
+				Info: expr.Info{Usage: text.Usage(), Property: expr.IntrinsicProperties(tc.kind.IntrinsicRule())}, Kind: tc.kind,
 			}
-			value, err := e.Eval(versionInformationUnitContext{context.Background()})
+			value, err := e.Eval(versionInformationUnitContext{ctx: context.Background()})
 			if err != nil || value.Type() != text || value.IsNull() != tc.null {
 				t.Fatalf("value=%#v err=%v", value, err)
 			}
@@ -55,22 +59,22 @@ func TestVersionInformationCarrier(t *testing.T) {
 					t.Fatalf("output=%q err=%v want=%q", out, err, tc.want)
 				}
 			}
-			for _, change := range []func(*VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]){
-				func(n *VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]) { n.Kind = 0 },
-				func(n *VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]) {
+			for _, change := range []func(*VersionInformation){
+				func(n *VersionInformation) { n.Kind = 0 },
+				func(n *VersionInformation) {
 					n.Usage = sqltype.Usage{}
 				},
-				func(n *VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]) {
+				func(n *VersionInformation) {
 					n.Usage = integer.Usage()
 				},
-				func(n *VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]) { n.Usage.Typmod = 7 },
-				func(n *VersionInformation[versionInformationUnitContext, IntrinsicPropertyRule]) {
-					n.Property = ExactVolatile
+				func(n *VersionInformation) { n.Usage.Typmod = 7 },
+				func(n *VersionInformation) {
+					n.Property = expr.IntrinsicProperties(ExactVolatile)
 				},
 			} {
 				bad := e
 				change(&bad)
-				if _, err := bad.Eval(versionInformationUnitContext{context.Background()}); err == nil {
+				if _, err := bad.Eval(versionInformationUnitContext{ctx: context.Background()}); err == nil {
 					t.Error("invalid carrier accepted")
 				}
 			}
@@ -79,7 +83,7 @@ func TestVersionInformationCarrier(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, err := e.Eval(versionInformationUnitContext{ctx}); !errors.Is(err, context.Canceled) {
+			if _, err := e.Eval(versionInformationUnitContext{ctx: ctx}); !errors.Is(err, context.Canceled) {
 				t.Errorf("precanceled Eval = %v", err)
 			}
 		})

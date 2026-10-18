@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func networkFormatUnit(t *testing.T, kind sqltype.NetworkFormatKind, input sqltype.ID) (NetworkFormat[stringUnitExpression, *stringUnitContext, struct{}], *stringUnitContext, *[]int) {
+func networkFormatUnit(t *testing.T, kind sqltype.NetworkFormatKind, input sqltype.ID) (NetworkFormat, *stringUnitContext, *[]int) {
 	t.Helper()
 	types := inspectCarrierTypes()
 	order := []int{}
@@ -16,11 +17,11 @@ func networkFormatUnit(t *testing.T, kind sqltype.NetworkFormatKind, input sqlty
 	if err != nil {
 		t.Fatal(err)
 	}
-	var args [2]stringUnitExpression
+	var args [2]expr.Expr
 	for i := range kind.Arity() {
-		args[i] = stringUnitArgument{Info: Info[struct{}]{Usage: types[input].Usage()}, value: v, order: &order, index: i}
+		args[i] = stringUnitArgument{Info: expr.Info{Usage: types[input].Usage()}, value: v, order: &order, index: i}
 	}
-	node, err := NewNetworkFormat[stringUnitExpression, *stringUnitContext](Info[struct{}]{Usage: types[kind.Result()].Usage()}, kind, args)
+	node, err := NewNetworkFormat(expr.Info{Usage: types[kind.Result()].Usage()}, kind, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,16 +34,16 @@ func TestNetworkFormatReconstruction(t *testing.T) {
 			t.Fatal("invalid intrinsic carrier")
 		}
 		types := inspectCarrierTypes()
-		var args [2]stringUnitExpression
+		var args [2]expr.Expr
 		order := []int{}
 		for i := range kind.Arity() {
 			v, err := types[sqltype.Inet].Input(context.Background(), "::1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			args[i] = stringUnitArgument{Info: Info[struct{}]{Usage: types[sqltype.Inet].Usage()}, value: v, order: &order, index: i}
+			args[i] = stringUnitArgument{Info: expr.Info{Usage: types[sqltype.Inet].Usage()}, value: v, order: &order, index: i}
 		}
-		remapped, err := original.Reconstruct(Info[struct{}]{Usage: types[kind.Result()].Usage()}, args)
+		remapped, err := original.Reconstruct(expr.Info{Usage: types[kind.Result()].Usage()}, args)
 		if err != nil || remapped.Validate() != nil {
 			t.Fatal(err)
 		}

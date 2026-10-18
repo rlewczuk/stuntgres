@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -41,19 +42,14 @@ func (k ArrayRandomKind) Arity() int {
 	return 0
 }
 
-type ArrayRandomContext interface {
-	Context
-	FunctionArrayRandomOwner() (RandomOwner, error)
-}
-
-type ArrayRandom[E Expression[C], C ArrayRandomContext, P any] struct {
-	Info[P]
+type ArrayRandom struct {
+	expr.Info
 	Kind      ArrayRandomKind
-	Args      []E
+	Args      []expr.Expr
 	Namespace string
 }
 
-func (e ArrayRandom[E, C, P]) Validate() error {
+func (e ArrayRandom) Validate() error {
 	if e.Kind.Arity() == 0 || len(e.Args) != e.Kind.Arity() || e.Usage.Type == nil || !e.Usage.Type.Concrete() || !e.Usage.Type.IsArray() || e.Namespace != "" && e.Namespace != "pg_catalog" {
 		return fmt.Errorf("stuntgres: invalid stored array random provider")
 	}
@@ -73,11 +69,11 @@ func (e ArrayRandom[E, C, P]) Validate() error {
 	}
 	return nil
 }
-func (e ArrayRandom[E, C, P]) Reconstruct(info Info[P], args []E) (ArrayRandom[E, C, P], error) {
+func (e ArrayRandom) Reconstruct(info expr.Info, args []expr.Expr) (ArrayRandom, error) {
 	e.Info, e.Args = info, args
 	return e, e.Validate()
 }
-func (e ArrayRandom[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e ArrayRandom) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

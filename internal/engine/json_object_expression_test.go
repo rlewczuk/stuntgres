@@ -42,12 +42,12 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: args}
+		original := functions.Binary{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+		next := rebound.(functions.Binary)
 		if next.Plan.ResultUsage().Type != replacement[sqltype.JSON] || next.Args[0].ResultUsage().Type != replacement[1009] {
 			t.Fatal(next)
 		}
@@ -106,13 +106,13 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
+	expr := functions.Binary{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := rewritten.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+	next := rewritten.(functions.Binary)
 	for _, arg := range next.Args {
 		if _, ok := arg.(groupExpression); !ok {
 			t.Fatal(arg)
@@ -155,7 +155,7 @@ func TestJSONObjectBinderSignatureBoundaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call, ok := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+		call, ok := node.(functions.Binary)
 		if !ok || len(call.Args) != 1 || call.Args[0].ResultUsage().Type.ID() != 1009 || node.ResultUsage().Type.ID() != sqltype.JSON || node.SourcePosition() != pos {
 			t.Fatal(node)
 		}

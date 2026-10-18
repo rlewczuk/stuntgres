@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,19 +26,19 @@ func TestMathTraversalRuntime(t *testing.T) {
 	}
 	var order []int
 	one, _ := sqltype.Integer(int4, 1)
-	expr := Math[functionTestExpression, *functionTestContext, struct{}]{Info: Info[struct{}]{Usage: numeric.Usage()}, Plan: plan, Args: []functionTestExpression{
-		functionTestArgument{Info: Info[struct{}]{Usage: numeric.Usage()}, value: sqltype.Null(numeric), order: &order, index: 0},
-		functionTestArgument{Info: Info[struct{}]{Usage: int4.Usage()}, value: one, order: &order, index: 1},
+	node := Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: plan, Args: []expr.Expr{
+		functionTestArgument{Info: expr.Info{Usage: numeric.Usage()}, value: sqltype.Null(numeric), order: &order, index: 0},
+		functionTestArgument{Info: expr.Info{Usage: int4.Usage()}, value: one, order: &order, index: 1},
 	}}
-	c := &functionTestContext{context.Background()}
-	got, err := expr.Eval(c)
+	c := &functionTestContext{Context: context.Background()}
+	got, err := node.Eval(c)
 	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(got, order, err)
 	}
 	failure := errors.New("demanded sibling")
-	expr.Args[1] = functionTestArgument{Info: Info[struct{}]{Usage: int4.Usage()}, order: &order, index: 1, err: failure}
+	node.Args[1] = functionTestArgument{Info: expr.Info{Usage: int4.Usage()}, order: &order, index: 1, err: failure}
 	order = nil
-	_, err = expr.Eval(c)
+	_, err = node.Eval(c)
 	if !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}

@@ -6,17 +6,15 @@ import (
 	"math"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
 
-type datetimeSleepUnitExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*datetimeSleepUnitContext) (sqltype.Value, error)
-}
 type datetimeSleepUnitContext struct {
+	unitCapabilities
 	context.Context
 	input sqltype.InputEnvironment
 }
@@ -28,10 +26,10 @@ func (c *datetimeSleepUnitContext) FunctionContext() context.Context {
 	return c.Context
 }
 func (c *datetimeSleepUnitContext) FunctionInput() sqltype.InputEnvironment { return c.input }
-func (*datetimeSleepUnitContext) FunctionPropertiesMatch(p bool, rule IntrinsicPropertyRule) bool {
-	return p && rule == VolatileOnly
+func (*datetimeSleepUnitContext) FunctionPropertiesMatch(p expr.Properties, rule IntrinsicPropertyRule) bool {
+	return expr.PropertiesMatch(p, rule)
 }
-func (*datetimeSleepUnitContext) FunctionSleepArgumentPresent(arg datetimeSleepUnitExpression) bool {
+func (*datetimeSleepUnitContext) FunctionSleepArgumentPresent(arg expr.Expr) bool {
 	return arg != nil
 }
 func (c *datetimeSleepUnitContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, error) {
@@ -41,11 +39,11 @@ func (c *datetimeSleepUnitContext) FunctionSleepClock(usage sqltype.Usage) (sqlt
 }
 
 type datetimeSleepUnitArgument struct {
-	Info[bool]
+	expr.Info
 	value sqltype.Value
 }
 
-func (arg datetimeSleepUnitArgument) Eval(*datetimeSleepUnitContext) (sqltype.Value, error) {
+func (arg datetimeSleepUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	return arg.value, nil
 }
 
@@ -210,8 +208,8 @@ func TestDatetimeSleepZeroDelayAllocations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := datetimeSleepUnitArgument{Info: Info[bool]{Usage: types[sqltype.Float8].Usage()}, value: value}
-	node, err := NewDatetimeSleep[datetimeSleepUnitExpression, *datetimeSleepUnitContext](Info[bool]{Usage: types[sqltype.Void].Usage(), Property: true}, DatetimeSleepSeconds, arg, types[sqltype.Timestamptz].Usage())
+	arg := datetimeSleepUnitArgument{Info: expr.Info{Usage: types[sqltype.Float8].Usage()}, value: value}
+	node, err := NewDatetimeSleep(expr.Info{Usage: types[sqltype.Void].Usage(), Property: expr.IntrinsicProperties(VolatileOnly)}, DatetimeSleepSeconds, arg, types[sqltype.Timestamptz].Usage())
 	if err != nil {
 		t.Fatal(err)
 	}

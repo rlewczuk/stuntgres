@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -20,23 +21,23 @@ func TestJSONBObjectExpressionEvaluationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := Binary[binaryUnitExpression, *binaryUnitContext, struct{}]{Info: Info[struct{}]{Usage: result.Usage()}, Plan: plan, Args: []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: array.Usage()}, value: sqltype.Null(array), order: &order, index: 0},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: array.Usage()}, value: value, order: &order, index: 1},
+	node := Binary{Info: expr.Info{Usage: result.Usage()}, Plan: plan, Args: []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: array.Usage()}, value: sqltype.Null(array), order: &order, index: 0},
+		binaryUnitArgument{Info: expr.Info{Usage: array.Usage()}, value: value, order: &order, index: 1},
 	}}
-	got, err := expr.Eval(&binaryUnitContext{Context: context.Background()})
+	got, err := node.Eval(&binaryUnitContext{Context: context.Background()})
 	if err != nil || !got.IsNull() || got.Type() != result || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(got, order, err)
 	}
 	failure := errors.New("demanded JSONB object sibling")
-	expr.Args[1] = binaryUnitArgument{Info: Info[struct{}]{Usage: array.Usage()}, order: &order, index: 1, err: failure}
+	node.Args[1] = binaryUnitArgument{Info: expr.Info{Usage: array.Usage()}, order: &order, index: 1, err: failure}
 	order = nil
-	if _, err := expr.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
+	if _, err := node.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
-	expr.Args[0] = binaryUnitArgument{Info: Info[struct{}]{Usage: array.Usage()}, order: &order, index: 0, err: failure}
+	node.Args[0] = binaryUnitArgument{Info: expr.Info{Usage: array.Usage()}, order: &order, index: 0, err: failure}
 	order = nil
-	if _, err := expr.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
+	if _, err := node.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
 		t.Fatal(order, err)
 	}
 }

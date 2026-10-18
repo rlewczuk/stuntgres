@@ -2,25 +2,22 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type RegexpContext interface {
-	Context
-	FunctionRegexExecution() *sqltype.PGRegexExecution
-}
-type RegexpCall[E Expression[C], C RegexpContext, P any] struct {
-	Info[P]
+type RegexpCall struct {
+	expr.Info
 	Plan         sqltype.RegexpPlan
-	Args         []E
+	Args         []expr.Expr
 	WrittenSlots [7]uint8
 	Labels       [7]string
 }
-type Regexp[E Expression[C], C RegexpContext, P any] struct{ RegexpCall[E, C, P] }
-type RegexpSet[E Expression[C], C RegexpContext, P any] struct{ RegexpCall[E, C, P] }
+type Regexp struct{ RegexpCall }
+type RegexpSet struct{ RegexpCall }
 
-func (call RegexpCall[E, C, P]) evaluateArguments(c C) ([7]sqltype.Value, error) {
+func (call RegexpCall) evaluateArguments(c expr.Context) ([7]sqltype.Value, error) {
 	var values [7]sqltype.Value
 	if _, err := evaluationContext(c); err != nil {
 		return values, err
@@ -35,36 +32,36 @@ func (call RegexpCall[E, C, P]) evaluateArguments(c C) ([7]sqltype.Value, error)
 	}
 	return values, nil
 }
-func (e Regexp[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Regexp) Eval(c expr.Context) (sqltype.Value, error) {
 	values, err := e.evaluateArguments(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	return e.Plan.Evaluate(c.FunctionContext(), values, c.FunctionRegexExecution())
 }
-func (e RegexpSet[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e RegexpSet) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted regular expression set call")
 }
-func (e RegexpSet[E, C, P]) EvalSet(c C) ([]sqltype.Value, error) {
+func (e RegexpSet) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	values, err := e.evaluateArguments(c)
 	if err != nil {
 		return nil, err
 	}
 	return e.Plan.EvaluateSet(c.FunctionContext(), values, c.FunctionRegexExecution())
 }
-func NewRegexpCall[E Expression[C], C RegexpContext, P any](info Info[P], name string, args []E, writtenSlots [7]uint8, labels [7]string, collation sqltype.CollationRef, conflict bool) (RegexpCall[E, C, P], error) {
+func NewRegexpCall(info expr.Info, name string, args []expr.Expr, writtenSlots [7]uint8, labels [7]string, collation sqltype.CollationRef, conflict bool) (RegexpCall, error) {
 	usages := make([]sqltype.Usage, len(args))
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindRegexpFunction(name, usages, info.Usage, collation, conflict)
-	return RegexpCall[E, C, P]{info, plan, args, writtenSlots, labels}, err
+	return RegexpCall{info, plan, args, writtenSlots, labels}, err
 }
-func (call RegexpCall[E, C, P]) Reconstruct(info Info[P], args []E, collation sqltype.CollationRef, conflict bool) (RegexpCall[E, C, P], error) {
-	return NewRegexpCall[E, C](info, call.Plan.Name(), args, call.WrittenSlots, call.Labels, collation, conflict)
+func (call RegexpCall) Reconstruct(info expr.Info, args []expr.Expr, collation sqltype.CollationRef, conflict bool) (RegexpCall, error) {
+	return NewRegexpCall(info, call.Plan.Name(), args, call.WrittenSlots, call.Labels, collation, conflict)
 }
 func RegexpSignature(name string, n int, replaceFlags bool) (labels [7]string, types [7]sqltype.ID, result sqltype.ID, valid bool) {
 	labels = [7]string{"string", "pattern"}
@@ -109,7 +106,7 @@ func RegexpSignature(name string, n int, replaceFlags bool) (labels [7]string, t
 	return
 }
 
-func RegexpReplaceSelection[E any](raw parser.FunctionExpr, args []Argument[E]) (flags bool, probe *Argument[E]) {
+func RegexpReplaceSelection(raw parser.FunctionExpr, args []Argument) (flags bool, probe *Argument) {
 	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "regexp_replace" || len(args) != 4 {
 		return true, nil
 	}
@@ -158,8 +155,8 @@ func RegexpCompatible(source, target sqltype.Usage) bool {
 	_, err := sqltype.PlanCoercion(source, target, sqltype.Implicit)
 	return err == nil
 }
-func CoerceRegexpArguments[E any, B ArgumentCoercer[E]](b B, operands []Argument[E], written [7]uint8, targets [7]sqltype.Usage) ([]E, error) {
-	args := make([]E, len(operands))
+func CoerceRegexpArguments(b ArgumentCoercer, operands []Argument, written [7]uint8, targets [7]sqltype.Usage) ([]expr.Expr, error) {
+	args := make([]expr.Expr, len(operands))
 	for i, operand := range operands {
 		slot := written[i]
 		target := targets[slot]

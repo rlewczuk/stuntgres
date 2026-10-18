@@ -6,11 +6,13 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type recordProviderContext struct {
+	unitCapabilities
 	context.Context
 	input sqltype.InputEnvironment
 }
@@ -18,18 +20,15 @@ type recordProviderContext struct {
 func (c *recordProviderContext) FunctionContext() context.Context                   { return c.Context }
 func (c *recordProviderContext) FunctionJSONBRecordInput() sqltype.InputEnvironment { return c.input }
 
-type recordProviderExpression interface {
-	Expression[*recordProviderContext]
-}
 type recordProviderArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	index   int
 	failure error
 }
 
-func (a recordProviderArgument) Eval(*recordProviderContext) (sqltype.Value, error) {
+func (a recordProviderArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if a.order != nil {
 		*a.order = append(*a.order, a.index)
 	}
@@ -57,10 +56,10 @@ func TestJSONBRecordProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	var order []int
-	arg := func(index int, value sqltype.Value) recordProviderExpression {
-		return recordProviderArgument{Info: Info[struct{}]{Usage: value.Type().Usage()}, value: value, index: index, order: &order}
+	arg := func(index int, value sqltype.Value) expr.Expr {
+		return recordProviderArgument{Info: expr.Info{Usage: value.Type().Usage()}, value: value, index: index, order: &order}
 	}
-	call := JSONBRecord[recordProviderExpression, *recordProviderContext, struct{}]{Info: Info[struct{}]{Usage: shape.Usage()}, Name: "jsonb_populate_record", Args: []recordProviderExpression{arg(0, base), arg(1, input(`{"a":1}`))}}
+	call := JSONBRecord{Info: expr.Info{Usage: shape.Usage()}, Name: "jsonb_populate_record", Args: []expr.Expr{arg(0, base), arg(1, input(`{"a":1}`))}}
 	value, err := call.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(value, order, err)
@@ -83,7 +82,7 @@ func TestJSONBRecordProvider(t *testing.T) {
 	if _, err := call.Eval(&recordProviderContext{Context: cancelled}); !errors.Is(err, context.Canceled) {
 		t.Fatal("valid swallowed cancellation", err)
 	}
-	call.Args[0] = recordProviderArgument{Info: Info[struct{}]{Usage: shape.Usage()}, failure: context.Canceled}
+	call.Args[0] = recordProviderArgument{Info: expr.Info{Usage: shape.Usage()}, failure: context.Canceled}
 	if _, err := call.Eval(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal("valid swallowed argument failure", err)
 	}
@@ -141,13 +140,13 @@ func TestJSONBRecordProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inner := JSONBRecord[recordProviderExpression, *recordProviderContext, struct{}]{
-		Info: Info[struct{}]{Usage: empty.Usage()}, Name: "jsonb_to_record", Unresolved: true,
-		Args: []recordProviderExpression{arg(5, sqltype.Null(types[sqltype.JSONB]))},
+	inner := JSONBRecord{
+		Info: expr.Info{Usage: empty.Usage()}, Name: "jsonb_to_record", Unresolved: true,
+		Args: []expr.Expr{arg(5, sqltype.Null(types[sqltype.JSONB]))},
 	}
-	outer := JSONBRecord[recordProviderExpression, *recordProviderContext, struct{}]{
-		Info: Info[struct{}]{Usage: shape.Usage()}, Name: "jsonb_populate_record", Definitions: true,
-		Args: []recordProviderExpression{inner, arg(7, input(`{"a":1}`))},
+	outer := JSONBRecord{
+		Info: expr.Info{Usage: shape.Usage()}, Name: "jsonb_populate_record", Definitions: true,
+		Args: []expr.Expr{inner, arg(7, input(`{"a":1}`))},
 	}
 	outer, err = outer.Reconstruct(outer.Info, outer.Args)
 	if err != nil {
@@ -168,9 +167,9 @@ func TestJSONBRecordProvider(t *testing.T) {
 		t.Fatal("outer definition supplied inner layout or skipped its failure", order, err)
 	}
 	inner.Args[0] = arg(5, sqltype.Null(types[sqltype.JSONB]))
-	middle := JSONBRecord[recordProviderExpression, *recordProviderContext, struct{}]{
-		Info: Info[struct{}]{Usage: empty.Usage()}, Name: "jsonb_populate_record", Unresolved: true,
-		Args: []recordProviderExpression{inner, arg(6, input(`{}`))},
+	middle := JSONBRecord{
+		Info: expr.Info{Usage: empty.Usage()}, Name: "jsonb_populate_record", Unresolved: true,
+		Args: []expr.Expr{inner, arg(6, input(`{}`))},
 	}
 	outer.Args[0] = middle
 	order = nil
@@ -185,7 +184,7 @@ func TestJSONBRecordProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer.Args = []recordProviderExpression{arg(0, runtimeBase), arg(1, input(`{"f1":1}`))}
+	outer.Args = []expr.Expr{arg(0, runtimeBase), arg(1, input(`{"f1":1}`))}
 	value, err = outer.Eval(ctx)
 	if err != nil || value.Type() != shape {
 		t.Fatal("caller ABI replaced actual conversion layout", value, err)

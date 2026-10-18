@@ -37,7 +37,7 @@ func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.R
 
 func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	args, unknown, err := functions.AnalyzeDirectArguments[BoundExpr](b, raw.Args)
+	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 	var timestamp *sqltype.Descriptor
 	if len(args) != 0 {
 		target := b.typ(sqltype.Interval).Usage()
-		argument := functions.Argument[BoundExpr]{Expression: args[0], Raw: raw.Args[0]}
+		argument := functions.Argument{Expression: args[0], Raw: raw.Args[0]}
 		if !unknown[0] {
 			argument.Usage = args[0].ResultUsage()
 		}
@@ -86,7 +86,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 		properties = mergeExpressionProperties(properties, args[0].Properties())
 		timestamp = b.typ(sqltype.Timestamptz)
 	}
-	node, err := functions.NewUUIDGeneration[BoundExpr, ExprContext](functions.Info[ExprProperties]{}, name, args, timestamp)
+	node, err := functions.NewUUIDGeneration(expressionInfo{}, name, args, timestamp)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func closedUUIDDefault(node BoundExpr) bool {
 	switch n := node.(type) {
 	case installedUUIDOsspFunctionExpression:
 		return n.validShape()
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		for _, arg := range n.Args {
 			if arg.Properties().Volatility > Stable || !closedUUIDDefault(arg) {
 				return false
@@ -127,28 +127,28 @@ func closedUUIDDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties], functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc, functions.DatetimeBin:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties], functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties], functions.Similar[BoundExpr, ExprContext, ExprProperties], functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties], functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties], functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return closedUUIDDefault(n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for _, arg := range n.Args[:n.Kind.Arity()] {
 			if !closedUUIDDefault(arg) {
 				return false
 			}
 		}
 		return true
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], functions.RangeInspect[BoundExpr, ExprContext, ExprProperties], functions.Enum[BoundExpr, ExprContext, ExprProperties], functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
@@ -160,11 +160,11 @@ func closedUUIDDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties], functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties], functions.JSONBSet[BoundExpr, ExprContext, ExprProperties], functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties], functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, ExprContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, ExprContext, ExprProperties], functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties], functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties], functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties], functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties], functions.String[BoundExpr, ExprContext, ExprProperties], functions.Timezone[BoundExpr, ExprContext, ExprProperties], functions.Math[BoundExpr, ExprContext, ExprProperties], functions.NullCount[BoundExpr, ExprContext, ExprProperties], functions.Format[BoundExpr, ExprContext, ExprProperties], functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, ExprContext, ExprProperties], caseExpression:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeZoneCalendar, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
 		return valid

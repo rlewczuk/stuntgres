@@ -67,7 +67,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
-	probe := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: floating.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	probe := functions.Random{Info: functionInfo(expressionInfo{Usage: floating.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)

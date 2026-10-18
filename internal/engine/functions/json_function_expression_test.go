@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -29,17 +30,17 @@ func TestJSONFunctionKeysScalarAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		argument := functionTestArgument{Info: Info[struct{}]{Usage: input.Usage()}, value: value, literal: true}
-		marker, err := NewJSONKeys[functionTestExpression, *functionTestContext](Info[struct{}]{Usage: text.Usage()}, name, argument)
+		argument := functionTestArgument{Info: expr.Info{Usage: input.Usage()}, value: value, literal: true}
+		marker, err := NewJSONKeys(expr.Info{Usage: text.Usage()}, name, argument)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := marker.Eval(&functionTestContext{context.Background()}); err == nil {
+		if _, err := marker.Eval(&functionTestContext{Context: context.Background()}); err == nil {
 			t.Fatal("set ran as scalar")
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := marker.Eval(&functionTestContext{ctx}); !errors.Is(err, context.Canceled) {
+		if _, err := marker.Eval(&functionTestContext{Context: ctx}); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}
@@ -62,8 +63,8 @@ func TestJSONFunctionScalarRuntimeNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		var order []int
-		call := Binary[binaryUnitExpression, *binaryUnitContext, struct{}]{Info: Info[struct{}]{Usage: result.Usage()}, Plan: plan, Args: []binaryUnitExpression{
-			binaryUnitArgument{Info: Info[struct{}]{Usage: source.Usage()}, value: sqltype.Null(source), order: &order, index: 0},
+		call := Binary{Info: expr.Info{Usage: result.Usage()}, Plan: plan, Args: []expr.Expr{
+			binaryUnitArgument{Info: expr.Info{Usage: source.Usage()}, value: sqltype.Null(source), order: &order, index: 0},
 		}}
 		value, err := call.Eval(&binaryUnitContext{Context: context.Background()})
 		if err != nil || !value.IsNull() || value.Type() != call.ResultUsage().Type || len(order) != 1 || order[0] != 0 {

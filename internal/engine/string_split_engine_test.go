@@ -12,13 +12,13 @@ import (
 	"testing"
 )
 
-func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...BoundExpr) functions.String[BoundExpr, ExprContext, ExprProperties] {
+func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...BoundExpr) functions.String {
 	t.Helper()
 	expr, err := b.stringNode("string_to_table", b.typ(sqltype.Text).Usage(), parser.Position{Offset: pos, Character: pos + 1}, args, [4]bool{true, true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return expr.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	return expr.(functions.String)
 }
 func stringSplitLiteral(b *expressionBinder, s string) BoundExpr {
 	text := b.typ(sqltype.Text)
@@ -551,7 +551,7 @@ func TestStringSplitBinding(t *testing.T) {
 		if err != nil || !changed || mapped.ResultUsage().Type == expr.ResultUsage().Type {
 			t.Fatal(q, mapped, changed, err)
 		}
-		n := mapped.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		n := mapped.(functions.String)
 		if n.Plan.Name() == "string_to_table" {
 			if conditionalConstantInputs(n) || !n.Properties().StageDependent {
 				t.Fatal("foldable set marker")

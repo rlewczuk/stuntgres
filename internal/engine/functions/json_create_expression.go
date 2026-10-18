@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,23 +31,19 @@ func JSONCreateKind(name string) sqltype.JSONCreateKind {
 	return 0
 }
 
-type JSONCreateContext interface {
-	Context
-	FunctionJSONOutput() sqltype.OutputEnvironment
-}
-type JSONCreate[E Expression[C], C JSONCreateContext, P any] struct {
-	Info[P]
+type JSONCreate struct {
+	expr.Info
 	Kind     sqltype.JSONCreateKind
 	Plan     sqltype.JSONCreatePlan
-	Args     []E
+	Args     []expr.Expr
 	Variadic bool
 	Unknown  [2]uint64
 }
 
-func (e JSONCreate[E, C, P]) UnknownArgument(i int) bool {
+func (e JSONCreate) UnknownArgument(i int) bool {
 	return e.Unknown[i/64]&(uint64(1)<<uint(i%64)) != 0
 }
-func (e JSONCreate[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONCreate) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -64,7 +61,7 @@ func (e JSONCreate[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Apply(ctx, scratch[:len(e.Args)], e.Variadic && e.Kind.Builder(), c.FunctionJSONOutput())
 }
-func (e JSONCreate[E, C, P]) Reconstruct(info Info[P], args []E) (JSONCreate[E, C, P], error) {
+func (e JSONCreate) Reconstruct(info expr.Info, args []expr.Expr) (JSONCreate, error) {
 	var local [100]sqltype.Usage
 	if len(args) > len(local) {
 		return e, fmt.Errorf("invalid JSON creation expression arity")
@@ -79,12 +76,12 @@ func (e JSONCreate[E, C, P]) Reconstruct(info Info[P], args []E) (JSONCreate[E, 
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func NewJSONCreate[E Expression[C], C JSONCreateContext, P any](info Info[P], kind sqltype.JSONCreateKind, args []E, variadic bool, unknown [2]uint64) (JSONCreate[E, C, P], error) {
-	expression := JSONCreate[E, C, P]{Info: info, Kind: kind, Args: args, Variadic: variadic, Unknown: unknown}
+func NewJSONCreate(info expr.Info, kind sqltype.JSONCreateKind, args []expr.Expr, variadic bool, unknown [2]uint64) (JSONCreate, error) {
+	expression := JSONCreate{Info: info, Kind: kind, Args: args, Variadic: variadic, Unknown: unknown}
 	return expression.Reconstruct(info, args)
 }
 
-func ResolveJSONCreate[E any](kind sqltype.JSONCreateKind, name string, visible, variadic, resolutionOnly bool, names int, args []Argument[E], boolean sqltype.Usage) Resolution {
+func ResolveJSONCreate(kind sqltype.JSONCreateKind, name string, visible, variadic, resolutionOnly bool, names int, args []Argument, boolean sqltype.Usage) Resolution {
 	valid := visible && name == kind.Name() && !resolutionOnly && names == 0
 	if kind.Builder() {
 		valid = valid && (!variadic || len(args) == 1)

@@ -11,10 +11,10 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 	b.datetimeZoneOperands = true
 	defer func() { b.datetimeZoneOperands = previous }()
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [3]functions.Argument[BoundExpr]
+	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -61,7 +61,7 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		return nil, err
 	}
 	if name == "timezone" {
-		e := functions.Timezone[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Function: true, Local: signature.Count == 1}
+		e := functions.Timezone{Info: functionInfo(info), Function: true, Local: signature.Count == 1}
 		if e.Local {
 			e.Value = args[0]
 		} else {
@@ -77,5 +77,5 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args, Count: signature.Count, Provider: provider}, nil
+	return functions.DatetimeZoneCalendar{Info: functionInfo(info), Name: name, Args: args, Count: signature.Count, Provider: provider}, nil
 }

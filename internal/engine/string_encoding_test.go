@@ -31,7 +31,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		n, ok := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		n, ok := node.(functions.String)
 		if !ok {
 			t.Fatalf("wrong node %T", node)
 		}
@@ -66,7 +66,7 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		original := node.(functions.String)
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -75,7 +75,7 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("retag", query, changed, err)
 		}
-		retained := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		retained := rebound.(functions.String)
 		if retained.ResultUsage().Type != replacements[original.ResultUsage().Type.ID()] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] {
 			t.Fatal("result/text owner", query)
 		}

@@ -36,7 +36,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 			if err != nil {
 				t.Fatal(name, arity, err)
 			}
-			n := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+			n := node.(functions.String)
 			for i := range arity {
 				id := sqltype.Int4
 				if i == 0 {
@@ -63,10 +63,10 @@ func TestStringSliceFormalInference(t *testing.T) {
 			t.Fatal(err)
 		}
 		if arity == 2 {
-			if _, ok := node.(functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]); !ok {
+			if _, ok := node.(functions.PosixSubstring); !ok {
 				t.Fatal("unknown2 did not select POSIX", node)
 			}
-		} else if _, ok := node.(functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]); !ok {
+		} else if _, ok := node.(functions.SimilarSubstring); !ok {
 			t.Fatal("unknown3 did not select SIMILAR", node)
 		}
 		for i := range arity {
@@ -139,7 +139,7 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("slice reconstruction", changed, err)
 	}
-	n := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	n := rebound.(functions.String)
 	if n.Syntax != parser.SubstringStringSyntax || n.ResultUsage() != fresh[sqltype.Text].Usage() {
 		t.Fatal("lost reconstructed syntax/owner", n)
 	}
@@ -157,7 +157,7 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	if err != nil || s != "é" || got.Type() != fresh[sqltype.Text] {
 		t.Fatal(s, err)
 	}
-	original := special.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	original := special.(functions.String)
 	if original.ResultUsage().Type != text || original.Plan.ArgumentUsage(1).Type != integer {
 		t.Fatal("reconstruction mutated original")
 	}

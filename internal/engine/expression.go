@@ -77,8 +77,8 @@ func foldedExpressionInfo(node BoundExpr) expressionInfo {
 	return info
 }
 
-func functionInfo(info expressionInfo) functions.Info[ExprProperties] {
-	return functions.Info[ExprProperties]{
+func functionInfo(info expressionInfo) expressionInfo {
+	return expressionInfo{
 		Usage: info.Usage, Pos: info.Pos, Property: info.Property,
 		CollationConflict: info.CollationConflict, CollationExplicit: info.CollationExplicit,
 		CollationLeft: info.CollationLeft, CollationRight: info.CollationRight,
@@ -705,7 +705,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
 			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
@@ -801,7 +801,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		if changed {
 			return e, true, nil
 		}
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		pattern, pc, err := preflightCoercionsWithPolicy(c, e.Pattern, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -817,7 +817,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		pattern, pc, err := preflightCoercionsWithPolicy(c, e.Pattern, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -837,7 +837,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -857,7 +857,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -876,7 +876,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		changed := false
 		for i, arg := range e.Args {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -898,7 +898,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		changed := false
 		for i, arg := range e.Args {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -919,7 +919,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		call, changed, err := preflightRegexpCall(c, e.RegexpCall, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -931,7 +931,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		call, changed, err := preflightRegexpCall(c, e.RegexpCall, decisiveDefaults)
 		e.RegexpCall = call
 		return e, changed, err
@@ -947,23 +947,23 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		return e.MapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		var args []BoundExpr
 		for i, old := range e.Args {
 			arg, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
@@ -981,13 +981,13 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.Args = args
 		}
 		return e, args != nil, nil
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
 			e.Args = []BoundExpr{arg}
@@ -1267,7 +1267,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.args = args
 			return e, true, nil
 		}
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1286,7 +1286,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		arg, childChanged, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -1294,7 +1294,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		e.Arg = arg
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || childChanged, err
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		anyChanged := false
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1307,7 +1307,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		anyChanged := false
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1320,7 +1320,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		anyChanged := false
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1333,7 +1333,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1346,7 +1346,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
 				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
@@ -1364,7 +1364,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1377,7 +1377,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1391,7 +1391,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		e, anyChanged, err := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
@@ -1400,7 +1400,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1414,7 +1414,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1428,7 +1428,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1442,7 +1442,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1456,7 +1456,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1470,7 +1470,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1484,7 +1484,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1498,7 +1498,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		anyChanged := false
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1522,7 +1522,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		anyChanged := false
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1546,7 +1546,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1565,12 +1565,12 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		next, changed, err := mapArrayRandomChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		return next, changed, err
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		next, changed, err := mapArrayTransformChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1579,7 +1579,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		next, changed, err := mapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1588,7 +1588,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		next, changed, err := mapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1617,7 +1617,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		e.arg = arg
 		return e, changed, nil
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -1625,7 +1625,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		e.Arg = arg
 		next, folded, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || folded, err
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		next, changed, err := mapNetworkFormatChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1634,7 +1634,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		next, changed, err := mapRangeOperatorChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1643,7 +1643,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1662,7 +1662,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1681,7 +1681,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1700,7 +1700,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		childChanged := false
 		if len(e.Args) != 0 {
 			folded, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
@@ -1714,7 +1714,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || childChanged, err
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1732,7 +1732,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.Args = args
 			return e, true, nil
 		}
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		folded, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -1816,7 +1816,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.args = args
 			return e, true, nil
 		}
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1861,7 +1861,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.child = folded
 			return e, true, nil
 		}
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1883,7 +1883,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e = next
 			return e, true, nil
 		}
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -1902,7 +1902,7 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		var args []BoundExpr
 		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -3689,7 +3689,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 
 // AnalyzeArgument retains generic binding and occurrence-owned unknown inference.
 // The request is closed: children cannot invoke catalog or parameter services.
-func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequest) (functions.Argument[BoundExpr], error) {
+func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequest) (functions.Argument, error) {
 	var operand comparisonOperand
 	var err error
 	switch request.Intent {
@@ -3714,9 +3714,9 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 			operand.raw = raw
 		}
 	default:
-		return functions.Argument[BoundExpr]{}, fmt.Errorf("stuntgres: invalid function argument analysis")
+		return functions.Argument{}, fmt.Errorf("stuntgres: invalid function argument analysis")
 	}
-	argument := functions.Argument[BoundExpr]{Expression: operand.node, Raw: operand.raw}
+	argument := functions.Argument{Expression: operand.node, Raw: operand.raw}
 	if operand.node != nil {
 		argument.Usage = operand.node.ResultUsage()
 		if argument.Usage.Type == nil {
@@ -3730,7 +3730,7 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	return argument, err
 }
 
-func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr], request functions.CoercionRequest) (BoundExpr, error) {
+func (b *expressionBinder) CoerceArgument(argument functions.Argument, request functions.CoercionRequest) (BoundExpr, error) {
 	operand := comparisonOperand{node: argument.Expression, raw: argument.Raw}
 	switch request.Intent {
 	case functions.FinalizeArgument:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -19,9 +20,9 @@ func TestRangeInspectCarrierDemand(t *testing.T) {
 	types := inspectCarrierTypes()
 	d := types[sqltype.Int4Range]
 	var order []int
-	first := stringUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0}
-	second := stringUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 1}
-	node, err := NewRangeInspect[stringUnitExpression, *stringUnitContext](Info[struct{}]{Usage: d.Usage()}, sqltype.RangeMerge, []stringUnitExpression{first, second})
+	first := stringUnitArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0}
+	second := stringUnitArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 1}
+	node, err := NewRangeInspect(expr.Info{Usage: d.Usage()}, sqltype.RangeMerge, []expr.Expr{first, second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,17 +58,17 @@ func TestRangeInspectCarrierDemand(t *testing.T) {
 func TestRangeInspectCarrierReconstruct(t *testing.T) {
 	source, target := inspectCarrierTypes(), inspectCarrierTypes()
 	var order []int
-	arg := func(d *sqltype.Descriptor) stringUnitExpression {
-		return stringUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order}
+	arg := func(d *sqltype.Descriptor) expr.Expr {
+		return stringUnitArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order}
 	}
 	for _, op := range []sqltype.RangeInspectOperation{sqltype.RangeLower, sqltype.RangeUpper, sqltype.RangeIsEmpty, sqltype.RangeMerge} {
 		oldInput, newInput := source[sqltype.Int4Multirange], target[sqltype.Int4Multirange]
 		oldResult, newResult := sqltype.RangeInspectResult(op, oldInput), sqltype.RangeInspectResult(op, newInput)
-		original, err := NewRangeInspect[stringUnitExpression, *stringUnitContext](Info[struct{}]{Usage: oldResult.Usage()}, op, []stringUnitExpression{arg(oldInput)})
+		original, err := NewRangeInspect(expr.Info{Usage: oldResult.Usage()}, op, []expr.Expr{arg(oldInput)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, err := original.Reconstruct(Info[struct{}]{Usage: newResult.Usage()}, []stringUnitExpression{arg(newInput)})
+		next, err := original.Reconstruct(expr.Info{Usage: newResult.Usage()}, []expr.Expr{arg(newInput)})
 		if err != nil || next.Validate() != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +79,7 @@ func TestRangeInspectCarrierReconstruct(t *testing.T) {
 		if original.Usage.Type != oldResult || original.Args[0].ResultUsage().Type != oldInput {
 			t.Fatal("mutated source carrier")
 		}
-		if _, err := original.Reconstruct(Info[struct{}]{Usage: oldResult.Usage()}, []stringUnitExpression{arg(newInput)}); err == nil {
+		if _, err := original.Reconstruct(expr.Info{Usage: oldResult.Usage()}, []expr.Expr{arg(newInput)}); err == nil {
 			t.Fatal("foreign result authority")
 		}
 		forged := next
@@ -87,7 +88,7 @@ func TestRangeInspectCarrierReconstruct(t *testing.T) {
 			t.Fatal("stale plan accepted")
 		}
 	}
-	if _, err := NewRangeInspect[stringUnitExpression, *stringUnitContext](Info[struct{}]{Usage: source[sqltype.Int4Range].Usage()}, sqltype.RangeMerge, nil); err == nil {
+	if _, err := NewRangeInspect(expr.Info{Usage: source[sqltype.Int4Range].Usage()}, sqltype.RangeMerge, nil); err == nil {
 		t.Fatal("invalid arity")
 	}
 	if RangeInspectIntrinsicRule() != ExactImmutable {
@@ -109,7 +110,7 @@ func TestRangeInspectSelection(t *testing.T) {
 		{sqltype.RangeMerge, []sqltype.ID{sqltype.Int4Range}, Missing}, {sqltype.RangeMerge, []sqltype.ID{sqltype.Int4Multirange}, Resolved},
 		{sqltype.RangeMerge, []sqltype.ID{sqltype.Int4Multirange, sqltype.Int4Multirange}, Missing}, {sqltype.RangeIsEmpty, []sqltype.ID{sqltype.Int4}, Missing},
 	} {
-		args := make([]Argument[struct{}], len(tc.ids))
+		args := make([]Argument, len(tc.ids))
 		for i, id := range tc.ids {
 			if id != 0 {
 				args[i].Usage = types[id].Usage()

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -69,14 +70,14 @@ func (k ArrayInspectKind) Result() sqltype.ID {
 	return sqltype.Int4
 }
 
-type ArrayInspect[E Expression[C], C Context, P any] struct {
-	Info[P]
+type ArrayInspect struct {
+	expr.Info
 	Kind      ArrayInspectKind
-	Args      []E
+	Args      []expr.Expr
 	Namespace string
 }
 
-func (e ArrayInspect[E, C, P]) Validate() error {
+func (e ArrayInspect) Validate() error {
 	if e.Kind.Arity() == 0 || len(e.Args) != e.Kind.Arity() || e.Usage.Type == nil || e.Usage.Type.ID() != e.Kind.Result() || !e.Usage.Type.Concrete() || e.Namespace != "" && e.Namespace != "pg_catalog" {
 		return fmt.Errorf("stuntgres: invalid stored array inspection provider")
 	}
@@ -95,12 +96,12 @@ func (e ArrayInspect[E, C, P]) Validate() error {
 	return nil
 }
 
-func (e ArrayInspect[E, C, P]) Reconstruct(info Info[P], args []E) (ArrayInspect[E, C, P], error) {
+func (e ArrayInspect) Reconstruct(info expr.Info, args []expr.Expr) (ArrayInspect, error) {
 	e.Info, e.Args = info, args
 	return e, e.Validate()
 }
 
-func (e ArrayInspect[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e ArrayInspect) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

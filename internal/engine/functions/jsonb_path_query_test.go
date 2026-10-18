@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,13 +13,13 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 	t.Run("Exists", func(t *testing.T) {
 		d, fresh := temporalTestTypes(), temporalTestTypes()
 		ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-		e := JSONBPathExists[temporalTestExpression, *temporalTestContext, uint64]{
-			Info:         Info[uint64]{Usage: d[sqltype.Bool].Usage(), Property: 7},
+		e := JSONBPathExists{
+			Info:         expr.Info{Usage: d[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}},
 			WrittenCount: 3, WrittenSlots: [4]uint8{1, 0, 3},
 			Labels: [4]string{"path", "target", "silent"},
 		}
 		var usages [4]sqltype.Usage
-		var args [4]temporalTestExpression
+		var args [4]expr.Expr
 		for i, id := range ids {
 			usages[i] = d[id].Usage()
 			e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -29,7 +30,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		info := Info[uint64]{Usage: fresh[sqltype.Bool].Usage(), Property: 19,
+		info := expr.Info{Usage: fresh[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile, ParameterDependent: true},
 			RoutineReference: jsonpathArrayUnitReference(4007), RoutineRecipeReference: jsonpathArrayUnitReference(123)}
 		got, err := e.Reconstruct(info, args)
 		if err != nil {
@@ -71,13 +72,13 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 	t.Run("Match", func(t *testing.T) {
 		d, fresh := temporalTestTypes(), temporalTestTypes()
 		ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-		e := JSONBPathMatch[temporalTestExpression, *temporalTestContext, uint64]{
-			Info:         Info[uint64]{Usage: d[sqltype.Bool].Usage(), Property: 7},
+		e := JSONBPathMatch{
+			Info:         expr.Info{Usage: d[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}},
 			WrittenCount: 3, WrittenSlots: [4]uint8{1, 0, 3},
 			Labels: [4]string{"path", "target", "silent"},
 		}
 		var usages [4]sqltype.Usage
-		var args [4]temporalTestExpression
+		var args [4]expr.Expr
 		for i, id := range ids {
 			usages[i] = d[id].Usage()
 			e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -88,7 +89,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		info := Info[uint64]{Usage: fresh[sqltype.Bool].Usage(), Property: 19,
+		info := expr.Info{Usage: fresh[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile, ParameterDependent: true},
 			RoutineReference: jsonpathArrayUnitReference(4007), RoutineRecipeReference: jsonpathArrayUnitReference(123)}
 		got, err := e.Reconstruct(info, args)
 		if err != nil {
@@ -130,13 +131,13 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 	t.Run("QueryFirst", func(t *testing.T) {
 		d, fresh := temporalTestTypes(), temporalTestTypes()
 		ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-		e := JSONBPathQueryFirst[temporalTestExpression, *temporalTestContext, uint64]{
-			Info:         Info[uint64]{Usage: d[sqltype.JSONB].Usage(), Property: 7},
+		e := JSONBPathQueryFirst{
+			Info:         expr.Info{Usage: d[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}},
 			WrittenCount: 3, WrittenSlots: [4]uint8{1, 0, 3},
 			Labels: [4]string{"path", "target", "silent"},
 		}
 		var usages [4]sqltype.Usage
-		var args [4]temporalTestExpression
+		var args [4]expr.Expr
 		for i, id := range ids {
 			usages[i] = d[id].Usage()
 			e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -147,7 +148,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		info := Info[uint64]{Usage: fresh[sqltype.JSONB].Usage(), Property: 19,
+		info := expr.Info{Usage: fresh[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Volatile, ParameterDependent: true},
 			RoutineReference: jsonpathArrayUnitReference(4007), RoutineRecipeReference: jsonpathArrayUnitReference(123)}
 		got, err := e.Reconstruct(info, args)
 		if err != nil {
@@ -189,13 +190,13 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 	t.Run("Query", func(t *testing.T) {
 		d, fresh := temporalTestTypes(), temporalTestTypes()
 		ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-		e := JSONBPathQuery[temporalTestExpression, *temporalTestContext, uint64]{
-			Info:         Info[uint64]{Usage: d[sqltype.JSONB].Usage(), Property: 7},
+		e := JSONBPathQuery{
+			Info:         expr.Info{Usage: d[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}},
 			WrittenCount: 3, WrittenSlots: [4]uint8{1, 0, 3},
 			Labels: [4]string{"path", "target", "silent"},
 		}
 		var usages [4]sqltype.Usage
-		var args [4]temporalTestExpression
+		var args [4]expr.Expr
 		for i, id := range ids {
 			usages[i] = d[id].Usage()
 			e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -206,7 +207,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		info := Info[uint64]{Usage: fresh[sqltype.JSONB].Usage(), Property: 19,
+		info := expr.Info{Usage: fresh[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Volatile, ParameterDependent: true},
 			RoutineReference: jsonpathArrayUnitReference(4007), RoutineRecipeReference: jsonpathArrayUnitReference(123)}
 		got, err := e.Reconstruct(info, args)
 		if err != nil {
@@ -250,7 +251,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 	// helper evaluates written slots once, in presentation order, then defaults.
 	d := temporalTestTypes()
 	var order []int
-	var args [4]temporalTestExpression
+	var args [4]expr.Expr
 	ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
 	for i, id := range ids {
 		args[i] = queryOrderArgument{value: sqltype.Null(d[id]), slot: i, order: &order}
@@ -274,6 +275,7 @@ func TestJSONBPathQueryReconstruct(t *testing.T) {
 }
 
 type queryOrderArgument struct {
+	expr.Info
 	value sqltype.Value
 	slot  int
 	order *[]int
@@ -281,7 +283,7 @@ type queryOrderArgument struct {
 }
 
 func (a queryOrderArgument) ResultUsage() sqltype.Usage { return a.value.Type().Usage() }
-func (a queryOrderArgument) Eval(*temporalTestContext) (sqltype.Value, error) {
+func (a queryOrderArgument) Eval(expr.Context) (sqltype.Value, error) {
 	*a.order = append(*a.order, a.slot)
 	return a.value, a.err
 }

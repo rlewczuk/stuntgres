@@ -108,33 +108,33 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.args...)
 	case unnestExpression:
 		return children(n.args...)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		return children(n.Pattern, n.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		return children(n.Left, n.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		return children(n.Left, n.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return children(n.Pattern, n.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		return children(n.Args[:]...)
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		return children(n.Args[:]...)
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return children(n.Args...)
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		return children(n.Args...)
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		return children(n.Args...)
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		return session(children(n.Args...), true)
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		return children(n.Args...)
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		return max(Stable, children(n.Args...))
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		return children(n.Args...)
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		return children(n.Args...)
 	case nullTestExpression:
 		return children(n.child)
@@ -146,67 +146,67 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return session(children(n.left, n.right), n.equality.SessionDependent())
 	case conditionalExpression:
 		return session(children(n.args...), n.comparison.SessionDependent())
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return session(children(n.Args...), !n.Plan.Immutable())
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return children(n.Arg)
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		return children(n.Arguments()...)
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		v := Immutable
 		if n.IntrinsicStable() {
 			v = Stable
 		}
 		return merge(children(n.Arguments()...), v)
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return merge(children(n.Arguments()...), Stable)
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return children(n.Arguments()...)
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return children(n.Arguments()...)
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return children(n.Arguments()...)
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return children(n.Arguments()...)
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return children(n.Arguments()...)
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		return children(n.Arguments()...)
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return children(n.Arguments()...)
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return session(children(n.Args[:]...), true)
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return session(children(n.Args[:]...), true)
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return session(children(n.Args...), n.Plan.SessionDependent())
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		v := Immutable
 		if n.IntrinsicStable() {
 			v = Stable
 		}
 		return merge(children(n.Value, n.Zone), v)
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		return merge(children(n.Args...), Volatile)
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		v := children(n.Args...)
 		if n.IntrinsicStable() {
 			v = merge(v, Stable)
 		}
 		return v
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		return children(n.Args...)
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		v := children(n.Args...)
 		if n.Plan.SessionDependent() {
 			v = merge(v, Stable)
@@ -231,19 +231,19 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return volatility
 	case commitTimestampExpression:
 		return Volatile
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return children(n.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		return children(n.Args[:n.Kind.Arity()]...)
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		return children(n.Args[:]...)
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return children(n.Args...)
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		return merge(children(n.Args...), Stable)
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		return children(n.Args...)
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		return children(n.Args...)
 	case installedSoundexFunctionExpression:
 		return children(n.Args...)
@@ -261,15 +261,15 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return merge(n.Property.Volatility, children(n.args...))
 	case jsonPredicateExpression:
 		return children(n.child)
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		return merge(Stable, children(n.Args...))
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		intrinsic := Immutable
 		if n.IntrinsicStable() {
 			intrinsic = Stable
 		}
 		return merge(intrinsic, children(n.Args...))
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		return merge(Stable, children(n.Args...))
 	case caseExpression:
 		v := children(n.test, n.otherwise)

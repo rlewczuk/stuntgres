@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"time"
@@ -60,26 +61,18 @@ func (kind TransactionTimeKind) Type() sqltype.ID {
 	return sqltype.Timestamptz
 }
 
-type TransactionTimeContext[P any] interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-	FunctionPropertiesMatch(P, IntrinsicPropertyRule) bool
-	FunctionStatementTime() (time.Time, error)
-	FunctionWallTime() time.Time
-	FunctionTimeOfDayZone() *sqltype.Zone
-}
-type TransactionTime[C TransactionTimeContext[P], P any] struct {
-	Info[P]
+type TransactionTime struct {
+	expr.Info
 	Kind TransactionTimeKind
 }
 
-func (e TransactionTime[C, P]) Validate(intrinsicMatch bool) error {
+func (e TransactionTime) Validate(intrinsicMatch bool) error {
 	if e.Kind.Name() == "" || e.Usage.Type == nil || !e.Usage.Valid() || e.Usage.Type.ID() != e.Kind.Type() || e.Usage.Typmod != -1 || !intrinsicMatch {
 		return fmt.Errorf("stuntgres: invalid transaction time expression")
 	}
 	return nil
 }
-func (e TransactionTime[C, P]) Eval(c C) (sqltype.Value, error) {
+func (e TransactionTime) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

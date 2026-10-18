@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -34,7 +35,7 @@ func TestPgcryptoOverloadResolution(t *testing.T) {
 		{"gen_salt", []sqltype.ID{sqltype.Text, sqltype.Int2}, sqltype.Text, Resolved},
 		{"gen_salt", []sqltype.ID{sqltype.Text, sqltype.Int8}, 0, Missing},
 	} {
-		args := make([]Argument[struct{}], len(test.ids))
+		args := make([]Argument, len(test.ids))
 		for i, id := range test.ids {
 			if id != 0 {
 				args[i].Usage = types[id].Usage()
@@ -109,12 +110,12 @@ func TestPgcryptoStrictDemand(t *testing.T) {
 	types := formatUnitTypes()
 	text, binary := types[sqltype.Text], types[sqltype.Bytea]
 	var order []int
-	args := []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0, literal: true},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.String(text, "key"), order: &order, index: 1},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.String(text, "NO_SUCH_HASH"), order: &order, index: 2},
+	args := []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0, literal: true},
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "key"), order: &order, index: 1},
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "NO_SUCH_HASH"), order: &order, index: 2},
 	}
-	call, err := NewPgcrypto[binaryUnitExpression, *binaryUnitContext](Info[struct{}]{Usage: binary.Usage()}, "hmac", args)
+	call, err := NewPgcrypto(expr.Info{Usage: binary.Usage()}, "hmac", args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestPgcryptoStrictDemand(t *testing.T) {
 		t.Fatal(got, order, err)
 	}
 	failure := errors.New("demanded sibling")
-	args[1] = binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, err: failure, order: &order, index: 1}
+	args[1] = binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, err: failure, order: &order, index: 1}
 	order = nil
 	if _, err := call.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)

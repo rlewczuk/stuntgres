@@ -48,7 +48,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		t.Fatal("capture lost original column identity or written typmod", b.viewColumns, b.viewCastUsages)
 	}
 	pathConversion := func(node BoundExpr) coercionExpression {
-		e := node.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
+		e := node.(functions.JSONBSet)
 		arg := e.Args[1]
 		for {
 			wrapper, ok := arg.(coercionExpression)

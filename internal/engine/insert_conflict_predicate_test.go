@@ -151,7 +151,7 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	// Analysis properties are not executable volatility: a comparison between
 	// an ordinary column and a literal stays immutable even if manually mislabeled.
 	// FORMAT is an actual surviving stable operation with a row-dependent argument.
-	stable := functions.Format[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true, Volatility: Stable}}), Args: []BoundExpr{literal("%s"), f.column}, Int4: f.integer}
+	stable := functions.Format{Info: functionInfo(expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true, Volatility: Stable}}), Args: []BoundExpr{literal("%s"), f.column}, Int4: f.integer}
 	if plannedVolatility(stable) != Stable {
 		t.Fatal("fixture has no actual stable operation")
 	}

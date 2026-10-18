@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-type binaryUnitExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*binaryUnitContext) (sqltype.Value, error)
+type binaryUnitContext struct {
+	unitCapabilities
+	context.Context
 }
-type binaryUnitContext struct{ context.Context }
 
 func (c *binaryUnitContext) FunctionContext() context.Context { return c.Context }
-func (c *binaryUnitContext) FunctionLiteralNull(arg binaryUnitExpression) bool {
+func (c *binaryUnitContext) FunctionLiteralNull(arg expr.Expr) bool {
 	value, ok := arg.(binaryUnitArgument)
 	return ok && value.literal
 }
@@ -24,7 +24,7 @@ func (c *binaryUnitContext) FunctionBinaryConversion(int, int) (*sqltype.Encodin
 }
 
 type binaryUnitArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	index   int
@@ -32,7 +32,7 @@ type binaryUnitArgument struct {
 	literal bool
 }
 
-func (a binaryUnitArgument) Eval(*binaryUnitContext) (sqltype.Value, error) {
+func (a binaryUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if a.order != nil {
 		*a.order = append(*a.order, a.index)
 	}
@@ -51,18 +51,18 @@ func TestBinaryBasicEvaluationTraversal(t *testing.T) {
 	}
 	var order []int
 	set, _ := sqltype.Binary(d, "\x00")
-	expr := Binary[binaryUnitExpression, *binaryUnitContext, struct{}]{Info: Info[struct{}]{Usage: d.Usage()}, Plan: plan, Args: []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: set, order: &order, index: 1},
+	node := Binary{Info: expr.Info{Usage: d.Usage()}, Plan: plan, Args: []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
+		binaryUnitArgument{Info: expr.Info{Usage: d.Usage()}, value: set, order: &order, index: 1},
 	}}
-	value, err := expr.Eval(&binaryUnitContext{Context: context.Background()})
+	value, err := node.Eval(&binaryUnitContext{Context: context.Background()})
 	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(value, order, err)
 	}
 	failure := errors.New("demanded binary sibling")
-	expr.Args[1] = binaryUnitArgument{Info: Info[struct{}]{Usage: d.Usage()}, order: &order, index: 1, err: failure}
+	node.Args[1] = binaryUnitArgument{Info: expr.Info{Usage: d.Usage()}, order: &order, index: 1, err: failure}
 	order = nil
-	if _, err := expr.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
+	if _, err := node.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
 }

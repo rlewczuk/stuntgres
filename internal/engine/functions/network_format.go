@@ -2,20 +2,21 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 // NetworkFormat carries one exact scalar signature with inline arguments.
 // Type-owned plans retain descriptor authority, not routine ACL snapshots.
-type NetworkFormat[E Expression[C], C LiteralContext[E], P any] struct {
-	Info[P]
+type NetworkFormat struct {
+	expr.Info
 	Kind sqltype.NetworkFormatKind
-	Args [2]E
+	Args [2]expr.Expr
 	Plan sqltype.NetworkFormat
 }
 
-func NewNetworkFormat[E Expression[C], C LiteralContext[E], P any](info Info[P], kind sqltype.NetworkFormatKind, args [2]E) (NetworkFormat[E, C, P], error) {
-	e := NetworkFormat[E, C, P]{Info: info, Kind: kind, Args: args}
+func NewNetworkFormat(info expr.Info, kind sqltype.NetworkFormatKind, args [2]expr.Expr) (NetworkFormat, error) {
+	e := NetworkFormat{Info: info, Kind: kind, Args: args}
 	if !info.Usage.Valid() || info.Usage != info.Usage.Type.Usage() || kind.Arity() == 0 {
 		return e, fmt.Errorf("stuntgres: invalid network formatting result")
 	}
@@ -40,17 +41,17 @@ func NewNetworkFormat[E Expression[C], C LiteralContext[E], P any](info Info[P],
 	e.Plan = plan
 	return e, err
 }
-func (e NetworkFormat[E, C, P]) Reconstruct(info Info[P], args [2]E) (NetworkFormat[E, C, P], error) {
-	return NewNetworkFormat[E, C](info, e.Kind, args)
+func (e NetworkFormat) Reconstruct(info expr.Info, args [2]expr.Expr) (NetworkFormat, error) {
+	return NewNetworkFormat(info, e.Kind, args)
 }
-func (e NetworkFormat[E, C, P]) Validate() error {
+func (e NetworkFormat) Validate() error {
 	n, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || n.Plan != e.Plan {
 		return fmt.Errorf("stuntgres: invalid stored network formatting provider")
 	}
 	return nil
 }
-func (e NetworkFormat[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e NetworkFormat) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

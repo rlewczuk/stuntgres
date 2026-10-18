@@ -32,8 +32,8 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 	case catalogForeignKeysExpression:
 		second, ok := b.(catalogForeignKeysExpression)
 		return ok && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathQuery:
+		second, ok := b.(functions.JSONBPathQuery)
 		return ok && first.ResultUsage() == second.ResultUsage()
 	case aclValueExpression:
 		second, ok := b.(aclValueExpression)
@@ -47,26 +47,26 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 	case unnestExpression:
 		second, ok := b.(unnestExpression)
 		return ok && sameIntaggIdentity(first.procedure, first.ref, second.procedure, second.ref) && first.ResultUsage() == second.ResultUsage()
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONKeys:
+		second, ok := b.(functions.JSONKeys)
 		return ok && first.Plan.Name() == second.Plan.Name()
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBRecord:
+		second, ok := b.(functions.JSONBRecord)
 		return ok && first.Name == second.Name && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONBElements[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBElements:
+		second, ok := b.(functions.JSONBElements)
 		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONRecord:
+		second, ok := b.(functions.JSONRecord)
 		return ok && first.Plan.Name() == second.Plan.Name() && first.Plan.BaseIndex() == second.Plan.BaseIndex() && first.Defined == second.Defined && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONEach[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONEach:
+		second, ok := b.(functions.JSONEach)
 		return ok && first.Plan.Name() == second.Plan.Name() && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
-		second, ok := b.(functions.JSONElements[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONElements:
+		second, ok := b.(functions.JSONElements)
 		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
-		_, ok := b.(functions.RegexpSet[BoundExpr, ExprContext, ExprProperties])
+	case functions.RegexpSet:
+		_, ok := b.(functions.RegexpSet)
 		return ok
 	default:
 		return isStringSet(a) && isStringSet(b)

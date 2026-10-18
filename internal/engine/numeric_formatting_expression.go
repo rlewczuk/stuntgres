@@ -8,10 +8,10 @@ import (
 )
 
 func (b *expressionBinder) bindNumericFormatting(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [4]functions.Argument[BoundExpr]
+	var small [4]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringTextArgument})
@@ -30,7 +30,7 @@ func (b *expressionBinder) bindNumericFormatting(raw parser.FunctionExpr, visibl
 	}
 	return b.numericFormattingOperands(raw, operands, b.typ(sqltype.Text))
 }
-func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) error {
+func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, operands []functions.Argument) error {
 	names := make([]string, len(operands))
 	for i, o := range operands {
 		names[i] = datetimeFormattingTypeName(o.Usage.Type)
@@ -40,7 +40,7 @@ func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, o
 
 // Numeric to_char arrives with already-transformed operands from the temporal
 // resolver, retaining argument error precedence and parameter occurrences.
-func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr], source *sqltype.Descriptor) (BoundExpr, error) {
+func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, operands []functions.Argument, source *sqltype.Descriptor) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	text := source.Usage()
 	if source.ID() != sqltype.Text {
@@ -80,7 +80,7 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 		}
 		constant = &text
 	}
-	node, err := functions.NewNumericFormatting[BoundExpr, ExprContext](b.ctx, functionInfo(info), name, args, constant)
+	node, err := functions.NewNumericFormatting(b.ctx, functionInfo(info), name, args, constant)
 	if err != nil {
 		return nil, err
 	}

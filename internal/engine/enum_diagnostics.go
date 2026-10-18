@@ -180,9 +180,9 @@ func captureRetainedExpressionInput(node BoundExpr, element func() error, diagno
 		}
 	}
 	switch node := node.(type) {
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		return diagnostic(node.Plan.Enum())
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		targets := [2]*sqltype.Descriptor{node.RecordUsage().Type}
 		if len(node.Args) == 2 {
 			targets[1] = node.Args[0].ResultUsage().Type

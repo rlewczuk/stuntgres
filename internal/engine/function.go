@@ -150,9 +150,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 				b.queryHasTargetSet = true
 			}
-			return functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]{RegexpCall: call}, nil
+			return functions.RegexpSet{RegexpCall: call}, nil
 		}
-		return functions.Regexp[BoundExpr, ExprContext, ExprProperties]{RegexpCall: call}, nil
+		return functions.Regexp{RegexpCall: call}, nil
 	}
 	if parser.ArrayTransformFunctionName(name) {
 		return b.bindArrayTransform(raw)
@@ -365,7 +365,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if err != nil {
 		return nil, err
 	}
-	return functions.NullCount[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args}, nil
+	return functions.NullCount{Info: functionInfo(info), Kind: kind, Args: args}, nil
 }
 
 type currentSchemasExpression struct {

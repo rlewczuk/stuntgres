@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func versionInformationSQL(e functions.VersionInformation[ExprContext, ExprProperties]) (string, error) {
+func versionInformationSQL(e functions.VersionInformation) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
@@ -66,5 +66,5 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (Boun
 	if err != nil {
 		return nil, err
 	}
-	return functions.VersionInformation[ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
+	return functions.VersionInformation{Info: functionInfo(info), Kind: kind}, nil
 }

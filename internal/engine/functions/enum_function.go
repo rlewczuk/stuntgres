@@ -2,22 +2,19 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type EnumContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-type Enum[E Expression[C], C EnumContext, P any] struct {
-	Info[P]
+type Enum struct {
+	expr.Info
 	Plan     sqltype.EnumSupportPlan
-	Args     []E
+	Args     []expr.Expr
 	EnumName string
 }
 
-func (e Enum[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Enum) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -45,7 +42,7 @@ func (e Enum[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return value, err
 }
-func (e Enum[E, C, P]) Reconstruct(info Info[P], args []E) (Enum[E, C, P], error) {
+func (e Enum) Reconstruct(info expr.Info, args []expr.Expr) (Enum, error) {
 	var usages [2]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
@@ -57,7 +54,7 @@ func (e Enum[E, C, P]) Reconstruct(info Info[P], args []E) (Enum[E, C, P], error
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func (e Enum[E, C, P]) Validate() error {
+func (e Enum) Validate() error {
 	if len(e.Args) < 1 || len(e.Args) > 2 {
 		return fmt.Errorf("stuntgres: invalid stored enum arity")
 	}
@@ -71,13 +68,13 @@ func (e Enum[E, C, P]) Validate() error {
 	}
 	return nil
 }
-func NewEnum[E Expression[C], C EnumContext, P any](info Info[P], name string, args []E, enumName string) (Enum[E, C, P], error) {
+func NewEnum(info expr.Info, name string, args []expr.Expr, enumName string) (Enum, error) {
 	var usages [2]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindEnumSupport(name, info.Usage, usages[:len(args)]...)
-	return Enum[E, C, P]{info, plan, args, enumName}, err
+	return Enum{info, plan, args, enumName}, err
 }
 
 type EnumSelection struct {
@@ -85,7 +82,7 @@ type EnumSelection struct {
 	Range      bool
 }
 
-func ResolveEnum[E any](name string, visible bool, arguments []Argument[E]) (EnumSelection, Resolution) {
+func ResolveEnum(name string, visible bool, arguments []Argument) (EnumSelection, Resolution) {
 	var selected *sqltype.Descriptor
 	valid := visible && (len(arguments) == 1 || name == "enum_range" && len(arguments) == 2)
 	for _, argument := range arguments {
@@ -102,8 +99,8 @@ func ResolveEnum[E any](name string, visible bool, arguments []Argument[E]) (Enu
 	}
 	return EnumSelection{Descriptor: selected, Range: name == "enum_range"}, Resolved
 }
-func CoerceEnumArguments[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], target sqltype.Usage, name string) ([]E, error) {
-	args := make([]E, len(arguments))
+func CoerceEnumArguments(b ArgumentCoercer, arguments []Argument, target sqltype.Usage, name string) ([]expr.Expr, error) {
+	args := make([]expr.Expr, len(arguments))
 	for i, argument := range arguments {
 		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: ConditionalArgument, Target: target, Label: name})
 		if err != nil {

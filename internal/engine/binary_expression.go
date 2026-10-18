@@ -8,9 +8,9 @@ import (
 
 func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var operands []functions.Argument[BoundExpr]
+	var operands []functions.Argument
 	if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, r := range raw.Args {
 		o, err := b.AnalyzeArgument(r, functions.BinaryArgumentAnalysis(name, i))
@@ -63,7 +63,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	return b.finishBinary(name, selection.Family, raw.Pos, operands, raw.Syntax, &types)
 }
 
-func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument[BoundExpr], syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
+func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
 	b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, family, operands, false), types)
 	args, err := functions.CoerceBinaryArguments(b, name, family, operands, types)
 	if err != nil {
@@ -103,7 +103,7 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 	if id == sqltype.Text {
 		info = inputInfo
 	}
-	node, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, syntax)
+	node, err := functions.NewBinary(functionInfo(info), name, args, syntax)
 	if err != nil {
 		return nil, err
 	}

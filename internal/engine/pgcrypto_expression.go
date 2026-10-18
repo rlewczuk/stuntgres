@@ -12,7 +12,7 @@ import (
 )
 
 type installedCryptoFunctionExpression struct {
-	functions.Pgcrypto[BoundExpr, ExprContext, ExprProperties]
+	functions.Pgcrypto
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
@@ -28,9 +28,9 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
 func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundExpr, error) {
-	var operands []functions.Argument[BoundExpr]
+	var operands []functions.Argument
 	if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
@@ -151,7 +151,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewPgcrypto[BoundExpr, ExprContext](functionInfo(info), canonical, args)
+	call, err := functions.NewPgcrypto(functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}
@@ -234,13 +234,13 @@ func closedPgcryptoDefault(node BoundExpr) bool {
 		comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression,
 		nullTestExpression, truthTestExpression, logicalExpression, distinctExpression,
 		conditionalExpression, caseExpression, scalarArrayComparisonExpression,
-		functions.Binary[BoundExpr, ExprContext, ExprProperties],
-		functions.String[BoundExpr, ExprContext, ExprProperties],
-		functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin],
-		functions.Format[BoundExpr, ExprContext, ExprProperties],
-		functions.NullCount[BoundExpr, ExprContext, ExprProperties],
-		functions.LikeEscape[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+		functions.Binary,
+		functions.String,
+		functions.StringVariadic,
+		functions.Format,
+		functions.NullCount,
+		functions.LikeEscape,
+		functions.JSONCreate:
 	default:
 		return p.Volatility <= Stable
 	}

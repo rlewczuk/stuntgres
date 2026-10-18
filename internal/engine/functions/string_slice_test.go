@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,18 +27,18 @@ func TestStringSliceChildDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	var order []int
-	node := String[stringUnitExpression, *stringUnitContext, struct{}]{Info: Info[struct{}]{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true}, Syntax: parser.SubstringStringSyntax, Args: []stringUnitExpression{
-		stringUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
-		stringUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: one, order: &order, index: 1},
-		stringUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: negative, order: &order, index: 2},
+	node := String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true}, Syntax: parser.SubstringStringSyntax, Args: []expr.Expr{
+		stringUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
+		stringUnitArgument{Info: expr.Info{Usage: integer.Usage()}, value: one, order: &order, index: 1},
+		stringUnitArgument{Info: expr.Info{Usage: integer.Usage()}, value: negative, order: &order, index: 2},
 	}}
 	got, err := node.Eval(&stringUnitContext{Context: context.Background()})
 	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1, 2}) {
 		t.Fatal("strict runtime NULL lost child demand", got, order, err)
 	}
 	failure := errors.New("count child demanded")
-	args := append([]stringUnitExpression(nil), node.Args...)
-	args[2] = stringUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, order: &order, index: 2, err: failure}
+	args := append([]expr.Expr(nil), node.Args...)
+	args[2] = stringUnitArgument{Info: expr.Info{Usage: integer.Usage()}, order: &order, index: 2, err: failure}
 	rebuilt, err := node.Reconstruct(node.Info, args, text.Usage())
 	if err != nil || rebuilt.Syntax != parser.SubstringStringSyntax {
 		t.Fatal("lost reconstructed syntax", err)

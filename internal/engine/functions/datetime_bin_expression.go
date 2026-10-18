@@ -1,18 +1,19 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeBin[E Expression[C], C Context, P any] struct {
-	Info[P]
+type DatetimeBin struct {
+	expr.Info
 	Plan sqltype.DatetimeBinPlan
-	Args [3]E
+	Args [3]expr.Expr
 }
 
-func (e DatetimeBin[E, C, P]) Arguments() []E { return e.Args[:] }
+func (e DatetimeBin) Arguments() []expr.Expr { return e.Args[:] }
 
-func (e DatetimeBin[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeBin) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -35,7 +36,7 @@ type DatetimeBinPreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeBin[E any](visible, variadic bool, args []Argument[E]) DatetimeBinPreparation {
+func PrepareDatetimeBin(visible, variadic bool, args []Argument) DatetimeBinPreparation {
 	if !visible || variadic || len(args) != 3 {
 		return DatetimeBinPreparation{}
 	}
@@ -53,7 +54,7 @@ func PrepareDatetimeBin[E any](visible, variadic bool, args []Argument[E]) Datet
 	return p
 }
 
-func ResolveDatetimeBin[E any](prepared DatetimeBinPreparation, operands []Argument[E], types TemporalTypes) TemporalSelection {
+func ResolveDatetimeBin(prepared DatetimeBinPreparation, operands []Argument, types TemporalTypes) TemporalSelection {
 	if len(prepared.candidates) == 0 {
 		return TemporalSelection{Resolution: Missing}
 	}
@@ -116,7 +117,7 @@ func ResolveDatetimeBin[E any](prepared DatetimeBinPreparation, operands []Argum
 	return TemporalSelection{Selected: selected, Input: selected}
 }
 
-func (e DatetimeBin[E, C, P]) Reconstruct(info Info[P], args [3]E, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeBin[E, C, P], bool, error) {
+func (e DatetimeBin) Reconstruct(info expr.Info, args [3]expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeBin, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestDatetimeJustifySelectedPlanExecution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := DatetimeJustify[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d.Usage()}, Plan: plan, Arg: temporalTestLiteral(value)}
+		e := DatetimeJustify{Info: expr.Info{Usage: d.Usage()}, Plan: plan, Arg: temporalTestLiteral(value)}
 		v, err := e.Eval(&temporalTestContext{Context: context.Background()})
 		wantMonths, wantDays := int32(1), int32(0)
 		if name == "justify_hours" {

@@ -23,7 +23,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}
 	result := b.typ(sqltype.Numeric)
-	original, err := functions.NewRangeInspect[BoundExpr, ExprContext](functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
+	original, err := functions.NewRangeInspect(functionInfo(b.info(result.Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable})), sqltype.RangeLower, []BoundExpr{arg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
-	next := mapped.(functions.RangeInspect[BoundExpr, ExprContext, ExprProperties])
+	next := mapped.(functions.RangeInspect)
 	value, err := next.Eval(&EvalContext{Context: ctx})
 	if err != nil || value.Type() != fresh.typ(sqltype.Numeric) {
 		t.Fatal(value, err)
@@ -82,7 +82,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	}
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
-	node, err := b.finishRangeInspect(raw, true, []functions.Argument[BoundExpr]{{Expression: arg, Usage: d.Usage()}})
+	node, err := b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,12 +92,12 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 		t.Fatal(got, err)
 	}
 	raw.Name.Parts[0].Text = "range_merge"
-	node, err = b.finishRangeInspect(raw, true, []functions.Argument[BoundExpr]{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
+	node, err = b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}})
 	if err != nil || node.ResultUsage().Type != d {
 		t.Fatal(node, err)
 	}
 	raw.Name.Parts[0].Text = "isempty"
-	if _, err := b.finishRangeInspect(raw, true, []functions.Argument[BoundExpr]{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
+	if _, err := b.finishRangeInspect(raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}, {Expression: arg, Usage: d.Usage()}}); err == nil {
 		t.Fatal("wrong arity")
 	}
 }

@@ -2,13 +2,14 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 // PgcryptoInput chooses between documented signatures using SQL usages.
 // Unknown digest/HMAC data/key prefer TEXT; raw encryption always uses BYTEA.
 
-func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
+func PgcryptoInput(name string, args []Argument, text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
 	count := 2
 	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
 	switch name {
@@ -70,8 +71,8 @@ func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer 
 	return input, Resolved
 }
 
-func CoercePgcryptoArguments[E any, B ArgumentCoercer[E]](b B, name string, args []Argument[E], input, text, integer sqltype.Usage) ([]E, error) {
-	children := make([]E, len(args))
+func CoercePgcryptoArguments(b ArgumentCoercer, name string, args []Argument, input, text, integer sqltype.Usage) ([]expr.Expr, error) {
+	children := make([]expr.Expr, len(args))
 	for i, arg := range args {
 		target := input
 		if i == len(args)-1 && name != "gen_random_bytes" {
@@ -89,13 +90,13 @@ func CoercePgcryptoArguments[E any, B ArgumentCoercer[E]](b B, name string, args
 	return children, nil
 }
 
-type Pgcrypto[E Expression[C], C Context, P any] struct {
-	Info[P]
+type Pgcrypto struct {
+	expr.Info
 	Plan sqltype.PgcryptoPlan
-	Args []E
+	Args []expr.Expr
 }
 
-func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -192,23 +193,23 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
 }
 
-func NewPgcrypto[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Pgcrypto[E, C, P], error) {
+func NewPgcrypto(info expr.Info, name string, args []expr.Expr) (Pgcrypto, error) {
 	var usages [4]sqltype.Usage
 	if len(args) > 4 {
-		return Pgcrypto[E, C, P]{}, fmt.Errorf("invalid crypto call")
+		return Pgcrypto{}, fmt.Errorf("invalid crypto call")
 	}
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindPgcrypto(name, info.Usage, usages[:len(args)]...)
-	return Pgcrypto[E, C, P]{Info: info, Plan: plan, Args: args}, err
+	return Pgcrypto{Info: info, Plan: plan, Args: args}, err
 }
 
-func (e Pgcrypto[E, C, P]) Reconstruct(info Info[P], args []E) (Pgcrypto[E, C, P], error) {
-	return NewPgcrypto[E, C](info, e.Plan.Name(), args)
+func (e Pgcrypto) Reconstruct(info expr.Info, args []expr.Expr) (Pgcrypto, error) {
+	return NewPgcrypto(info, e.Plan.Name(), args)
 }
 
-func (e Pgcrypto[E, C, P]) Validate() error {
+func (e Pgcrypto) Validate() error {
 	rebuilt, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil || rebuilt.Plan != e.Plan {
 		return fmt.Errorf("invalid stored crypto plan")

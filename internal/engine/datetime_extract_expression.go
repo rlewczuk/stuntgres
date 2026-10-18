@@ -12,10 +12,10 @@ import (
 
 func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [2]functions.Argument[BoundExpr]
+	var small [2]functions.Argument
 	operands := small[:min(len(raw.Args), 2)]
 	if len(raw.Args) > 2 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -58,7 +58,7 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]{Syntax: raw.Syntax}
+	e := functions.DatetimeExtract{Syntax: raw.Syntax}
 	if raw.Syntax == parser.SQLFunctionSyntax {
 		literal, ok := raw.Args[0].(parser.LiteralExpr)
 		if !ok {

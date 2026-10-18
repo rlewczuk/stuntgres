@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,8 +54,8 @@ func TestStringVariadicArrayBorrowing(t *testing.T) {
 	}
 	for _, input := range []sqltype.Value{value, wrapped} {
 		var order []int
-		arg := stringUnitArgument{Info: Info[struct{}]{Usage: input.Type().Usage()}, value: input, order: &order}
-		node := StringVariadic[stringUnitExpression, *stringUnitContext, struct{}, struct{}]{Info: Info[struct{}]{Usage: types[sqltype.Text].Usage()}, Name: "concat", Args: []stringUnitExpression{arg}, Variadic: true, Stable: true}
+		arg := stringUnitArgument{Info: expr.Info{Usage: input.Type().Usage()}, value: input, order: &order}
+		node := StringVariadic{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Name: "concat", Args: []expr.Expr{arg}, Variadic: true, Stable: true}
 		got, err := node.Eval(&stringUnitContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)

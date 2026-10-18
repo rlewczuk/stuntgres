@@ -252,7 +252,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
 		}
@@ -268,9 +268,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Arguments())
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		if !n.Plan.Immutable() && r.visibilitySnapshot != nil {
 			demand := true
 			for _, arg := range n.Args {
@@ -284,24 +284,24 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case sqlJSONExpression, jsonPredicateExpression:
 		return r.scalarFunctionSQL(ctx, view, node, u)
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties], functions.Random[BoundExpr, ExprContext, ExprProperties],
-		functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties], functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties], functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONRecord[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONExtract[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties],
-		functions.JSONBSet[BoundExpr, ExprContext, ExprProperties],
-		functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties], functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties], functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties],
-		functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties], functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties], functions.String[BoundExpr, ExprContext, ExprProperties],
+	case functions.UUIDGeneration, functions.Random,
+		functions.DatetimeJustify, functions.DatetimeExtract, functions.DatetimeOverlaps,
+		functions.JSONRecord,
+		functions.JSONStripNulls,
+		functions.JSONExtract,
+		functions.JSONBPathQueryArray,
+		functions.JSONBPathExists,
+		functions.JSONBPathMatch,
+		functions.JSONBPathQueryFirst,
+		functions.JSONBSet,
+		functions.DatetimeBin, functions.DatetimeTrunc, functions.DatetimeAgeFinite, functions.DatetimeMake,
+		functions.DatetimeFormatting, functions.NumericFormatting, functions.String,
 		catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression,
-		functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties],
-		functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties],
-		functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties], functions.RangeInspect[BoundExpr, ExprContext, ExprProperties], functions.RangeOperator[BoundExpr, ExprContext, ExprProperties], functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties],
-		functions.Enum[BoundExpr, ExprContext, ExprProperties], functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], functions.Math[BoundExpr, ExprContext, ExprProperties], functions.NullCount[BoundExpr, ExprContext, ExprProperties], functions.Format[BoundExpr, ExprContext, ExprProperties],
-		installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression, functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+		functions.ArrayTransform,
+		functions.NetworkFormat,
+		functions.ArrayRandom, functions.ArrayInspect, functions.RangeInspect, functions.RangeOperator, functions.UUIDExtract,
+		functions.Enum, functions.ArraySearch, functions.Math, functions.NullCount, functions.Format,
+		installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression, functions.StringVariadic, functions.JSONCreate:
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case visibilityInquiryExpression:
 		if r.owner == nil {
@@ -472,11 +472,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "pg_catalog." + n.kind.spelling() + "()", nil
 		}
 		return n.kind.spelling(), nil
-	case functions.CurrentDateTime[ExprContext, ExprProperties]:
+	case functions.CurrentDateTime:
 		return currentDateTimeSQL(n)
-	case functions.VersionInformation[ExprContext, ExprProperties]:
+	case functions.VersionInformation:
 		return versionInformationSQL(n)
-	case functions.TransactionTime[ExprContext, ExprProperties]:
+	case functions.TransactionTime:
 		return transactionTimeSQL(n)
 	case literalExpression:
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
@@ -542,7 +542,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			aclOutput = aclItemContextFormatter(ctx)
 		}
 		return catalogLiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		if n.Function {
 			if n.Local {
 				return r.functionSQL(ctx, view, "pg_catalog.timezone", []BoundExpr{n.Value})
@@ -762,7 +762,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		left, err := r.sql(ctx, view, n.Left)
 		if err != nil {
 			return "", err
@@ -790,7 +790,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			operator = "OPERATOR(" + pgIdentifier(n.namespace) + "." + operator + ")"
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		pattern, err := r.sql(ctx, view, n.Pattern)
 		if err != nil {
 			return "", err
@@ -800,12 +800,12 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		left, err := r.sql(ctx, view, n.Left)
 		if err != nil {
 			return "", err
 		}
-		normalizer, ok := n.Right.(functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties])
+		normalizer, ok := n.Right.(functions.SimilarEscape)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer")
 		}
@@ -831,9 +831,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			text += " ESCAPE " + escape
 		}
 		return text + ")", nil
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		return "", fmt.Errorf("stuntgres: standalone stored SIMILAR normalizer")
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		source, err := r.sql(ctx, view, n.Args[0])
 		if err != nil {
 			return "", err
@@ -846,7 +846,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
 		}
 		return `pg_catalog."substring"(` + source + ", " + pattern + ")", nil
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		source, err := r.sql(ctx, view, n.Args[0])
 		if err != nil {
 			return "", err
@@ -870,7 +870,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 		}
 		return renderRowComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return regexpSQL(n.RegexpCall, "pg_catalog."+n.Plan.Name(), func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case scalarArrayComparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || (n.array == nil) == (len(n.items) == 0) {

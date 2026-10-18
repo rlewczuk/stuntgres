@@ -3,22 +3,18 @@ package functions
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type JSONRecordContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type JSONRecord[E Expression[C], C JSONRecordContext, P any] struct {
-	Info[P]
+type JSONRecord struct {
+	expr.Info
 	Plan    sqltype.JSONRecordPlan
-	Args    []E
+	Args    []expr.Expr
 	Defined bool
 }
 
-func (e JSONRecord[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONRecord) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -35,7 +31,7 @@ func (e JSONRecord[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values[:len(e.Args)], c.FunctionInput())
 }
-func (e JSONRecord[E, C, P]) Reconstruct(info Info[P], args []E) (JSONRecord[E, C, P], error) {
+func (e JSONRecord) Reconstruct(info expr.Info, args []expr.Expr) (JSONRecord, error) {
 	if len(args) < 1 || len(args) > 2 {
 		return e, fmt.Errorf("invalid JSON record argument count")
 	}
@@ -50,14 +46,14 @@ func (e JSONRecord[E, C, P]) Reconstruct(info Info[P], args []E) (JSONRecord[E, 
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func NewJSONRecord[E Expression[C], C JSONRecordContext, P any](info Info[P], name string, baseIndex int, args []E) (JSONRecord[E, C, P], error) {
+func NewJSONRecord(info expr.Info, name string, baseIndex int, args []expr.Expr) (JSONRecord, error) {
 	var usages [2]sqltype.Usage
 	if len(args) < 1 || len(args) > 2 {
-		return JSONRecord[E, C, P]{}, fmt.Errorf("invalid JSON record argument count")
+		return JSONRecord{}, fmt.Errorf("invalid JSON record argument count")
 	}
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindJSONRecord(name, info.Usage, baseIndex, usages[:len(args)]...)
-	return JSONRecord[E, C, P]{Info: info, Plan: plan, Args: args}, err
+	return JSONRecord{Info: info, Plan: plan, Args: args}, err
 }

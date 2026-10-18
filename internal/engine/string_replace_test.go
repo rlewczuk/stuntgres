@@ -23,7 +23,7 @@ func TestStringReplacementFormalInference(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		n := node.(functions.String)
 		for i := range args {
 			id := sqltype.Text
 			if i >= 2 {
@@ -47,7 +47,7 @@ func TestStringReplacementFormalInference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := node.(functions.String[BoundExpr, ExprContext, ExprProperties]).Args[2].(coercionExpression); !ok || node.(functions.String[BoundExpr, ExprContext, ExprProperties]).Plan.ArgumentUsage(2).Type != b.typ(sqltype.Int4) {
+	if _, ok := node.(functions.String).Args[2].(coercionExpression); !ok || node.(functions.String).Plan.ArgumentUsage(2).Type != b.typ(sqltype.Int4) {
 		t.Fatal("INT2 implicit formal", node)
 	}
 }
@@ -67,14 +67,14 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := bound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	n := bound.(functions.String)
 	// Keep owner property merging and descriptor retag integration. Four-child
 	// runtime NULL/error demand is exercised locally by the extracted carrier.
 	if n.Properties() != (ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}) {
 		t.Fatal(n.Properties())
 	}
 	// Retag executable literal children, retaining all four formal owners.
-	original := bound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	original := bound.(functions.String)
 	original.Args = []BoundExpr{literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{Usage: integer.Usage()}, two}, literalExpression{expressionInfo{Usage: integer.Usage()}, one}}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, d := range sqltype.Builtins() {
@@ -84,7 +84,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	retained := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	retained := rebound.(functions.String)
 	for i := range retained.Args {
 		id := sqltype.Text
 		if i >= 2 {
@@ -120,7 +120,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := conflict.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	n := conflict.(functions.String)
 	if n.ResultUsage() != boolean.Usage() || n.CollationIndeterminate() || !n.Plan.CollationIndeterminate() {
 		t.Fatal("input conflict leaked to BOOL", n)
 	}

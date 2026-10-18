@@ -18,12 +18,12 @@ func functionNamedType(raw parser.FunctionExpr, index int, typ string) string {
 func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels, types, count, result := functions.DatetimeMakeSignature(name)
-	var small [7]functions.Argument[BoundExpr]
+	var small [7]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	// Bad signatures require every analyzed source type, but large calls never
 	// retain executable storage. The child-analysis-before-100 rule is PG-owned.
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		operand, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -59,7 +59,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 	if selection.Resolution != functions.Resolved {
 		return signature()
 	}
-	e := functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]{Count: selection.Count, WrittenCount: selection.WrittenCount, WrittenSlots: selection.WrittenSlots, Labels: selection.Labels}
+	e := functions.DatetimeMake{Count: selection.Count, WrittenCount: selection.WrittenCount, WrittenSlots: selection.WrittenSlots, Labels: selection.Labels}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeMakeIntrinsicStable(name) {
 		properties.Volatility = Stable
@@ -117,7 +117,7 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 
 // Definition/presentation paths retain written labels/order and omitted defaults;
 // execution and dependency walkers use declared slots, never this display order.
-func datetimeMakeSQL(e functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func datetimeMakeSQL(e functions.DatetimeMake, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.Count < 1 || e.Count > 7 || e.WrittenCount < 0 || e.WrittenCount > e.Count {
 		return "", fmt.Errorf("invalid stored datetime constructor")
 	}

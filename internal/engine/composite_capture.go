@@ -120,7 +120,7 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 	if err != nil {
 		return nil, err
 	}
-	call, ok := node.(functions.NullCount[BoundExpr, ExprContext, ExprProperties])
+	call, ok := node.(functions.NullCount)
 	if !ok || len(call.Args) != 1 {
 		return nil, fmt.Errorf("stuntgres: invalid dot builtin resolution")
 	}

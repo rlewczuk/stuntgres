@@ -7,13 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
 
-type uuidUnitContext struct{ context.Context }
+type uuidUnitContext struct {
+	unitCapabilities
+	context.Context
+}
 
 func (c *uuidUnitContext) FunctionContext() context.Context {
 	if c == nil {
@@ -31,13 +35,14 @@ func (c *uuidUnitContext) FunctionUUIDTime() int64          { panic("unexpected 
 func (c *uuidUnitContext) FunctionUUIDEntropy([]byte) error { panic("unexpected UUID entropy demand") }
 
 type uuidUnitArgument struct {
+	expr.Info
 	usage sqltype.Usage
 	value sqltype.Value
 	calls *int
 }
 
 func (a uuidUnitArgument) ResultUsage() sqltype.Usage { return a.usage }
-func (a uuidUnitArgument) Eval(*uuidUnitContext) (sqltype.Value, error) {
+func (a uuidUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	*a.calls++
 	return a.value, nil
 }
@@ -45,15 +50,15 @@ func TestUUIDGenerationRuntimeNullDemand(t *testing.T) {
 	types := formatUnitTypes()
 	iv, uuid := types[sqltype.Interval], types[sqltype.UUID]
 	calls := 0
-	probe := uuidUnitArgument{iv.Usage(), sqltype.Null(iv), &calls}
-	expr := UUIDGeneration[uuidUnitArgument, *uuidUnitContext, struct{}]{Info: Info[struct{}]{Usage: uuid.Usage()}, Name: "uuidv7", Args: []uuidUnitArgument{probe}}
-	result, err := expr.Eval(&uuidUnitContext{Context: context.Background()})
+	probe := uuidUnitArgument{usage: iv.Usage(), value: sqltype.Null(iv), calls: &calls}
+	node := UUIDGeneration{Info: expr.Info{Usage: uuid.Usage()}, Name: "uuidv7", Args: []expr.Expr{probe}}
+	result, err := node.Eval(&uuidUnitContext{Context: context.Background()})
 	if err != nil || !result.IsNull() || result.Type() != uuid || calls != 1 {
 		t.Fatal(result, err, calls)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = expr.Eval(&uuidUnitContext{Context: canceled})
+	_, err = node.Eval(&uuidUnitContext{Context: canceled})
 	if !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatal("cancellation demanded child", err, calls)
 	}

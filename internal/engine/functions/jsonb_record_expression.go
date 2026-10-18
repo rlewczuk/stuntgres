@@ -2,45 +2,39 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// The engine supplies its existing coherent evaluation scope, including domain
-// checks; the provider never captures an engine or resolves catalog names.
-type JSONBRecordContext interface {
-	Context
-	FunctionJSONBRecordInput() sqltype.InputEnvironment
-}
-
-type JSONBRecord[E Expression[C], C JSONBRecordContext, P any] struct {
-	Info[P]
+type JSONBRecord struct {
+	expr.Info
 	Name        string
-	Args        []E
+	Args        []expr.Expr
 	Definitions bool
 	// Unresolved describes static result-layout availability, not whether a
 	// non-NULL anonymous base can supply a runtime tuple descriptor.
 	Unresolved bool
 }
 
-func (e JSONBRecord[E, C, P]) ReturnsSet() bool {
+func (e JSONBRecord) ReturnsSet() bool {
 	return e.Name == "jsonb_populate_recordset" || e.Name == "jsonb_to_recordset"
 }
-func (e JSONBRecord[E, C, P]) RecordUsage() sqltype.Usage {
+func (e JSONBRecord) RecordUsage() sqltype.Usage {
 	if e.Definitions && e.Name != "jsonb_populate_record_valid" || e.Name == "jsonb_to_record" || e.Name == "jsonb_to_recordset" {
 		return e.Usage
 	}
 	return e.Args[0].ResultUsage()
 }
-func (e JSONBRecord[E, C, P]) MapChildren(child func(E) (E, bool, error)) (JSONBRecord[E, C, P], bool, error) {
-	var args []E
+func (e JSONBRecord) MapChildren(child func(expr.Expr) (expr.Expr, bool, error)) (JSONBRecord, bool, error) {
+	var args []expr.Expr
 	for i, old := range e.Args {
 		next, changed, err := child(old)
 		if err != nil {
 			return e, false, err
 		}
 		if changed && args == nil {
-			args = append([]E(nil), e.Args...)
+			args = append([]expr.Expr(nil), e.Args...)
 		}
 		if args != nil {
 			args[i] = next
@@ -52,40 +46,40 @@ func (e JSONBRecord[E, C, P]) MapChildren(child func(E) (E, bool, error)) (JSONB
 	e.Args = args
 	return e, true, nil
 }
-func (e JSONBRecord[E, C, P]) Reconstruct(info Info[P], args []E) (JSONBRecord[E, C, P], error) {
+func (e JSONBRecord) Reconstruct(info expr.Info, args []expr.Expr) (JSONBRecord, error) {
 	count := 2
 	switch e.Name {
 	case "jsonb_to_record", "jsonb_to_recordset":
 		count = 1
 	case "jsonb_populate_record", "jsonb_populate_recordset", "jsonb_populate_record_valid":
 	default:
-		return JSONBRecord[E, C, P]{}, fmt.Errorf("invalid JSONB record function")
+		return JSONBRecord{}, fmt.Errorf("invalid JSONB record function")
 	}
 	if len(args) != count || !info.Usage.Valid() || args[count-1].ResultUsage().Type == nil || args[count-1].ResultUsage().Type.ID() != sqltype.JSONB {
-		return JSONBRecord[E, C, P]{}, fmt.Errorf("invalid JSONB record arguments")
+		return JSONBRecord{}, fmt.Errorf("invalid JSONB record arguments")
 	}
 	if e.Definitions && e.Unresolved {
-		return JSONBRecord[E, C, P]{}, fmt.Errorf("conflicting JSONB record shape")
+		return JSONBRecord{}, fmt.Errorf("conflicting JSONB record shape")
 	}
 	if count == 1 && !info.Usage.Type.IsComposite() {
-		return JSONBRecord[E, C, P]{}, fmt.Errorf("invalid JSONB record result")
+		return JSONBRecord{}, fmt.Errorf("invalid JSONB record result")
 	}
 	if count == 2 {
 		if args[0].ResultUsage().Type == nil {
-			return JSONBRecord[E, C, P]{}, fmt.Errorf("missing JSONB record base")
+			return JSONBRecord{}, fmt.Errorf("missing JSONB record base")
 		}
 		if e.Name == "jsonb_populate_record_valid" {
 			if e.Definitions || info.Usage.Type.ID() != sqltype.Bool {
-				return JSONBRecord[E, C, P]{}, fmt.Errorf("invalid JSONB validity result")
+				return JSONBRecord{}, fmt.Errorf("invalid JSONB validity result")
 			}
 		} else if info.Usage != args[0].ResultUsage() && !(e.Definitions && info.Usage.Type.ID() == 2249 && args[0].ResultUsage().Type.ID() == 2249) {
-			return JSONBRecord[E, C, P]{}, fmt.Errorf("foreign JSONB record result generation")
+			return JSONBRecord{}, fmt.Errorf("foreign JSONB record result generation")
 		}
 	}
 	e.Info, e.Args = info, args
 	return e, nil
 }
-func (e JSONBRecord[E, C, P]) inputs(c C) (sqltype.Value, sqltype.Value, sqltype.Usage, error) {
+func (e JSONBRecord) inputs(c expr.Context) (sqltype.Value, sqltype.Value, sqltype.Usage, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, sqltype.Value{}, sqltype.Usage{}, err
@@ -148,7 +142,7 @@ func (e JSONBRecord[E, C, P]) inputs(c C) (sqltype.Value, sqltype.Value, sqltype
 	}
 	return base, document, usage, nil
 }
-func (e JSONBRecord[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONBRecord) Eval(c expr.Context) (sqltype.Value, error) {
 	if e.ReturnsSet() {
 		if _, err := evaluationContext(c); err != nil {
 			return sqltype.Value{}, err
@@ -185,7 +179,7 @@ func (e JSONBRecord[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return value, nil
 }
-func (e JSONBRecord[E, C, P]) EvalSet(c C) ([]sqltype.Value, error) {
+func (e JSONBRecord) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	if !e.ReturnsSet() {
 		return nil, fmt.Errorf("invalid JSONB recordset call")
 	}

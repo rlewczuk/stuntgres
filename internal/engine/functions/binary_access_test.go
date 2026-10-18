@@ -33,7 +33,7 @@ func TestBinaryAccessSignatures(t *testing.T) {
 		{"set_bit", []sqltype.ID{sqltype.Bit, sqltype.Int8, sqltype.Int4}, Missing, BinaryCall, 0},
 		{"set_bit", []sqltype.ID{sqltype.Bit, sqltype.Int4, sqltype.Int8}, Missing, BinaryCall, 0},
 	} {
-		arguments := make([]Argument[struct{}], len(tc.ids))
+		arguments := make([]Argument, len(tc.ids))
 		for i, id := range tc.ids {
 			if id == 0 {
 				arguments[i].Kind = DeferredNullArgument

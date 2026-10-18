@@ -12,7 +12,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	if len(raw.Args) <= 100 {
 		args = make([]BoundExpr, len(raw.Args))
 	}
-	var first functions.Argument[BoundExpr]
+	var first functions.Argument
 	var rawUnknown [2]uint64
 	for i, r := range raw.Args {
 		operand, err := b.AnalyzeArgument(r, functions.FormatArgumentAnalysis(i))
@@ -100,5 +100,5 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	}
 	int4 := b.typ(sqltype.Int4)
 	b.info(int4.Usage(), raw.Pos, ExprProperties{})
-	return functions.Format[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
+	return functions.Format{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
 }

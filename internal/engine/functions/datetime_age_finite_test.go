@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func TestDatetimeAgeFiniteSelectedPlanExecution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := DatetimeAgeFinite[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[tc.result].Usage()}, Plan: plan, Count: len(tc.values)}
+		e := DatetimeAgeFinite{Info: expr.Info{Usage: d[tc.result].Usage()}, Plan: plan, Count: len(tc.values)}
 		for i, text := range tc.values {
 			v, err := d[tc.source].InputWithEnvironment(context.Background(), text, -1, input)
 			if err != nil {

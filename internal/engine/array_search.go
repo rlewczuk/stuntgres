@@ -14,7 +14,7 @@ func arrayMembershipName(name string) bool { return name == "@>" || name == "<@"
 
 func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	operands, err := functions.AnalyzeArraySearch[BoundExpr](b, raw.Args)
+	operands, err := functions.AnalyzeArraySearch(b, raw.Args)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	case raw.Window != nil:
 		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
-	args, err := functions.FinishArraySearch[BoundExpr](b, name, operands, targets)
+	args, err := functions.FinishArraySearch(b, name, operands, targets)
 	if err != nil {
 		return nil, err
 	}
@@ -255,10 +255,10 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 	if len(rawName.Parts) == 2 {
 		namespace = rawName.Parts[0].Text
 	}
-	return functions.NewArraySearch[BoundExpr, ExprContext](functionInfo(info), plan, args, namespace), nil
+	return functions.NewArraySearch(functionInfo(info), plan, args, namespace), nil
 }
 
-func arraySearchSQL(e functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func arraySearchSQL(e functions.ArraySearch, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
 	parts := make([]string, len(e.Args))
 	for i, arg := range e.Args {
 		text, err := child(arg)
@@ -273,7 +273,7 @@ func arraySearchSQL(e functions.ArraySearch[BoundExpr, ExprContext, ExprProperti
 	return "pg_catalog." + e.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 }
 
-func mapArraySearchChildren(e functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArraySearch[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapArraySearchChildren(e functions.ArraySearch, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArraySearch, bool, error) {
 	var args []BoundExpr
 	for i, old := range e.Args {
 		next, changed, err := child(old)
