@@ -18,7 +18,7 @@ type installedUUIDOsspFunctionExpression struct {
 	ref       ids.ObjectRef
 }
 
-func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (BoundExpr, error) {
+func bindInstalledUUIDOssp(b functions.Binder, raw parser.FunctionExpr) (BoundExpr, error) {
 	var names []string
 	if len(raw.Args) <= 100 {
 		names = make([]string, len(raw.Args))
@@ -31,63 +31,35 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 		if names != nil {
 			name := "unknown"
 			if o.Usage.Type != nil {
-				name = b.diagnosticTypeName(o.Usage.Type)
+				name = b.DiagnosticTypeName(o.Usage.Type)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	issue := functions.FunctionLabels(raw)
-	if issue.Malformed {
-		return nil, fmt.Errorf("invalid function argument labels")
+	if err := functions.CallLabelError(raw); err != nil {
+		return nil, err
 	}
-	if issue.Positional {
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	}
-	if issue.Duplicate != "" {
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	failure := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	auth, err := b.bindingAuthorization()
+	routine, err := b.InstalledRoutine(raw.Name, functions.UUIDOsspExtension, "")
 	if err != nil {
 		return nil, err
 	}
-	path, err := b.engine.lookupNamespacesSnapshot(auth, raw.Name, installedFunctionLookup)
+	if len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Star || routine == nil {
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
+	}
+	if err := routine.Validate(); err != nil {
+		return nil, err
+	}
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
+	}
+	call, err := functions.NewUUIDGeneration(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile}), "uuidv4", nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	if len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Star {
-		return failure()
-	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	proc := procedureInNamespaces(auth.catalog, path, name, "")
-	if proc == nil || proc.uuidOssp != stockUUIDOssp {
-		return failure()
-	}
-	if err := stockUUIDOssp.validateProcedure(auth.catalog, proc); err != nil {
-		return nil, err
-	}
-	switch {
-	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
-	}
-	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
-	info.RoutineReference = proc
-	call, err := functions.NewUUIDGeneration(info, "uuidv4", nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
-	b.dependency(ref, proc.revision)
-	return installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: proc, ref: ref}, nil
+	return routine.Attach(call)
 }
 
 func (n installedUUIDOsspFunctionExpression) validShape() bool {

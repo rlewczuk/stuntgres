@@ -51,7 +51,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindInstalledCrypto(raw)
 	}
 	if strings.EqualFold(name, "uuid_generate_v4") {
-		return b.bindInstalledUUIDOssp(raw)
+		return bindInstalledUUIDOssp(b, raw)
 	}
 	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
 		return b.bindInstalledLevenshtein(raw)
@@ -207,7 +207,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return nil, b.formatDiagnosticSignatureError(raw)
 	}
 	if name == "format" {
-		return b.bindFormat(raw)
+		return bindFormat(b, raw)
 	}
 	if parser.IdentityFunctionName(name) {
 		return b.bindIdentityFunction(raw)
@@ -235,7 +235,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
 	case "uuidv4", "uuidv7":
-		return b.bindUUIDGeneration(raw, visible)
+		return bindUUIDGeneration(b, raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":

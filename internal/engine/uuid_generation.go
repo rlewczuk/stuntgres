@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -35,14 +36,14 @@ func (c *EvalContext) FunctionUUIDReady() error {
 func (c *EvalContext) FunctionUUIDTime() int64                { return c.liveScope().op.session.uuid.now() }
 func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.Read(bytes); return err }
 
-func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindUUIDGeneration(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
 	if err != nil {
 		return nil, err
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	signature := func() (BoundExpr, error) {
 		types := make([]string, len(args))
@@ -53,25 +54,18 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 			}
 			types[i] = functions.NamedArgumentType(raw, i, typ)
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, false)
+		return nil, b.SignatureError(raw.Name, raw.Pos, types)
 	}
-	issue := functions.FunctionLabels(raw)
-	if issue.Malformed {
-		return nil, fmt.Errorf("invalid function argument labels")
-	}
-	if issue.Positional {
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	}
-	if issue.Duplicate != "" {
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+	if err := functions.CallLabelError(raw); err != nil {
+		return nil, err
 	}
 	if !functions.UUIDGenerationShape(raw, visible) {
 		return signature()
 	}
-	properties := ExprProperties{Volatility: Volatile}
+	properties := expr.Properties{Volatility: expr.Volatile}
 	var timestamp *sqltype.Descriptor
 	if len(args) != 0 {
-		target := b.typ(sqltype.Interval).Usage()
+		target := b.Type(sqltype.Interval).Usage()
 		argument := functions.Argument{Expression: args[0], Raw: raw.Args[0]}
 		if !unknown[0] {
 			argument.Usage = args[0].ResultUsage()
@@ -83,10 +77,10 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 		if err != nil {
 			return nil, err
 		}
-		properties = mergeExpressionProperties(properties, args[0].Properties())
-		timestamp = b.typ(sqltype.Timestamptz)
+		properties = expr.MergeProperties(properties, args[0].Properties())
+		timestamp = b.Type(sqltype.Timestamptz)
 	}
-	node, err := functions.NewUUIDGeneration(expressionInfo{}, name, args, timestamp)
+	node, err := functions.NewUUIDGeneration(expr.Info{}, name, args, timestamp)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +88,7 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 	if len(args) != 0 {
 		formal[0] = sqltype.Interval
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, properties), uuidRoutineProvider, name, formal[:len(args)]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, properties), functions.UUIDRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}
