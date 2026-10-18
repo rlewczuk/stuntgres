@@ -184,7 +184,7 @@ The runtime capabilities that functions need already exist: 25 methods on
 `EvalContext` (24 `Function*` plus `WholeRowNullPresence`: RNG, clocks, UUID
 entropy, regex cache, output environments, literal-NULL checks). Since 2a they
 form the engine's `ExprContext` interface, which became `expr.Context` in 2b;
-`functions` still states them as generic constraints until F1.
+F1 replaced the `functions` generic constraints with it.
 
 Engine-side authorization (~6k lines) is blocked the same way. Its main
 dependency is the catalog (381 references to `catalog.go` alone), so it cannot
@@ -339,7 +339,7 @@ uses aliases or direct `ids.` names. Done: 1d removed the aliases.
   move too.
 - `expressionInfo` becomes `expr.Info`, replacing `functions.Info[P]`. In 2b
   `expr.Info` took the `functions.Info[P]` field names; the generic type
-  itself stays until F1, because its `P` reaches the context constraints.
+  itself stayed until F1, because its `P` reached the context constraints.
 - `functions.RoutineReference` and `RoutineRecipeReference` move to `expr`.
   `expressionInfo.routineRecipe` holds the interface instead of
   `*relationDescriptor`.
@@ -450,8 +450,9 @@ analysis, which keeps an engine-side seam.
 
 - **F1 — Remove generics.** Mechanical; needs step 2. Each `X[E, C, P]`
   becomes `X`. Context constraints fold into `expr.Context`. In the engine,
-  `[BoundExpr, ExprContext, ExprProperties]` suffixes are deleted (1,636
-  references, 313 of them in tests) and `functionInfo` conversions disappear.
+  `[BoundExpr, ExprContext, ExprProperties]` suffixes are deleted (1,808
+  references in 184 files when F1 landed) and `functionInfo` conversions
+  disappear.
 - **F2 — Adopt the node protocol, one switch at a time.** Walk, retag, remap,
   volatility, deparse, node tree, generated admission, join legality. Each
   switch gains one protocol branch and loses its per-function cases. Verify
@@ -690,7 +691,7 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2b done; 2c next |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1 done; F3 next (F2 needs 2c) |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |

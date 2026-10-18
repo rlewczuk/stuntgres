@@ -61,7 +61,8 @@ volatility constants and the forwarding helpers `boundExpressionInfo`,
 `mergeExpressionProperties` and `expressionError` (`expr_aliases.go`); in
 `functions`, `RoutineReference`, `RoutineRecipeReference`, `RandomOwner`,
 `IntrinsicPropertyRule` and its constants (`expr_aliases.go`).
-`functions.Info[P]` stays generic until step 3 (F1) replaces it with `Info`.
+Since step 3 (F1), `functions` nodes embed `Info` and evaluate against
+`Context` directly, with no type parameters.
 
 The node protocol (`Composite`, render hooks, walk/map helpers) arrives in
 step 2c.

@@ -8,11 +8,19 @@ contract [`internal/engine/expr`](../expr/README.md), which owns
 `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
 `IntrinsicPropertyRule`; this package keeps aliases for them until step 2d.
 
-The engine owns generic expression metadata and binding, name/catalog/ACL and
+Function nodes are plain types over the `expr` contract: they embed
+`expr.Info`, hold children as `expr.Expr` and evaluate with `Eval(expr.Context)`,
+using only the `expr.Context` capabilities they need. Bind helpers take
+`Argument` values and the plain `ArgumentAnalyzer`/`ArgumentCoercer`
+interfaces that the engine binder implements. `StringVariadic.Origin` is an
+opaque `any` that the engine stores and reads; this package never interprets
+it. The only remaining type parameter is the private `randomInteger` sampler
+source, a numeric kernel detail rather than part of the expression contract.
+
+The engine owns expression metadata and binding, name/catalog/ACL and
 dependency resolution, parameter/result contracts, descriptor generations,
-retag/remap and stored SQL presentation. `Info[P]` carries the engine's opaque
-properties until step 3 (F1) replaces it with `expr.Info`; narrow typed argument/context capabilities supply existing authority
-without copying rows or the full evaluation context.
+retag/remap and stored SQL presentation. The capabilities supply existing
+authority without copying rows or the full evaluation context.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine. Function evaluation borrows the same owners only when demanded. Literal
@@ -155,6 +163,10 @@ Public cases and standalone feature smoke share the
 [UUID extraction reference scenarios](../../../reference/types/README.md#uuid-extraction-selected-proof).
 Run selected checks with an external 900-second deadline; the root owns
 whole-project verification.
+
+Unit fakes implement the plain contract: fake arguments embed `expr.Info`, and
+fake contexts embed the nil `unitCapabilities` (`expr.Context`) so they
+implement only what the code under test calls; any other call panics.
 
 True leaf units live here; engine-integrated binding, parameter, descriptor,
 publication, native-control, grouping/window and resource-cleanup assertions stay
