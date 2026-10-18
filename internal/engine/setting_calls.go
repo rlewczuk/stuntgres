@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -36,7 +35,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	if s.Schema != nil {
 		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.Pos}}
 	}
-	bound, routine, err := bindSettingCall(binder, s.Name, name, s.Args)
+	bound, routine, err := functions.BindSettingCall(binder, s.Name, name, s.Args)
 	if err != nil {
 		return settingCallBinding{}, err
 	}
@@ -215,31 +214,4 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	columns := settingColumns(typ, s.Name)
 	columns[0].Nullable = true
 	return anonymousResult(columns, [][]sqltype.Value{{output}}, 1)
-}
-
-// bindSettingCall binds the arguments of current_setting(text) or
-// set_config(text, text, bool): builtin visibility first, then each argument
-// in assignment context to its fixed formal, then the routine identity.
-func bindSettingCall(b functions.Binder, function string, name parser.ObjectName, args []parser.Expr) ([]expr.Expr, ids.ObjectRef, error) {
-	visible, err := b.BuiltinVisible(name)
-	if err != nil {
-		return nil, ids.ObjectRef{}, err
-	}
-	if !visible {
-		return nil, ids.ObjectRef{}, b.CallSignatureError(parser.FunctionExpr{Name: name, Args: args, Pos: name.Parts[0].Pos})
-	}
-	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
-	bound := make([]expr.Expr, len(args))
-	for i, raw := range args {
-		typ := b.Type(formals[i])
-		if typ == nil {
-			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing setting argument type")
-		}
-		bound[i], err = b.CoerceArgument(functions.Argument{Raw: raw}, functions.CoercionRequest{Intent: functions.AssignmentFormalArgument, Target: typ.Usage()})
-		if err != nil {
-			return nil, ids.ObjectRef{}, err
-		}
-	}
-	routine, err := b.BuiltinRoutineReference(functions.SettingRoutineProvider, function, formals[:len(bound)]...)
-	return bound, routine, err
 }
