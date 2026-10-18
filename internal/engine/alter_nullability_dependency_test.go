@@ -41,7 +41,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 		next.address.ObjectID = oid
 		next.name = "late_view"
 		next.revision = revision
-		definition := *originalView.view
+		definition := *viewOf(originalView)
 		definition.rule = rule
 		next.view = &definition
 		next.columns = append([]ColumnDescriptor(nil), originalView.columns...)

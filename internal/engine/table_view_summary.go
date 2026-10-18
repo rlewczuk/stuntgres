@@ -131,10 +131,10 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 				// Follow current physical names without changing the caller's
 				// replay/display policy or the view's frozen output labels.
 				presentation.columns = relation.columns
-				renderer := newViewRenderer(relation.view)
+				renderer := newViewRenderer(viewOf(relation))
 				renderer.presentation = presentation
 				renderer.currentNames = true
-				definition, err = renderer.selectQuerySQL(ctx, catalog, relation.view.syntax, relation.view.queries[relation.view.syntax])
+				definition, err = renderer.selectQuerySQL(ctx, catalog, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
 				if err != nil {
 					return nil, err
 				}

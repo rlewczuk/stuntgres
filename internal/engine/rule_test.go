@@ -368,8 +368,8 @@ func TestRuleProgramAuthority(t *testing.T) {
 		auth := f.authorization(t, op)
 		f.base.relationKind, f.base.virtualView = viewRelation, true
 		f.base.rules = []ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}}
-		f.view.view.checkOption = viewCheckCascaded
-		project := f.view.view.query.Root.(*projectNode)
+		viewOf(f.view).checkOption = viewCheckCascaded
+		project := viewOf(f.view).query.Root.(*projectNode)
 		predicate := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 		project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: predicate}
 		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}

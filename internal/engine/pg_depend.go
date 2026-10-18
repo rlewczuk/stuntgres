@@ -407,9 +407,9 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 			}
 			if d.view != nil {
-				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.view.rule}
+				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.view.RuleOID()}
 				add(owner, d.address, 'i')
-				refs, err := pgDependQueryRefs(ctx, catalog, d.view.query)
+				refs, err := pgDependQueryRefs(ctx, catalog, viewOf(d).query)
 				if err != nil {
 					return nil, err
 				}

@@ -1010,16 +1010,16 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		}
 	}
 	if d.view != nil {
-		for _, usage := range d.view.castUsages {
+		for _, usage := range viewOf(d).castUsages {
 			changed = changed || usage.Type != typ(usage.Type)
 		}
-		for _, captured := range d.view.composites {
+		for _, captured := range viewOf(d).composites {
 			changed = changed || captured.base.Type != typ(captured.base.Type)
 		}
-		for _, literal := range d.view.literals {
+		for _, literal := range viewOf(d).literals {
 			expression(literal)
 		}
-		changed = changed || queryDescriptorsChanged(d.view.query.Root, typ)
+		changed = changed || queryDescriptorsChanged(viewOf(d).query.Root, typ)
 	}
 	return changed
 }
@@ -1038,16 +1038,16 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
 		if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
-			if view.view.rule == 0 {
+			if viewOf(view).rule == 0 {
 				return fmt.Errorf("stuntgres: invalid imported view rule identity")
 			}
-			reserved[view.view.rule] |= ruleOID
+			reserved[viewOf(view).rule] |= ruleOID
 			views = append(views, view)
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
 	for _, view := range views {
-		rule := view.view.rule
+		rule := viewOf(view).rule
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
 			for {
 				candidate, err := e.catalog.allocateOIDLocked()
@@ -1060,7 +1060,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 				rule = candidate
 				break
 			}
-			definition := *view.view
+			definition := *viewOf(view)
 			definition.rule = rule
 			replacement := *view
 			replacement.view = &definition

@@ -46,7 +46,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	view := e.stageRead(stage)
-	if !d.relationKind.stored() || d.populated || d.view == nil || d.view.rule == 0 {
+	if !d.relationKind.stored() || d.populated || d.view == nil || viewOf(d).rule == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {
@@ -107,20 +107,20 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	defer done()
 	source := &relationDescriptor{namespace: d.namespace, attributes: []int32{1, 3}}
 	ref := e.catalog.domain.Ref(stage.base.Epoch(), d.address)
-	b := binding{query: d.view.query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{ref: ref, revision: d.revision}}}
+	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{ref: ref, revision: d.revision}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, d.view.syntax, b, false, false, 0, materializedViewRelation, false)
+	definition, err := e.freezeViewDefinitionLocked(auth, viewOf(d).syntax, b, false, false, 0, materializedViewRelation, false)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	source.attributes[1] = 9
-	if definition.query != b.query || definition.syntax != d.view.syntax || definition.rule == 0 || definition.rule == d.view.rule {
+	if definition.query != b.query || definition.syntax != viewOf(d).syntax || definition.rule == 0 || definition.rule == viewOf(d).rule {
 		t.Fatal("definition rebound or lost fresh rule identity")
 	}
 	if !reflect.DeepEqual(definition.sources[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.sources[0].reads, []int32{3}) || definition.dependencies[0] != b.dependencies[0] {

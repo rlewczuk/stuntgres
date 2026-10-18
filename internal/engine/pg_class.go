@@ -115,9 +115,9 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		return nil, err
 	}
 	options := sqltype.Null(source.columns[32].Usage.Type)
-	if relation.view != nil && len(relation.view.options) != 0 {
-		elements := make([]sqltype.Value, len(relation.view.options))
-		for i, option := range relation.view.options {
+	if relation.view != nil && len(viewOf(relation).options) != 0 {
+		elements := make([]sqltype.Value, len(viewOf(relation).options))
+		for i, option := range viewOf(relation).options {
 			elements[i] = sqltype.String(options.Type().Element(), option)
 		}
 		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))

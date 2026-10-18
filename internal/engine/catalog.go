@@ -98,7 +98,7 @@ type relationDescriptor struct {
 	subclassPublication  ids.DefinitionRevision
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
-	view                 *viewDefinition
+	view                 viewPayload
 	populated            bool                // Independent of stored row count, including populated-empty MVs.
 	autoExtensions       []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
 	virtualView          bool

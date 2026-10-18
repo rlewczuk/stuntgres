@@ -98,7 +98,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			expression(constraint.expression)
 		}
 		if relation.view != nil {
-			for _, literal := range relation.view.literals {
+			for _, literal := range viewOf(relation).literals {
 				check(literal.value)
 			}
 		}

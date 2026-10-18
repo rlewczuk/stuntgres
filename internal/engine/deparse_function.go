@@ -481,7 +481,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = relation.view.selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.deparsePath, columns: relation.columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.deparsePath, columns: relation.columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

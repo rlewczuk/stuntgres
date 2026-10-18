@@ -307,7 +307,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
 		if d, ok := catalog.Relation(n.ref.Address); ok && d.relationKind == viewRelation {
-			if err := viewRowLockLegality(d.view, queryRowDiagnostic(mark)); err != nil {
+			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
 				return err
 			}
 			outputUses, err := querySourceReadUses(reads[n.occurrence], d.attributes)
@@ -315,10 +315,10 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 				return err
 			}
 			child := *c
-			child.quoteOrigin = quoteOrigin{owner: n.ref, definition: d.view.rule, revision: d.view.quoteRevision}
-			child.routineChecks, child.routineReferences, child.routineConsumer = d.view.dependencies, nil, d
+			child.quoteOrigin = quoteOrigin{owner: n.ref, definition: viewOf(d).rule, revision: viewOf(d).quoteRevision}
+			child.routineChecks, child.routineReferences, child.routineConsumer = viewOf(d).dependencies, nil, d
 			child.routineRecipe, child.routineGraft = true, false
-			root, storedReads, err := prepareStoredExecutionRoot(&child, d.view, outputUses)
+			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
 			if err != nil {
 				return err
 			}

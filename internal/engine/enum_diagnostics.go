@@ -240,7 +240,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 		for _, source := range definition.sources {
 			relation, ok := catalog.Relation(source.ref.Address)
 			if ok && relation.relationKind == viewRelation {
-				if err := capture(relation.view); err != nil {
+				if err := capture(viewOf(relation)); err != nil {
 					return err
 				}
 			}

@@ -47,10 +47,10 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)
 			}
-			if len(d.view.literals) == 0 {
+			if len(viewOf(d).literals) == 0 {
 				t.Fatal("missing frozen literal occurrences")
 			}
-			if len(b.querySources) != 0 && (len(d.view.columns) == 0 || len(d.view.namespaces) == 0) {
+			if len(b.querySources) != 0 && (len(viewOf(d).columns) == 0 || len(viewOf(d).namespaces) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
 			if err := (relationProvider{}).Validate(e.stageRead(stage), d); err != nil {

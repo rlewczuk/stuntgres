@@ -203,7 +203,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 		for _, layer := range b.viewWrite.layers {
 			current := auth.catalog.MustRelation(layer.ref.Address)
 			principal = current.owner
-			if current.view.invoker {
+			if viewOf(current).invoker {
 				principal = auth.state.CurrentUser
 			}
 		}

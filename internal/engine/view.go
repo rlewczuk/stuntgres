@@ -406,7 +406,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	var oid, rule ids.OID
 	if old != nil {
-		oid, rule = old.address.ObjectID, old.view.rule
+		oid, rule = old.address.ObjectID, viewOf(old).rule
 	} else {
 		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {
@@ -430,10 +430,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: definition, columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: revision, owner: auth.state.CurrentUser, relationKind: viewRelation, view: viewPayloadOf(definition), columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), index: make(map[string]int), attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
-		d.revision, d.view = revision, definition
+		d.revision, d.view = revision, viewPayloadOf(definition)
 		d.columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
 		d.attributes = make([]int32, len(d.columns))
 		copy(d.attributes, old.attributes)

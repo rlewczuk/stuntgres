@@ -99,14 +99,14 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := ruleResultCheck(old, b.query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
-			temporary := old.view.temporary != (ids.SessionToken{})
-			definition, err := e.freezeViewDefinitionLocked(auth, query, b, old.view.barrier, old.view.invoker, old.view.rule, viewRelation, temporary)
+			temporary := viewOf(old).temporary != (ids.SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, viewOf(old).barrier, viewOf(old).invoker, viewOf(old).rule, viewRelation, temporary)
 			if err != nil {
 				return fail(err)
 			}
-			definition.options = old.view.options
-			definition.checkOption = old.view.checkOption
-			next.view = definition
+			definition.options = viewOf(old).options
+			definition.checkOption = viewOf(old).checkOption
+			next.view = viewPayloadOf(definition)
 			sources = b.querySources
 		} else {
 			if name == "_RETURN" {
@@ -162,7 +162,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fail(err)
 	}
 	if next.view != old.view {
-		next.view.quoteRevision = next.revision
+		viewOf(&next).quoteRevision = next.revision
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)

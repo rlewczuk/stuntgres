@@ -144,7 +144,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	project := &projectNode{frame: 4, syntax: syntax, child: join, expressions: []expr.Expr{left, right, add, test, choice, outside}}
 	definition := &viewDefinition{queries: map[*parser.Select]*projectNode{syntax: project}, sources: []viewLeaf{{ref: ref}, {ref: ref}}}
 	consumer := *d
-	consumer.view = definition
+	consumer.view = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
 	b := binding{querySources: []queryLeaf{{ref: ref, relation: d}}}
 	mapped, err := w.graftQuery(&b, catalog, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })

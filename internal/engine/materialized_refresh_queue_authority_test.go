@@ -88,7 +88,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "rowtype":
 				next.rowType++
 			case "definition":
-				definition := *d.view
+				definition := *viewOf(d)
 				definition.invoker = !definition.invoker
 				next.view = &definition
 			case "ref":

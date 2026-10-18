@@ -110,7 +110,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	origins := []quoteOrigin{
 		{owner: tableRef, attribute: table.attributes[0], definition: table.defaults[table.attributes[0]].OID},
 		{owner: tableRef, attribute: table.attributes[1], definition: table.defaults[table.attributes[1]].OID},
-		{owner: viewRef, definition: view.view.rule, revision: view.view.quoteRevision},
+		{owner: viewRef, definition: viewOf(view).rule, revision: viewOf(view).quoteRevision},
 		{},
 	}
 	stamped := node.WithOrigin(origins[2])
@@ -547,7 +547,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		stamp := description.quoteGeneration
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
-		origin := quoteOrigin{owner: engine.catalog.domain.Ref(catalog.Epoch(), view.address), definition: view.view.rule, revision: view.view.quoteRevision}
+		origin := quoteOrigin{owner: engine.catalog.domain.Ref(catalog.Epoch(), view.address), definition: viewOf(view).rule, revision: viewOf(view).quoteRevision}
 		var previous []quoteConstant
 		for id := int64(1); id <= 2; id++ {
 			setting, root, blocked := "off", "root", "blocked"

@@ -423,7 +423,7 @@ func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32
 			}
 		}
 	case 2618:
-		if d.view != nil && d.view.rule == a.ObjectID {
+		if d.view != nil && d.view.RuleOID() == a.ObjectID {
 			return "_RETURN", 0
 		}
 		for _, x := range d.rules {

@@ -211,7 +211,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					retainExpression(predicate.execution)
 				}
 			}
-			if definition := relation.view; definition != nil {
+			if definition := viewOf(relation); definition != nil {
 				var retainQuery func(LogicalNode)
 				retainQuery = func(node LogicalNode) {
 					if node == nil {
@@ -754,7 +754,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 		if !ok || consumer.view == nil {
 			continue
 		}
-		for ref, captured := range consumer.view.references {
+		for ref, captured := range viewOf(consumer).references {
 			address := ref.Address
 			address.SubID = 0
 			old, ok := e.catalog.state.Relation(address)

@@ -181,7 +181,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		ref := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
-		d.address, d.name, d.view, d.relationKind = ref.Address, name, definition, kind
+		d.address, d.name, d.view, d.relationKind = ref.Address, name, viewPayloadOf(definition), kind
 		e.catalog.state.setDescriptor(ref.Address, &d)
 		return ref
 	}
@@ -249,7 +249,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	}
 	// Every stored arm is still admitted, including one whose identity expired.
 	d := *e.catalog.state.MustRelation(set.Address)
-	definition := *d.view
+	definition := *viewOf(&d)
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	definition.sources[1].ref.Epoch++
 	d.view = &definition

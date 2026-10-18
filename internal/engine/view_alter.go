@@ -116,7 +116,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			}
 		}
 	case "set", "reset":
-		definition := *old.view
+		definition := *viewOf(old)
 		if s.Action == "set" {
 			barrier, invoker, mode, err := viewOptions(s.Options)
 			if err != nil {
@@ -147,7 +147,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 			}
 		}
-		definition.options = transformViewOptions(old.view.options, s.Options, s.Action == "reset")
+		definition.options = transformViewOptions(viewOf(old).options, s.Options, s.Action == "reset")
 		if definition.checkOption != viewCheckNone {
 			if err := validateViewCheckDeclaration(&definition); err != nil {
 				return fail(err)

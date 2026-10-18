@@ -1,0 +1,48 @@
+package engine
+
+import (
+	"testing"
+
+	"stuntgres/internal/engine/ids"
+)
+
+// The payload seams keep "absent" a nil interface and hand the concrete
+// engine definition back only through their checked accessor.
+func TestCatalogPayloadAccessors(t *testing.T) {
+	if viewOf(&relationDescriptor{}) != nil || viewPayloadOf(nil) != nil {
+		t.Fatal("absent view payload")
+	}
+	domain := &ids.Domain{}
+	consumer := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
+	source := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
+	column := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003, SubID: 2}
+	captured := &relationDescriptor{address: source}
+	ref := domain.Ref(7, source)
+	token := domain.Session(5)
+	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []expressionDependency{{ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
+	d := &relationDescriptor{address: consumer, view: viewPayloadOf(definition)}
+	if viewOf(d) != definition || d.view.RuleOID() != 30001 {
+		t.Fatal("view payload identity")
+	}
+	if owner, session := d.view.TemporaryConsumer(); owner != consumer || session != token {
+		t.Fatal("temporary consumer", owner, session)
+	}
+	if got, ok := d.view.CapturedReference(ref); !ok || got != captured {
+		t.Fatal("captured reference")
+	}
+	if _, ok := d.view.CapturedReference(domain.Ref(8, source)); ok {
+		t.Fatal("uncaptured reference")
+	}
+	whole := column
+	whole.SubID = 0
+	other := column
+	other.SubID = 3
+	for target, want := range map[ids.ObjectAddress]bool{source: true, whole: true, column: true, other: false, consumer: false} {
+		if d.view.DependsOn(target) != want || viewDepends(d, target) != want {
+			t.Fatal("view dependency", target, want)
+		}
+	}
+	if viewDepends(&relationDescriptor{}, source) {
+		t.Fatal("absent view has dependencies")
+	}
+}

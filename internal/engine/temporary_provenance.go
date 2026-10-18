@@ -82,14 +82,18 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	if ref.Epoch == catalog.Epoch() {
 		return true
 	}
-	if consumer == nil || consumer.view == nil || consumer.view.consumer != consumer.address || catalog.Get(consumer.address) != consumer {
+	if consumer == nil || consumer.view == nil {
+		return false
+	}
+	owner, temporary := consumer.view.TemporaryConsumer()
+	if owner != consumer.address || catalog.Get(consumer.address) != consumer {
 		return false
 	}
 	namespace, ok := catalog.Namespace(consumer.namespace)
-	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.Domain() != catalog.Domain() {
+	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != temporary || namespace.temporary.Domain() != catalog.Domain() {
 		return false
 	}
-	captured, exists := consumer.view.references[ref]
+	captured, exists := consumer.view.CapturedReference(ref)
 	if !exists || captured == nil {
 		return false
 	}

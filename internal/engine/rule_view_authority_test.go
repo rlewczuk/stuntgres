@@ -35,14 +35,14 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			inner.acl = grant(actor.Ref)
 			inner.acl.Entries = append(inner.acl.Entries, grant(owner.Ref).Entries...)
 			inner.view = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}
-			inner.view.query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef}}
+			viewOf(inner).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef}}
 			root := inner
 			if shape == "definer_over_invoker" || shape == "invoker_over_definer" {
 				outer := *inner
 				outer.address.ObjectID++
 				outer.name = "outer_view"
 				outer.view = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
-				outer.view.query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.columns), ref: ruleUnitRef(e, inner)}}
+				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.columns), ref: ruleUnitRef(e, inner)}}
 				next := cloneCatalog(e.catalog.state)
 				next.setDescriptor(outer.address, &outer)
 				e.catalog.state = next

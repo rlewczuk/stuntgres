@@ -365,7 +365,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 		run(t, e, q)
 	}
 	ref := roleTableRef(t, e, "enum_window")
-	definition := e.CatalogRead().MustRelation(ref.Address).view
+	definition := viewOf(e.CatalogRead().MustRelation(ref.Address))
 	original := definition.query.Root.(*projectNode).child.(*windowNode)
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").typ
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").typ

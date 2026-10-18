@@ -410,7 +410,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
 		if relation.relationKind == viewRelation {
-			if err := b.captureRetainedViewInput(relation.view); err != nil {
+			if err := b.captureRetainedViewInput(viewOf(relation)); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}

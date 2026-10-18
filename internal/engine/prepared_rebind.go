@@ -123,7 +123,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
 		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation && relation.view != nil {
-			for _, leaf := range relation.view.sources {
+			for _, leaf := range viewOf(relation).sources {
 				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)
 				if err != nil {
 					return err
@@ -132,7 +132,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 					return err
 				}
 			}
-			for _, dep := range relation.view.dependencies {
+			for _, dep := range viewOf(relation).dependencies {
 				child, err := storedViewUseReference(auth.catalog, relation, dep.ref)
 				if err != nil {
 					return err

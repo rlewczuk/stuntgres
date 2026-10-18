@@ -106,7 +106,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 		}
 		return false
 	}
-	if d.view != nil && d.view.rule == id {
+	if d.view != nil && d.view.RuleOID() == id {
 		return true
 	}
 	for _, r := range d.rules {
@@ -175,7 +175,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 		return
 	}
 	if d.view != nil {
-		reserved[d.view.rule] = true
+		reserved[d.view.RuleOID()] = true
 	}
 	for _, r := range d.rules {
 		reserved[r.OID] = true
@@ -238,7 +238,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 			continue
 		}
 		if d.view != nil {
-			if err := claim(d.view.rule); err != nil {
+			if err := claim(d.view.RuleOID()); err != nil {
 				return err
 			}
 		}
@@ -323,7 +323,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	}
 	for _, d := range relations {
 		if d.view != nil {
-			claimed[d.view.rule] = true
+			claimed[d.view.RuleOID()] = true
 		}
 		if ns, ok := next.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			for _, r := range d.rules {

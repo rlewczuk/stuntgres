@@ -94,7 +94,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		sessionSQL(t, owner, `CREATE VIEW `+tc.name+` AS SELECT id,a=b AS unused,a COLLATE "C"=b AS selected FROM expr_scheduled_t `+tc.tail)
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, tc.name)
-		project := view.MustRelation(ref.Address).view.query.Root.(*projectNode)
+		project := viewOf(view.MustRelation(ref.Address)).query.Root.(*projectNode)
 		unused, ok := project.expressions[1].(cachedOrderExpression)
 		if !ok {
 			t.Fatal("fixture has no real scheduled producer", tc.name, project.expressions[1])

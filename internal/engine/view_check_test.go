@@ -46,11 +46,11 @@ func TestViewCheckOptions(t *testing.T) {
 
 func TestViewCheckDeclaration(t *testing.T) {
 	f := viewWriteMechanics(t)
-	if err := validateViewCheckDeclaration(f.view.view); err != nil {
+	if err := validateViewCheckDeclaration(viewOf(f.view)); err != nil {
 		t.Fatal(err)
 	}
-	project := *f.view.view.query.Root.(*projectNode)
-	definition := *f.view.view
+	project := *viewOf(f.view).query.Root.(*projectNode)
+	definition := *viewOf(f.view)
 	definition.query = &BoundQuery{Root: &project}
 	for _, expressions := range [][]expr.Expr{nil, {literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}} {
 		project.expressions = expressions
@@ -78,7 +78,7 @@ func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScop
 func TestViewCheckStack(t *testing.T) {
 	f := viewWriteMechanics(t)
 	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
-	project := f.view.view.query.Root.(*projectNode)
+	project := viewOf(f.view).query.Root.(*projectNode)
 	project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: guard}
 	layers := []*relationDescriptor{f.view}
 	refs := []ids.ObjectRef{f.viewRef}
@@ -106,9 +106,9 @@ func TestViewCheckStack(t *testing.T) {
 	for top := range 3 {
 		for middle := range 3 {
 			for leaf := range 3 {
-				layers[2].view.checkOption = viewCheckMode(top)
-				layers[1].view.checkOption = viewCheckMode(middle)
-				layers[0].view.checkOption = viewCheckMode(leaf)
+				viewOf(layers[2]).checkOption = viewCheckMode(top)
+				viewOf(layers[1]).checkOption = viewCheckMode(middle)
+				viewOf(layers[0]).checkOption = viewCheckMode(leaf)
 				b := binding{relation: layers[2], ref: refs[2]}
 				if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{}); err != nil {
 					t.Fatal(err)
@@ -135,12 +135,12 @@ func TestViewCheckStack(t *testing.T) {
 
 func TestViewCheckMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
-	project := f.view.view.query.Root.(*projectNode)
+	project := viewOf(f.view).query.Root.(*projectNode)
 	column := project.expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
 	f.base.attributes = []int32{11, 7, 19}
 	f.base.columns = []ColumnDescriptor{f.base.columns[1], f.base.columns[0], f.base.columns[2]}
-	f.view.view.checkOption = viewCheckLocal
+	viewOf(f.view).checkOption = viewCheckLocal
 	project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: column}
 	scope, op := f.scope(t)
 	b := viewCheckUnitBinding(t, f, scope, op)
@@ -301,13 +301,13 @@ func TestViewCheckFinish(t *testing.T) {
 func TestViewCheckControlRemap(t *testing.T) {
 	f := viewWriteMechanics(t)
 	for _, mode := range []viewCheckMode{viewCheckNone, viewCheckLocal, viewCheckCascaded} {
-		f.view.view.checkOption = mode
+		viewOf(f.view).checkOption = mode
 		ref := func(old ids.ObjectRef) ids.ObjectRef { old.Epoch++; return old }
-		copy, err := remapFrozenPresentation(f.e.CatalogRead(), f.view.view, nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+		copy, err := remapFrozenPresentation(f.e.CatalogRead(), viewOf(f.view), nil, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if copy == f.view.view || copy.checkOption != mode || copy.sources[0].ref.Epoch != f.baseRef.Epoch+1 || f.view.view.sources[0].ref != f.baseRef {
+		if copy == viewOf(f.view) || copy.checkOption != mode || copy.sources[0].ref.Epoch != f.baseRef.Epoch+1 || viewOf(f.view).sources[0].ref != f.baseRef {
 			t.Fatal("mode/remint/mutation", mode, copy)
 		}
 	}
