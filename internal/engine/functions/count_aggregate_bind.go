@@ -74,3 +74,20 @@ func BindCount(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectNa
 	}
 	return b.FinishAggregate(raw, call, filter, b.Info(call.Provider.ResultUsage(), raw.Pos, expr.Properties{}))
 }
+
+// windowCount resolves count with OVER: arguments and FILTER are analyzed,
+// and window binding needs no coerced argument.
+func windowCount(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error) {
+	args := make([]expr.Expr, len(raw.Args))
+	for i, child := range raw.Args {
+		arg, err := b.AnalyzeArgument(child, AnalysisRequest{Intent: BareProjectionArgument})
+		if err != nil {
+			return nil, sqltype.Usage{}, err
+		}
+		args[i] = arg.Expression
+	}
+	if _, err := b.AnalyzeAggregateFilter(raw); err != nil {
+		return nil, sqltype.Usage{}, err
+	}
+	return nil, b.Type(sqltype.Int8).Usage(), ResolveCountSignature(b, raw, name, args)
+}

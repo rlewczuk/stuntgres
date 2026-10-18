@@ -56,8 +56,35 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		if definition.ValuesNamespace != values {
 			t.Errorf("aggregate %q ValuesNamespace = %v", name, definition.ValuesNamespace)
 		}
-		if (definition.Window == nil) != (name == "count" || OrderedSetName(name)) {
+		if (definition.Window == nil) != OrderedSetName(name) {
 			t.Errorf("aggregate %q: window signature presence is wrong", name)
+		}
+	}
+}
+
+func TestLookupWindowFunctionClaimsRegisteredNames(t *testing.T) {
+	for _, name := range []string{"row_number", "ntile", "first_value", "last_value", "nth_value", "lead", "lag", "rank", "dense_rank", "percent_rank", "cume_dist"} {
+		function, ok := LookupWindowFunction(name)
+		if !ok || function.Signature == nil {
+			t.Errorf("window function %q is not claimed", name)
+		}
+		// Only the rank family is also an aggregate (hypothetical-set).
+		if _, aggregate := LookupAggregate(name); aggregate != HypotheticalSetName(name) {
+			t.Errorf("window function %q aggregate claim = %v", name, aggregate)
+		}
+	}
+	for _, name := range []string{"count", "sum", "ROW_NUMBER", "Lag", "percentile_cont", "nth", "row_number_"} {
+		if _, ok := LookupWindowFunction(name); ok {
+			t.Errorf("window function %q is claimed", name)
+		}
+	}
+	seen := map[string]bool{}
+	for _, function := range windowFunctions {
+		for _, name := range function.Names {
+			if seen[name] || name != toLowerASCII(name) {
+				t.Fatalf("duplicate or non-lowercase window function name %q", name)
+			}
+			seen[name] = true
 		}
 	}
 }

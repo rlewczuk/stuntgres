@@ -93,3 +93,80 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 	// aliases a reusable scan buffer nor reevaluates/caches the selected member.
 	return value, ctx.Err()
 }
+
+// A sort-input boundary retains exact required targets before matching window
+// leaves from postponed volatile payloads. Only an ACTUAL whole retained target
+// can own a leaf; unmatched postponed leaves keep independent execution slots.
+func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []BoundExpr, order, on []sortKey) []int {
+	if len(order) == 0 {
+		return nil
+	}
+	hasValues := false
+	for _, call := range calls {
+		hasValues = hasValues || call.operation.evaluatesArgument()
+	}
+	if !hasValues {
+		return nil
+	}
+	demanded := func(output int) bool {
+		for _, keys := range [2][]sortKey{order, on} {
+			for _, key := range keys {
+				if key.outputOrdinal == output+1 || key.targetIdentity == output+1 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	owners := make([]*windowExpression, 0, len(calls))
+	retain := func(expression BoundExpr) {
+		leaf, ok := expression.(*windowExpression)
+		if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
+			return
+		}
+		for _, owner := range owners {
+			if owner.call == leaf.call {
+				return
+			}
+		}
+		owners = append(owners, leaf)
+	}
+	for i, expression := range projection {
+		if demanded(i) || expression.Properties().Volatility != Volatile {
+			retain(expression)
+		}
+	}
+	for _, keys := range [2][]sortKey{order, on} {
+		for _, key := range keys {
+			retain(key.expression)
+		}
+	}
+	var aliases []int
+	for i, expression := range projection {
+		if demanded(i) || expression.Properties().Volatility != Volatile {
+			continue
+		}
+		walkBoundExpression(expression, func(child BoundExpr) {
+			leaf, ok := child.(*windowExpression)
+			if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
+				return
+			}
+			for _, owner := range owners {
+				if !b.sameWindowCall(calls[leaf.call], calls[owner.call]) {
+					continue
+				}
+				if leaf.call != owner.call {
+					if aliases == nil {
+						aliases = make([]int, len(calls))
+						for j := range aliases {
+							aliases[j] = -1
+						}
+					}
+					aliases[leaf.call] = owner.call
+				}
+				return
+			}
+		})
+	}
+	return aliases
+}

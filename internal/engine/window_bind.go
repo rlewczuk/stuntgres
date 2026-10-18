@@ -145,66 +145,17 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}()
 	b.argumentOwner = argumentWindowOwner{active: true, window: true}
 	defer func() { b.argumentOwner = parentOwner }()
-	resultUsage := b.typ(sqltype.Int8).Usage()
+	var resultUsage sqltype.Usage
 	var argument, ordinal, defaultValue BoundExpr
-	if windowOffsetName(raw.Name) {
-		var err error
-		argument, ordinal, defaultValue, resultUsage, err = b.resolveWindowOffsetSignature(raw, name)
+	// Window functions resolve their own signature; aggregates resolve as
+	// they would without OVER, minus provider and group state.
+	function, windowFunction := functions.LookupWindowFunction(raw.Name)
+	if windowFunction {
+		signature, err := function.Signature(b, raw, name)
 		if err != nil {
 			return nil, err
 		}
-	} else if windowValueName(raw.Name) {
-		var err error
-		argument, ordinal, resultUsage, err = b.resolveWindowValueSignature(raw, name)
-		if err != nil {
-			return nil, err
-		}
-	} else if raw.Name == "ntile" {
-		var err error
-		argument, err = b.resolveNtileSignature(raw, name)
-		if err != nil {
-			return nil, err
-		}
-		resultUsage = b.typ(sqltype.Int4).Usage()
-	} else if functions.HypotheticalSetName(raw.Name) {
-		if _, err := b.bindAggregateFilter(raw); err != nil {
-			return nil, err
-		}
-		visible, err := b.builtinVisible(name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		if !visible {
-			return nil, functionSignatureErrorForTypes(name, raw.Pos, nil)
-		}
-		if raw.Name == "percent_rank" || raw.Name == "cume_dist" {
-			resultUsage = b.typ(sqltype.Float8).Usage()
-		}
-	} else if raw.Name == "count" || raw.Name == "row_number" {
-		args := make([]BoundExpr, len(raw.Args))
-		for i, arg := range raw.Args {
-			var err error
-			args[i], err = b.bind(arg, expressionPolicy{context: projectionContext})
-			if err != nil {
-				return nil, err
-			}
-		}
-		if _, err := b.bindAggregateFilter(raw); err != nil {
-			return nil, err
-		}
-		if raw.Name == "count" {
-			if err := functions.ResolveCountSignature(b, raw, name, args); err != nil {
-				return nil, err
-			}
-		} else {
-			types := make([]string, len(args))
-			for i, arg := range args {
-				types[i] = functionArgumentTypeName(raw.Args[i], arg)
-			}
-			if err := b.resolveRowNumberSignature(raw, name, types); err != nil {
-				return nil, err
-			}
-		}
+		argument, ordinal, defaultValue, resultUsage = signature.Argument, signature.Ordinal, signature.Default, signature.Usage
 	} else {
 		var err error
 		resultUsage, err = b.resolveWindowAggregateSignature(raw, name, &argument)
@@ -218,7 +169,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || functions.HypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
+	if raw.Filter != nil && windowFunction {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -227,7 +178,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || functions.HypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (windowFunction || raw.Name == "sum" || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -250,7 +201,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !functions.HypotheticalSetName(raw.Name) && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
+	if !windowFunction && raw.Name != "sum" && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
 	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}
@@ -297,7 +248,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		formal[0], formalCount = argument.ResultUsage().Type.ID(), 1
 	} else if raw.Name == "ntile" {
 		formal[0], formalCount = sqltype.Int4, 1
-	} else if windowOffsetName(raw.Name) {
+	} else if functions.WindowOffsetName(raw.Name) {
 		formal[0], formalCount = 2283, 1 // Released ANYELEMENT for arity one/two.
 		if len(raw.Args) >= 2 {
 			formal[1], formalCount = sqltype.Int4, 2
@@ -305,7 +256,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		if len(raw.Args) == 3 {
 			formal[0], formal[2], formalCount = 5077, 5077, 3 // ANYCOMPATIBLE value/default.
 		}
-	} else if windowValueName(raw.Name) {
+	} else if functions.WindowValueName(raw.Name) {
 		formal[0], formalCount = 2283, 1 // Released ANYELEMENT, not the physical selected value type.
 		if raw.Name == "nth_value" {
 			formal[1], formalCount = sqltype.Int4, 2
@@ -320,7 +271,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Name == "ntile" {
 		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 	}
-	if windowValueName(raw.Name) || windowOffsetName(raw.Name) {
+	if functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name) {
 		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 		if ordinal != nil {
 			info.Property = mergeExpressionProperties(info.Property, ordinal.Properties())
@@ -338,23 +289,9 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}
 	expr := &windowExpression{expressionInfo: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
 	call.expression = expr
-	expr.nullable = call.operation == windowSum || call.operation == windowNtile || windowValueName(raw.Name) || windowOffsetName(raw.Name)
+	expr.nullable = call.operation == windowSum || call.operation == windowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.windowCalls = append(b.windowCalls, call)
 	return expr, nil
-}
-
-func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, name parser.ObjectName, types []string) error {
-	if len(raw.Args) > 100 {
-		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	visible, err := b.builtinVisible(name, functionLookup)
-	if err != nil {
-		return err
-	}
-	if !visible || len(raw.Args) != 0 || raw.Star {
-		return functionSignatureErrorForTypes(name, raw.Pos, types)
-	}
-	return nil
 }
 
 // The excluded-provider path performs the same signature/coercion analysis as

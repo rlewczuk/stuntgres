@@ -26,14 +26,14 @@ type AggregateDefinition struct {
 	// Window resolves the signature of a window call of the aggregate with
 	// the same analysis, without building a provider or registering
 	// aggregate state. It returns the coerced argument and the result usage.
-	// count and the WITHIN GROUP aggregates have none (see their entries).
+	// The WITHIN GROUP aggregates have none (see their entry).
 	Window func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error)
 }
 
 // The static table is the registry: no init() registration. Names must not
 // overlap any aggregate the engine still dispatches itself.
 var aggregateDefinitions = [...]AggregateDefinition{
-	{Names: []string{"count"}, Bind: BindCount},
+	{Names: []string{"count"}, Bind: BindCount, Window: windowCount},
 	{Names: []string{"sum"}, ValuesNamespace: true, Bind: bindSum, Window: windowSum},
 	{Names: []string{"avg"}, Bind: bindAvg, Window: windowAvg},
 	{Names: []string{"min", "max"}, Bind: bindExtrema, Window: windowExtrema},

@@ -2395,7 +2395,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		case parser.SubqueryExpr:
 			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
 		case parser.AggregateExpr:
-			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !windowValueName(r.Name) && !windowOffsetName(r.Name) {
+			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !functions.WindowValueName(r.Name) && !functions.WindowOffsetName(r.Name) {
 				for _, arg := range r.Args {
 					if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
 						return nil, err
@@ -2495,26 +2495,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					b.aggregates, b.windowCalls = parentAggregates, parentWindows
 				}
 			}()
-			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
-				if r.Window != nil {
-					var err error
-					node, err = b.bindWindow(r, name)
-					if err != nil {
-						return nil, err
-					}
-					break
-				}
-				if _, err := b.bindAggregateFilter(r); err != nil {
-					return nil, err
-				}
-				visible, err := b.builtinVisible(name, functionLookup)
+			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
+				var err error
+				node, err = b.bindWindow(r, name)
 				if err != nil {
 					return nil, err
 				}
-				if !visible {
-					return nil, functionSignatureErrorForTypes(name, r.Pos, nil)
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+				break
 			}
 			if r.Within && !functions.OrderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
@@ -2527,37 +2514,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				break
 			}
-			if windowValueName(r.Name) {
-				if _, _, _, err := b.resolveWindowValueSignature(r, name); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-			}
-			if windowOffsetName(r.Name) {
-				if _, _, _, _, err := b.resolveWindowOffsetSignature(r, name); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-			}
-			if r.Name == "ntile" {
-				if _, err := b.resolveNtileSignature(r, name); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-			}
-			if r.Name == "row_number" {
-				types := make([]string, len(r.Args))
-				for i, arg := range r.Args {
-					child, err := b.bind(arg, expressionPolicy{context: projectionContext})
-					if err != nil {
-						return nil, err
-					}
-					types[i] = functionArgumentTypeName(arg, child)
-				}
-				if _, err := b.bindAggregateFilter(r); err != nil {
-					return nil, err
-				}
-				if err := b.resolveRowNumberSignature(r, name, types); err != nil {
+			// A window function without OVER resolves its signature first.
+			if function, ok := functions.LookupWindowFunction(r.Name); ok && (!functions.HypotheticalSetName(r.Name) || !r.Within && len(r.Args) == 0) {
+				if _, err := function.Signature(b, r, name); err != nil {
 					return nil, err
 				}
 				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
