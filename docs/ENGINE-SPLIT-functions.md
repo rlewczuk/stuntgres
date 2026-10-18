@@ -156,7 +156,8 @@ Tier C has a refined plan.
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
-- [ ] F4/F5 Tier A: [ ] math [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
+- [ ] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
+  `0f3c7e5a2` move, docs below) [ ] string [ ] LIKE/SIMILAR/regex [ ] datetime
   [ ] JSON/JSONB/SQL-JSON [ ] arrays [ ] ranges [ ] UUID [ ] format
   [ ] binary [ ] numeric formatting [ ] pgcrypto [ ] fuzzystrmatch
   [ ] unaccent [ ] intarray [ ] intagg [ ] uuid-ossp
@@ -167,8 +168,9 @@ Tier C has a refined plan.
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
-is a genuine analyzer capability). Reasons for every method are in the
-`functions` README.
+is a genuine analyzer capability); `DefaultConsumer`, `ArrayType`,
+`CommonUsage` and `ComparisonInfo` (math). Reasons for every method are in
+the `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -176,7 +178,9 @@ Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 references in 91 files, mostly declaration tables). Remove them in a later
 alias-removal pass, which counts as a broad rewrite (§8). The step 2b aliases
 in `functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for
-2d.
+2d. Math added `functionResolutionErrorForTypes = functions.ResolutionError`
+(41 engine call sites) and `functionCastHint = functions.SignatureHint` (4);
+remove them with the other aliases.
 
 F1 record, measured at its start on `b12c7ee57`:
 
@@ -266,11 +270,57 @@ Bench median 1.73 ms/op with 7,753 allocs/op (allocations unchanged; startup
 code untouched, time within run-to-run noise and still above the 1 ms target
 as on master). Racecheck skipped at the user's request.
 
+F4/F5 math record, measured at its start on `85de31810`:
+
+- `math_expression.go` (200 lines) used, beyond the F3 set, the DEFAULT
+  consumer flag, `randomSignature` (shared with random and deparse inquiry),
+  the pure 42725 builder, and for `width_bucket(operand, thresholds)`
+  `comparisonOperandPolicy(thresholdArrayInput)`, `arraySearchTypeName`,
+  `selectCommonUsage` over fake literal operands, `definitionArray` and
+  `comparisonInfo`.
+- Resolved with four `Binder` methods (above), one analysis intent value
+  (`ThresholdArrayArgument`) and pure moves: `ResolutionError`,
+  `DirectResolutionError` (was `randomSignature`), `ArrayTypeName` (was
+  `arraySearchTypeName`; its 9 engine callers now use it), `SelectedLogPower`
+  (the engine's `selectedLogPowerName` duplicated it), `MathWrapperContext`.
+- Correction to the F3 note on gates: instead of reproducing the shared gates
+  inside `Bind` (which would need the engine's diagnostic binders as `Binder`
+  methods), `Definition` declares `ExactSpelling` and `SharedGates` and the
+  engine applies the gates (`sharedCallGates` in `function.go`). Math sat in
+  the final `switch name`, so it sets both. No earlier chain predicate claims
+  a math name (the parser's name lists are admission lists, not dispatch).
+- Engine switches still reference math through exported helpers:
+  conditional planning (`SelectedLogPower`) and retag (`MathWrapperContext`).
+  F2 removes those references.
+
+Tests in F4/F5 math: `TestLookupClaimsRegisteredNames` gained exact-spelling
+and gate cases and `TestDefinitionsAreWellFormed` checks exact names are
+lowercase (both failed first). The engine's `math_*_test.go` and
+`random_test.go` stay: they bind through the analyzer and exercise engine
+switches (grouping identity, conditional simplification, preflight, consumers,
+privileges). No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. Quick mode and
+`REFERENCE=1` passed for `^TestReferenceMath`, `^TestReferenceSearchPath`,
+`^TestReferenceDeparseConstraintsReview(Numeric|Random)` and
+`^TestReferenceArray` (the array callers of `ArrayTypeName`). Bench: two
+branch runs had medians of 2.15 ms and 1.73 ms against 1.97 ms on master
+`85de31810` on the same machine, with 7,769 allocs/op on both
+(allocations unchanged; time within run-to-run noise and still above the 1 ms
+target as on master). Racecheck skipped at the user's request.
+
 Notes for later steps:
 
 - Families whose engine branch sits after the shared label and
   `ResolutionOnly` gates in `bindFunctionProvider` must reproduce those gates
   in `Bind` when they register, because `Lookup` runs first.
+- `CommonUsage` wraps the engine's `selectCommonUsage`. Its usage-only core
+  could move to `sqltype` when CASE/VALUES/IN typing gets an owner; the
+  method would then become a plain function.
+- `Lookup` scans the table linearly (2 definitions, 54 names) on every
+  function call before the chain. Re-measure bind cost when more families
+  register; a sorted static table would keep it `init()`-free.
 - `functions.qualifiedName` duplicates the engine's `objectNameText` (a
   dotted join used for the 42809 message). Consolidate them when the engine's
   name helpers get an owner.
