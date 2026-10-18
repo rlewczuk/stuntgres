@@ -55,7 +55,7 @@ func TestRelationLockIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.locks.fence(tref.Epoch)
-	e.locks.end(ticket)
+	e.endLockOwner(ticket)
 	e.locks.mu.Lock()
 	held := e.locks.entries[lockResource{ObjectRef: newref}].holders[a.transactions.ticket].mode
 	e.locks.mu.Unlock()

@@ -154,7 +154,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		t.session.retireTransactionTimeout()
 		t.session.settings.finishTransaction(false)
 		t.mu.Unlock()
-		e.locks.end(ticket)
+		e.endLockOwner(ticket)
 		return err
 	}
 	t.session.settings.finishTransaction(true)
@@ -208,6 +208,6 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		e.mu.Unlock()
 		return err
 	}
-	e.locks.end(entry.ticket)
+	e.endLockOwner(entry.ticket)
 	return nil
 }

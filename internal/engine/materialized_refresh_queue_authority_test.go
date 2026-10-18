@@ -49,7 +49,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				e.mu.Lock()
 				e.state.epoch = originalEpoch
 				e.mu.Unlock()
-				e.locks.end(holder.transactions.ticket)
+				e.endLockOwner(holder.transactions.ticket)
 				if !joined {
 					select {
 					case <-done:
@@ -106,7 +106,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			e.state = &nextState
 			before, rowCounter, versionCounter := e.commitSeq, e.nextRow, e.nextVersion
 			e.mu.Unlock()
-			e.locks.end(holder.transactions.ticket)
+			e.endLockOwner(holder.transactions.ticket)
 			var err error
 			select {
 			case err = <-done:

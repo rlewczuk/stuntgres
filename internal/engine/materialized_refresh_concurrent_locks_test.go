@@ -50,7 +50,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			joined := false
 			defer func() {
 				cancel()
-				e.locks.end(holder.transactions.ticket)
+				e.endLockOwner(holder.transactions.ticket)
 				if !joined {
 					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 					defer stop()

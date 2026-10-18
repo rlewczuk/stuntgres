@@ -18,7 +18,7 @@ func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	for _, s := range []*Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.transactions.ticket
-		t.Cleanup(func() { e.locks.end(ticket) })
+		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	tickets := []*relationTicket{a.transactions.ticket, b.transactions.ticket, c.transactions.ticket}
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
@@ -59,15 +59,15 @@ func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	if err := deadlockResult(t, pending[victim]); !errors.As(err, &d) || d.Code != "40P01" {
 		t.Fatal("cycle member diagnostic", err)
 	}
-	e.locks.end(tickets[victim])
+	e.endLockOwner(tickets[victim])
 	if err := deadlockResult(t, pending[1-victim]); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(tickets[1-victim])
+	e.endLockOwner(tickets[1-victim])
 	if err := deadlockResult(t, feeder); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(tickets[2])
+	e.endLockOwner(tickets[2])
 	lockEmpty(t, e)
 }
 
@@ -80,7 +80,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	transactionBegin(t, a)
 	transactionBegin(t, b)
 	at, bt := a.transactions.ticket, b.transactions.ticket
-	t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 	deadlockRequest(t, e, at, x, accessExclusive)
@@ -110,7 +110,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	// Explicitly trigger cancellation/end/epoch retirement after the first
 	// terminal result. None may replace the error or double-close notification.
 	cancel()
-	e.locks.end(victimTicket)
+	e.endLockOwner(victimTicket)
 	e.locks.fence(at.ref.epoch + 1)
 	if again := deadlockResult(t, victim); again != original {
 		t.Fatalf("first terminal error replaced: %v -> %v", original, again)
@@ -137,7 +137,7 @@ func TestRelationDeadlockGraphAllHolders(t *testing.T) {
 	for _, s := range []*Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.transactions.ticket
-		t.Cleanup(func() { e.locks.end(ticket) })
+		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	at, bt, ct := a.transactions.ticket, b.transactions.ticket, c.transactions.ticket
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
@@ -163,11 +163,11 @@ func TestRelationDeadlockGraphAllHolders(t *testing.T) {
 	if err := deadlockResult(t, victim); !errors.As(err, &d) || d.Code != "40P01" {
 		t.Fatal(err)
 	}
-	e.locks.end(victimTicket)
-	e.locks.end(bt)
+	e.endLockOwner(victimTicket)
+	e.endLockOwner(bt)
 	if err := deadlockResult(t, survivor); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(survivorTicket)
+	e.endLockOwner(survivorTicket)
 	lockEmpty(t, e)
 }

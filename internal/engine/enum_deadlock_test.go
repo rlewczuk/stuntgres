@@ -28,7 +28,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for i, s := range sessions {
 		refs[i] = transactionBegin(t, s)
 		tickets[i] = s.transactions.ticket
-		t.Cleanup(func() { e.locks.end(tickets[i]) })
+		t.Cleanup(func() { e.endLockOwner(tickets[i]) })
 		if r := deadlockRequest(t, e, tickets[i], resources[i], typeExclusive); r != nil {
 			t.Fatal("initial type grant queued")
 		}

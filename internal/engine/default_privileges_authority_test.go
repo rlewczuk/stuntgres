@@ -112,9 +112,9 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.name)
 	for _, token := range []SessionToken{
 		{},
-		{owner: f.e, id: f.op.session.token.id + 1},
-		{owner: New(), id: f.op.session.token.id},
-		{owner: f.e, private: f.op.session},
+		{domain: f.e.domain, id: f.op.session.token.id + 1},
+		{domain: New().domain, id: f.op.session.token.id},
+		{domain: f.e.domain, private: f.op.session},
 	} {
 		peer := auth
 		peer.session = &Session{token: token}
@@ -122,7 +122,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	}
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
-	for _, token := range []SessionToken{{}, {owner: New(), id: 1}, {owner: f.e, private: f.op.session}} {
+	for _, token := range []SessionToken{{}, {domain: New().domain, id: 1}, {domain: f.e.domain, private: f.op.session}} {
 		candidate := cloneCatalog(state)
 		invalidNamespace := namespace
 		invalidNamespace.temporary = token

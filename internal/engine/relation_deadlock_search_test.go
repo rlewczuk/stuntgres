@@ -103,7 +103,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		transactionBegin(t, sessions[i])
 		tickets[i] = sessions[i].transactions.ticket
 		ticket := tickets[i]
-		t.Cleanup(func() { e.locks.end(ticket) })
+		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	// Catalog creation belongs to an independent idle session.
 	creator := sessionStart(t, e, nil)
@@ -161,7 +161,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		t.Fatal("accepted queue arrangement still has a cycle")
 	}
 	for _, ticket := range tickets {
-		e.locks.end(ticket)
+		e.endLockOwner(ticket)
 	}
 	for _, r := range requests {
 		if r != nil {

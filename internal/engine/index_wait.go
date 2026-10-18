@@ -37,7 +37,7 @@ func (e *Engine) admitIndexBuildWaitLocked(index ObjectAddress, owner TxRef, kin
 	if index == (ObjectAddress{}) {
 		return nil
 	}
-	if owner.owner != e || owner.epoch != e.state.epoch {
+	if owner.domain != domainOf(e) || owner.epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if e.indexBuildWaits == nil {

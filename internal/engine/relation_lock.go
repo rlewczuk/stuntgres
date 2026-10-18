@@ -149,8 +149,7 @@ type relationEntry struct {
 }
 type relationLockManager struct {
 	mu           sync.Mutex
-	engine       *Engine
-	catalog      *Domain
+	domain       *Domain // Owning engine's identity domain; provenance checks only.
 	epoch        CatalogEpoch
 	owners       map[TxRef]*relationTicket
 	sessions     map[SessionToken]*relationTicket
@@ -161,13 +160,13 @@ type relationLockManager struct {
 	multiHistory map[uint32][]multiMember
 }
 
-func newRelationLockManager(e *Engine) *relationLockManager {
-	return &relationLockManager{engine: e, catalog: e.domain, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
+func newRelationLockManager(domain *Domain) *relationLockManager {
+	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if ref.owner != m.engine || ref.id == 0 || ref.epoch == 0 || ref.attachment == nil || ref.session.owner != m.engine ||
+	if ref.domain != m.domain || ref.id == 0 || ref.epoch == 0 || ref.attachment == nil || ref.session.domain != m.domain ||
 		ref.session.id == 0 && (ref.session.private == nil || ref.attachment.session != ref.session.private || ref.session.private.token != ref.session) ||
 		ref.session.id != 0 && ref.session.private != nil {
 		return nil, errors.New("stuntgres: invalid lock owner")
@@ -488,11 +487,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 			return nil, nil
 		}
 	} else if ref.Address.ClassID == TypeClassID {
-		if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
+		if ref.owner != m.domain || ref.Epoch != t.ref.epoch || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || ref.row != 0 || ref.key != nil || mode != typeExclusive {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
-	} else if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
+	} else if ref.owner != m.domain || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
@@ -605,13 +604,12 @@ func (m *relationLockManager) retire(ref lockResource, e *relationEntry) {
 		}
 	}
 }
+
+// Transaction tickets end through Engine.endLockOwner, which first retires
+// engine-held exclusion state; only session tickets end here directly.
 func (m *relationLockManager) end(t *relationTicket) {
 	if t == nil {
 		return
-	}
-	// Retire dirty visibility before releasing the existing completion resource.
-	if t.ref.owner != nil {
-		t.ref.owner.removeExclusionOwner(t)
 	}
 	var notify *relationRequest
 	m.mu.Lock()

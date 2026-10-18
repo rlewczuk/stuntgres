@@ -129,7 +129,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.descriptors[table.namespace].(*namespaceDescriptor)
-	foreign.temporary = SessionToken{owner: e, id: op.session.token.id + 1}
+	foreign.temporary = SessionToken{domain: e.domain, id: op.session.token.id + 1}
 	consumer := *table
 	consumer.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20002}
 	advanced.descriptors[consumer.namespace] = &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token}

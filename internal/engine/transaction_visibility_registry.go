@@ -26,7 +26,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 	e.mu.Lock()
 	if ref.epoch != e.state.epoch {
 		e.mu.Unlock()
-		e.locks.end(ticket)
+		e.endLockOwner(ticket)
 		return nil, ErrCatalogReplaced
 	}
 	if e.visibility == nil {
@@ -41,7 +41,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 }
 
 func (e *Engine) visibilityWriteLocked(ref TxRef) error {
-	if ref.owner != e || ref.epoch != e.state.epoch {
+	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
@@ -61,7 +61,7 @@ func (e *Engine) visibilityWriteLocked(ref TxRef) error {
 }
 
 func (e *Engine) visibilitySnapshotLocked(ref TxRef, safeBuilder bool) (uint64, error) {
-	if ref.owner != e || ref.epoch != e.state.epoch {
+	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
 	v := e.visibility[ref]

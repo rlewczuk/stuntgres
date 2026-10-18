@@ -192,6 +192,17 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	}
 	return Result{}, nil
 }
+
+// endLockOwner retires dirty exclusion visibility, then releases the ticket's
+// lock ownership, including its completion resource. Neither Engine.mu nor
+// the manager mutex is held by the caller.
+func (e *Engine) endLockOwner(ticket *relationTicket) {
+	if ticket != nil && ticket.ref.domain != nil {
+		e.removeExclusionOwner(ticket)
+	}
+	e.locks.end(ticket)
+}
+
 func (e *Engine) removeExclusionOwner(ticket *relationTicket) {
 	e.mu.Lock()
 	if _, exists := e.exclusionPending[ticket]; exists {

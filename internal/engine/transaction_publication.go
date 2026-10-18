@@ -22,7 +22,7 @@ type rowPublication struct {
 }
 
 func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.owner != e || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
+	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.domain != domainOf(e) || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
 	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
@@ -475,7 +475,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func publicationOperationLocked(e *Engine, op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.owner != e {
+	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	if op.done || op.session.state != live {

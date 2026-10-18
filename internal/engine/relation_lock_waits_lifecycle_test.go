@@ -29,11 +29,11 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "end":
-				e.locks.end(b.transactions.ticket)
+				e.endLockOwner(b.transactions.ticket)
 			case "fence":
 				e.locks.fence(ref.Epoch + 1)
 			case "grant":
-				e.locks.end(a.transactions.ticket)
+				e.endLockOwner(a.transactions.ticket)
 				cancel()
 			}
 			err = r.wait()

@@ -254,7 +254,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []TxRef{{}, {owner: New(), session: a.Token(), id: ref.id}, {owner: e, session: b.Token(), id: ref.id}} {
+	for _, bad := range []TxRef{{}, {domain: New().domain, session: a.Token(), id: ref.id}, {domain: e.domain, session: b.Token(), id: ref.id}} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}

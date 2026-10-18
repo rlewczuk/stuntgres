@@ -30,7 +30,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 	}
 	ready, valid, live := index.sqlIndex.publicationState()
 	wait, admitted := e.indexBuildWaits[address]
-	admitted = admitted && wait.owner.owner == e && wait.owner.epoch == e.state.epoch && live && !valid
+	admitted = admitted && wait.owner.domain == e.domain && wait.owner.epoch == e.state.epoch && live && !valid
 	older := admitted && ready && wait.kind == indexWaitOlderSnapshots
 	writers := admitted && wait.kind == indexWaitWriters
 	e.mu.Unlock()

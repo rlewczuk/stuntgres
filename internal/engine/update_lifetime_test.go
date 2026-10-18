@@ -90,7 +90,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
 	newResource := lockResource{ObjectRef: newRef, row: e.storage[newRef.Address].versions[0].row}
 	oldCancel()
-	e.locks.end(oldTicket)
+	e.endLockOwner(oldTicket)
 	e.locks.fence(ref.Epoch)
 	e.locks.mu.Lock()
 	entry := e.locks.entries[newResource]

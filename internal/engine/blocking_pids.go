@@ -157,8 +157,8 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return sqltype.OwnedArrayValue(n.usage.Type, dimensions, elements)
 }
 
-func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, engine *Engine) ([]sqltype.Value, error) {
-	if !prepared && (token.owner != engine || token.private != nil || token.id == 0) {
+func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token SessionToken, prepared bool, domain *Domain) ([]sqltype.Value, error) {
+	if !prepared && (token.domain != domain || token.private != nil || token.id == 0) {
 		return values, nil
 	}
 	var pid int64
@@ -179,16 +179,16 @@ func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token Se
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	for ref, node := range e.serializable.nodes {
-		if ref.owner != e || ref.epoch != e.state.epoch || ref.session != (SessionToken{owner: e, id: pid}) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+		if ref.domain != e.domain || ref.epoch != e.state.epoch || ref.session != (SessionToken{domain: e.domain, id: pid}) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
 		var values []sqltype.Value
 		for writer := range node.possible {
-			if writer.ref.owner != e || writer.ref.epoch != ref.epoch || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+			if writer.ref.domain != e.domain || writer.ref.epoch != ref.epoch || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
 				continue
 			}
 			var err error
-			values, err = appendBlockingPid(values, typ, writer.ref.session, writer.prepared, e)
+			values, err = appendBlockingPid(values, typ, writer.ref.session, writer.prepared, e.domain)
 			if err != nil {
 				return nil, err
 			}
@@ -235,7 +235,7 @@ func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relation
 func (m *relationLockManager) blockingPids(pid SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	token := SessionToken{owner: m.engine, id: pid}
+	token := SessionToken{domain: m.domain, id: pid}
 	r := m.pendingInquiryRequest(m.sessions[token])
 	if r == nil {
 		for _, t := range m.owners {
@@ -256,7 +256,7 @@ func (m *relationLockManager) blockingPids(pid SessionID, typ *sqltype.Descripto
 	// resource-local prefixes avoids allocating a second identity registry.
 	appendParticipant := func(t *relationTicket) error {
 		var err error
-		values, err = appendBlockingPid(values, typ, t.session, t.detached, m.engine)
+		values, err = appendBlockingPid(values, typ, t.session, t.detached, m.domain)
 		return err
 	}
 	for t, held := range r.entry.holders {

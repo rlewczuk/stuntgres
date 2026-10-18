@@ -44,7 +44,7 @@ type TxOptions struct {
 }
 
 type TxRef struct {
-	owner      *Engine
+	domain     *Domain
 	session    SessionToken
 	id         TxID
 	epoch      CatalogEpoch
@@ -161,7 +161,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	ticket := t.ticket
 	t.ticket = nil
 	t.mu.Unlock()
-	t.session.Engine().locks.end(ticket)
+	t.session.Engine().endLockOwner(ticket)
 	cleanupErr := t.drainCursorCleanup(context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
@@ -198,7 +198,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	}
 	e.diagnosticTx++
 	t.next++
-	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
+	t.ref = TxRef{domain: e.domain, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
 	t.state = state
 	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -248,7 +248,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
-	if ref.owner != t.session.Engine() || ref.session != t.session.token || ref.id == 0 || ref.attachment != t {
+	if ref.domain != domainOf(t.session.Engine()) || ref.session != t.session.token || ref.id == 0 || ref.attachment != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {

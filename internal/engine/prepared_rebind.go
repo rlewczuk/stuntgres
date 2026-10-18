@@ -10,7 +10,7 @@ import (
 // Only immutable analysis identities and definition stamps survive a statement.
 // Engine.mu and physical-session admission own this cell; no data or grants do.
 type preparedAnalysis struct {
-	domain           *Domain
+	domain          *Domain
 	epoch           CatalogEpoch
 	session         SessionToken
 	private         *catalogChanges

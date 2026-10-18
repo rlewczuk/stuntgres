@@ -188,7 +188,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 							continue
 						}
 						sourceNamespace := auth.catalog.state.descriptors[in.source.namespace].(*namespaceDescriptor)
-						if temporary == (SessionToken{}) || temporary != sourceNamespace.temporary || temporary.owner != e {
+						if temporary == (SessionToken{}) || temporary != sourceNamespace.temporary || temporary.domain != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}

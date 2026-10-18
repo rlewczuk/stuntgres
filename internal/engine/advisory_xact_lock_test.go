@@ -81,7 +81,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 			}
 			advisoryXactUnitGrant(t, a, key, advisoryShared, !xact)
 			advisoryXactUnitGrant(t, a, key, advisoryExclusive, !xact)
-			e.locks.end(b.transactions.ticket)
+			e.endLockOwner(b.transactions.ticket)
 			if err := r.wait(); err == nil {
 				t.Fatal("ended waiter granted")
 			}
@@ -124,7 +124,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		if !journaled {
 			t.Fatal("session terminal erased transaction hold journal")
 		}
-		e.locks.end(a.transactions.ticket)
+		e.endLockOwner(a.transactions.ticket)
 		if _, err := advisoryXactUnitAcquire(t, b, key, advisoryExclusive, true, true); err != nil {
 			t.Fatal("transaction hold leaked", err)
 		}
@@ -213,7 +213,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 						e.replacementMu.Unlock()
 					}
 				})
-				e.locks.end(a.transactions.ticket)
+				e.endLockOwner(a.transactions.ticket)
 				e.locks.mu.Lock()
 				granted := e.locks.entries[key].holders[ticket].mode == advisoryExclusive
 				e.locks.mu.Unlock()

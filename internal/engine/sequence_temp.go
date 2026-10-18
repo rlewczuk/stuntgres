@@ -9,7 +9,7 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ObjectAddress {
-	if auth.session == nil || auth.catalog.state == nil || auth.session.token == (SessionToken{}) || auth.session.token.owner != auth.engine || auth.session.token.private != nil {
+	if auth.session == nil || auth.catalog.state == nil || auth.session.token == (SessionToken{}) || auth.session.token.domain != domainOf(auth.engine) || auth.session.token.private != nil {
 		return ObjectAddress{}
 	}
 	table := func(a ObjectAddress) bool {

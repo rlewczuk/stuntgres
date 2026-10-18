@@ -117,7 +117,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	if err := request.wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.locks.end(a.transactions.ticket)
+	e.endLockOwner(a.transactions.ticket)
 	rows = capture()
 	if len(rows) != 1 || rows[0].mode != advisoryShared {
 		t.Fatal("transaction end crossed session mode", rows)

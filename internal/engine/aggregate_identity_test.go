@@ -235,7 +235,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	namespace := &namespaceDescriptor{
 		address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: original.helpers[0].id},
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
-		temporary: SessionToken{owner: target, id: 99},
+		temporary: SessionToken{domain: target.domain, id: 99},
 	}
 	target.state.descriptors[namespace.address] = namespace
 	target.state.names[descriptorNameKey(namespace)] = namespace.address

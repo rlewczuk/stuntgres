@@ -33,7 +33,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 		ns.address = ObjectAddress{ClassID: NamespaceClassID, ObjectID: OID(90000 + i)}
 		ns.name = name
 		if i == 3 {
-			ns.temporary = SessionToken{owner: e, id: 99}
+			ns.temporary = SessionToken{domain: e.domain, id: 99}
 		}
 		view.state.descriptors[ns.address] = &ns
 		view.state.names[descriptorNameKey(&ns)] = ns.address

@@ -102,7 +102,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if pid != int64(owner.token.id) {
 		t.Fatal("physical blocker mapping", pid)
 	}
-	e.locks.end(holder)
+	e.endLockOwner(holder)
 	if err := deadlockResult(t, request); err != nil {
 		t.Fatal(err)
 	}
@@ -118,16 +118,16 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if value, err := planned.Eval(evaluation); err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal("undemanded branch evaluated", value, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{owner: New(), id: 7}, false, e); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: New().domain, id: 7}, false, e.domain); err != nil || len(values) != 0 {
 		t.Fatal("foreign owner exposed", values, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{owner: e, private: s}, false, e); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, private: s}, false, e.domain); err != nil || len(values) != 0 {
 		t.Fatal("private owner exposed", values, err)
 	}
-	if _, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{owner: e, id: math.MaxInt32 + 1}, false, e); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+	if _, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, false, e.domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("unchecked PID projection", err)
 	}
-	zeros, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{owner: e, id: math.MaxInt32 + 1}, true, e)
+	zeros, err := appendBlockingPid(nil, blockingUnitType(e), SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, true, e.domain)
 	if err != nil || len(zeros) != 1 {
 		t.Fatal("prepared projection used physical ID", zeros, err)
 	}
@@ -157,7 +157,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			t.Fatal("missing actual upgrade queue")
 		}
 		before := blockingUnitWant(t, e, c.token.id, int64(a.token.id), int64(b.token.id))
-		e.locks.end(bt)
+		e.endLockOwner(bt)
 		if err := deadlockResult(t, ar); err != nil {
 			t.Fatal(err)
 		}
@@ -165,7 +165,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if len(before) != 2 {
 			t.Fatal("snapshot aliases manager", before)
 		}
-		e.locks.end(at)
+		e.endLockOwner(at)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
@@ -187,7 +187,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, b.token.id, int64(a.token.id))
 		blockingUnitWant(t, e, c.token.id, int64(b.token.id))
-		e.locks.end(bt)
+		e.endLockOwner(bt)
 		if !errors.Is(deadlockResult(t, br), errRelationOwnerEnded) {
 			t.Fatal("ended requester not terminated")
 		}
@@ -214,9 +214,9 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, c.token.id, 0, 0)
 		blockingUnitWant(t, e, a.token.id)
-		e.locks.end(at)
+		e.endLockOwner(at)
 		blockingUnitWant(t, e, c.token.id, 0)
-		e.locks.end(bt)
+		e.endLockOwner(bt)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +247,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, math.MaxInt32) // must not truncate high target
 		blockingUnitWant(t, e, high.token.id, int64(low.token.id))
-		e.locks.end(lt)
+		e.endLockOwner(lt)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -261,7 +261,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if _, err := e.locks.blockingPids(next.session.id, blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
-		e.locks.end(ht)
+		e.endLockOwner(ht)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -299,9 +299,9 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				}
 				blockingUnitWant(t, e, c.token.id)
 			}
-			e.locks.end(at)
-			e.locks.end(bt)
-			e.locks.end(ct)
+			e.endLockOwner(at)
+			e.endLockOwner(bt)
+			e.endLockOwner(ct)
 		}
 	})
 }

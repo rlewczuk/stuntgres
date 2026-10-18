@@ -25,6 +25,15 @@ type ObjectAddress struct {
 // Domain has nonzero size so distinct live engines have distinct tokens.
 type Domain struct{ identity byte }
 
+// domainOf returns the engine's domain, or nil for a nil engine, so a
+// provenance comparison against a possibly-nil engine keeps its meaning.
+func domainOf(e *Engine) *Domain {
+	if e == nil {
+		return nil
+	}
+	return e.domain
+}
+
 type ObjectRef struct {
 	owner   *Domain
 	Epoch   CatalogEpoch
@@ -240,7 +249,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (SessionToken{}) && (ns.temporary.owner != v.owner || ns.temporary.id == 0 || ns.temporary.private != nil) {
+	if ns.temporary != (SessionToken{}) && (ns.temporary.domain != domainOf(v.owner) || ns.temporary.id == 0 || ns.temporary.private != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()

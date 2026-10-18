@@ -194,7 +194,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	parents := map[ObjectAddress]bool{f.parent.address: rebuild}
 	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
 	if materialize {
-		if err := f.e.prepareRowPublication(&publication, TxRef{owner: f.e, epoch: f.catalog.epoch}, true); err != nil {
+		if err := f.e.prepareRowPublication(&publication, TxRef{domain: f.e.domain, epoch: f.catalog.epoch}, true); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -102,7 +102,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.generations, temp.checkConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.state = cloneCatalog(e.state)
-	e.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: SessionToken{owner: e, id: 99}}
+	e.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: SessionToken{domain: e.domain, id: 99}}
 	e.state.descriptors[tempAddress] = &temp
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()

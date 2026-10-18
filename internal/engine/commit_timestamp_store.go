@@ -14,7 +14,7 @@ type commitTimestampEntry struct {
 }
 
 func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
-	if ref.owner != e || ref.epoch != e.state.epoch {
+	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
 	v := e.visibility[ref]

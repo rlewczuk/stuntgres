@@ -19,7 +19,7 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			transactionBegin(t, a)
 			transactionBegin(t, b)
 			at, bt := a.transactions.ticket, b.transactions.ticket
-			t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+			t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 			x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
 			y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 			deadlockRequest(t, e, at, x, accessExclusive)
@@ -51,11 +51,11 @@ func TestRelationDeadlockLifecycleExpiredPredecessor(t *testing.T) {
 			if terminal {
 				t.Fatal("expired predecessor produced false cycle")
 			}
-			e.locks.end(at)
+			e.endLockOwner(at)
 			if err := deadlockResult(t, follower); err != nil {
 				t.Fatal(err)
 			}
-			e.locks.end(bt)
+			e.endLockOwner(bt)
 			lockEmpty(t, e)
 		})
 	}
@@ -70,7 +70,7 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	transactionBegin(t, a)
 	transactionBegin(t, b)
 	at, bt := a.transactions.ticket, b.transactions.ticket
-	t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 	deadlockRequest(t, e, at, x, accessExclusive)
@@ -84,12 +84,12 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}
-	e.locks.end(at)
+	e.endLockOwner(at)
 	if err := deadlockResult(t, r); err != nil {
 		t.Fatal("acyclic grant", err)
 	}
 	cancel()
-	e.locks.end(bt)
+	e.endLockOwner(bt)
 	if err := deadlockResult(t, r); err != nil {
 		t.Fatal("later cancellation overwrote grant", err)
 	}
@@ -104,15 +104,15 @@ func TestRelationDeadlockLifecycleNowaitAndGrant(t *testing.T) {
 	}
 	deadlockRequest(t, e, next, x, accessExclusive)
 	deadlockRequest(t, e, next, y, accessExclusive)
-	e.locks.end(at)
-	e.locks.end(bt)
+	e.endLockOwner(at)
+	e.endLockOwner(bt)
 	e.locks.mu.Lock()
 	held := e.locks.entries[x].holders[next].mode&accessExclusive != 0 && e.locks.entries[y].holders[next].mode&accessExclusive != 0
 	e.locks.mu.Unlock()
 	if !held {
 		t.Fatal("old end affected fresh incarnation")
 	}
-	e.locks.end(next)
+	e.endLockOwner(next)
 	lockEmpty(t, e)
 }
 

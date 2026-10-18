@@ -300,7 +300,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.state = source.stageRead(stage).state
-	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, owner: target.authorizationDomain.Principal(10), temporary: SessionToken{owner: target, id: 99}}
+	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, owner: target.authorizationDomain.Principal(10), temporary: SessionToken{domain: target.domain, id: 99}}
 	temp := indexUnitOperator(operator.address.ObjectID, tempNamespace.address, "#?#")
 	temp.owner = tempNamespace.owner
 	stage = target.BeginCatalogStage(target.CatalogRead())

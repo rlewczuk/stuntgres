@@ -64,7 +64,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
 	gateRef := ObjectRef{owner: e.domain, Epoch: e.state.epoch, Address: gate.address}
-	defer e.locks.end(holder.transactions.ticket)
+	defer e.endLockOwner(holder.transactions.ticket)
 	if err := e.locks.acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: gateRef}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	joined := false
 	defer func() {
 		cancel()
-		e.locks.end(holder.transactions.ticket)
+		e.endLockOwner(holder.transactions.ticket)
 		if !joined {
 			select {
 			case <-done:
@@ -148,7 +148,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertSourceWait()
 	assertManifest()
-	e.locks.end(holder.transactions.ticket)
+	e.endLockOwner(holder.transactions.ticket)
 	select {
 	case err := <-done:
 		joined = true

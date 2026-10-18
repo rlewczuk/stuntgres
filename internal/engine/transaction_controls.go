@@ -21,7 +21,7 @@ const (
 // Context remains a separate check: an accepted Go commit canceled after
 // admission must retain its existing failed-end/discard disposition.
 func (e *Engine) transactionAuthority(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.owner != e {
+	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	session := op.session
@@ -110,8 +110,8 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		}
 		t.finishNotificationBoundary()
 		t.mu.Unlock()
-		e.locks.end(candidate)
-		e.locks.end(old)
+		e.endLockOwner(candidate)
+		e.endLockOwner(old)
 	}()
 	if err := e.transactionAuthority(op); err != nil {
 		return EndResult{}, err
@@ -155,7 +155,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		if err == nil {
 			t.next++
 			e.diagnosticTx++
-			next = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
+			next = TxRef{domain: e.domain, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()

@@ -52,7 +52,7 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 		t.Fatal(modes, rowMode, newMode)
 	}
 	e.locks.restore(ta, mark)
-	e.locks.end(ta)
+	e.endLockOwner(ta)
 	e.locks.restore(ta, mark)
 	e.locks.mu.Lock()
 	_, alive := e.locks.owners[ta.ref]

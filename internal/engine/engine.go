@@ -19,7 +19,7 @@ type Engine struct {
 	notifications map[SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
-	domain                *Domain
+	domain               *Domain
 	state                *catalogState
 	providers            map[OID]CatalogProvider
 	extensions           map[string]registeredExtension
@@ -177,7 +177,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	e := &Engine{domain: &Domain{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
-	e.locks = newRelationLockManager(e)
+	e.locks = newRelationLockManager(e.domain)
 	e.sequences = make(map[ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)

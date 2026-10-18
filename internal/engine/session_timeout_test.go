@@ -48,7 +48,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 }
 
 func timeoutMechanicsRef(s *Session, id TxID) TxRef {
-	return TxRef{owner: s.Engine(), session: s.Token(), id: id, attachment: s.transactions}
+	return TxRef{domain: s.Engine().domain, session: s.Token(), id: id, attachment: s.transactions}
 }
 
 func TestSessionTimeoutGenerationMechanics(t *testing.T) {

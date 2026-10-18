@@ -313,7 +313,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 		t.Fatal(err, count)
 	}
 	foreign := h
-	foreign.session.owner = New()
+	foreign.session.domain = New().domain
 	if err = s.Detach(foreign, CleanClose); err == nil {
 		t.Fatal("foreign detach")
 	}
@@ -395,7 +395,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &Session{token: SessionToken{owner: e, id: 1}, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{engine: e, token: SessionToken{domain: e.domain, id: 1}, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(context.Background(), true)
 	calls := 0

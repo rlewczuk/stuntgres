@@ -72,6 +72,7 @@ type notificationState struct {
 type sessionNotifications struct {
 	// Monotonic fast path only; queue authority remains under Engine.mu.
 	used        atomic.Bool
+	engine      *Engine // Owns the registry; set with token before attachment.
 	token       SessionToken
 	state       *notificationState
 	busy, ended bool
@@ -88,7 +89,7 @@ func (n *sessionNotifications) EndSession(token SessionToken, _ EndReason) error
 	if token != n.token {
 		return errors.New("stuntgres: foreign notification session")
 	}
-	e := token.owner
+	e := n.engine
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !n.ended {

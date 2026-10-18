@@ -529,7 +529,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				if scope == nil {
 					return indexWriteBatch{}, fmt.Errorf("stuntgres: NOT NULL disclosure requires statement authority")
 				}
-				return indexWriteBatch{}, scope.op.session.token.owner.rowConstraintError(scope, b, schema, c.Name, "", row)
+				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
 		if len(b.relation.checkConstraints) != 0 {
@@ -541,7 +541,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				if scope == nil {
 					return indexWriteBatch{}, fmt.Errorf("stuntgres: CHECK disclosure requires statement authority")
 				}
-				return indexWriteBatch{}, scope.op.session.token.owner.rowConstraintError(scope, b, schema, "", constraint.Name, row)
+				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
 		if unique || scope != nil && scope.insertReturning != nil {

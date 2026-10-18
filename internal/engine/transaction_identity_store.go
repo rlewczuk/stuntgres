@@ -44,7 +44,7 @@ func multiTransactionAge(next, xid uint32) int32 {
 	return int32(next - xid)
 }
 func (e *Engine) transactionAgeLocked(ref TxRef, xid uint32) (int32, error) {
-	if ref.owner != e || ref.epoch != e.state.epoch {
+	if ref.domain != domainOf(e) || ref.epoch != e.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
 	v := e.visibility[ref]

@@ -12,7 +12,7 @@ import (
 )
 
 func commitTimeUnitRef(e *Engine, id TxID) TxRef {
-	return TxRef{owner: e, epoch: e.state.epoch, id: id}
+	return TxRef{domain: e.domain, epoch: e.state.epoch, id: id}
 }
 
 func TestCommitTimeAssignment(t *testing.T) {

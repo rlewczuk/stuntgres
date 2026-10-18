@@ -14,7 +14,7 @@ import (
 
 type SessionID uint64
 type SessionToken struct {
-	owner   *Engine
+	domain  *Domain
 	id      SessionID
 	private *Session
 }
@@ -75,9 +75,10 @@ type resourceEntry struct {
 	owner  SessionResource
 }
 type Session struct {
-	mu    sync.Mutex
-	cond  *sync.Cond
-	token SessionToken
+	mu     sync.Mutex
+	cond   *sync.Cond
+	engine *Engine // Immutable after construction.
+	token  SessionToken
 	// Written before registry publication, never changed by identity switches.
 	countedAuthenticated   authorization.PrincipalRef
 	state                  sessionState
@@ -185,7 +186,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{token: SessionToken{owner: e, id: start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{engine: e, token: SessionToken{domain: e.domain, id: start.ID}, countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	if private {
 		s.token.private = s
 	}
@@ -225,7 +226,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		}
 	}
 	if err == nil {
-		s.notifications.token = s.token
+		s.notifications.engine, s.notifications.token = e, s.token
 		_, err = op.Attach(Notifications, &s.notifications)
 	}
 	if err == nil {
@@ -235,7 +236,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			s.advisory.ticket = ticket
 			_, err = op.Attach(AdvisorySession, &s.advisory)
 			if err != nil {
-				e.locks.end(ticket)
+				e.endLockOwner(ticket)
 				s.advisory.ticket = nil
 			}
 		}
@@ -303,7 +304,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	return s, nil
 }
-func (s *Session) Engine() *Engine     { return s.token.owner }
+func (s *Session) Engine() *Engine     { return s.engine }
 func (s *Session) Token() SessionToken { return s.token }
 func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
@@ -379,7 +380,7 @@ func (op *Operation) Done() {
 	s.cond.Broadcast()
 }
 func (e *Engine) validateOperation(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.owner != e {
+	if op == nil || op.self != op || op.session == nil || op.session.token.domain != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.session
@@ -524,7 +525,7 @@ func (s *Session) end() {
 		if kind == Transaction {
 			// The transaction callback has returned and released its admission
 			// lock. Maintenance never runs inside a SessionResource callback.
-			err = errors.Join(err, s.token.owner.endTemporaryCollations(s))
+			err = errors.Join(err, s.engine.endTemporaryCollations(s))
 		}
 		s.mu.Lock()
 		s.removed[entry.handle] = true
@@ -533,11 +534,11 @@ func (s *Session) end() {
 		}
 	}
 	s.result = errors.Join(s.cleanupErrors...)
-	s.token.owner.sessionMu.Lock()
-	if s.token.owner.sessions[s.token] == s {
-		delete(s.token.owner.sessions, s.token)
+	s.engine.sessionMu.Lock()
+	if s.engine.sessions[s.token] == s {
+		delete(s.engine.sessions, s.token)
 	}
-	s.token.owner.sessionMu.Unlock()
+	s.engine.sessionMu.Unlock()
 	s.state = ended
 	close(s.completed)
 	s.mu.Unlock()

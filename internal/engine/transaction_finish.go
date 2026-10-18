@@ -255,7 +255,7 @@ func (s *StatementScope) Finish(err error) error {
 		err = cleanupErr
 	}
 	s.result = err
-	e.locks.end(endedTicket)
+	e.endLockOwner(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {
 		t.admission.Unlock()

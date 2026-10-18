@@ -63,7 +63,7 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				originalName := b.settings.values["application_name"]
 				ra := transactionBegin(t, a)
 				rb := transactionBegin(t, b)
-				t.Cleanup(func() { e.locks.end(a.transactions.ticket); e.locks.end(b.transactions.ticket) })
+				t.Cleanup(func() { e.endLockOwner(a.transactions.ticket); e.endLockOwner(b.transactions.ticket) })
 				name := "t"
 				if strings.Contains(tc.create, "猫") {
 					name = "\"猫\""
@@ -119,7 +119,7 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	transactionBegin(t, a)
 	transactionBegin(t, b)
 	at, bt := a.transactions.ticket, b.transactions.ticket
-	t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "u")}
 	deadlockRequest(t, e, at, x, accessExclusive)
@@ -142,10 +142,10 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	if terminal {
 		t.Fatal("canceled predecessor fabricated a deadlock")
 	}
-	e.locks.end(at)
+	e.endLockOwner(at)
 	if err := deadlockResult(t, follower); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(bt)
+	e.endLockOwner(bt)
 	lockEmpty(t, e)
 }

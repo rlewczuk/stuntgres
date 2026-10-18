@@ -124,7 +124,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		var joined sync.WaitGroup
 		joined.Add(2)
 		go func() { defer joined.Done(); <-start; cancel() }()
-		go func() { defer joined.Done(); <-start; e.locks.end(a.transactions.ticket) }()
+		go func() { defer joined.Done(); <-start; e.endLockOwner(a.transactions.ticket) }()
 		close(start)
 		joined.Wait()
 		err = deadlockResult(t, request)
@@ -132,6 +132,6 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		if err == nil && held != advisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
 			t.Fatal("inconsistent terminal publication", err, held)
 		}
-		e.locks.end(b.transactions.ticket)
+		e.endLockOwner(b.transactions.ticket)
 	}
 }

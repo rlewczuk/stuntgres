@@ -89,7 +89,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	go func() { done <- e.locks.acquire(ctx, tb, lockResource{ObjectRef: ref}, accessShare) }()
 	lockPending(t, e, 1)
 	// Grant state is installed by end, independently of the sleeping caller.
-	e.locks.end(ta)
+	e.endLockOwner(ta)
 	e.locks.mu.Lock()
 	held := e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode
 	e.locks.mu.Unlock()
@@ -111,7 +111,7 @@ func TestRelationLockJournalBoundaries(t *testing.T) {
 	if err := e.locks.acquire(context.Background(), tb, lockResource{ObjectRef: ref}, rowExclusive); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(old)
+	e.endLockOwner(old)
 	e.locks.fence(ref.Epoch)
 	e.locks.mu.Lock()
 	held = e.locks.entries[lockResource{ObjectRef: ref}].holders[tb].mode

@@ -195,7 +195,7 @@ func identityMultiCacheUnits(t *testing.T) {
 		if e.locks.nextMultiXact() != 2 || e.locks.multiRows[second].id != 1 {
 			t.Fatal("inquiry did not populate the actual caller cache")
 		}
-		e.locks.end(reader)
+		e.endLockOwner(reader)
 		if _, err := e.locks.multiXactMembers(reader, 1); !errors.Is(err, ErrCatalogReplaced) {
 			t.Fatal("retired owner resurrected read/cache authority", err)
 		}

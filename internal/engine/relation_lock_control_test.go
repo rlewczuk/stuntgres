@@ -160,7 +160,7 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		go func() { done <- e.locks.acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare) }()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
-		go func() { e.locks.end(a.transactions.ticket); close(ended) }()
+		go func() { e.endLockOwner(a.transactions.ticket); close(ended) }()
 		cancel()
 		err := <-done
 		<-ended

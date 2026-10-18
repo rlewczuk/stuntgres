@@ -373,7 +373,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	notificationUnitNotify(t, origin, "live")
 	op := transactionOperation(t, origin)
 	defer op.Done()
-	for _, ref := range []TxRef{old, {owner: e, session: other.token, id: live.id, attachment: other.transactions}} {
+	for _, ref := range []TxRef{old, {domain: e.domain, session: other.token, id: live.id, attachment: other.transactions}} {
 		actions, events, err := notificationEffects(op, ref, nil, nil)
 		if err == nil || len(actions) != 0 || len(events) != 0 {
 			t.Fatal("foreign or stale transaction exposed live effects", err, actions, events)

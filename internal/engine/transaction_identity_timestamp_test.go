@@ -48,7 +48,7 @@ func identityUnitTimestampWrap(t *testing.T) {
 		if !old.present {
 			t.Fatal("missing original actual completion")
 		}
-		e.locks.end(a)
+		e.endLockOwner(a)
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		e.assignedXID = 4294967295

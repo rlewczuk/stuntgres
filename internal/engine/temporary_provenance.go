@@ -38,7 +38,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		// user-defined/domain generations under this exception.
 		return ref.Address.SubID == 0 && !target.typ.IsUserDefined() && !target.typ.IsDomain() && !(target.typ.IsArray() && target.typ.Element().IsDomain())
 	case *collationDescriptor:
-		if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || namespace.temporary.owner != view.owner || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 || namespace.temporary.domain != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
 			return false
 		}
 		if capability, err := target.usage(); err != nil || !capability.Valid() {
@@ -50,7 +50,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		ns, ok := view.state.descriptors[target.Namespace()].(*namespaceDescriptor)
 		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
 	case *procedureDescriptor:
-		if ref.Address.ClassID != ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.owner != view.owner || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.domain != domainOf(view.owner) || view.state.descriptors[consumer.Address()] != consumer {
 			return false
 		}
 		if target.builtin != nil {
@@ -83,7 +83,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	namespace, ok := catalog.state.descriptors[consumer.namespace].(*namespaceDescriptor)
-	if !ok || namespace.temporary == (SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.owner != catalog.owner {
+	if !ok || namespace.temporary == (SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.domain != domainOf(catalog.owner) {
 		return false
 	}
 	captured, exists := consumer.view.references[ref]

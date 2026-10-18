@@ -44,7 +44,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				transactionBegin(t, a)
 				transactionBegin(t, b)
 				at, bt := a.transactions.ticket, b.transactions.ticket
-				t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+				t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 				x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
 				y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "y")}
 				deadlockRequest(t, e, at, x, accessExclusive)
@@ -131,11 +131,11 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				}
 				// Model Finish/end only after inspecting the detector decision. The
 				// other owner must then grant normally, never receive a delayed 40P01.
-				e.locks.end(interrupted.ticket)
+				e.endLockOwner(interrupted.ticket)
 				if err := deadlockResult(t, survivor); err != nil {
 					t.Errorf("survivor after interrupted owner's end: %v", err)
 				}
-				e.locks.end(survivor.ticket)
+				e.endLockOwner(survivor.ticket)
 				lockEmpty(t, e)
 			})
 		}
@@ -172,9 +172,9 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 			requests = append(requests, r)
 		}
 		t.Cleanup(func() {
-			e.locks.end(ht)
+			e.endLockOwner(ht)
 			for _, ticket := range tickets {
-				e.locks.end(ticket)
+				e.endLockOwner(ticket)
 			}
 		})
 		e.locks.mu.Lock()
@@ -206,7 +206,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 			t.Errorf("sparse AX/AS detector allocation grew quadratically: %d waiters use %d bytes/detection; %d waiters used %d (require growth <8x for 4x waiters)", count, bytes, count/4, previous)
 		}
 		previous = bytes
-		e.locks.end(ht)
+		e.endLockOwner(ht)
 		for _, r := range requests {
 			if err := deadlockResult(t, r); err != nil {
 				t.Fatal("compatible reader failed after AX release", err)
@@ -219,7 +219,7 @@ func TestRelationDeadlockCompatibleWaiterAllocationScaling(t *testing.T) {
 			}
 		}
 		for _, ticket := range tickets {
-			e.locks.end(ticket)
+			e.endLockOwner(ticket)
 		}
 		lockEmpty(t, e)
 	}

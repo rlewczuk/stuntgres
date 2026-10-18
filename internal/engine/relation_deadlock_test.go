@@ -93,7 +93,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				transactionBegin(t, sessions[i])
 				tickets[i] = sessions[i].transactions.ticket
 				resources[i] = lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), fmt.Sprintf("t%d", i))}
-				t.Cleanup(func() { e.locks.end(tickets[i]) })
+				t.Cleanup(func() { e.endLockOwner(tickets[i]) })
 			}
 			modes := make([]relationLockMode, n)
 			for i := range n {
@@ -143,14 +143,14 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				t.Fatal("hard cycle was not detected")
 			}
 			deadlockDiagnostic(t, deadlockResult(t, pending[victim]), tickets, resources)
-			e.locks.end(tickets[victim])
+			e.endLockOwner(tickets[victim])
 			// End each newly unblocked owner to let the remaining chain drain.
 			for step := 1; step < n; step++ {
 				i := (victim - step + n) % n
 				if err := deadlockResult(t, pending[i]); err != nil {
 					t.Fatal("survivor", err)
 				}
-				e.locks.end(tickets[i])
+				e.endLockOwner(tickets[i])
 			}
 			lockEmpty(t, e)
 		})
@@ -167,7 +167,7 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	for _, s := range []*Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.transactions.ticket
-		t.Cleanup(func() { e.locks.end(ticket) })
+		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t1")}
 	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t2")}
@@ -193,15 +193,15 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	if ah != accessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}
-	e.locks.end(c.transactions.ticket)
+	e.endLockOwner(c.transactions.ticket)
 	if err := deadlockResult(t, ra); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(a.transactions.ticket)
+	e.endLockOwner(a.transactions.ticket)
 	if err := deadlockResult(t, rb); err != nil {
 		t.Fatal(err)
 	}
-	e.locks.end(b.transactions.ticket)
+	e.endLockOwner(b.transactions.ticket)
 	lockEmpty(t, e)
 }
 
@@ -211,7 +211,7 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	transactionBegin(t, a)
 	ticket := a.transactions.ticket
-	defer e.locks.end(ticket)
+	defer e.endLockOwner(ticket)
 	resource := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
 	if err := e.locks.acquire(context.Background(), ticket, resource, accessShare); err != nil {
 		t.Fatal(err)

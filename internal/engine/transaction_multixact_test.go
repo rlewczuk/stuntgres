@@ -96,7 +96,7 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 		e.mu.Lock()
 		e.endSerializableLocked(c.ref, false)
 		e.mu.Unlock()
-		e.locks.end(c)
+		e.endLockOwner(c)
 		identityMultiGrant(t, e, a, tuple, rowUpdate)
 		identityMultiEmit(t, e, a, tuple, multiUpdateLock)
 		identityMultiWant(t, e, 3, "3/keysh", "3/forupd")
@@ -107,7 +107,7 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 		e.mu.Lock()
 		e.endSerializableLocked(a.ref, false)
 		e.mu.Unlock()
-		e.locks.end(a)
+		e.endLockOwner(a)
 		identityMultiWant(t, e, 4, "3/keysh", "3/forupd", "3/upd")
 	})
 	for _, committed := range []bool{false, true} {

@@ -79,7 +79,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			transactionBegin(t, a)
 			transactionBegin(t, b)
 			at, bt := a.transactions.ticket, b.transactions.ticket
-			t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+			t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 			ref := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "conversions")}
 			deadlockRequest(t, e, at, ref, accessShare)
 			deadlockRequest(t, e, bt, ref, accessShare)
@@ -145,7 +145,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			if collateral || !holds {
 				t.Errorf("collateral terminal=%v, original holds retained=%v", collateral, holds)
 			}
-			e.locks.end(at)
+			e.endLockOwner(at)
 			if err := deadlockResult(t, later); err != nil {
 				t.Errorf("survivor after owner cleanup: %v", err)
 			}
@@ -153,7 +153,7 @@ func TestRelationDeadlockFinalSweepInterruption(t *testing.T) {
 			if deadlockResult(t, victim) != err {
 				t.Error("cleanup replaced first terminal outcome")
 			}
-			e.locks.end(bt)
+			e.endLockOwner(bt)
 			lockEmpty(t, e)
 		})
 	}
@@ -167,7 +167,7 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 	for _, s := range []*Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.transactions.ticket
-		t.Cleanup(func() { e.locks.end(ticket) })
+		t.Cleanup(func() { e.endLockOwner(ticket) })
 	}
 	at, bt, ct := a.transactions.ticket, b.transactions.ticket, c.transactions.ticket
 	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "x")}
@@ -203,12 +203,12 @@ func TestRelationDeadlockSoftPublicationInterruption(t *testing.T) {
 	if !fresh {
 		t.Error("stale proposal, collateral victim, or missing compatible follower grant")
 	}
-	e.locks.end(bt)
-	e.locks.end(ct)
+	e.endLockOwner(bt)
+	e.endLockOwner(ct)
 	if err := deadlockResult(t, ra); err != nil {
 		t.Errorf("remaining participant must grant without 40P01: %v", err)
 	}
-	e.locks.end(at)
+	e.endLockOwner(at)
 	lockEmpty(t, e)
 }
 
@@ -224,7 +224,7 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			transactionBegin(t, a)
 			transactionBegin(t, b)
 			at, bt := a.transactions.ticket, b.transactions.ticket
-			t.Cleanup(func() { e.locks.end(at); e.locks.end(bt) })
+			t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
 			ref := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "deadlines")}
 			deadlockRequest(t, e, at, ref, accessShare)
 			deadlockRequest(t, e, bt, ref, accessShare)
@@ -283,11 +283,11 @@ func TestRelationDeadlockDeadlinesDuringDetection(t *testing.T) {
 			if collateral || !holds {
 				t.Errorf("deadline caused collateral terminal=%v or released holds=%v", collateral, !holds)
 			}
-			e.locks.end(at)
+			e.endLockOwner(at)
 			if err := deadlockResult(t, later); err != nil {
 				t.Errorf("deadline survivor: %v", err)
 			}
-			e.locks.end(bt)
+			e.endLockOwner(bt)
 			lockEmpty(t, e)
 		})
 	}

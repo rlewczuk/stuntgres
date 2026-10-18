@@ -79,7 +79,7 @@ func TestTransactionIdentityAllocation(t *testing.T) {
 		t.Fatal("publisher-to-release gap reused live mirror")
 	}
 	e.mu.Unlock()
-	e.locks.end(a)
+	e.endLockOwner(a)
 	e.mu.Lock()
 	if err := e.assignTransactionXIDLocked(b.ref); err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	e.endSerializableLocked(a.ref, false)
 	e.mu.Unlock()
 	identityUnitStatus(t, e, id, "in progress", true)
-	e.locks.end(a)
+	e.endLockOwner(a)
 	identityUnitStatus(t, e, id, "committed", true)
 	e.mu.Lock()
 	e.endSerializableLocked(a.ref, false)
@@ -173,7 +173,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	e.endSerializableLocked(aborting.ref, false)
 	e.mu.Unlock()
 	identityUnitStatus(t, e, aborted, "in progress", true)
-	e.locks.end(aborting)
+	e.endLockOwner(aborting)
 	identityUnitStatus(t, e, aborted, "aborted", true)
 	_, owner := blockingUnitOwner(t, e)
 	id = uint64(pgLocksUnitAssign(t, e, owner))

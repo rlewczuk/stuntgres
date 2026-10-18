@@ -177,7 +177,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if len(xids) != 1 || xids[0].xid != xid || !xids[0].owner.prepared {
 			t.Fatal("prepared identity", xids)
 		}
-		e.locks.end(ticket)
+		e.endLockOwner(ticket)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -266,15 +266,15 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := TxRef{owner: e, session: SessionToken{owner: e, id: math.MaxInt32 + 1}, id: 1}
-		if _, _, err := publicLockOwner(e, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		ref := TxRef{domain: e.domain, session: SessionToken{domain: e.domain, id: math.MaxInt32 + 1}, id: 1}
+		if _, _, err := publicLockOwner(e.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := publicLockOwner(e, ref, true); err != nil || !ok || !owner.prepared {
+		if owner, ok, err := publicLockOwner(e.domain, ref, true); err != nil || !ok || !owner.prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref.session = SessionToken{owner: e, private: &Session{}}
-		if _, ok, err := publicLockOwner(e, ref, false); err != nil || ok {
+		ref.session = SessionToken{domain: e.domain, private: &Session{}}
+		if _, ok, err := publicLockOwner(e.domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
@@ -344,7 +344,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	}
 	if route == "prepare" {
 		delete(e.prepared, "pg_locks_unit_prepare")
-		e.locks.end(ticket)
+		e.endLockOwner(ticket)
 	}
 }
 

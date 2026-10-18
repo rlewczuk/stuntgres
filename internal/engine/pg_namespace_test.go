@@ -286,7 +286,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
-	invalid.temporary = SessionToken{owner: foreign, id: 1}
+	invalid.temporary = SessionToken{domain: foreign.domain, id: 1}
 	next.descriptors[ns.address] = &invalid
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)

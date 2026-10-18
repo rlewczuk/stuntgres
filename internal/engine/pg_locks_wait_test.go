@@ -71,12 +71,12 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		if again := pgLocksUnitWait(t, e, waiter); again != before {
 			t.Fatal("unstable observation", before, again)
 		}
-		e.locks.end(a)
+		e.endLockOwner(a)
 		after := pgLocksUnitWait(t, e, waiter)
 		if after.xid != second || after.waitstart != before.waitstart || r.terminal {
 			t.Fatal("multi-holder retarget/grant", after, r.terminal)
 		}
-		e.locks.end(b)
+		e.endLockOwner(b)
 		if err := deadlockResult(t, r); err != nil {
 			t.Fatal(err)
 		}
@@ -150,7 +150,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			t.Fatal("assignment transition", after)
 		}
 		pgLocksUnitAssign(t, e, b)
-		e.locks.end(a)
+		e.endLockOwner(a)
 		if err := deadlockResult(t, br); err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +158,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		if tail.xid != b.assignedPublicXID() || cr.terminal {
 			t.Fatal("unique dependency retarget", tail)
 		}
-		e.locks.end(b)
+		e.endLockOwner(b)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
@@ -200,7 +200,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		if gap := pgLocksUnitWait(t, e, waiter); gap != after {
 			t.Fatal("prepared publication-to-manager-end gap changed dependency", after, gap)
 		}
-		e.locks.end(holder)
+		e.endLockOwner(holder)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -225,7 +225,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 			if len(pgLocksUnitOwnerRecords(captured, holder, pgTransactionLock)) != 1 || len(pgLocksUnitOwnerRecords(captured, holder, pgVirtualLock)) != 1 {
 				t.Fatal("lazy completion duplicated exclusive ownership", captured)
 			}
-			e.locks.end(holder)
+			e.endLockOwner(holder)
 			if err := deadlockResult(t, r); err != nil {
 				t.Fatal(err)
 			}
@@ -271,7 +271,7 @@ func TestPGLocksSnapshotOwnership(t *testing.T) {
 				case "cancel":
 					cancel()
 				case "grant":
-					e.locks.end(a)
+					e.endLockOwner(a)
 				case "fence":
 					e.locks.fence(a.ref.epoch + 1)
 				}

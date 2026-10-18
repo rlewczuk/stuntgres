@@ -47,9 +47,9 @@ type pgLockRecord struct {
 	waitstart     time.Time
 }
 
-func publicLockOwner(engine *Engine, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
+func publicLockOwner(domain *Domain, ref TxRef, prepared bool) (pgLockOwner, bool, error) {
 	token := ref.session
-	if ref.owner != engine || token.owner != engine || token.private != nil || token.id == 0 {
+	if ref.domain != domain || token.domain != domain || token.private != nil || token.id == 0 {
 		return pgLockOwner{}, false, nil
 	}
 	if !prepared && token.id > math.MaxInt32 {
@@ -62,7 +62,7 @@ func (m *relationLockManager) pgLockOwner(t *relationTicket) (pgLockOwner, bool,
 	if !m.valid(t) || t.persistent {
 		return pgLockOwner{}, false, nil
 	}
-	return publicLockOwner(m.engine, t.ref, t.detached)
+	return publicLockOwner(m.domain, t.ref, t.detached)
 }
 
 // Capture only: no settling, deadlock/timeout evaluation, callbacks, lazy
@@ -129,7 +129,7 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 				var visible bool
 				var err error
 				if ticket.persistent {
-					owner, visible, err = publicLockOwner(m.engine, TxRef{owner: m.engine, session: ticket.session}, false)
+					owner, visible, err = publicLockOwner(m.domain, TxRef{domain: m.domain, session: ticket.session}, false)
 					if current, ok := active[owner.session]; ok {
 						owner = current
 					}
