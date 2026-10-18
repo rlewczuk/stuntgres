@@ -18,13 +18,13 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		return err
 	}
 	for _, dependency := range dependencies {
-		if dependency.ref.Address != captured.address {
+		if dependency.Ref.Address != captured.address {
 			continue
 		}
-		if dependency.revision != captured.revision {
+		if dependency.Revision != captured.revision {
 			return fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
 		}
-		ref := dependency.ref
+		ref := dependency.Ref
 		if consumer != nil {
 			if !storedReferenceEpochValid(auth.catalog, consumer, ref) {
 				return ids.ErrCatalogReplaced
@@ -37,7 +37,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []expressionDep
 		if _, err := auth.object(ref); err != nil {
 			return err
 		}
-		if current.revision != dependency.revision {
+		if current.revision != dependency.Revision {
 			return CatalogConflict{}
 		}
 		return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
@@ -200,7 +200,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		return fmt.Errorf("stuntgres: invalid callable routine reference")
 	}
 	for _, dependency := range dependencies {
-		if dependency.ref != ref {
+		if dependency.Ref != ref {
 			continue
 		}
 		if c.routineConsumer != nil {
@@ -216,7 +216,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		if err != nil {
 			return err
 		}
-		if d.Revision() != dependency.revision {
+		if d.Revision() != dependency.Revision {
 			return CatalogConflict{}
 		}
 		rights, err := auth.Effective(ref, false)

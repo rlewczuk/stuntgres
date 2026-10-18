@@ -104,8 +104,8 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				table := e.catalog.state.MustRelation(ref.Address)
 				want := ref.Address
 				want.SubID = table.Attributes[table.Index["c"]]
-				if late.Sequence.owned != want {
-					t.Fatal("wrong ownership address", late.Sequence.owned, want)
+				if late.Sequence.Owned != want {
+					t.Fatal("wrong ownership address", late.Sequence.Owned, want)
 				}
 				sequenceScalar(t, b, "SELECT nextval('late')", 17)
 				assertTemporaryProjectionProviders(t, e)
@@ -160,7 +160,7 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 						t.Fatal("failed CREATE published late sequence")
 					}
 				} else {
-					if len(found) != 1 || e.catalog.state.MustRelation(found[0]).Sequence.owned != (ids.ObjectAddress{}) {
+					if len(found) != 1 || e.catalog.state.MustRelation(found[0]).Sequence.Owned != (ids.ObjectAddress{}) {
 						t.Fatal("failed ALTER published association")
 					}
 					sequenceScalar(t, c, "SELECT nextval('late')", 17)

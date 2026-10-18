@@ -37,13 +37,13 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	root := e.indexRoots[index]
 	held := roleExecute(t, e, installer, "SELECT txt FROM public.ext_survivor")
 	defer held.Rows.Close()
-	provider := e.catalog.providers[ids.RelationClassID]
+	provider := e.catalog.Providers[ids.RelationClassID]
 	entered, release, joined := make(chan error, 1), make(chan struct{}), make(chan struct{})
 	var fired atomic.Bool
 	var unblock sync.Once
 	resume := func() { unblock.Do(func() { close(release) }) }
 	t.Cleanup(resume)
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 		if !fired.CompareAndSwap(false, true) {
 			return
 		}
@@ -118,7 +118,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		t.Error("actual owner close worker did not join within5s")
 		return
 	}
-	e.catalog.providers[ids.RelationClassID] = provider
+	e.catalog.Providers[ids.RelationClassID] = provider
 	endCtx, cancelEnd := context.WithTimeout(context.Background(), 5*time.Second)
 	endErr := owner.session.WaitEnd(endCtx)
 	cancelEnd()

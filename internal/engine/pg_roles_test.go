@@ -16,7 +16,7 @@ func pgRolesUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Object
 	if !ok {
 		t.Fatal("missing pg_roles")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgRolesUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Value {
@@ -141,7 +141,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		view.name = name
 		view.RelationKind = viewRelation
 		view.VirtualView = false
-		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
+		viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
 		attrs := append([]int32(nil), d.Attributes...)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
 		e.catalog.state.setDescriptor(view.address, &view)
@@ -210,7 +210,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

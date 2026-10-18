@@ -50,7 +50,7 @@ func findForeign(catalog CatalogRead, class ids.OID, name string) (*foreignDescr
 	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, foreignLabel(class), name))
 }
 func foreignRef(auth AuthorizationView, d Descriptor) ids.ObjectRef {
-	return auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+	return auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 }
 
 func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.ObjectName, signature procedureSignature) (*procedureDescriptor, error) {
@@ -102,7 +102,7 @@ func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind F
 		return foreignValidation{}, nil
 	}
 	p, ok := stage.base.Procedure(wrapper.Validator)
-	if !ok || p.Foreign == nil || p.Foreign.validator == nil {
+	if !ok || p.Foreign == nil || p.Foreign.Validator == nil {
 		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.name))
 	}
 	stage.domainBases = append(stage.domainBases, p)
@@ -114,7 +114,7 @@ func runForeignValidations(ctx context.Context, jobs []foreignValidation) error 
 			return err
 		}
 		if job.procedure != nil {
-			if err := job.procedure.validator(ctx, job.kind, job.options); err != nil {
+			if err := job.procedure.Validator(ctx, job.kind, job.options); err != nil {
 				if job.importTable != "" {
 					return foreignImportError(err, job.importTable)
 				}

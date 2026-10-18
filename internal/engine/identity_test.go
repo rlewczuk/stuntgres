@@ -19,7 +19,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	read := e.CatalogRead()
 	ref := roleTableRef(t, e, "i")
 	old := read.MustRelation(ref.Address)
-	if len(old.Identities) != 2 || old.Identities[1].sequence == old.Identities[2].sequence {
+	if len(old.Identities) != 2 || old.Identities[1].Sequence == old.Identities[2].Sequence {
 		t.Fatal(old.Identities)
 	}
 	if err := (relationProvider{}).Validate(read, old); err != nil {
@@ -28,12 +28,12 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	for _, mutate := range []func(*relationDescriptor){
 		func(d *relationDescriptor) {
 			identity := d.Identities[1]
-			identity.mode = parser.IdentityNone
+			identity.Mode = parser.IdentityNone
 			d.Identities[1] = identity
 		},
 		func(d *relationDescriptor) {
 			identity := d.Identities[1]
-			identity.sequence = ids.ObjectAddress{}
+			identity.Sequence = ids.ObjectAddress{}
 			d.Identities[1] = identity
 		},
 		func(d *relationDescriptor) { d.Identities[99] = d.Identities[1] },
@@ -50,10 +50,10 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 			t.Fatal("invalid identity admitted")
 		}
 	}
-	sequence := read.MustRelation(old.Identities[1].sequence)
+	sequence := read.MustRelation(old.Identities[1].Sequence)
 	next := *sequence
 	options := *sequence.Sequence
-	options.owned = ids.ObjectAddress{}
+	options.Owned = ids.ObjectAddress{}
 	next.Sequence = &options
 	if err := (relationProvider{}).Validate(read, &next); err == nil {
 		t.Fatal("unowned internal sequence admitted")

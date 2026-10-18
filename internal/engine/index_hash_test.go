@@ -14,7 +14,7 @@ import (
 func hashRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *hashIndexRoot) {
 	t.Helper()
 	index, carrier := btreeRoot(t, e, name)
-	if index.SQLIndex.method != hashMethod || carrier.hash == nil || len(carrier.entries) != 0 {
+	if index.SQLIndex.Method != hashMethod || carrier.hash == nil || len(carrier.entries) != 0 {
 		t.Fatal("not a hash root", index, carrier)
 	}
 	return index, carrier.hash
@@ -106,10 +106,10 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(root.buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.catalog.state.MustRelation(index.SQLIndex.parent)
+	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
 	bad := *index.SQLIndex
-	bad.keys = append([]indexKey(nil), bad.keys...)
-	bad.keys[0].class, _ = sqltype.LookupHashIndexClass("int8_ops")
+	bad.Keys = append([]indexKey(nil), bad.Keys...)
+	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
 	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage[parent.address], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
 	}
@@ -179,20 +179,20 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 	} {
 		index, _ := hashRoot(t, source, tc.name)
 		got, names := indexMaintenanceMetadata(t, source, source.CatalogRead(), tc.name)
-		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.parent.ObjectID, 1)
+		want := indexMaintenanceMetadataFlags(index.address.ObjectID, index.SQLIndex.Parent.ObjectID, 1)
 		want.IndKey = []int16{tc.attribute}
 		want.IndClass = []ids.OID{tc.class}
 		want.IndCollation = []ids.OID{tc.collation}
 		want.IndOption = []int16{0}
 		if tc.attribute == 0 {
-			want.IndexExpressions = []expr.Expr{index.SQLIndex.keys[0].derived.definition}
+			want.IndexExpressions = []expr.Expr{index.SQLIndex.Keys[0].Derived.Definition}
 		}
 		if !reflect.DeepEqual(got, want) || names != (indexesMetadata{SchemaName: "public", TableName: "t", IndexName: tc.name, IndexDef: tc.definition}) {
 			t.Fatal(got, names, want)
 		}
 	}
 	backing, _ := btreeRoot(t, source, "u_n_key")
-	if backing.SQLIndex.method != btreeMethod {
+	if backing.SQLIndex.Method != btreeMethod {
 		t.Fatal("UNIQUE changed method")
 	}
 	_, old := hashRoot(t, source, "hn")
@@ -202,7 +202,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	freshIndex, fresh := hashRoot(t, target, "hn")
-	store := target.storage[freshIndex.SQLIndex.parent]
+	store := target.storage[freshIndex.SQLIndex.Parent]
 	if fresh == old || fresh.storage == old.storage || fresh.storage != store || fresh.generation != store.generation || fresh.prefix != 4 {
 		t.Fatal("replacement retained source authority", fresh)
 	}
@@ -242,7 +242,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 		run(t, e, q)
 	}
 	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.MustRelation(index.SQLIndex.parent)
+	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
 	store := e.storage[parent.address]
 	value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {

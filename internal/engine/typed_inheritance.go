@@ -101,7 +101,7 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 		}
 		seen[table.address] = true
 		if table.Inheritance != nil {
-			for _, parent := range table.Inheritance.parents {
+			for _, parent := range table.Inheritance.Parents {
 				if d := selected[parent]; d != nil {
 					visit(d)
 				}
@@ -159,25 +159,25 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 
 func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map[ids.ObjectAddress]map[int32]bool) ([]typedColumnAction, map[int32]string, *tableInheritance, error) {
 	graph := *old.Inheritance
-	graph.columns = maps.Clone(graph.columns)
-	graph.checks = maps.Clone(graph.checks)
-	graph.notNull = maps.Clone(graph.notNull)
+	graph.Columns = maps.Clone(graph.Columns)
+	graph.Checks = maps.Clone(graph.Checks)
+	graph.NotNull = maps.Clone(graph.NotNull)
 	var actions []typedColumnAction
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
-		provenance := graph.columns[attribute]
+		provenance := graph.Columns[attribute]
 		var origins []inheritanceOrigin
 		var desired *ColumnDescriptor
 		forceType := false
 		requestedDimensions := int16(0)
-		for _, origin := range provenance.origins {
-			parent := view.MustRelation(origin.parent)
-			slot := parent.indexForAttribute(origin.attribute)
+		for _, origin := range provenance.Origins {
+			parent := view.MustRelation(origin.Parent)
+			slot := parent.indexForAttribute(origin.Attribute)
 			if slot < 0 {
 				continue
 			}
-			forceType = forceType || forced[origin.parent][origin.attribute]
-			if forced[origin.parent][origin.attribute] {
+			forceType = forceType || forced[origin.Parent][origin.Attribute]
+			if forced[origin.Parent][origin.Attribute] {
 				requestedDimensions = parent.Columns[slot].DeclaredDimensions
 			}
 			member := &parent.Columns[slot]
@@ -187,12 +187,12 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 			desired = member
 			origins = append(origins, origin)
 		}
-		provenance.origins = origins
-		graph.columns[attribute] = provenance
+		provenance.Origins = origins
+		graph.Columns[attribute] = provenance
 		if desired == nil {
-			if !provenance.local {
+			if !provenance.Local {
 				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
-				delete(graph.columns, attribute)
+				delete(graph.Columns, attribute)
 			}
 			continue
 		}
@@ -211,13 +211,13 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	// New attributes merge with an existing local/sibling attribute by live name,
 	// while old attributes retain their explicit origin identity across rename.
 	pending := make(map[string]int)
-	for _, address := range graph.parents {
+	for _, address := range graph.Parents {
 		parent := view.MustRelation(address)
 		for i, member := range parent.Columns {
-			origin := inheritanceOrigin{parent: address, attribute: parent.Attributes[i]}
+			origin := inheritanceOrigin{Parent: address, Attribute: parent.Attributes[i]}
 			found := false
-			for _, provenance := range graph.columns {
-				if slices.Contains(provenance.origins, origin) {
+			for _, provenance := range graph.Columns {
+				if slices.Contains(provenance.Origins, origin) {
 					found = true
 					break
 				}
@@ -227,15 +227,15 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 			}
 			if slot, exists := old.Index[member.Name]; exists {
 				attribute := old.Attributes[slot]
-				if _, survives := graph.columns[attribute]; !survives {
+				if _, survives := graph.Columns[attribute]; !survives {
 					continue
 				}
-				if err := inheritanceColumnConflict(view, old.Columns[slot], member, graph.columns[attribute].local); err != nil {
+				if err := inheritanceColumnConflict(view, old.Columns[slot], member, graph.Columns[attribute].Local); err != nil {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different type for column "%s"`, old.name, member.Name))
 				}
-				provenance := graph.columns[attribute]
-				provenance.origins = append(slices.Clone(provenance.origins), origin)
-				graph.columns[attribute] = provenance
+				provenance := graph.Columns[attribute]
+				provenance.Origins = append(slices.Clone(provenance.Origins), origin)
+				graph.Columns[attribute] = provenance
 				continue
 			}
 			if index, exists := pending[member.Name]; exists {
@@ -254,76 +254,76 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 
 func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *tableInheritance) {
 	for i, attribute := range next.Attributes {
-		provenance, exists := graph.columns[attribute]
+		provenance, exists := graph.Columns[attribute]
 		if !exists {
-			for _, address := range graph.parents {
+			for _, address := range graph.Parents {
 				parent := view.MustRelation(address)
 				if slot, found := parent.Index[next.Columns[i].Name]; found {
-					provenance.origins = append(provenance.origins, inheritanceOrigin{parent: address, attribute: parent.Attributes[slot]})
+					provenance.Origins = append(provenance.Origins, inheritanceOrigin{Parent: address, Attribute: parent.Attributes[slot]})
 				}
 			}
 		}
-		if _, retained := next.Defaults[attribute]; retained && !provenance.explicitDefault {
+		if _, retained := next.Defaults[attribute]; retained && !provenance.ExplicitDefault {
 			supplied := false
-			for _, origin := range provenance.origins {
-				parent := view.MustRelation(origin.parent)
-				_, supplied = parent.Defaults[origin.attribute]
+			for _, origin := range provenance.Origins {
+				parent := view.MustRelation(origin.Parent)
+				_, supplied = parent.Defaults[origin.Attribute]
 				if supplied {
 					break
 				}
 			}
 			if !supplied {
-				provenance.local, provenance.explicitDefault = true, true
+				provenance.Local, provenance.ExplicitDefault = true, true
 			}
 		}
-		graph.columns[attribute] = provenance
+		graph.Columns[attribute] = provenance
 	}
-	for name, provenance := range graph.checks {
+	for name, provenance := range graph.Checks {
 		if !slices.ContainsFunc(next.CheckConstraints, func(c checkConstraint) bool { return c.Name == name }) {
-			delete(graph.checks, name)
+			delete(graph.Checks, name)
 			continue
 		}
 		var origins []inheritanceOrigin
-		for _, origin := range provenance.origins {
-			parent := view.MustRelation(origin.parent)
+		for _, origin := range provenance.Origins {
+			parent := view.MustRelation(origin.Parent)
 			for _, constraint := range parent.CheckConstraints {
 				if constraint.Name == name && !constraint.NoInherit {
-					origin.constraint = constraint.OID
+					origin.Constraint = constraint.OID
 					origins = append(origins, origin)
 					break
 				}
 			}
 		}
-		provenance.origins = origins
+		provenance.Origins = origins
 		// PG18 keeps the enforced child constraint after its last inherited
 		// provider disappears. Native authority becomes independently replayable;
 		// this does not claim PG's historical conislocal/coninhcount flags.
 		if len(origins) == 0 {
-			provenance.local = true
+			provenance.Local = true
 		}
-		graph.checks[name] = provenance
+		graph.Checks[name] = provenance
 	}
-	for attribute, provenance := range graph.notNull {
+	for attribute, provenance := range graph.NotNull {
 		if !next.hasAttribute(attribute) {
-			delete(graph.notNull, attribute)
+			delete(graph.NotNull, attribute)
 			continue
 		}
 		var origins []inheritanceOrigin
-		for _, origin := range provenance.origins {
-			parent := view.MustRelation(origin.parent)
+		for _, origin := range provenance.Origins {
+			parent := view.MustRelation(origin.Parent)
 			for _, constraint := range parent.NotNullConstraints {
-				if constraint.Attribute == origin.attribute {
-					origin.constraint = constraint.OID
+				if constraint.Attribute == origin.Attribute {
+					origin.Constraint = constraint.OID
 					origins = append(origins, origin)
 					break
 				}
 			}
 		}
-		provenance.origins = origins
+		provenance.Origins = origins
 		if len(origins) == 0 {
-			provenance.local = true
+			provenance.Local = true
 		}
-		graph.notNull[attribute] = provenance
+		graph.NotNull[attribute] = provenance
 	}
 	next.Inheritance = graph
 }

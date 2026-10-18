@@ -237,12 +237,12 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, "expr_domain_storage")
 		table := view.MustRelation(ref.Address)
-		definition := table.Defaults[table.Attributes[2]].expression
+		definition := table.Defaults[table.Attributes[2]].Expression
 		generation := table.Generations[table.Attributes[3]]
-		if definition.ResultUsage() != table.Columns[2].Usage || generation.expression.ResultUsage() != table.Columns[3].Usage || generation.planned.ResultUsage() != table.Columns[3].Usage {
+		if definition.ResultUsage() != table.Columns[2].Usage || generation.Expression.ResultUsage() != table.Columns[3].Usage || generation.Planned.ResultUsage() != table.Columns[3].Usage {
 			t.Fatal("storage lost exact immutable destination usage")
 		}
-		if !generation.expression.Properties().RowDependent || !generation.planned.Properties().RowDependent {
+		if !generation.Expression.Properties().RowDependent || !generation.Planned.Properties().RowDependent {
 			t.Fatal("storage erased domain child row demand")
 		}
 		rendered, err := defaultSQL(context.Background(), view, definition)

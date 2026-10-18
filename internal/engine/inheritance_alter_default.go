@@ -51,7 +51,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		next.revision++
 		next.Defaults = maps.Clone(old.Defaults)
 		attribute := old.Attributes[childSlot]
-		if definition.expression == nil {
+		if definition.Expression == nil {
 			delete(next.Defaults, attribute)
 		} else {
 			if next.Defaults == nil {
@@ -61,9 +61,9 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		}
 		if next.Inheritance != nil {
 			next.Inheritance = cloneInheritance(old.Inheritance)
-			provenance := next.Inheritance.columns[attribute]
-			provenance.explicitDefault = true
-			next.Inheritance.columns[attribute] = provenance
+			provenance := next.Inheritance.Columns[attribute]
+			provenance.ExplicitDefault = true
+			next.Inheritance.Columns[attribute] = provenance
 		}
 		store := e.privateStorageLocked(scope.owner.catalog, old.address)
 		if store == nil {

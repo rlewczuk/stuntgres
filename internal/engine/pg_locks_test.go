@@ -266,15 +266,15 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := e.catalog.domain.Tx(e.catalog.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
-		if _, _, err := lock.PublicOwner(e.catalog.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		ref := e.catalog.Domain.Tx(e.catalog.Domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
+		if _, _, err := lock.PublicOwner(e.catalog.Domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := lock.PublicOwner(e.catalog.domain, ref, true); err != nil || !ok || !owner.Prepared {
+		if owner, ok, err := lock.PublicOwner(e.catalog.Domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref = withTxSession(ref, e.catalog.domain.PrivateSession(&Session{}))
-		if _, ok, err := lock.PublicOwner(e.catalog.domain, ref, false); err != nil || ok {
+		ref = withTxSession(ref, e.catalog.Domain.PrivateSession(&Session{}))
+		if _, ok, err := lock.PublicOwner(e.catalog.Domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
@@ -303,7 +303,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 	store := e.storage[d.address]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID

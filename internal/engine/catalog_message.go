@@ -48,7 +48,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 		count := 0
 		for a, d := range e.catalog.state.Descriptors() {
 			r, ok := d.(*relationDescriptor)
-			if ok && r.SQLIndex != nil && r.SQLIndex.parent == f.parent {
+			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
 				if !f.indexes[a] {
 					return CatalogConflict{}
 				}
@@ -163,7 +163,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		if snapshot := s.materializedSourceView; snapshot != nil {
 			if relation, ok := source.(*relationDescriptor); ok && relation.RelationKind == materializedViewRelation {
-				fence := materializedSourceFence{ref: e.catalog.domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
+				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.address] == nil {
 					c.materializedSources = append(c.materializedSources, fence)
 					continue
@@ -211,7 +211,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	for parent := range s.indexSets {
 		for address, descriptor := range current.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.SQLIndex != nil && index.SQLIndex.parent == parent {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 				if err := observe(address, index); err != nil {
 					return err
 				}
@@ -220,7 +220,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
 		for a, d := range e.catalog.state.Descriptors() {
 			r, ok := d.(*relationDescriptor)
-			if ok && r.SQLIndex != nil && r.SQLIndex.parent == parent {
+			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == parent {
 				f.indexes[a] = true
 			}
 		}
@@ -263,12 +263,12 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		// Candidate data belongs to the actual overlay target, not the
 		// committed/private predecessor used by captureStorage's read fence.
-		shape, staged := c.storage[index.SQLIndex.parent]
+		shape, staged := c.storage[index.SQLIndex.Parent]
 		store := shape.replacement
 		if !staged {
-			store = e.stageStorageLocked(s, index.SQLIndex.parent)
+			store = e.stageStorageLocked(s, index.SQLIndex.Parent)
 		}
-		if shape, changed := s.rowShapes[index.SQLIndex.parent]; changed {
+		if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
 			// capture precedes stageCatalogChangesLocked: supplied generation
 			// roots belong to this stage's destination heap, not c's predecessor.
 			store = shape.replacement
@@ -276,7 +276,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if !candidate.matchesIndex(index, store) {
 			return CatalogConflict{}
 		}
-		captureStorage(index.SQLIndex.parent)
+		captureStorage(index.SQLIndex.Parent)
 	}
 	c.dependencies = append(c.dependencies, s.identityDependencies...)
 	if s.authSession != nil && c.rolesBase == nil {

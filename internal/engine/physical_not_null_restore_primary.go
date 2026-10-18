@@ -24,23 +24,23 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 		return nil
 	}
 	index, ok := after.Relation(address)
-	if !ok || index.SQLIndex == nil || index.SQLIndex.constraint != nil {
+	if !ok || index.SQLIndex == nil || index.SQLIndex.Constraint != nil {
 		return nil
 	}
 	parent := after.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text})
 	ref := created[parent]
-	if index.SQLIndex.parent != parent || ref.Address != parent || ref.Domain() != e.catalog.domain || ref.Epoch != after.Epoch() {
+	if index.SQLIndex.Parent != parent || ref.Address != parent || ref.Domain() != e.catalog.Domain || ref.Epoch != after.Epoch() {
 		return nil
 	}
 	return index
 }
 
 func physicalImportedIndexMatches(source *relationDescriptor, constructor *physicalNotNullConstructor, current *relationDescriptor, primary *uniqueConstraint) bool {
-	if source == nil || source.address != primary.Index || source.name != constructor.indexName || source.namespace != current.namespace || source.SQLIndex == nil || source.SQLIndex.parent != current.address || source.SQLIndex.constraint != nil || len(source.SQLIndex.keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
+	if source == nil || source.address != primary.Index || source.name != constructor.indexName || source.namespace != current.namespace || source.SQLIndex == nil || source.SQLIndex.Parent != current.address || source.SQLIndex.Constraint != nil || len(source.SQLIndex.Keys) != len(primary.Attributes) || len(source.Columns) < len(primary.Attributes) {
 		return false
 	}
 	for i, attribute := range primary.Attributes {
-		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.keys[i])
+		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.Keys[i])
 		slot := current.indexForAttribute(attribute)
 		if err != nil || expression != nil || key != attribute || slot < 0 || source.Columns[i].Usage != current.Columns[slot].Usage {
 			return false
@@ -113,11 +113,11 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 	}
 	for attribute, proof := range constructor.before.PhysicalNotNull {
 		retained, exists := current.PhysicalNotNull[attribute]
-		if !exists || retained.cause != proof.cause || retained.usage != proof.usage {
+		if !exists || retained.Cause != proof.Cause || retained.Usage != proof.Usage {
 			return reject()
 		}
 		if constructor.competing {
-			if retained.support != proof.support || retained.retired != proof.retired {
+			if retained.Support != proof.Support || retained.Retired != proof.Retired {
 				return reject()
 			}
 		} else if physicalPrimaryForAttribute(current, attribute) != nil {

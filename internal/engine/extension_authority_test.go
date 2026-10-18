@@ -86,7 +86,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	_, err = binder.bindFunctionProvider(raw)
 	extensionUnitError(t, err, "42883")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
 		t.Fatal(err)
 	}
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)

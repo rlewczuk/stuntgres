@@ -27,15 +27,15 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if err := validateIndexDefinition(catalog, index); err != nil {
 		return "", err
 	}
-	parent := catalog.MustRelation(index.SQLIndex.parent)
+	parent := catalog.MustRelation(index.SQLIndex.Parent)
 	if presentation.column != 0 {
 		if presentation.column < 1 || presentation.column > int64(len(index.Columns)) {
 			return "", nil
 		}
-		if presentation.column > int64(len(index.SQLIndex.keys)) {
-			return (pgRenderer{output: presentation.output}).attribute(parent, index.SQLIndex.include[presentation.column-int64(len(index.SQLIndex.keys))-1])
+		if presentation.column > int64(len(index.SQLIndex.Keys)) {
+			return (pgRenderer{output: presentation.output}).attribute(parent, index.SQLIndex.Include[presentation.column-int64(len(index.SQLIndex.Keys))-1])
 		}
-		key := index.SQLIndex.keys[presentation.column-1]
+		key := index.SQLIndex.Keys[presentation.column-1]
 		if !presentation.dump {
 			text, wrapped, _, err := compactIndexKeySQL(ctx, catalog, parent, key, presentation)
 			if err != nil {
@@ -46,10 +46,10 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 			return text, nil
 		}
-		if key.derived != nil {
-			return (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
+		if key.Derived != nil {
+			return (scalarRenderer{owner: parent}).sql(ctx, catalog, key.Derived.Definition)
 		}
-		return deparseAttribute(parent, key.attribute)
+		return deparseAttribute(parent, key.Attribute)
 	}
 	identifier := (pgRenderer{output: presentation.output}).identifier
 	if presentation.dump {
@@ -65,7 +65,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	}
 	// Canonical replay spells the supported access methods as SQL tokens.
 	// Session inquiry alone follows quote_all_identifiers.
-	method := index.SQLIndex.method.String()
+	method := index.SQLIndex.Method.String()
 	if !presentation.dump {
 		method = identifier(method)
 	}
@@ -74,7 +74,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		sql.WriteString("EXCLUDE USING " + method + " (")
 	} else {
 		sql.WriteString("CREATE ")
-		if index.SQLIndex.unique {
+		if index.SQLIndex.Unique {
 			sql.WriteString("UNIQUE ")
 		}
 		only := ""
@@ -83,7 +83,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		}
 		sql.WriteString("INDEX " + identifier(index.name) + " ON " + only + parentName + " USING " + method + " (")
 	}
-	for i, key := range index.SQLIndex.keys {
+	for i, key := range index.SQLIndex.Keys {
 		if i > 0 {
 			sql.WriteString(", ")
 		}
@@ -100,19 +100,19 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			if wrapped {
 				sql.WriteByte(')')
 			}
-			presented = reconstructIndexKey(key, usage, usage, index.SQLIndex.method)
+			presented = reconstructIndexKey(key, usage, usage, index.SQLIndex.Method)
 			if !presentation.reconstruct {
 				actual, err := indexKeyUsage(parent, key)
 				if err != nil {
 					return "", err
 				}
-				presented.collation = 0
+				presented.Collation = 0
 				if actual.Collation.ID != usage.Collation.ID {
-					presented.collation = actual.Collation.ID
+					presented.Collation = actual.Collation.ID
 				}
 			}
-		} else if key.derived != nil {
-			text, err := (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
+		} else if key.Derived != nil {
+			text, err := (scalarRenderer{owner: parent}).sql(ctx, catalog, key.Derived.Definition)
 			if err != nil {
 				return "", err
 			}
@@ -120,7 +120,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		} else {
 			slot := -1
 			for j, attribute := range parent.Attributes {
-				if attribute == key.attribute {
+				if attribute == key.Attribute {
 					slot = j
 					break
 				}
@@ -130,29 +130,29 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 			sql.WriteString(identifier(parent.Columns[slot].Name))
 		}
-		if presented.collation != 0 {
+		if presented.Collation != 0 {
 			sql.WriteString(" COLLATE ")
 			if presentation.dump {
-				sql.WriteString(collationSQLName(catalog, presented.collation))
+				sql.WriteString(collationSQLName(catalog, presented.Collation))
 			} else {
-				sql.WriteString(collationDisplayName(catalog, presented.collation, presentation.path))
+				sql.WriteString(collationDisplayName(catalog, presented.Collation, presentation.path))
 			}
 		}
-		if presented.explicitClass {
+		if presented.ExplicitClass {
 			sql.WriteByte(' ')
 			if presentation.dump {
 				sql.WriteString(quoteIdentifier("pg_catalog") + ".")
 			}
-			sql.WriteString(identifier(presented.class.Name))
+			sql.WriteString(identifier(presented.Class.Name))
 		}
-		if index.SQLIndex.method == btreeMethod {
-			if key.desc {
+		if index.SQLIndex.Method == btreeMethod {
+			if key.Desc {
 				sql.WriteString(" DESC")
 			} else if presentation.dump {
 				sql.WriteString(" ASC")
 			}
-			if presentation.dump || key.nullsFirst != key.desc {
-				if key.nullsFirst {
+			if presentation.dump || key.NullsFirst != key.Desc {
+				if key.NullsFirst {
 					sql.WriteString(" NULLS FIRST")
 				} else {
 					sql.WriteString(" NULLS LAST")
@@ -160,13 +160,13 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 		}
 		if presentation.exclusion {
-			sql.WriteString(" WITH " + index.SQLIndex.exclusion[i].Name)
+			sql.WriteString(" WITH " + index.SQLIndex.Exclusion[i].Name)
 		}
 	}
 	sql.WriteByte(')')
-	if len(index.SQLIndex.include) != 0 {
+	if len(index.SQLIndex.Include) != 0 {
 		sql.WriteString(" INCLUDE (")
-		for i, attribute := range index.SQLIndex.include {
+		for i, attribute := range index.SQLIndex.Include {
 			if i > 0 {
 				sql.WriteString(", ")
 			}
@@ -178,16 +178,16 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		}
 		sql.WriteByte(')')
 	}
-	if index.SQLIndex.nullsNotDistinct {
+	if index.SQLIndex.NullsNotDistinct {
 		sql.WriteString(" NULLS NOT DISTINCT")
 	}
-	if predicate := index.SQLIndex.predicate; predicate != nil {
+	if predicate := index.SQLIndex.Predicate; predicate != nil {
 		var text string
 		var err error
 		if presentation.dump {
-			text, err = (scalarRenderer{owner: parent}).sql(ctx, catalog, predicate.definition)
+			text, err = (scalarRenderer{owner: parent}).sql(ctx, catalog, predicate.Definition)
 		} else {
-			text, err = (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, predicate.definition, pgRenderParent{})
+			text, err = (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path, output: presentation.output}).sql(ctx, predicate.Definition, pgRenderParent{})
 		}
 		if err != nil {
 			return "", err
@@ -306,8 +306,8 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 // owner. Return the classified column/expression usage, not its type default:
 // PostgreSQL compares full-key collation with that usage. Dump stays canonical.
 func compactIndexKeySQL(ctx context.Context, catalog CatalogRead, parent *relationDescriptor, key indexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
-	if presentation.reconstruct && key.derived != nil {
-		node := key.derived.definition
+	if presentation.reconstruct && key.Derived != nil {
+		node := key.Derived.Definition
 		text, err := (pgRenderer{view: catalog, relation: parent, path: presentation.path, output: presentation.output}).sql(ctx, node, pgRenderParent{})
 		return text, !pgIndexFunctionExpression(node), node.ResultUsage(), err
 	}
@@ -316,7 +316,7 @@ func compactIndexKeySQL(ctx context.Context, catalog CatalogRead, parent *relati
 		return "", false, sqltype.Usage{}, err
 	}
 	if node == nil {
-		usage, err := indexKeyBaseUsage(parent, indexKey{attribute: attribute})
+		usage, err := indexKeyBaseUsage(parent, indexKey{Attribute: attribute})
 		if err != nil {
 			return "", false, sqltype.Usage{}, err
 		}

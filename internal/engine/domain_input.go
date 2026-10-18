@@ -71,8 +71,8 @@ func captureDomainInputProviders(view CatalogRead, typ *sqltype.Descriptor) map[
 			providers[address] = descriptor
 			if domain, ok := descriptor.(*typeDescriptor); ok {
 				for _, check := range domain.DomainChecks {
-					for _, dependency := range check.dependencies {
-						address := dependency.ref.Address
+					for _, dependency := range check.Dependencies {
+						address := dependency.Ref.Address
 						address.SubID = 0
 						if provider, exists := view.Descriptor(address); exists {
 							if target, typed := provider.(*typeDescriptor); typed {
@@ -106,7 +106,7 @@ func validateCapturedInputBinding(captured, current CatalogRead, dependencies []
 		return ids.ErrCatalogReplaced
 	}
 	for _, dependency := range dependencies {
-		address := dependency.ref.Address
+		address := dependency.Ref.Address
 		address.SubID = 0
 		provider, exists := captured.Descriptor(address)
 		if !exists {

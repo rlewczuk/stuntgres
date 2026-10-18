@@ -35,7 +35,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := view.Relation(index.SQLIndex.parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			e.mu.Unlock()
 			return CatalogConflict{}
@@ -46,7 +46,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
-		if !index.SQLIndex.ready {
+		if !index.SQLIndex.Ready {
 			delete(c.uniqueRoots, a)
 			delete(c.indexCandidates, a)
 			continue
@@ -58,7 +58,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
 			continue
 		}
 		store := e.privateStorageLocked(c, parent.address)

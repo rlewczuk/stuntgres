@@ -54,7 +54,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		if !ok {
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 		if !d.SQLType.IsEnum() {
 			display := d.SQLType.DiagnosticName()
 			if d.SQLType.IsUserDefined() || d.SQLType.IsDomain() || d.SQLType.IsComposite() {

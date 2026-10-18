@@ -20,7 +20,7 @@ func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 	if !ok {
 		t.Fatal("missing pg_attribute")
 	}
-	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
@@ -142,7 +142,7 @@ func TestPGAttributeCapture(t *testing.T) {
 		t.Fatal("capture mutated catalog")
 	}
 	for _, n := range []int{32768, -32769} {
-		if _, err := e.pgAttributeRow(e.Roles(), d, d, attributeMetadata{number: int32(n), facts: sqltype.PostgreSQLAttributeFacts{Alignment: "i", Storage: "p"}}); err == nil {
+		if _, err := e.pgAttributeRow(e.Roles(), d, d, attributeMetadata{Number: int32(n), Facts: sqltype.PostgreSQLAttributeFacts{Alignment: "i", Storage: "p"}}); err == nil {
 			t.Fatal("unchecked int2 narrowing", n)
 		}
 	}
@@ -243,14 +243,14 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.domain.Ref(base.Epoch(), old.address)
+	ref := e.catalog.Domain.Ref(base.Epoch(), old.address)
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
 	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, newCatalogChanges(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	history := next.DroppedAttributes[1]
-	if history.name != "........pg.dropped.1........" || history.typeID != 0 || history.number != 1 || history.dimensions != 2 || history.facts.Length != -1 || history.facts.ByValue || history.facts.Alignment != "i" || history.facts.Storage != "x" || !history.dropped || history.notNull || history.hasDefault || len(next.Columns) != 0 || next.AttributeHighWater != 3 || len(old.DroppedAttributes) != 0 || len(old.Columns) != 1 {
+	if history.Name != "........pg.dropped.1........" || history.TypeID != 0 || history.Number != 1 || history.Dimensions != 2 || history.Facts.Length != -1 || history.Facts.ByValue || history.Facts.Alignment != "i" || history.Facts.Storage != "x" || !history.Dropped || history.NotNull || history.HasDefault || len(next.Columns) != 0 || next.AttributeHighWater != 3 || len(old.DroppedAttributes) != 0 || len(old.Columns) != 1 {
 		t.Fatal("owned tombstone", history, next, old)
 	}
 	rows := pgAttributeUnitRows(t, pgAttributeUnitCapture(t, e, e.stageRead(stage)), 20000)
@@ -261,9 +261,9 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 		t.Fatal("dropped type dependency retained")
 	}
 	identityColumn := *old
-	identityColumn.Identities = map[int32]columnIdentity{1: {mode: parser.IdentityAlways}}
+	identityColumn.Identities = map[int32]columnIdentity{1: {Mode: parser.IdentityAlways}}
 	metadata := relationAttributeMetadata(&identityColumn, 0)
-	if metadata.identity != "a" {
+	if metadata.Identity != "a" {
 		t.Fatal("identity before dependency removal", metadata)
 	}
 }

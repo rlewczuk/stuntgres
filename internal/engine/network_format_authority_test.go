@@ -46,13 +46,13 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.Builtin
-			if d.identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != expr.Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.Identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.Result != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Variadic != 0 || d.Defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}
 			for _, dep := range binder.dependencies {
-				if dep.ref.Address.ClassID == ids.ProcedureClassID {
-					found[dep.ref.Address.ObjectID] = true
+				if dep.Ref.Address.ClassID == ids.ProcedureClassID {
+					found[dep.Ref.Address.ObjectID] = true
 				}
 			}
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
@@ -66,14 +66,14 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			for _, mode := range []string{"missing", "foreign", "stale"} {
 				var checks []expressionDependency
 				for _, dep := range binder.dependencies {
-					if dep.ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}) {
+					if dep.Ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}) {
 						switch mode {
 						case "missing":
 							continue
 						case "foreign":
-							dep.ref = foreign.catalog.domain.Ref(dep.ref.Epoch, dep.ref.Address)
+							dep.Ref = foreign.catalog.Domain.Ref(dep.Ref.Epoch, dep.Ref.Address)
 						case "stale":
-							dep.revision++
+							dep.Revision++
 						}
 					}
 					checks = append(checks, dep)

@@ -124,7 +124,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			dbRole := retained.roles.LookupRef("pg_database_owner")
-			key := defaultACLKey{creator: dbRole, class: authorization.DefaultTypes}
+			key := defaultACLKey{Creator: dbRole, Class: authorization.DefaultTypes}
 			policy := retained.catalog.state.defaultACLs[key]
 			pendingRoles := retained.roleRecord
 			if policy == nil || pendingRoles == oldRoles || retained.catalog.state == oldCatalog || retained.pairedCatalog.state != retained.catalog.state || retained.catalog.Get(currentDatabaseAddress) != &database {

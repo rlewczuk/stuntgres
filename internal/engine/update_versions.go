@@ -159,7 +159,7 @@ retry:
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
-	if ref.Domain() != e.catalog.domain {
+	if ref.Domain() != e.catalog.Domain {
 		return errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {

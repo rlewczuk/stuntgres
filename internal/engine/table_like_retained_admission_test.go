@@ -22,13 +22,13 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			provider := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
 			original := source.Defaults[1]
-			manifest := slices.Clone(original.dependencies)
+			manifest := slices.Clone(original.Dependencies)
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")
-			current := e.catalog.domain.Ref(e.CatalogRead().Epoch(), provider.address)
-			old := e.catalog.domain.Ref(manifest[0].Epoch, provider.address)
+			current := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), provider.address)
+			old := e.catalog.Domain.Ref(manifest[0].Epoch, provider.address)
 			for _, ref := range manifest {
 				if ref.Address == provider.address {
 					old = ref
@@ -89,7 +89,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			copied := destination.Defaults[1]
 			assertStored := func() {
 				t.Helper()
-				if !reflect.DeepEqual(copied.expression, original.expression) || !slices.Equal(copied.dependencies, manifest) || !reflect.DeepEqual(source.Defaults[1].expression, original.expression) || !slices.Equal(source.Defaults[1].dependencies, manifest) {
+				if !reflect.DeepEqual(copied.Expression, original.Expression) || !slices.Equal(copied.Dependencies, manifest) || !reflect.DeepEqual(source.Defaults[1].Expression, original.Expression) || !slices.Equal(source.Defaults[1].Dependencies, manifest) {
 					t.Fatal("acquisition rewrote stored node or manifest")
 				}
 			}
@@ -133,7 +133,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			if outcome == "delete" || outcome == "recreate" {
 				change := e.BeginCatalogStage(e.CatalogRead())
-				if err := change.Remove(e.catalog.domain.Ref(current.Epoch, source.address)); err != nil {
+				if err := change.Remove(e.catalog.Domain.Ref(current.Epoch, source.address)); err != nil {
 					t.Fatal(err)
 				}
 				if err := change.Remove(current); err != nil {
@@ -154,7 +154,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.Sequence.start, generation: replacement.revision}}
+					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.address: {last: replacement.Sequence.Start, generation: replacement.revision}}
 					queryCreatePublish(t, e, change)
 					if replacement.address == provider.address {
 						t.Fatal("recreated provider reused old identity")

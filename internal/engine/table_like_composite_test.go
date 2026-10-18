@@ -18,7 +18,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	run(t, e, "CREATE TYPE private_composite.source_type AS (a INT)")
 	sourceRef := roleTableRef(t, e, "source_type")
 	source := e.CatalogRead().MustRelation(sourceRef.Address)
-	typeRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+	typeRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 	sourceType := e.CatalogRead().MustType(typeRef.Address)
 	if sourceType.OwningRelation != source.address {
 		t.Fatal("composite fixture lacks reciprocal type authority")

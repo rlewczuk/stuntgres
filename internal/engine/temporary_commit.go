@@ -91,7 +91,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			return nil
 		}
 		for _, a := range dropped {
-			if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				return nil, nil, nil, err
 			}
 		}

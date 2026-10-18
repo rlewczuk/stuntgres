@@ -56,7 +56,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	catalog := e.CatalogRead()
 	storage := e.storage[old.address]
 	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.address: storage.versions}, singleGeneration: storage}
-	fence := materializedSourceFence{ref: e.catalog.domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
+	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
 	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) || !e.materializedSourceFenceCurrent(fence) {

@@ -69,7 +69,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
+			if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
 				err = ids.ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.Relation(ref.Address)
@@ -165,7 +165,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			expanded[ref.Address] = true
 			children = inheritanceChildren(auth.catalog, ref.Address)
 			if d.Partition != nil {
-				for _, address := range d.Partition.children {
+				for _, address := range d.Partition.Children {
 					child, ok := auth.catalog.Relation(address)
 					if !ok {
 						err = ids.ErrCatalogReplaced
@@ -230,7 +230,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
 		}
 		for _, candidate := range inbound {
-			ref := e.catalog.domain.Ref(s.txRef.Epoch(), candidate.relation.address)
+			ref := e.catalog.Domain.Ref(s.txRef.Epoch(), candidate.relation.address)
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}

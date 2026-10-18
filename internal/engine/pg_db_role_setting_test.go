@@ -21,7 +21,7 @@ func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*r
 	if !ok {
 		t.Fatal("missing pg_db_role_setting")
 	}
-	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) {
@@ -56,7 +56,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		if i == 2 {
 			dimensions = 1
 		}
-		if metadata.name != names[i] || metadata.typeID != uint32(typeIDs[i]) || metadata.number != int32(i+1) || metadata.typmod != -1 || metadata.notNull != (i < 2) || metadata.dimensions != dimensions || metadata.collation != collations[i] {
+		if metadata.Name != names[i] || metadata.TypeID != uint32(typeIDs[i]) || metadata.Number != int32(i+1) || metadata.Typmod != -1 || metadata.NotNull != (i < 2) || metadata.Dimensions != dimensions || metadata.Collation != collations[i] {
 			t.Fatal("catalog attribute projection", i, metadata)
 		}
 	}

@@ -440,7 +440,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var storedReplacements []int32
 	for _, attribute := range replacements {
-		if next.Generations[attribute].kind == generationStored {
+		if next.Generations[attribute].Kind == generationStored {
 			storedReplacements = append(storedReplacements, attribute)
 		}
 	}
@@ -599,7 +599,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	for _, added := range additions {
-		if next.Defaults[added.attribute].catalogSnapshot {
+		if next.Defaults[added.attribute].CatalogSnapshot {
 			e.mu.Lock()
 			err = e.captureCommentSnapshotLocked(scope)
 			e.mu.Unlock()
@@ -740,7 +740,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
+			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}

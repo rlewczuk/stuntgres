@@ -362,7 +362,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				s.viewCreationNamespace = ns
 				address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
-					ref = e.catalog.domain.Ref(auth.catalog.Epoch(), address)
+					ref = e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
 				}
 			}
 		} else if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
@@ -405,7 +405,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				}
 			}
 			if tableRename && ref.Domain() != nil && err == nil {
-				err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, auth.catalog.Get(ref.Address).Namespace()))
+				err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, auth.catalog.Get(ref.Address).Namespace()))
 			}
 		}
 		if err == nil && ref.Domain() != nil {
@@ -448,7 +448,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				source, err = standaloneComposite(auth.catalog, typ, path)
 			}
 			if err == nil {
-				typedSourceRef = e.catalog.domain.Ref(auth.catalog.Epoch(), source.address)
+				typedSourceRef = e.catalog.Domain.Ref(auth.catalog.Epoch(), source.address)
 			}
 		}
 	}
@@ -558,7 +558,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	descriptor, live := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || txref.Epoch() != e.catalog.state.epoch || !live {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || txref.Epoch() != e.catalog.state.epoch || !live {
 		return ids.ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
@@ -653,7 +653,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if tableRename {
-			return auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, descriptor.namespace))
+			return auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, descriptor.namespace))
 		}
 		return nil
 	}
@@ -714,7 +714,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	if s.lockedRef.Domain() != e.catalog.domain || s.lockedRef.Epoch != e.catalog.state.epoch {
+	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.state.epoch {
 		return ids.ErrCatalogReplaced
 	}
 	current := catalog.Get(s.lockedRef.Address)

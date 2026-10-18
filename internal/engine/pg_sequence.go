@@ -28,19 +28,19 @@ func capturePGSequence(ctx context.Context, base *catalogState, own *catalogChan
 		if err != nil {
 			return err
 		}
-		typid, err := sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(options.typ))
+		typid, err := sqltype.OIDValue(source.Columns[1].Usage.Type, uint32(options.SQLType))
 		if err != nil {
 			return err
 		}
 		row := make([]sqltype.Value, 8)
 		row[0], row[1] = relid, typid
-		for i, n := range [5]int64{options.start, options.increment, options.max, options.min, options.cache} {
+		for i, n := range [5]int64{options.Start, options.Increment, options.Max, options.Min, options.Cache} {
 			row[i+2], err = sqltype.Integer(source.Columns[i+2].Usage.Type, n)
 			if err != nil {
 				return err
 			}
 		}
-		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, options.cycle)
+		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, options.Cycle)
 		rows = append(rows, row)
 		return nil
 	}

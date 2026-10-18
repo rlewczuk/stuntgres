@@ -25,10 +25,10 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 	if state.operatorNames == nil {
 		t.Fatal("catalog root has no operator membership index")
 	}
-	if len(state.operatorNames.buckets) != len(want) {
-		t.Fatalf("bucket keys: got %d, want %d", len(state.operatorNames.buckets), len(want))
+	if len(state.operatorNames.Buckets) != len(want) {
+		t.Fatalf("bucket keys: got %d, want %d", len(state.operatorNames.Buckets), len(want))
 	}
-	for key, addresses := range state.operatorNames.buckets {
+	for key, addresses := range state.operatorNames.Buckets {
 		members := want[key]
 		if len(addresses) == 0 || len(addresses) != len(members) {
 			t.Fatalf("bucket %v: got %v, want %v", key, addresses, members)
@@ -75,7 +75,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	// outside its length: append must not overwrite a sibling's backing array.
 	backing := make([]ids.ObjectAddress, 4)
 	backing[0], backing[1] = first.address, other.address
-	base.operatorNames.buckets[key] = backing[:1]
+	base.operatorNames.Buckets[key] = backing[:1]
 	e := &Engine{catalog: catalogStore{state: base}}
 	stage := e.BeginCatalogStage(e.catalog.read(base))
 	second := indexUnitOperator(90003, namespace, first.name)
@@ -99,7 +99,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 		t.Fatal("child append overwrote shared spare capacity")
 	}
 	untouched := operatorNameKey{namespace, other.name}
-	if &child.operatorNames.buckets[untouched][0] != &base.operatorNames.buckets[untouched][0] {
+	if &child.operatorNames.Buckets[untouched][0] != &base.operatorNames.Buckets[untouched][0] {
 		t.Fatal("untouched bucket copied")
 	}
 	for _, state := range []*catalogState{base, sibling, child, siblingChild} {
@@ -248,7 +248,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 		t.Fatal("private metadata replacement froze descriptor or copied membership")
 	}
 	stage = e.BeginCatalogStage(current)
-	if err := stage.Remove(e.catalog.domain.Ref(current.Epoch(), moved.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(current.Epoch(), moved.address)); err != nil {
 		t.Fatal(err)
 	}
 	assertOperatorIndex(t, e.stageRead(stage).state)
@@ -301,7 +301,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	// Synthetic descriptor-only fixture: TEMP operators have no SQL creation
 	// route, but replacement's whole-catalog projection must remain exact.
 	source.catalog.state = source.stageRead(stage).state
-	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, Owner: target.authorizationDomain.Principal(10), Temporary: target.catalog.domain.Session(99)}
+	tempNamespace := &namespaceDescriptor{address: namespace.address, name: "pg_temp_operator_index", revision: 1, Owner: target.authorizationDomain.Principal(10), Temporary: target.catalog.Domain.Session(99)}
 	temp := indexUnitOperator(operator.address.ObjectID, tempNamespace.address, "#?#")
 	temp.Owner = tempNamespace.Owner
 	stage = target.BeginCatalogStage(target.CatalogRead())

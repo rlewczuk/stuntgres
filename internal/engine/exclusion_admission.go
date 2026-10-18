@@ -49,26 +49,26 @@ func (m exclusionModes) deferred(c *exclusionConstraint) bool {
 func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) *exclusionConstraint {
 	for i := range parent.ExclusionConstraints {
 		c := &parent.ExclusionConstraints[i]
-		if c.Index == index.address && c.OID == index.SQLIndex.constraint.OID {
+		if c.Index == index.address && c.OID == index.SQLIndex.Constraint.OID {
 			return c
 		}
 	}
 	return nil
 }
 func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
-	if d.method == gistMethod {
+	if d.Method == gistMethod {
 		return bindLogicalExclusionKeys(parent, d)
 	}
-	if d.method == btreeMethod {
+	if d.Method == btreeMethod {
 		return bindIndexOrdering(parent, d)
 	}
 	// The supported HASH equality has the same concrete scalar comparison as
 	// its default Btree class. This is a comparator binding, not an index or a
 	// UNIQUE owner, and HASH storage continues to use its actual provider.
 	copy := *d
-	copy.method = btreeMethod
-	copy.keys = slices.Clone(d.keys)
-	for i, key := range copy.keys {
+	copy.Method = btreeMethod
+	copy.Keys = slices.Clone(d.Keys)
+	for i, key := range copy.Keys {
 		u, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return indexOrdering{}, err
@@ -77,12 +77,12 @@ func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (inde
 		if !ok {
 			return indexOrdering{}, fmt.Errorf("stuntgres: missing exclusion equality comparator")
 		}
-		copy.keys[i].class = class
+		copy.Keys[i].Class = class
 	}
 	return bindIndexOrdering(parent, &copy)
 }
 func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []sqltype.Value) (bool, error) {
-	for i, operator := range d.exclusion {
+	for i, operator := range d.Exclusion {
 		match, err := operator.Matches(ctx, left[i], right[i])
 		if err != nil || !match {
 			return false, err
@@ -151,7 +151,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {

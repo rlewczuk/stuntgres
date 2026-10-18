@@ -59,10 +59,10 @@ func foreignKeyIndexOrder(ctx context.Context, index *relationDescriptor, compar
 		return 0, err
 	}
 	for i, comparison := range comparisons {
-		key := index.SQLIndex.keys[i]
+		key := index.SQLIndex.Keys[i]
 		parent := entry.keys[i]
 		if parent.IsNull() {
-			if key.nullsFirst {
+			if key.NullsFirst {
 				return -1, nil
 			}
 			return 1, nil
@@ -71,7 +71,7 @@ func foreignKeyIndexOrder(ctx context.Context, index *relationDescriptor, compar
 		if err != nil {
 			return 0, err
 		}
-		if key.desc {
+		if key.Desc {
 			order = -order
 		}
 		if order != 0 {

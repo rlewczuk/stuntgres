@@ -54,7 +54,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 	for _, relation := range relations {
 		var kept []checkConstraint
 		for _, check := range relation.CheckConstraints {
-			if !expressionUsesCompositeField(check.expression, source.RowType, attribute) {
+			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				kept = append(kept, check)
 				continue
 			}
@@ -80,10 +80,10 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 		next.revision, next.CheckConstraints = revision, kept
 		if next.Inheritance != nil {
 			graph := *next.Inheritance
-			graph.checks = maps.Clone(graph.checks)
-			for name := range graph.checks {
+			graph.Checks = maps.Clone(graph.Checks)
+			for name := range graph.Checks {
 				if !slices.ContainsFunc(kept, func(check checkConstraint) bool { return check.Name == name }) {
-					delete(graph.checks, name)
+					delete(graph.Checks, name)
 				}
 			}
 			next.Inheritance = &graph
@@ -103,7 +103,7 @@ func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, a
 	})
 	for _, domain := range domains {
 		for _, check := range domain.DomainChecks {
-			if !expressionUsesCompositeField(check.expression, source.RowType, attribute) {
+			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				continue
 			}
 			label := fmt.Sprintf("constraint %s", dependencyIdentifier(check.Name))
@@ -145,7 +145,7 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *relationDescriptor) boo
 		return true
 	}
 	if relation.Inheritance != nil {
-		for _, address := range relation.Inheritance.parents {
+		for _, address := range relation.Inheritance.Parents {
 			parent, ok := stage.base.Relation(address)
 			if ok && typedFieldCheckOwner(stage, parent) {
 				return true

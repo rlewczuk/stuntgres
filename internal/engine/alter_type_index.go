@@ -24,16 +24,16 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 	var queue []alterTypeIndex
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != original.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != original.address {
 			continue
 		}
 		pending := alterTypeIndex{index: index}
 		dropped := false
-		for _, key := range index.SQLIndex.keys {
-			if key.derived == nil {
-				dropped = dropped || !survivor.hasAttribute(key.attribute)
+		for _, key := range index.SQLIndex.Keys {
+			if key.Derived == nil {
+				dropped = dropped || !survivor.hasAttribute(key.Attribute)
 			} else {
-				for _, dep := range key.derived.dependencies {
+				for _, dep := range key.Derived.Dependencies {
 					a := dep.Address
 					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID != 0 && !survivor.hasAttribute(a.SubID) {
 						dropped = true
@@ -41,8 +41,8 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 			}
 		}
-		if predicate := index.SQLIndex.predicate; predicate != nil {
-			for _, dep := range predicate.dependencies {
+		if predicate := index.SQLIndex.Predicate; predicate != nil {
+			for _, dep := range predicate.Dependencies {
 				a := dep.Address
 				if a.ClassID != original.address.ClassID || a.ObjectID != original.address.ObjectID || a.SubID == 0 {
 					continue
@@ -56,14 +56,14 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 			}
 		}
-		for _, attribute := range index.SQLIndex.include {
+		for _, attribute := range index.SQLIndex.Include {
 			dropped = dropped || !survivor.hasAttribute(attribute)
 		}
 		if dropped {
 			continue
 		}
-		for i, key := range index.SQLIndex.keys {
-			if key.derived == nil {
+		for i, key := range index.SQLIndex.Keys {
+			if key.Derived == nil {
 				continue
 			}
 			affected := false
@@ -75,7 +75,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				if !exists {
 					continue
 				}
-				for _, dep := range key.derived.dependencies {
+				for _, dep := range key.Derived.Dependencies {
 					a := dep.Address
 					if a.ClassID == original.address.ClassID && a.ObjectID == original.address.ObjectID && a.SubID == original.Attributes[slot] {
 						affected = true
@@ -103,12 +103,12 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 	for _, pending := range queue {
 		copy := *pending.index
 		definition := *copy.SQLIndex
-		definition.keys = append([]indexKey(nil), definition.keys...)
+		definition.Keys = append([]indexKey(nil), definition.Keys...)
 		copy.SQLIndex = &definition
 		// This queue contains actual affected TYPE reconstructions, not generic
 		// descriptor evolution. Publish these flags only with the validated
 		// private candidate; later producers must enforce its rebuilt tuples.
-		definition.ready, definition.valid, definition.live = true, true, true
+		definition.Ready, definition.Valid, definition.Live = true, true, true
 		syntax, err := parser.ParseWithOptions(pending.sql, parser.Options{Context: scope.op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return err
@@ -120,7 +120,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			if err != nil {
 				return err
 			}
-			definition.predicate = predicate
+			definition.Predicate = predicate
 		}
 		for _, slot := range pending.keys {
 			e.mu.Lock()
@@ -129,11 +129,11 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			if err != nil {
 				return err
 			}
-			definition.keys[slot].derived = derived
+			definition.Keys[slot].Derived = derived
 		}
 		oldParent := stage.base.MustRelation(parent.address)
-		for i, key := range definition.keys {
-			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.keys[i])
+		for i, key := range definition.Keys {
+			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			if err != nil {
 				return err
 			}
-			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.method)
+			definition.Keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.Method)
 		}
 		// The captured TYPE queue already normalized every key against its
 		// original Usage while retaining the newly rebound expression trees.

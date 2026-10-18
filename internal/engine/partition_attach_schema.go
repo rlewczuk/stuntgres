@@ -37,7 +37,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		if ancestor.Membership == nil {
 			break
 		}
-		ancestor, _ = catalog.Relation(ancestor.Membership.parent)
+		ancestor, _ = catalog.Relation(ancestor.Membership.Parent)
 	}
 	if child.Membership != nil {
 		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.name))
@@ -45,7 +45,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if child.OfType != (ids.ObjectAddress{}) {
 		return sqlError("42809", "cannot attach a typed table as partition")
 	}
-	if child.Inheritance != nil && len(child.Inheritance.parents) != 0 {
+	if child.Inheritance != nil && len(child.Inheritance.Parents) != 0 {
 		return sqlError("42809", "cannot attach inheritance child as partition")
 	}
 	if inheritanceHasChildren(catalog, child.address) {
@@ -131,12 +131,12 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
 		actual := child.CheckConstraints[at]
-		mapped, err := in.remap(required.expression, child, catalog)
+		mapped, err := in.remap(required.Expression, child, catalog)
 		if err != nil {
 			return nil, err
 		}
 		binder := expressionBinder{checkDefinitionEquality: true}
-		if !binder.sameGroupExpression(mapped, actual.expression) {
+		if !binder.sameGroupExpression(mapped, actual.Expression) {
 			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different definition for check constraint "%s"`, child.name, required.Name))
 		}
 		if actual.NoInherit {
@@ -158,7 +158,7 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		slot := child.indexForAttribute(constraint.Attribute)
 		parentSlot := parent.Index[child.Columns[slot].Name]
 		if !parent.Columns[parentSlot].Nullable {
-			constraint.partitionLocal = false
+			constraint.PartitionLocal = false
 		}
 	}
 	return &next, nil

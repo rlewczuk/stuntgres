@@ -5,10 +5,10 @@ import "stuntgres/internal/engine/ids"
 // routineIdentity is lookup-only metadata. It is deliberately not a Descriptor:
 // finding a routine alias must never grant execution or expand pg_proc SQL rows.
 type routineIdentity struct {
-	id        ids.OID
-	namespace ids.OID
-	name      string
-	signature procedureSignature
+	ID        ids.OID
+	Namespace ids.OID
+	Name      string
+	Signature procedureSignature
 }
 type routineKey struct {
 	name      string
@@ -22,9 +22,9 @@ func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineId
 	byName := make(map[string][]routineIdentity)
 	bySignature := make(map[routineKey]routineIdentity, len(builtinRoutineIdentities))
 	for _, p := range builtinRoutineIdentities {
-		byOID[p.id] = p
-		byName[p.name] = append(byName[p.name], p)
-		bySignature[routineKey{p.name, p.signature}] = p
+		byOID[p.ID] = p
+		byName[p.Name] = append(byName[p.Name], p)
+		bySignature[routineKey{p.Name, p.Signature}] = p
 	}
 	return byOID, byName, bySignature
 }
@@ -37,8 +37,8 @@ func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) 
 		return p, true
 	}
 	if owner := routineDescriptorOwner(view, id); owner != nil {
-		for _, helper := range owner.Aggregate.helpers {
-			if helper.id == id {
+		for _, helper := range owner.Aggregate.Helpers {
+			if helper.ID == id {
 				return helper, true
 			}
 		}
@@ -64,8 +64,8 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 		}
 		for _, d := range view.Descriptors() {
 			if owner, ok := d.(*procedureDescriptor); ok && owner.Aggregate != nil && owner.namespace == namespace {
-				for _, helper := range owner.Aggregate.helpers {
-					if helper.name == name && helper.signature == signature {
+				for _, helper := range owner.Aggregate.Helpers {
+					if helper.Name == name && helper.Signature == signature {
 						return helper, 1
 					}
 				}
@@ -90,10 +90,10 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 	count := 0
 	seen := make(map[procedureSignature]bool)
 	accept := func(p routineIdentity) bool {
-		if seen[p.signature] {
+		if seen[p.Signature] {
 			return false
 		}
-		seen[p.signature] = true
+		seen[p.Signature] = true
 		selected = p
 		count++
 		return count == 2
@@ -109,8 +109,8 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 					return selected, count
 				}
 				if p.Aggregate != nil {
-					for _, helper := range p.Aggregate.helpers {
-						if helper.name == name && accept(helper) {
+					for _, helper := range p.Aggregate.Helpers {
+						if helper.Name == name && accept(helper) {
 							return selected, count
 						}
 					}

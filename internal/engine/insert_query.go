@@ -85,7 +85,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		if _, generated := out.relation.Generations[out.relation.Attributes[out.targets[i]]]; generated {
 			return generationWriteError(target.Name, false)
 		}
-		if identity, ok := out.relation.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+		if identity, ok := out.relation.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return identityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)

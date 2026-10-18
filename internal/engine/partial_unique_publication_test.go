@@ -70,7 +70,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
 	index, root := btreeRoot(t, e, "public.ui_index")
-	if index.SQLIndex.constraint != nil || len(parent.UniqueConstraints) != 0 || index.SQLIndex.predicate == nil {
+	if index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 || index.SQLIndex.Predicate == nil {
 		t.Fatal("not real standalone partial")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -296,14 +296,14 @@ func TestPartialIndexUniquePredicateIdentityFence(t *testing.T) {
 	}
 	next := *f.index
 	definition := *f.index.SQLIndex
-	predicate := *definition.predicate
-	definition.predicate = &predicate
+	predicate := *definition.Predicate
+	definition.Predicate = &predicate
 	next.SQLIndex = &definition
 	if sameIndexKeySemantics(f.index, &next) {
 		t.Fatal("new predicate identity passed root/admission reuse fence")
 	}
 	// Independently verify that the retained expression and root were untouched.
-	if !reflect.DeepEqual(f.index.SQLIndex.predicate, &predicate) {
+	if !reflect.DeepEqual(f.index.SQLIndex.Predicate, &predicate) {
 		t.Fatal("predicate mutated")
 	}
 	f.unchanged(t)
@@ -317,8 +317,8 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			next.descriptors = maps.Clone(f.catalog.descriptors)
 			index := *f.index
 			definition := *index.SQLIndex
-			predicate := *definition.predicate
-			definition.predicate = &predicate
+			predicate := *definition.Predicate
+			definition.Predicate = &predicate
 			index.SQLIndex = &definition
 			next.setDescriptor(index.address, &index)
 			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)

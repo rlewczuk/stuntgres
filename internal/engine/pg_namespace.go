@@ -15,7 +15,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}

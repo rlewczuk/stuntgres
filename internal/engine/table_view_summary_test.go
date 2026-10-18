@@ -118,7 +118,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: parent.namespace, name: "summary_pending", revision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: address, live: true}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: parent.namespace, name: "summary_pending", revision: 1, Owner: parent.Owner, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: address, Live: true}}
 	if err := stage.Create(index); err != nil {
 		t.Fatal(err)
 	}

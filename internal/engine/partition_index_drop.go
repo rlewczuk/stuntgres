@@ -11,17 +11,17 @@ import (
 
 func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
 	add := func(index *relationDescriptor) {
-		ref := auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), index.address)
+		ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), index.address)
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
 		}
 		g.descriptors[index.address] = index
-		address := index.SQLIndex.parent
+		address := index.SQLIndex.Parent
 		parentRef := ref.Domain().Ref(ref.Epoch, address)
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
-		if table := auth.catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+		if table := auth.catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 			g.partition = true
 		}
 		g.descriptors[address] = auth.catalog.MustRelation(address)
@@ -30,8 +30,8 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		selected := false
 		for _, target := range g.targets {
 			index := g.descriptors[target.Address]
-			table := auth.catalog.MustRelation(index.SQLIndex.parent)
-			if table.Partition != nil || index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+			table := auth.catalog.MustRelation(index.SQLIndex.Parent)
+			if table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				selected = true
 				break
 			}
@@ -57,18 +57,18 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		for {
 			grew := false
 			for _, index := range indexes {
-				if !roots[index.SQLIndex.partitionParent] || roots[index.address] {
+				if !roots[index.SQLIndex.PartitionParent] || roots[index.address] {
 					continue
 				}
 				roots[index.address] = true
 				grew = true
-				if index.SQLIndex.constraint != nil && drop.Mode != parser.DropCascade {
+				if index.SQLIndex.Constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
 					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.address }) {
-						root = auth.catalog.MustRelation(root.SQLIndex.partitionParent)
+						root = auth.catalog.MustRelation(root.SQLIndex.PartitionParent)
 					}
-					table := auth.catalog.Get(index.SQLIndex.parent)
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.name), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.SQLIndex.constraint.Name, table.Name(), root.name), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+					table := auth.catalog.Get(index.SQLIndex.Parent)
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.name), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.SQLIndex.Constraint.Name, table.Name(), root.name), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 				}
 			}
 			if !grew {
@@ -79,14 +79,14 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		// Capture the parent tree's validity frontier and each sibling descriptor
 		// before taking any lock. No names are resolved after a wait.
 		root := g.descriptors[g.targets[0].Address]
-		for root.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
-			root = auth.catalog.MustRelation(root.SQLIndex.partitionParent)
+		for root.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+			root = auth.catalog.MustRelation(root.SQLIndex.PartitionParent)
 		}
 		roots[root.address] = true
 		for {
 			grew := false
 			for _, index := range indexes {
-				if roots[index.SQLIndex.partitionParent] && !roots[index.address] {
+				if roots[index.SQLIndex.PartitionParent] && !roots[index.address] {
 					roots[index.address] = true
 					grew = true
 				}
@@ -108,9 +108,9 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 }
 
 func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDescriptor) error {
-	if index.SQLIndex.constraint != nil {
+	if index.SQLIndex.Constraint != nil {
 		view := e.stageRead(stage)
-		table := view.MustRelation(index.SQLIndex.parent)
+		table := view.MustRelation(index.SQLIndex.Parent)
 		next := *table
 		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
 		next.revision++
@@ -120,7 +120,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 			return err
 		}
 	}
-	return stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), index.address))
+	return stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), index.address))
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
@@ -158,10 +158,10 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 }
 
 func partitionIndexDropDependency(view CatalogRead, index *relationDescriptor) error {
-	if index.SQLIndex.partitionParent == (ids.ObjectAddress{}) {
+	if index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return nil
 	}
-	parent, exists := view.Descriptor(index.SQLIndex.partitionParent)
+	parent, exists := view.Descriptor(index.SQLIndex.PartitionParent)
 	if !exists {
 		return ids.ErrCatalogReplaced
 	}

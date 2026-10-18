@@ -98,7 +98,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 			}
 			view := scope.commentCatalog
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
-			node := d.CheckConstraints[0].expression
+			node := d.CheckConstraints[0].Expression
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {
@@ -197,7 +197,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
-	saved, err := catalogTree(treeType, d.Defaults[1].expression)
+	saved, err := catalogTree(treeType, d.Defaults[1].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +290,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE t(prefix TEXT,a INT,b INT,CONSTRAINT c CHECK(b>0))")
 	original := e.CatalogRead().MustRelation(roleTableRef(t, e, "t").Address)
-	node := original.CheckConstraints[0].expression
+	node := original.CheckConstraints[0].Expression
 	run(t, e, "ALTER TABLE t DROP prefix")
 	run(t, e, `CREATE TABLE supplied(x TEXT,y TEXT,"Renamed value" TEXT)`)
 	current := e.CatalogRead()
@@ -408,12 +408,12 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	typ, _ := view.LookupType(sqltype.PgNodeTree)
-	tree, err := catalogTree(typ, d.CheckConstraints[0].expression)
+	tree, err := catalogTree(typ, d.CheckConstraints[0].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.CheckConstraints[0].expression, pgRenderParent{})
+		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}}).sql(context.Background(), d.CheckConstraints[0].Expression, pgRenderParent{})
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

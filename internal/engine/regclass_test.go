@@ -90,7 +90,7 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	if err = regclassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)
 	}
-	if !defaultReplayDeferrable(columnDefault{expression: numeric}) {
+	if !defaultReplayDeferrable(columnDefault{Expression: numeric}) {
 		t.Fatal("closed numeric regclass default not deferred")
 	}
 }
@@ -120,7 +120,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if count != 2 {
 		t.Fatal(count)
 	}
-	if plannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(columnDefault{expression: node}) || !b.sameGroupExpression(node, node) {
+	if plannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(columnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
 		t.Fatal("constructor properties/walkers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -147,13 +147,13 @@ func TestRegclassDeferredDefinitionSelection(t *testing.T) {
 	text, _ := view.LookupType(sqltype.Text)
 	scalar := literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: sqltype.String(regclass, "1259")}
 	inline := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "inline")}
-	if !defaultReplayDeferrable(columnDefault{expression: scalar}) || defaultReplayDeferrable(columnDefault{expression: inline}) {
+	if !defaultReplayDeferrable(columnDefault{Expression: scalar}) || defaultReplayDeferrable(columnDefault{Expression: inline}) {
 		t.Fatal("selected result eligibility or primitive inline definition changed")
 	}
 	table := dumpRelation{
 		schema: "public", name: "t", attributes: descriptor.Attributes,
 		columns: descriptor.Columns, descriptor: descriptor,
-		defaults:            map[int32]columnDefault{1: {expression: inline}, 2: {expression: scalar}},
+		defaults:            map[int32]columnDefault{1: {Expression: inline}, 2: {Expression: scalar}},
 		deferredDefinitions: map[int32]bool{2: true},
 	}
 	var emitted []string
@@ -237,16 +237,16 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 			descriptor, _ := catalog.Descriptor(ownerRef.Address)
 			owner := descriptor.(*relationDescriptor)
 			definition := owner.Defaults[owner.Attributes[owner.Index["v"]]]
-			if defaultReplayDeferrable(definition) || definition.expression.ResultUsage().Type.ID() != sqltype.Bool {
+			if defaultReplayDeferrable(definition) || definition.Expression.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("opaque BOOL default changed eligibility")
 			}
-			for _, dependency := range definition.dependencies {
+			for _, dependency := range definition.Dependencies {
 				if dependency.Address.ClassID == ids.RelationClassID {
 					t.Fatal("opaque payload gained DROP dependency", dependency)
 				}
 			}
 			var refs []ids.ObjectAddress
-			if err := regclassReplayReferences(catalog, definition.expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
+			if err := regclassReplayReferences(catalog, definition.Expression, func(address ids.ObjectAddress) error { refs = append(refs, address); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if !reflect.DeepEqual(refs, []ids.ObjectAddress{targetRef.Address}) {

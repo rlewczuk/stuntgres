@@ -26,7 +26,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	f := insertConflictUniqueFixture(t)
 	f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 1, 1, 1
 	definition := *f.index.SQLIndex
-	definition.predicate = nil
+	definition.Predicate = nil
 	f.index.SQLIndex = &definition
 	root, buildErr := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if buildErr != nil {
@@ -46,11 +46,11 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if !ok {
 		t.Fatal("owner principal missing")
 	}
-	ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.address)
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privileges}}}
 	}
-	schema := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.namespace)
+	schema := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.namespace)
 	if err := f.e.SetObjectACL(context.Background(), schema, acl(authorization.UsagePrivilege)); err != nil {
 		t.Fatal(err)
 	}

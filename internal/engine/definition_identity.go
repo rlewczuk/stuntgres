@@ -91,8 +91,8 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
-			for _, helper := range proc.Aggregate.helpers {
-				if helper.id == id {
+			for _, helper := range proc.Aggregate.Helpers {
+				if helper.ID == id {
 					return true
 				}
 			}
@@ -163,8 +163,8 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
-			for _, helper := range proc.Aggregate.helpers {
-				reserved[helper.id] = true
+			for _, helper := range proc.Aggregate.Helpers {
+				reserved[helper.ID] = true
 			}
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
@@ -220,8 +220,8 @@ func validateDefinitionOIDs(view CatalogRead) error {
 	}
 	for _, descriptor := range view.Descriptors() {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
-			for _, helper := range proc.Aggregate.helpers {
-				if err := claim(helper.id); err != nil {
+			for _, helper := range proc.Aggregate.Helpers {
+				if err := claim(helper.ID); err != nil {
 					return err
 				}
 			}
@@ -316,8 +316,8 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	for address, descriptor := range next.Descriptors() {
 		claimed[address.ObjectID] = true
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
-			for _, helper := range proc.Aggregate.helpers {
-				claimed[helper.id] = true
+			for _, helper := range proc.Aggregate.Helpers {
+				claimed[helper.ID] = true
 			}
 		}
 	}
@@ -496,7 +496,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			clone := *index
 			definition := *index.SQLIndex
 			constraint := d.UniqueConstraints[i]
-			definition.constraint = uniqueBacking(&constraint)
+			definition.Constraint = uniqueBacking(&constraint)
 			clone.SQLIndex = &definition
 			next.setDescriptor(clone.address, &clone)
 			changed = true
@@ -520,7 +520,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			clone := *index
 			definition := *index.SQLIndex
-			definition.constraint = exclusionBacking(&d.ExclusionConstraints[i])
+			definition.Constraint = exclusionBacking(&d.ExclusionConstraints[i])
 			clone.SQLIndex = &definition
 			next.setDescriptor(clone.address, &clone)
 			changed = true

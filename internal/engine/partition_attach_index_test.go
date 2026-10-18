@@ -21,7 +21,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			// candidate. The new parent-derived unique backing must not replace it.
 			local := *f.child
 			localDefinition := *local.SQLIndex
-			localDefinition.unique = false
+			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
 			current := cloneCatalog(f.e.catalog.state)
 			current.setDescriptor(local.address, &local)
@@ -30,8 +30,8 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mapped.valid, mapped.ready, mapped.live = true, true, true
-			mapped.partitionParent = f.parent.address
+			mapped.Valid, mapped.Ready, mapped.Live = true, true, true
+			mapped.PartitionParent = f.parent.address
 			backing := *f.child
 			backing.address.ObjectID = 46300
 			backing.name = "attach_built_unique"
@@ -45,7 +45,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			// valid in this private candidate, without changing its old head.
 			parentIndex := *f.parent
 			parentDefinition := *f.parent.SQLIndex
-			parentDefinition.valid = true
+			parentDefinition.Valid = true
 			parentIndex.SQLIndex = &parentDefinition
 			next.setDescriptor(parentIndex.address, &parentIndex)
 			integer := func(slot int, n int64) sqltype.Value {
@@ -107,7 +107,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 					t.Fatal("physical attribute mapping or INCLUDE uniqueness changed", entry)
 				}
 			}
-			if backing.SQLIndex.partitionParent != f.parent.address || local.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+			if backing.SQLIndex.PartitionParent != f.parent.address || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				t.Fatal("new backing lost ancestry or hijacked unrelated local index")
 			}
 		})

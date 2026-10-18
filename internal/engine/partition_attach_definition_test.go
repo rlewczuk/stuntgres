@@ -68,17 +68,17 @@ func TestPartitionAttachSchema(t *testing.T) {
 	parent.Columns[0].Nullable = false
 	parent.NotNullConstraints = []notNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
 	child.Columns[1].Nullable = false
-	child.NotNullConstraints = []notNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, partitionLocal: true}}
+	child.NotNullConstraints = []notNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
 	view := inheritanceUnitView(e, parent, child)
 	scope := &StatementScope{op: op}
 	next, err := partitionAttachSchema(scope, view, parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == child || next.NotNullConstraints[0].Name != "child_nn" || next.NotNullConstraints[0].OID != 32101 || next.NotNullConstraints[0].partitionLocal || !child.NotNullConstraints[0].partitionLocal {
+	if next == child || next.NotNullConstraints[0].Name != "child_nn" || next.NotNullConstraints[0].OID != 32101 || next.NotNullConstraints[0].PartitionLocal || !child.NotNullConstraints[0].PartitionLocal {
 		t.Fatal("NN identity or source changed")
 	}
-	next.Membership = &partitionMembership{parent: parent.address}
+	next.Membership = &partitionMembership{Parent: parent.address}
 	view = inheritanceUnitView(e, parent, next)
 	local, count := nonuniqueConstraintProvenance(view, next, "child_nn", 2, false)
 	if local || count != 1 {
@@ -110,9 +110,9 @@ func TestPartitionAttachProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.Partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}}
+	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}}
 	view := inheritanceUnitView(e, parent, child)
-	ref := e.catalog.domain.Ref(view.Epoch(), child.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), child.address)
 	ref.Address.SubID = 1
 	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	boolean := testUsage(e, sqltype.Bool)
@@ -138,7 +138,7 @@ func TestPartitionAttachProof(t *testing.T) {
 		return logicalExpression{Info: expr.Info{Usage: boolean}, left: a, right: b, op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
-	bound := &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: value(1)}}, upper: []partitionDatum{{value: value(3)}}}
+	bound := &partitionMembership{Parent: parent.address, Lower: []partitionDatum{{Value: value(1)}}, Upper: []partitionDatum{{Value: value(3)}}}
 	scope := &StatementScope{op: op}
 	check := func(exclude, want bool) {
 		t.Helper()
@@ -147,25 +147,25 @@ func TestPartitionAttachProof(t *testing.T) {
 			t.Fatal(got, want, err)
 		}
 	}
-	child.CheckConstraints = []checkConstraint{{Name: "bounds", expression: bounds}}
+	child.CheckConstraints = []checkConstraint{{Name: "bounds", Expression: bounds}}
 	check(false, false) // nullable CHECK permits UNKNOWN
 	child.NotNullConstraints = []notNullConstraint{{Attribute: 1}}
 	check(false, true)
 	child.NotNullConstraints[0].NotValid = true
 	check(false, false)
 	child.NotNullConstraints = nil
-	child.CheckConstraints[0].expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, bounds)
+	child.CheckConstraints[0].Expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, bounds)
 	check(false, true)
 	child.CheckConstraints[0].NotValid = true
 	check(false, false)
 	child.CheckConstraints[0].NotValid = false
 	child.CheckConstraints[0].NoInherit = true
 	check(false, true) // local validated NO INHERIT remains a scan proof
-	child.CheckConstraints[0].expression = or(cmp("<", 1), cmp(">=", 3))
+	child.CheckConstraints[0].Expression = or(cmp("<", 1), cmp(">=", 3))
 	check(true, true) // NULL belongs to the range complement
 	child.CheckConstraints[0].NotValid = true
 	check(true, false)
-	goal := partitionProofTuple([]partitionDatum{{value: value(1)}, {kind: -1}}, 0, true)
+	goal := partitionProofTuple([]partitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
 	if goal.op != "or" || goal.right.op != "=" {
 		t.Fatal("MINVALUE suffix did not simplify lexicographic goal", goal)
 	}

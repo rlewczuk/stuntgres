@@ -43,7 +43,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), provider.address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), provider.address)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			e, owner, provider, survivor, index := temporaryProjectionFixture(t)
 			changed := *index
 			definition := *index.SQLIndex
-			definition.ready, definition.valid = ready, false
+			definition.Ready, definition.Valid = ready, false
 			changed.SQLIndex = &definition
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			e.catalog.state.setDescriptor(index.address, &changed)
@@ -309,7 +309,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 				t.Fatal("concurrent flag projection", installed, err)
 			}
 			next := e.catalog.state.MustRelation(index.address)
-			if next.SQLIndex.ready != ready || next.SQLIndex.valid || next.SQLIndex.live != definition.live {
+			if next.SQLIndex.Ready != ready || next.SQLIndex.Valid || next.SQLIndex.Live != definition.Live {
 				t.Fatal("shape cleanup healed concurrent flags")
 			}
 			if ready && (e.indexRoots[index.address] == nil || e.indexRoots[index.address] == previous) || !ready && e.indexRoots[index.address] != nil {

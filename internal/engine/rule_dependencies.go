@@ -144,7 +144,7 @@ func ruleReferences(ctx context.Context, catalog CatalogRead, r ruleDefinition) 
 			}
 		}
 		for _, dependency := range b.dependencies {
-			add([]ids.ObjectAddress{dependency.ref.Address})
+			add([]ids.ObjectAddress{dependency.Ref.Address})
 		}
 		for _, definition := range b.ctes {
 			if definition.mutation == nil || seen[definition] {

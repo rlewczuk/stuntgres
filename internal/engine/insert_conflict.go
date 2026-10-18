@@ -88,12 +88,12 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}
-			for _, key := range index.SQLIndex.keys {
-				if key.derived == nil {
-					c.reads = append(c.reads, slices.Index(b.relation.Attributes, key.attribute))
+			for _, key := range index.SQLIndex.Keys {
+				if key.Derived == nil {
+					c.reads = append(c.reads, slices.Index(b.relation.Attributes, key.Attribute))
 					continue
 				}
-				for _, dependency := range key.derived.dependencies {
+				for _, dependency := range key.Derived.Dependencies {
 					if dependency.Address.ClassID == b.ref.Address.ClassID && dependency.Address.ObjectID == b.ref.Address.ObjectID && dependency.Address.SubID != 0 {
 						slot := slices.Index(b.relation.Attributes, dependency.Address.SubID)
 						if !slices.Contains(c.reads, slot) {
@@ -186,7 +186,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c.reads = binder.querySources[0].uses
 	shared.anyParameters = append(shared.anyParameters, binder.anyParameters...)
 	for _, dep := range binder.dependencies {
-		shared.dependency(dep.ref, dep.revision)
+		shared.dependency(dep.Ref, dep.Revision)
 	}
 	return nil
 }
@@ -202,7 +202,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		def := index.SQLIndex
-		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
+		if def.Parent != parent.address || !def.Live || !def.Ready || (!def.Unique && !def.isExclusion()) {
 			continue
 		}
 		if c.constraint != (ids.ObjectAddress{}) {
@@ -218,10 +218,10 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			c.selected = append(c.selected, index.address)
 			continue
 		}
-		if !def.unique {
+		if !def.Unique {
 			continue
 		}
-		if !def.valid {
+		if !def.Valid {
 			continue
 		}
 		matches, err := c.matches(parent, def)
@@ -232,8 +232,8 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		var predicate expr.Expr
-		if def.predicate != nil {
-			predicate = def.predicate.definition
+		if def.Predicate != nil {
+			predicate = def.Predicate.Definition
 		}
 		implied, err := conflictPredicateImpliedBy(ctx, c.predicate, predicate)
 		if err != nil {
@@ -255,7 +255,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 	// restrict a matching key occurrence without changing the expression set.
 	for _, target := range c.keys {
 		found := false
-		for _, key := range index.keys {
+		for _, key := range index.Keys {
 			attribute, expression, err := indexCatalogKey(parent, key)
 			if err != nil {
 				return false, err
@@ -270,7 +270,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 			if target.collation != 0 && target.collation != usage.Collation.ID {
 				continue
 			}
-			if target.class.Name != "" && !target.class.SameInferenceIdentity(key.class) {
+			if target.class.Name != "" && !target.class.SameInferenceIdentity(key.Class) {
 				continue
 			}
 			found = true
@@ -280,7 +280,7 @@ func (c *boundInsertConflict) matches(parent *relationDescriptor, index *indexDe
 			return false, nil
 		}
 	}
-	for _, key := range index.keys {
+	for _, key := range index.Keys {
 		attribute, expression, err := indexCatalogKey(parent, key)
 		if err != nil {
 			return false, err

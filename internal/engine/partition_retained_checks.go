@@ -54,10 +54,10 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}
-	if generation, ok := h.relation.Generations[attribute]; ok && generation.kind == generationVirtual {
+	if generation, ok := h.relation.Generations[attribute]; ok && generation.Kind == generationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
 		// generation dependency graph to its actual stored input cells.
-		for _, dependency := range generation.dependencies {
+		for _, dependency := range generation.Dependencies {
 			address := dependency.Address
 			whole := address
 			whole.SubID = 0
@@ -100,8 +100,8 @@ func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, 
 	if original == nil {
 		return false, ids.ErrCatalogReplaced
 	}
-	for _, dependency := range original.dependencies {
-		address := dependency.ref.Address
+	for _, dependency := range original.Dependencies {
+		address := dependency.Ref.Address
 		whole := address
 		whole.SubID = 0
 		if whole == h.relation.address {
@@ -202,28 +202,28 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 			if original == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			affected, err := partitionCheckRecipeAffected(ctx, original.expression, check.expression, ownerChanged)
+			affected, err := partitionCheckRecipeAffected(ctx, original.Expression, check.Expression, ownerChanged)
 			if err != nil {
 				return nil, err
 			}
 			// Virtual generated inputs have no stored cell payload to compare.
 			// Their captured recipe can still observe a reminted owner/literal.
-			for _, dependency := range original.dependencies {
-				address := dependency.ref.Address
+			for _, dependency := range original.Dependencies {
+				address := dependency.Ref.Address
 				whole := address
 				whole.SubID = 0
 				if whole != h.relation.address {
 					continue
 				}
 				for attribute, generation := range h.relation.Generations {
-					if generation.kind != generationVirtual || address.SubID != 0 && address.SubID != attribute {
+					if generation.Kind != generationVirtual || address.SubID != 0 && address.SubID != attribute {
 						continue
 					}
 					current, exists := d.Generations[attribute]
 					if !exists {
 						return nil, ids.ErrCatalogReplaced
 					}
-					different, err := partitionCheckRecipeAffected(ctx, generation.planned, current.planned, ownerChanged)
+					different, err := partitionCheckRecipeAffected(ctx, generation.Planned, current.Planned, ownerChanged)
 					if err != nil {
 						return nil, err
 					}

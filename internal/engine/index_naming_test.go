@@ -11,7 +11,7 @@ func TestBtreeIndexReleaseNaming(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT,"+a+" INT,"+b+" INT,"+c+" INT)")
 	run(t, e, "CREATE INDEX ON t(a,a)")
 	index, _ := btreeRoot(t, e, "t_a_a1_idx")
-	if index.Columns[0].Name != "a" || index.Columns[1].Name != "a1" || index.SQLIndex.keys[0].attribute != index.SQLIndex.keys[1].attribute {
+	if index.Columns[0].Name != "a" || index.Columns[1].Name != "a1" || index.SQLIndex.Keys[0].Attribute != index.SQLIndex.Keys[1].Attribute {
 		t.Fatal(index)
 	}
 	run(t, e, "CREATE INDEX ON t(a,a)")
@@ -30,7 +30,7 @@ func TestBtreeIndexReleaseNaming(t *testing.T) {
 	run(t, e, `CREATE TABLE "éTable"("列" INT,index TEXT)`)
 	run(t, e, `CREATE INDEX "éIndex" ON "éTable"("列",index DESC)`)
 	index, _ = btreeRoot(t, e, `"éIndex"`)
-	if index.Columns[0].Name != "列" || !index.SQLIndex.keys[1].desc {
+	if index.Columns[0].Name != "列" || !index.SQLIndex.Keys[1].Desc {
 		t.Fatal(index)
 	}
 }

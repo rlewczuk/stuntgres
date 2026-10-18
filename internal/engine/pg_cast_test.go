@@ -18,7 +18,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestPGCastShapeAndOwnership(t *testing.T) {

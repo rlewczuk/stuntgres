@@ -47,14 +47,14 @@ func TestAlterTypeCheckRebind(t *testing.T) {
 		t.Fatal("new expression/manifest invalid", err)
 	}
 	for i, c := range next.CheckConstraints {
-		if c.Name != oldChecks[i].Name || c.ordinal != oldChecks[i].ordinal || c.NoInherit != oldChecks[i].NoInherit {
+		if c.Name != oldChecks[i].Name || c.Ordinal != oldChecks[i].Ordinal || c.NoInherit != oldChecks[i].NoInherit {
 			t.Fatal("lost identity", c, oldChecks[i])
 		}
-		if _, err := (scalarRenderer{owner: next}).sql(context.Background(), e.CatalogRead(), c.expression); err != nil {
+		if _, err := (scalarRenderer{owner: next}).sql(context.Background(), e.CatalogRead(), c.Expression); err != nil {
 			t.Fatal("stale usage/origin/provider", c.Name, err)
 		}
-		for _, dep := range c.dependencies {
-			if dep.ref.Address.ClassID == ids.RelationClassID && dep.ref.Address.ObjectID == ref.Address.ObjectID && dep.ref.Address.SubID == old.Attributes[0] {
+		for _, dep := range c.Dependencies {
+			if dep.Ref.Address.ClassID == ids.RelationClassID && dep.Ref.Address.ObjectID == ref.Address.ObjectID && dep.Ref.Address.SubID == old.Attributes[0] {
 				t.Fatal("retained dropped slot", dep)
 			}
 		}
@@ -179,7 +179,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 				t.Fatal("public CHECK parameter admission changed", err)
 			}
-			ordinary, err := (scalarRenderer{owner: original}).sql(context.Background(), e.CatalogRead(), original.CheckConstraints[0].expression)
+			ordinary, err := (scalarRenderer{owner: original}).sql(context.Background(), e.CatalogRead(), original.CheckConstraints[0].Expression)
 			if err != nil || strings.Contains(ordinary, "$") {
 				t.Fatal("changed ordinary CHECK serialization", ordinary, err)
 			}

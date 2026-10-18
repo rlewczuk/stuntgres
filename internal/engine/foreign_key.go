@@ -87,12 +87,12 @@ func foreignKeyIndex(view CatalogRead, parent *relationDescriptor, attributes []
 
 func foreignKeyIndexEligible(parent, index *relationDescriptor, attributes []int32) (bool, error) {
 	d := index.SQLIndex
-	if d == nil || d.parent != parent.address || !d.unique || !d.ready || !d.valid || !d.live || d.predicate != nil || len(d.keys) != len(attributes) {
+	if d == nil || d.Parent != parent.address || !d.Unique || !d.Ready || !d.Valid || !d.Live || d.Predicate != nil || len(d.Keys) != len(attributes) {
 		return false, nil
 	}
 	for _, attribute := range attributes {
 		matches := 0
-		for _, key := range d.keys {
+		for _, key := range d.Keys {
 			a, node, err := indexCatalogKey(parent, key)
 			if err != nil {
 				return false, err
@@ -122,14 +122,14 @@ func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDe
 		var err error
 		bound := foreignKeyComparison{child: c, parent: p}
 		matchedAt := -1
-		for at, key := range index.SQLIndex.keys {
+		for at, key := range index.SQLIndex.Keys {
 			a, node, keyErr := indexCatalogKey(parent, key)
 			if keyErr != nil {
 				return nil, keyErr
 			}
 			if node == nil && a == f.Referenced[i] {
 				pu = indexKeyCollation(pu, key)
-				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.class, view.LookupType)
+				bound.comparison, err = sqltype.BindIndexForeignKey(pu, cu, key.Class, view.LookupType)
 				matchedAt = at
 				break
 			}
@@ -148,7 +148,7 @@ func bindForeignKeyComparison(view CatalogRead, child, parent, index *relationDe
 }
 
 func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescriptor, attributes []int32) error {
-	ref := auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), parent.address)
+	ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), parent.address)
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return err
@@ -174,7 +174,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	view := e.stageRead(stage)
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
-	ref := e.catalog.domain.Ref(view.Epoch(), target)
+	ref := e.catalog.Domain.Ref(view.Epoch(), target)
 	var err error
 	if target == (ids.ObjectAddress{}) {
 		ref, err = e.resolveReference(auth, raw.Target)
@@ -420,9 +420,9 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	}
 	keys := make([]indexKey, len(attributes))
 	for i, a := range attributes {
-		keys[i].attribute = a
+		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), violating.address), keys)
+	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), violating.address), keys)
 	if err != nil {
 		return err
 	}

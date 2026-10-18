@@ -52,11 +52,11 @@ func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*re
 			}
 		}
 	}
-	if provider == nil || root == nil || root.Partition == nil || root.Partition.keys[0].derived == nil {
+	if provider == nil || root == nil || root.Partition == nil || root.Partition.Keys[0].Derived == nil {
 		t.Fatal("missing actual provider/expression hierarchy")
 	}
 	captured := false
-	for _, ref := range root.Partition.keys[0].derived.dependencies {
+	for _, ref := range root.Partition.Keys[0].Derived.Dependencies {
 		captured = captured || ref.Address == provider.address
 	}
 	if !captured {
@@ -84,7 +84,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")
 	}
-	if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), provider.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), provider.address)); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {

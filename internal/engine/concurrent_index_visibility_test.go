@@ -237,7 +237,7 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TABLE t(n INT,v TEXT)")
 			sessionSQL(t, owner, "CREATE INDEX ix ON t("+tc.key+")")
 			definition, _ := concurrentUnitIndex(t, e, "ix", true, true)
-			parent := e.CatalogRead().MustRelation(definition.SQLIndex.parent)
+			parent := e.CatalogRead().MustRelation(definition.SQLIndex.Parent)
 			safe, err := simpleConcurrentIndex(parent, definition.SQLIndex)
 			if err != nil || safe != tc.safe {
 				t.Fatal("catalog key classification differs from safe-builder policy", safe, err)

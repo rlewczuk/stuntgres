@@ -16,7 +16,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.Get(ref.Address) != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)
@@ -28,7 +28,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.parent)
+		parent, ok := catalog.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index parent")
 		}

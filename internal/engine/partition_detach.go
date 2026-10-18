@@ -36,16 +36,16 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err := e.partitionAttachName(auth, raw.Name, scope.lockedRef); err != nil {
 		return fail(err)
 	}
-	defaultAddress := parent.Partition.defaultChild
+	defaultAddress := parent.Partition.DefaultChild
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
 			return fail(err)
 		}
 	}
 	e.mu.Unlock()
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -123,7 +123,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 }
 
 func partitionDetachMembership(parent, child *relationDescriptor) error {
-	if child.Membership == nil || child.Membership.parent != parent.address || !slices.Contains(parent.Partition.children, child.address) {
+	if child.Membership == nil || child.Membership.Parent != parent.address || !slices.Contains(parent.Partition.Children, child.address) {
 		return sqlError("42P01", fmt.Sprintf(`relation "%s" is not a partition of relation "%s"`, child.name, parent.name))
 	}
 	return nil
@@ -144,7 +144,7 @@ func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening b
 		kind = "composite types"
 	case indexRelation:
 		kind = "indexes"
-		if table, ok := view.Relation(d.SQLIndex.parent); ok && table.Partition != nil {
+		if table, ok := view.Relation(d.SQLIndex.Parent); ok && table.Partition != nil {
 			kind = "partitioned indexes"
 		}
 	}
@@ -165,9 +165,9 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 		return fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	nextParent, definition := *parent, *parent.Partition
-	definition.children = slices.DeleteFunc(slices.Clone(definition.children), func(a ids.ObjectAddress) bool { return a == child.address })
-	if definition.defaultChild == child.address {
-		definition.defaultChild = ids.ObjectAddress{}
+	definition.Children = slices.DeleteFunc(slices.Clone(definition.Children), func(a ids.ObjectAddress) bool { return a == child.address })
+	if definition.DefaultChild == child.address {
+		definition.DefaultChild = ids.ObjectAddress{}
 	}
 	nextParent.Partition = &definition
 	nextParent.revision++
@@ -177,7 +177,7 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	if len(child.NotNullConstraints) != 0 {
 		nextChild.NotNullConstraints = slices.Clone(child.NotNullConstraints)
 		for i := range nextChild.NotNullConstraints {
-			nextChild.NotNullConstraints[i].partitionLocal = true
+			nextChild.NotNullConstraints[i].PartitionLocal = true
 		}
 	}
 	if len(child.UniqueConstraints) != 0 {
@@ -203,18 +203,18 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	}
 	for _, descriptor := range stage.base.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != child.address || index.SQLIndex.partitionParent == (ids.ObjectAddress{}) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != child.address || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
-		ancestor, ok := stage.base.Relation(index.SQLIndex.partitionParent)
-		if !ok || ancestor.SQLIndex == nil || ancestor.SQLIndex.parent != parent.address {
+		ancestor, ok := stage.base.Relation(index.SQLIndex.PartitionParent)
+		if !ok || ancestor.SQLIndex == nil || ancestor.SQLIndex.Parent != parent.address {
 			return fmt.Errorf("stuntgres: invalid partition index ancestry")
 		}
 		if index.revision == ids.DefinitionRevision(^uint64(0)) {
 			return fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next, definition := *index, *index.SQLIndex
-		definition.partitionParent = ids.ObjectAddress{}
+		definition.PartitionParent = ids.ObjectAddress{}
 		// The backing contains own identity/kind, not inheritance provenance;
 		// retain it while the table constraint alone becomes local.
 		next.SQLIndex = &definition

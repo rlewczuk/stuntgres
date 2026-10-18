@@ -18,33 +18,33 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 	supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
 	for attribute, proof := range old.PhysicalNotNull {
 		slot := old.indexForAttribute(attribute)
-		if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || proof.usage != old.Columns[slot].Usage {
+		if proof.Cause == nil || proof.Cause.Self != proof.Cause || slot < 0 || proof.Usage != old.Columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid physical not-null remap source")
 		}
-		cause := *proof.cause
-		cause.self = &cause
-		cause.ref.Address = next.address
-		proof.cause = &cause
-		if support := proof.support; support != nil {
+		cause := *proof.Cause
+		cause.Self = &cause
+		cause.Ref.Address = next.address
+		proof.Cause = &cause
+		if support := proof.Support; support != nil {
 			primary := physicalPrimaryForAttribute(old, attribute)
-			if primary == nil || support.constraint != primary.OID || support.index != primary.Index || len(support.keys) != len(primary.Attributes) {
+			if primary == nil || support.Constraint != primary.OID || support.Index != primary.Index || len(support.Keys) != len(primary.Attributes) {
 				return fmt.Errorf("stuntgres: missing physical not-null source primary")
 			}
-			for i, key := range support.keys {
-				if key.attribute != primary.Attributes[i] || key.usage != old.Columns[old.indexForAttribute(key.attribute)].Usage {
+			for i, key := range support.Keys {
+				if key.Attribute != primary.Attributes[i] || key.Usage != old.Columns[old.indexForAttribute(key.Attribute)].Usage {
 					return fmt.Errorf("stuntgres: invalid physical not-null source key usage")
 				}
 			}
 			replacement := supports[support]
 			if replacement == nil {
 				copy := *support
-				if address, moved := mapping[copy.index]; moved {
-					copy.index = address
+				if address, moved := mapping[copy.Index]; moved {
+					copy.Index = address
 				}
 				replacement = &copy
 				supports[support] = replacement
 			}
-			proof.support = replacement
+			proof.Support = replacement
 		}
 		next.PhysicalNotNull[attribute] = proof
 	}
@@ -76,17 +76,17 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 		supports := make(map[*physicalPrimarySupport]*physicalPrimarySupport)
 		for attribute, proof := range table.PhysicalNotNull {
 			slot := table.indexForAttribute(attribute)
-			if proof.cause == nil || proof.cause.self != proof.cause || slot < 0 || old.PhysicalNotNull[attribute].cause != proof.cause {
+			if proof.Cause == nil || proof.Cause.Self != proof.Cause || slot < 0 || old.PhysicalNotNull[attribute].Cause != proof.Cause {
 				return fmt.Errorf("stuntgres: changed physical not-null remap cause")
 			}
-			cause := *proof.cause
-			cause.self = &cause
-			cause.ref = e.catalog.domain.Ref(next.epoch, table.address)
-			proof.cause = &cause
-			proof.usage = table.Columns[slot].Usage
-			if support := proof.support; support != nil {
+			cause := *proof.Cause
+			cause.Self = &cause
+			cause.Ref = e.catalog.Domain.Ref(next.epoch, table.address)
+			proof.Cause = &cause
+			proof.Usage = table.Columns[slot].Usage
+			if support := proof.Support; support != nil {
 				before, after := physicalPrimaryForAttribute(old, attribute), physicalPrimaryForAttribute(table, attribute)
-				if before == nil || after == nil || before.OID != support.constraint || before.Index != support.index || after.Index != before.Index || !slices.Equal(before.Attributes, after.Attributes) {
+				if before == nil || after == nil || before.OID != support.Constraint || before.Index != support.Index || after.Index != before.Index || !slices.Equal(before.Attributes, after.Attributes) {
 					return fmt.Errorf("stuntgres: changed physical not-null remap primary")
 				}
 				replacement := supports[support]
@@ -95,10 +95,10 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 					for i, key := range after.Attributes {
 						keys[i] = physicalPrimaryKeyUsage{key, table.Columns[table.indexForAttribute(key)].Usage}
 					}
-					replacement = &physicalPrimarySupport{constraint: after.OID, index: after.Index, keys: keys}
+					replacement = &physicalPrimarySupport{Constraint: after.OID, Index: after.Index, Keys: keys}
 					supports[support] = replacement
 				}
-				proof.support = replacement
+				proof.Support = replacement
 			}
 			copy.PhysicalNotNull[attribute] = proof
 		}

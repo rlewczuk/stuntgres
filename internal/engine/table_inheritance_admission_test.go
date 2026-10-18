@@ -13,7 +13,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
-	child.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
+	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.address}}
 	e.catalog.state = inheritanceUnitView(e, parent).state
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
@@ -25,7 +25,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if err := holder.gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.address)
 	if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}

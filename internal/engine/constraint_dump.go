@@ -42,7 +42,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog Catal
 		if !c.NotValid || !dumpCheckDeclaration(catalog, t.descriptor, c) {
 			continue
 		}
-		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
+		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.Expression)
 		if err != nil {
 			return err
 		}

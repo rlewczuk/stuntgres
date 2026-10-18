@@ -44,7 +44,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 	if err := e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, old, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	old.CheckConstraints[0].ordinal = 7
+	old.CheckConstraints[0].Ordinal = 7
 	next := *old
 	next.CheckConstraints = slices.Clone(old.CheckConstraints)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
@@ -52,7 +52,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	ordered := orderedChecks(&next)
-	if len(ordered) != 3 || ordered[0].ordinal != 7 || ordered[1].ordinal != 8 || ordered[2].ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.CheckConstraints[0].Name != "a_second" || len(old.CheckConstraints) != 1 || old.CheckConstraints[0].Name != "original" {
+	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.CheckConstraints[0].Name != "a_second" || len(old.CheckConstraints) != 1 || old.CheckConstraints[0].Name != "original" {
 		t.Fatal("CHECK ordering/source invariant", ordered, next.CheckConstraints, old.CheckConstraints)
 	}
 	e.mu.Lock()
@@ -137,7 +137,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	// validity is membership in the installed generation, not pointer inequality
 	// across owners (ReplaceCatalog clones the source catalog and remaps refs).
 	view := destination.CatalogRead()
-	node := imported.Defaults[4].expression
+	node := imported.Defaults[4].Expression
 	usage := node.ResultUsage()
 	provider, exists := view.LookupType(usage.Type.ID())
 	if !exists || provider != usage.Type || usage != imported.Columns[1].Usage {
@@ -151,7 +151,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil || integer != 7 {
 		t.Fatal("imported default changed", integer, err)
 	}
-	if err := destination.catalog.providers[ids.RelationClassID].Validate(view, imported); err != nil {
+	if err := destination.catalog.Providers[ids.RelationClassID].Validate(view, imported); err != nil {
 		t.Fatal("invalid imported definition/provider manifest", err)
 	}
 }

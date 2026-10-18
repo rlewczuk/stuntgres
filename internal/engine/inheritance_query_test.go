@@ -17,8 +17,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	l := inheritanceLifecycleTable(e, 20001, "l", p.address)
 	r := inheritanceLifecycleTable(e, 20002, "r", p.address)
 	d := inheritanceLifecycleTable(e, 20003, "d", l.address, r.address, p.address)
-	own := e.catalog.domain.Session(1)
-	peer := e.catalog.domain.Session(2)
+	own := e.catalog.Domain.Session(1)
+	peer := e.catalog.Domain.Session(2)
 	ownNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20004}
 	peerNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}
 	o := inheritanceLifecycleTable(e, 20006, "own", p.address)
@@ -106,7 +106,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := rowVersion{row: 1, version: 2, values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
@@ -157,7 +157,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.address)
 	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
@@ -258,7 +258,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	c := inheritanceLifecycleTable(e, 20001, "c", p.address)
 	inheritanceLifecycleInstall(e, p, c)
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.address)
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++

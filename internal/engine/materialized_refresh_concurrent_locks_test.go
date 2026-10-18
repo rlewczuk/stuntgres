@@ -31,11 +31,11 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			d = e.catalog.state.MustRelation(d.address)
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
+			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, source.address)
 			definition := *viewOf(d)
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.Attributes, reads: source.Attributes}}
 			d.View = &definition
-			targetRef := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+			targetRef := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef

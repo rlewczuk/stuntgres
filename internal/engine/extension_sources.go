@@ -83,7 +83,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 			if d.Foreign != nil {
 				parallel = "u"
 			} else if d.Builtin != nil {
-				switch d.Builtin.parallel {
+				switch d.Builtin.Parallel {
 				case 'r':
 					parallel = "r"
 				case 'u':

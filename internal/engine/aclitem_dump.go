@@ -89,13 +89,13 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			}
 		}
 		for _, definition := range relation.Defaults {
-			expression(definition.expression)
+			expression(definition.Expression)
 		}
 		for _, definition := range relation.Generations {
-			expression(definition.expression)
+			expression(definition.Expression)
 		}
 		for _, constraint := range relation.CheckConstraints {
-			expression(constraint.expression)
+			expression(constraint.Expression)
 		}
 		if relation.View != nil {
 			for _, literal := range viewOf(relation).literals {
@@ -103,36 +103,36 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			}
 		}
 		if relation.SQLIndex != nil {
-			for _, key := range relation.SQLIndex.keys {
-				if key.derived != nil {
-					expression(key.derived.definition)
+			for _, key := range relation.SQLIndex.Keys {
+				if key.Derived != nil {
+					expression(key.Derived.Definition)
 				}
 			}
-			if relation.SQLIndex.predicate != nil {
-				expression(relation.SQLIndex.predicate.definition)
+			if relation.SQLIndex.Predicate != nil {
+				expression(relation.SQLIndex.Predicate.Definition)
 			}
 		}
 		if relation.Partition != nil {
-			for _, key := range relation.Partition.keys {
-				if key.derived != nil {
-					expression(key.derived.definition)
+			for _, key := range relation.Partition.Keys {
+				if key.Derived != nil {
+					expression(key.Derived.Definition)
 				}
 			}
 		}
 		if relation.Membership != nil {
-			for _, datum := range relation.Membership.lower {
-				check(datum.value)
+			for _, datum := range relation.Membership.Lower {
+				check(datum.Value)
 			}
-			for _, datum := range relation.Membership.upper {
-				check(datum.value)
+			for _, datum := range relation.Membership.Upper {
+				check(datum.Value)
 			}
 		}
 		for _, policy := range relation.Policies {
-			if policy.using != nil {
-				expression(policyExpressionOf(policy.using).expression)
+			if policy.Using != nil {
+				expression(policyExpressionOf(policy.Using).expression)
 			}
-			if policy.check != nil {
-				expression(policyExpressionOf(policy.check).expression)
+			if policy.Check != nil {
+				expression(policyExpressionOf(policy.Check).expression)
 			}
 		}
 		if failure != nil {

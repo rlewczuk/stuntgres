@@ -58,7 +58,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(proc)
 		}
 		seen[address] = true
-		if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+		if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -80,7 +80,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) {
-			p.Implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
+			p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
 		},
 		func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
 		func(p *procedureDescriptor) { p.Implementation = stockIntarray },
@@ -98,7 +98,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		bad := *original.(*procedureDescriptor)
 		mutate(&bad)
 		view.state.setDescriptor(ext.Members[0], &bad)
-		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifestFailure := stockPgcrypto.ValidateExtension(view, ext)
 		view.state.setDescriptor(ext.Members[0], original)
 		if failure == nil {
@@ -115,7 +115,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			func(p *procedureDescriptor) { p.Result = 25 },
 			func(p *procedureDescriptor) { p.Signature = "25" },
 			func(p *procedureDescriptor) {
-				p.Implementation = &pgcryptoProvider{control: extensionControl{version: "1.4"}}
+				p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
 			},
 		} {
 			bad := *original
@@ -168,7 +168,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	// rather than reducing the call to its extension or output type.
 	generated := &relationDescriptor{
 		Generations: map[int32]columnGeneration{
-			1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}},
+			1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
 		},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err != nil {
@@ -179,7 +179,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	}
 	stale := n.ref
 	stale.Epoch = 0
-	generated.Generations[1] = columnGeneration{dependencies: []ids.ObjectRef{stale}}
+	generated.Generations[1] = columnGeneration{Dependencies: []ids.ObjectRef{stale}}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}

@@ -78,7 +78,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
 					descriptor = e.catalog.state.Get(address)
 					policies := descriptor.(*relationDescriptor).Policies
-					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].roles) != 1 || policies[0].roles[0].ref != role.Ref {
+					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
 				case "registered":

@@ -52,7 +52,7 @@ func TestNameDescriptors(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO names VALUES('MiXeD',NULL,NULL)")
 	old := run(t, e, "SELECT * FROM names")
-	ref := e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 19})
+	ref := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 19})
 	other := New()
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign NAME reference")

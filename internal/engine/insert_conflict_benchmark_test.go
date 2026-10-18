@@ -55,7 +55,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.owner.isolation, scope.owner.frontier = isolation, 1
-				ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+				ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.address)
 				action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
 				evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
 				if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {

@@ -325,10 +325,10 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 					if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
 						return CatalogConflict{}
 					}
-					if relation.Sequence != nil && relation.Sequence.owned == target {
+					if relation.Sequence != nil && relation.Sequence.Owned == target {
 						// Identity TYPE refreshes this exact internal link under
 						// its SRX grant; preserve the existing original fence.
-						if !relation.Sequence.identity || originals[address] != descriptor {
+						if !relation.Sequence.Identity || originals[address] != descriptor {
 							return CatalogConflict{}
 						}
 					}
@@ -344,7 +344,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 						}
 					}
 				case *relationDescriptor:
-					if owner.Foreign != nil && owner.Foreign.server == target {
+					if owner.Foreign != nil && owner.Foreign.Server == target {
 						return CatalogConflict{}
 					}
 				}

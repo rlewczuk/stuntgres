@@ -54,9 +54,9 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 				case "default":
 					defaults = []expr.Expr{node}
 				case "generation":
-					generations = map[int32]columnGeneration{1: {planned: node}}
+					generations = map[int32]columnGeneration{1: {Planned: node}}
 				case "check":
-					checks = []checkConstraint{{expression: node}}
+					checks = []checkConstraint{{Expression: node}}
 				}
 				if err := b.captureRetainedWriteInput(defaults, generations, checks); err != nil {
 					t.Fatal(err)
@@ -125,8 +125,8 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	int4 := e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	want := []expressionDependency{
-		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), typ.Address()), revision: typ.Revision()},
-		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), int4.Address()), revision: int4.Revision()},
+		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
+		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
 	}
 	if !reflect.DeepEqual(c.operands, want) || !slices.Contains(c.qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
@@ -252,7 +252,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if err != nil || !present || !sqltype.SameDatum(values[0], c.value) || d.analysis == priorAnalysis {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
-	want[0].revision = changed.Revision()
+	want[0].Revision = changed.Revision()
 	if !reflect.DeepEqual(d.regtypes.constants[0].operands, want) {
 		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.constants[0].operands, want)
 	}

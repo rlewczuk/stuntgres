@@ -37,7 +37,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					view := e.CatalogRead()
 					address := parent.address
 					address.SubID = attribute
-					ref := e.catalog.domain.Ref(view.Epoch(), address)
+					ref := e.catalog.Domain.Ref(view.Epoch(), address)
 					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 						t.Fatal(err)
@@ -59,7 +59,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.domain.Ref(view.Epoch(), parent.address), index.SQLIndex.keys)
+				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.Domain.Ref(view.Epoch(), parent.address), index.SQLIndex.Keys)
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}

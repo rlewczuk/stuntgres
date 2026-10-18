@@ -26,7 +26,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 		}
 		if proven && !exclude {
 			for child := parent; child.Membership != nil; {
-				ancestor := view.MustRelation(child.Membership.parent)
+				ancestor := view.MustRelation(child.Membership.Parent)
 				proven, err = partitionConstraintProven(s, view, ancestor, d, child.Membership, false)
 				if err != nil || !proven {
 					break
@@ -44,14 +44,14 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			scans = append(scans, partitionAttachScan{leaf: d, exclude: exclude})
 			return nil
 		}
-		for _, address := range d.Partition.children {
+		for _, address := range d.Partition.Children {
 			child, ok := view.Relation(address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
 			childView := view
 			if lockChildren {
-				ref := s.op.session.Engine().catalog.domain.Ref(view.Epoch(), address)
+				ref := s.op.session.Engine().catalog.Domain.Ref(view.Epoch(), address)
 				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 					return err
 				}
@@ -102,7 +102,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 				return err
 			}
 		}
-		refs = append(refs, e.catalog.domain.Ref(catalog.Epoch(), job.leaf.address))
+		refs = append(refs, e.catalog.Domain.Ref(catalog.Epoch(), job.leaf.address))
 	}
 	if len(refs) == 0 {
 		return nil
@@ -140,14 +140,14 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 		}
 		if !job.exclude {
 			for child := parent; child.Membership != nil; {
-				ancestor := catalog.MustRelation(child.Membership.parent)
+				ancestor := catalog.MustRelation(child.Membership.Parent)
 				if err := add(ancestor, child.Membership); err != nil {
 					return err
 				}
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.domain.Ref(catalog.Epoch(), job.leaf.address)
+		ref := catalog.owner.Domain.Ref(catalog.Epoch(), job.leaf.address)
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err

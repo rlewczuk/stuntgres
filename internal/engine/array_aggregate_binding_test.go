@@ -46,7 +46,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 		}
 		found := false
 		for _, dependency := range b.dependencies {
-			if dependency.ref.Address.ClassID == ids.TypeClassID && dependency.ref.Address.ObjectID == ids.OID(usage.Type.ID()) {
+			if dependency.Ref.Address.ClassID == ids.TypeClassID && dependency.Ref.Address.ObjectID == ids.OID(usage.Type.ID()) {
 				found = true
 			}
 		}
@@ -122,7 +122,7 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		}
 		found := false
 		for _, d := range b.dependencies {
-			if d.ref.Address.ClassID == ids.TypeClassID && d.ref.Address.ObjectID == ids.OID(tc.want.ID()) {
+			if d.Ref.Address.ClassID == ids.TypeClassID && d.Ref.Address.ObjectID == ids.OID(tc.want.ID()) {
 				found = true
 			}
 		}

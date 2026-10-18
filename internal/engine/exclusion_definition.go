@@ -24,11 +24,11 @@ type exclusionConstraint struct {
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.ExclusionConstraints {
 		index, ok := view.Relation(c.Index)
-		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.name != c.Name || index.SQLIndex.constraint.OID != c.OID || index.SQLIndex.parent != parent.address || len(c.Operators) != len(index.SQLIndex.keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.RelationKind != tableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.name != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.address || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
 		d := index.SQLIndex
-		if d.constraint.Name != c.Name || d.constraint.Index != c.Index || len(d.exclusion) != len(c.Operators) || len(c.Operators) == 0 || &d.exclusion[0] != &c.Operators[0] {
+		if d.Constraint.Name != c.Name || d.Constraint.Index != c.Index || len(d.Exclusion) != len(c.Operators) || len(c.Operators) == 0 || &d.Exclusion[0] != &c.Operators[0] {
 			return fmt.Errorf("stuntgres: invalid exclusion operator ownership")
 		}
 		names[c.Name] = true
@@ -64,7 +64,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err != nil {
 		return err
 	}
-	definition.predicate = predicate
+	definition.Predicate = predicate
 	operators := make([]sqltype.ExclusionOperator, len(s.Keys))
 	for i, name := range raw.Operators {
 		path, err := e.lookupNamespaces(auth, name, operatorLookup)
@@ -78,7 +78,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 				break
 			}
 		}
-		usage, err := indexKeyUsage(parent, definition.keys[i])
+		usage, err := indexKeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return err
 		}
@@ -86,16 +86,16 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		if !visible {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("operator does not exist: %s %s %s", usage.Type.DiagnosticName(), objectNameText(name), usage.Type.DiagnosticName()), Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.keys[i].class, operator)
+		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator)
 		if err != nil {
 			return err
 		}
 		if len(s.Keys[i].Options) != 0 {
-			return sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.keys[i].class.Name))
+			return sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.Keys[i].Class.Name))
 		}
 	}
 	if len(s.Options) != 0 {
-		if err := validateIndexReloptions(s.Options, definition.method, false); err != nil {
+		if err := validateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
 		return indexCapability("index storage parameters are unsupported", s.WithPos)
@@ -161,8 +161,8 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		return err
 	}
 	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
-	definition.constraint = exclusionBacking(&c)
-	definition.exclusion = operators
+	definition.Constraint = exclusionBacking(&c)
+	definition.Exclusion = operators
 	if err := partitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	}
 	if parent.Partition != nil {
 		if !recurse {
-			definition.valid = len(parent.Partition.children) == 0
+			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
 		return e.stagePartitionIndexChildren(op, stage, parent, index, false)
@@ -219,7 +219,7 @@ func exclusionDiagnostic(ctx context.Context, parent, index *relationDescriptor,
 	values := make([]string, len(key))
 	prior := make([]string, len(key))
 	for i, value := range key {
-		attribute, node, err := indexCatalogKey(parent, index.SQLIndex.keys[i])
+		attribute, node, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
 		if err != nil {
 			return err
 		}

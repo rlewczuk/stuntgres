@@ -56,7 +56,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	}
 	source, err := standaloneComposite(auth.catalog, typ, path)
 	if err == nil {
-		err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), typ.Address()))
+		err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), typ.Address()))
 	}
 	if err != nil {
 		return nil, nil, nil, err
@@ -132,7 +132,7 @@ func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) err
 	if err != nil {
 		return err
 	}
-	if table.Inheritance != nil && len(table.Inheritance.parents) != 0 {
+	if table.Inheritance != nil && len(table.Inheritance.Parents) != 0 {
 		return sqlError("42809", "typed tables cannot inherit")
 	}
 	return typedShape(table, source)
@@ -171,7 +171,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		}
 		// PostgreSQL18 attachment is owner-authorized without source USAGE;
 		// CREATE OF intentionally has a separate source-USAGE gate.
-		if old.Inheritance != nil && len(old.Inheritance.parents) != 0 {
+		if old.Inheritance != nil && len(old.Inheritance.Parents) != 0 {
 			return fail(sqlError("42809", "typed tables cannot inherit"))
 		}
 		if err := typedShape(old, source); err != nil {
@@ -281,7 +281,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !ok {
 			continue
 		}
-		if err := scope.acquireSequence(stage.owner.catalog.domain.Ref(stage.base.Epoch(), typ.OwningRelation), mode, true); err != nil {
+		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.base.Epoch(), typ.OwningRelation), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep

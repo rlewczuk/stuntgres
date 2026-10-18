@@ -13,7 +13,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
 	source := catalog.MustRelation(address)
-	ref := e.catalog.domain.Ref(catalog.Epoch(), address)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
 	if source.RowType != 10027 || source.VirtualView || !source.HasIndexes || len(source.Columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
@@ -45,7 +45,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		if i >= 20 {
 			collation = 950
 		}
-		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.CatalogAttributes[i].notNull != (i < 20) {
+		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.CatalogAttributes[i].NotNull != (i < 20) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}
@@ -98,7 +98,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if got, err := capturePGAggregate(context.Background(), fresh, ref, source); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
-	newRef := e.catalog.domain.Ref(fresh.Epoch(), address)
+	newRef := e.catalog.Domain.Ref(fresh.Epoch(), address)
 	if got, err := capturePGAggregate(context.Background(), fresh, newRef, newSource); err != nil || len(got.anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
@@ -115,15 +115,15 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	}
 	seen := make(map[ids.OID]bool)
 	for _, d := range builtinAggregateDefinitions {
-		identity, ok := routineByOID[d.function]
-		if !ok || seen[d.function] || identity.namespace != ids.PGCatalogNamespaceOID {
-			t.Fatal("unowned/duplicate aggregate signature", d.function)
+		identity, ok := routineByOID[d.Function]
+		if !ok || seen[d.Function] || identity.Namespace != ids.PGCatalogNamespaceOID {
+			t.Fatal("unowned/duplicate aggregate signature", d.Function)
 		}
-		seen[d.function] = true
-		for _, id := range d.functions {
+		seen[d.Function] = true
+		for _, id := range d.Functions {
 			if id != 0 {
 				if _, ok := routineByOID[id]; !ok {
-					t.Fatal("unknown released helper", d.function, id)
+					t.Fatal("unknown released helper", d.Function, id)
 				}
 			}
 		}
@@ -137,7 +137,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
-	ref := e.catalog.domain.Ref(catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), source.address)
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

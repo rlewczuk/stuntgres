@@ -16,7 +16,7 @@ func TestHashPartitionBounds(t *testing.T) {
 			}
 			for r := range a {
 				for s := range b {
-					left, right := &partitionMembership{modulus: a, remainder: r}, &partitionMembership{modulus: b, remainder: s}
+					left, right := &partitionMembership{Modulus: a, Remainder: r}, &partitionMembership{Modulus: b, Remainder: s}
 					want := false
 					for slot := range b {
 						want = want || slot%a == r && slot%b == s
@@ -28,10 +28,10 @@ func TestHashPartitionBounds(t *testing.T) {
 			}
 		}
 	}
-	if !validHashPartitionBound(&partitionMembership{modulus: 2147483647, remainder: 2147483646}) {
+	if !validHashPartitionBound(&partitionMembership{Modulus: 2147483647, Remainder: 2147483646}) {
 		t.Fatal("sparse maximum bound rejected")
 	}
-	for _, b := range []partitionMembership{{modulus: 0}, {modulus: 2, remainder: 2}, {modulus: 2, remainder: -1}, {modulus: 2, defaultBound: true}, {modulus: 2, lower: []partitionDatum{{}}}} {
+	for _, b := range []partitionMembership{{Modulus: 0}, {Modulus: 2, Remainder: 2}, {Modulus: 2, Remainder: -1}, {Modulus: 2, DefaultBound: true}, {Modulus: 2, Lower: []partitionDatum{{}}}} {
 		if validHashPartitionBound(&b) {
 			t.Fatal("invalid hash bound accepted", b)
 		}
@@ -66,8 +66,8 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, CatalogRead, *relationDescr
 	leaf.address.ObjectID++
 	leaf.name = "hash_leaf"
 	leaf.RelationKind = tableRelation
-	leaf.Membership = &partitionMembership{parent: root.address, strategy: parser.PartitionHash, modulus: 1}
-	root.Partition = &partitionDefinition{strategy: parser.PartitionHash, keys: []partitionKeyEntry{{attribute: 1, usage: typ.Usage(), class: class, hash: provider, label: "k"}}, children: []ids.ObjectAddress{leaf.address}}
+	leaf.Membership = &partitionMembership{Parent: root.address, Strategy: parser.PartitionHash, Modulus: 1}
+	root.Partition = &partitionDefinition{Strategy: parser.PartitionHash, Keys: []partitionKeyEntry{{Attribute: 1, Usage: typ.Usage(), Class: class, Hash: provider, Label: "k"}}, Children: []ids.ObjectAddress{leaf.address}}
 	catalog.setDescriptor(root.address, root)
 	catalog.setDescriptor(leaf.address, &leaf)
 	return e, e.catalog.read(catalog), root, &leaf
@@ -81,7 +81,7 @@ func TestHashPartitionInvariants(t *testing.T) {
 		}
 	}
 	original := *leaf.Membership
-	for _, bad := range []partitionMembership{{parent: root.address, modulus: 1}, {parent: root.address, strategy: parser.PartitionHash, modulus: 0}, {parent: root.address, strategy: parser.PartitionHash, modulus: 1, defaultBound: true}} {
+	for _, bad := range []partitionMembership{{Parent: root.address, Modulus: 1}, {Parent: root.address, Strategy: parser.PartitionHash, Modulus: 0}, {Parent: root.address, Strategy: parser.PartitionHash, Modulus: 1, DefaultBound: true}} {
 		leaf.Membership = &bad
 		if err := validatePartitionDescriptor(catalog, root); err == nil {
 			t.Fatal("invalid child accepted", bad)
@@ -105,7 +105,7 @@ func TestHashPartitionInvariants(t *testing.T) {
 
 func TestHashPartitionRemap(t *testing.T) {
 	catalog, root, _ := hashPartitionUnitDescriptor(t)
-	old := root.Partition.keys[0]
+	old := root.Partition.Keys[0]
 	var replacement *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
 		if typ.ID() == sqltype.Int4 {
@@ -114,7 +114,7 @@ func TestHashPartitionRemap(t *testing.T) {
 		}
 	}
 	remapped, err := remapPartitionDescriptor(catalog, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
-		if typ == old.usage.Type {
+		if typ == old.Usage.Type {
 			return replacement
 		}
 		return typ
@@ -122,14 +122,14 @@ func TestHashPartitionRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if root.Partition.keys[0] != old || remapped.Partition.keys[0].usage.Type != replacement || remapped.Partition.strategy != parser.PartitionHash {
+	if root.Partition.Keys[0] != old || remapped.Partition.Keys[0].Usage.Type != replacement || remapped.Partition.Strategy != parser.PartitionHash {
 		t.Fatal("mutable or strategy-incorrect remap")
 	}
 	value, err := sqltype.Integer(replacement, 42)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := remapped.Partition.keys[0].hash.Hash(context.Background(), value, 0x7a5b22367996dcfd)
+	got, err := remapped.Partition.Keys[0].Hash.Hash(context.Background(), value, 0x7a5b22367996dcfd)
 	if err != nil || int64(got) != 7363975540656877951 {
 		t.Fatal(got, err)
 	}
@@ -137,17 +137,17 @@ func TestHashPartitionRemap(t *testing.T) {
 
 func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	catalog, root, source := hashPartitionUnitDescriptor(t)
-	source.Membership.modulus = 2
+	source.Membership.Modulus = 2
 	destination := *source
 	destination.address.ObjectID++
 	destination.name = "hash_destination"
-	destination.Membership = &partitionMembership{parent: root.address, strategy: parser.PartitionHash, modulus: 2, remainder: 1}
-	root.Partition.children = append(root.Partition.children, destination.address)
+	destination.Membership = &partitionMembership{Parent: root.address, Strategy: parser.PartitionHash, Modulus: 2, Remainder: 1}
+	root.Partition.Children = append(root.Partition.Children, destination.address)
 	catalog.state.setDescriptor(destination.address, &destination)
 	class, _ := sqltype.DefaultIndexClass(source.Columns[0].Usage.Type)
 	makeIndex := func(parent *relationDescriptor, oid ids.OID) *relationDescriptor {
 		index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: parent.name + "_key", RelationKind: indexRelation,
-			SQLIndex: &indexDefinition{parent: parent.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, live: true, valid: true}}
+			SQLIndex: &indexDefinition{Parent: parent.address, Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Live: true, Valid: true}}
 		catalog.state.setDescriptor(index.address, index)
 		return index
 	}

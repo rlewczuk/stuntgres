@@ -25,7 +25,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	oldA, oldB := old.Defaults[old.Attributes[0]], old.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.revision != old.revision+1 || next.address != old.address || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].expression != oldB.expression || old.Defaults[old.Attributes[0]].expression != oldA.expression || read.Get(ref.Address) != old {
+	if next == old || next.revision != old.revision+1 || next.address != old.address || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
 	if e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
@@ -41,7 +41,7 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	if _, ok := d.Defaults[old.Attributes[0]]; ok {
 		t.Fatal("default retained")
 	}
-	if d.Defaults[old.Attributes[1]].expression != oldB.expression {
+	if d.Defaults[old.Attributes[1]].Expression != oldB.Expression {
 		t.Fatal("other default changed")
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
@@ -106,14 +106,14 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()

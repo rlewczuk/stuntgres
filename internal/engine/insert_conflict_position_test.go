@@ -41,7 +41,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			f := insertConflictUniqueFixture(t)
 			definition := *f.index.SQLIndex
 			if !partial {
-				definition.predicate = nil
+				definition.Predicate = nil
 			}
 			f.index.SQLIndex = &definition
 			for i, k := range []int64{20, 30} {
@@ -139,10 +139,10 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			index := *f.index
 			index.revision++
 			shapedDefinition := definition
-			if definition.predicate != nil {
-				predicate := *definition.predicate
-				predicate.attributes = parent.Attributes
-				shapedDefinition.predicate = &predicate
+			if definition.Predicate != nil {
+				predicate := *definition.Predicate
+				predicate.Attributes = parent.Attributes
+				shapedDefinition.Predicate = &predicate
 			}
 			index.SQLIndex = &shapedDefinition
 			nextCatalog := *f.e.catalog.state

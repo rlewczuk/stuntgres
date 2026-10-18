@@ -28,7 +28,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			originalEpoch := e.catalog.state.epoch
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			ref := e.catalog.domain.Ref(originalEpoch, d.address)
+			ref := e.catalog.Domain.Ref(originalEpoch, d.address)
 			mode := lock.AccessShare
 			if concurrent {
 				mode = lock.Exclusive

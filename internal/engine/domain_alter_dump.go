@@ -37,11 +37,11 @@ func domainInvalidDumpEvents(ctx context.Context, view CatalogRead, graph map[du
 				}
 				return nil
 			}
-			if err := regclassReplayReferences(view, check.expression, add); err != nil {
+			if err := regclassReplayReferences(view, check.Expression, add); err != nil {
 				return err
 			}
-			for _, dependency := range check.dependencies {
-				if err := add(dependency.ref.Address); err != nil {
+			for _, dependency := range check.Dependencies {
+				if err := add(dependency.Ref.Address); err != nil {
 					return err
 				}
 			}
@@ -64,7 +64,7 @@ func domainInvalidDumpStatement(ctx context.Context, view CatalogRead, domain *t
 		if !check.NotValid {
 			continue
 		}
-		expression, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.expression)
+		expression, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.Expression)
 		if err != nil {
 			return "", err
 		}
@@ -108,7 +108,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
+	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.Domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
 	if _, captured := e.importTargets[owner]; !captured {

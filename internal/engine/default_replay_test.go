@@ -20,7 +20,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		if !defaultReplayDeferrable(definition) {
 			t.Fatalf("captured definition %d not deferrable", attribute)
 		}
-		definition.dependencies = nil
+		definition.Dependencies = nil
 		if defaultReplayDeferrable(definition) {
 			t.Fatalf("definition %d deferred without captured provider authority", attribute)
 		}
@@ -32,14 +32,14 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	boolean, _ := catalog.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
 	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, "10000")}
-	definition := columnDefault{expression: literal, dependencies: []ids.ObjectRef{ref}}
+	definition := columnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}
 	if !defaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
 	}
 	for _, properties := range []expr.Properties{{Volatility: expr.Stable}, {Volatility: expr.Volatile}, {RowDependent: true}, {ParameterDependent: true}, {StageDependent: true}} {
 		changed := literal
 		changed.Property = properties
-		definition.expression = changed
+		definition.Expression = changed
 		if defaultReplayDeferrable(definition) {
 			t.Fatalf("nonclosed scalar properties %#v admitted", properties)
 		}
@@ -61,7 +61,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		mutate(&changed)
 		// These mutations must not create captured authority for a pure BOOL
 		// result. REGCLASS results independently belong to the selected subset.
-		definition.expression = nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: changed, not: true}
+		definition.Expression = nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: changed, not: true}
 		if defaultReplayDeferrable(definition) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}

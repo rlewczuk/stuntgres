@@ -44,7 +44,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	}
 	address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: raw.Actions[0].UsingIndex.Index.Text})
 	index, ok := auth.catalog.Relation(address)
-	if ok && index.SQLIndex != nil && index.SQLIndex.parent == table.address && index.SQLIndex.partitionParent == (ids.ObjectAddress{}) && index.SQLIndex.constraint == nil {
+	if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.address && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && index.SQLIndex.Constraint == nil {
 		op.restorePartitionUsingIndex = &partitionUsingIndexReplay{target: table, index: index, syntax: raw}
 	}
 	return nil

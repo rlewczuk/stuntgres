@@ -40,7 +40,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	if err := ctx.Err(); err != nil {
 		return m, names, err
 	}
-	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
+	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	index, ok := catalog.Relation(ref.Address)
@@ -52,23 +52,23 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		return m, names, err
 	}
 	definition := index.SQLIndex
-	parent := catalog.MustRelation(definition.parent)
-	n := len(definition.keys)
+	parent := catalog.MustRelation(definition.Parent)
+	n := len(definition.Keys)
 	ready, valid, live := definition.publicationState()
-	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
-	m.IndIsUnique = definition.unique
-	m.IndNullsNotDistinct = definition.nullsNotDistinct
-	m.IndIsPrimary = definition.constraint != nil && definition.constraint.kind == uniqueBackingKind && definition.constraint.Primary
+	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
+	m.IndIsUnique = definition.Unique
+	m.IndNullsNotDistinct = definition.NullsNotDistinct
+	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
 	if definition.isExclusion() {
 		m.IndIsExclusion = true
 		if c := exclusionDefinition(parent, index); c != nil {
 			m.IndImmediate = !c.Deferrable
 		}
 	}
-	if predicate := definition.predicate; predicate != nil {
-		m.Predicate = predicate.definition
+	if predicate := definition.Predicate; predicate != nil {
+		m.Predicate = predicate.Definition
 	}
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -91,22 +91,22 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		if err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
-		m.IndClass[i] = ids.OID(key.class.OID())
+		m.IndClass[i] = ids.OID(key.Class.OID())
 		if m.IndClass[i] == 0 {
 			return indexMetadata{}, indexesMetadata{}, fmt.Errorf("stuntgres: index class has no released identity")
 		}
 		m.IndCollation[i] = ids.OID(usage.Collation.ID)
-		if definition.method != btreeMethod {
+		if definition.Method != btreeMethod {
 			continue
 		}
-		if key.desc {
+		if key.Desc {
 			m.IndOption[i] |= 1
 		}
-		if key.nullsFirst {
+		if key.NullsFirst {
 			m.IndOption[i] |= 2
 		}
 	}
-	for i, attribute := range definition.include {
+	for i, attribute := range definition.Include {
 		if err := ctx.Err(); err != nil {
 			return indexMetadata{}, indexesMetadata{}, err
 		}
@@ -142,7 +142,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 	names := make([]indexesMetadata, len(indexes))
 	for i, index := range indexes {
 		var err error
-		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.domain.Ref(catalog.Epoch(), index.address))
+		records[i], names[i], err = projectIndexMetadata(ctx, catalog, catalog.owner.Domain.Ref(catalog.Epoch(), index.address))
 		if err != nil {
 			return nil, nil, err
 		}

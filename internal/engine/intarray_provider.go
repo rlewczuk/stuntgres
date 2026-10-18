@@ -15,7 +15,7 @@ type intarrayProvider struct{ control extensionControl }
 // Control implements extensionImplementation.
 func (p *intarrayProvider) Control() extensionControl { return p.control.detached() }
 
-var stockIntarray = &intarrayProvider{control: extensionControl{version: "1.5", trusted: true, superuser: true, relocatable: true, comment: new("functions, operators, and index support for 1-D arrays of integers")}}
+var stockIntarray = &intarrayProvider{control: extensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 
 const intarrayTypeContext = "SQL statement \"CREATE TYPE query_int (\n\tINTERNALLENGTH = -1,\n\tINPUT = bqarr_in,\n\tOUTPUT = bqarr_out\n)\"\nextension script file \"intarray--1.2.sql\", near line 21"
 const intarrayInputContext = "SQL statement \"CREATE FUNCTION bqarr_in(cstring)\nRETURNS query_int\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 11"
@@ -89,7 +89,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
-	if p != stockIntarray || ext.name != "intarray" || ext.Version != p.control.version || len(ext.Members) != 3 {
+	if p != stockIntarray || ext.name != "intarray" || ext.Version != p.control.Version || len(ext.Members) != 3 {
 		return invalid()
 	}
 	if ext.Members[0].ClassID != ids.TypeClassID || ext.Members[1].ClassID != ids.ProcedureClassID || ext.Members[2].ClassID != ids.ProcedureClassID {

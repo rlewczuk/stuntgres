@@ -24,12 +24,12 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					c.Attributes = []int32{2, 7}
 					c.AttributeHighWater = 7
 					parents := []ids.ObjectAddress{p.address}
-					origins := []inheritanceOrigin{{parent: p.address, attribute: 1}}
+					origins := []inheritanceOrigin{{Parent: p.address, Attribute: 1}}
 					if other {
 						parents = append(parents, q.address)
-						origins = append(origins, inheritanceOrigin{parent: q.address, attribute: 1})
+						origins = append(origins, inheritanceOrigin{Parent: q.address, Attribute: 1})
 					}
-					c.Inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{2: {local: true}, 7: {local: local, origins: origins}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+					c.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{2: {Local: true}, 7: {Local: local, Origins: origins}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 					original := cloneInheritance(c.Inheritance)
 					next := *p
 					next.revision++
@@ -45,9 +45,9 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						c.NotNullConstraints = []notNullConstraint{{OID: 23002, Name: "fact", Attribute: 7}}
 						nn := append([]inheritanceOrigin(nil), origins...)
 						for i := range nn {
-							nn[i].constraint = 23000 + ids.OID(i)
+							nn[i].Constraint = 23000 + ids.OID(i)
 						}
-						c.Inheritance.notNull[7] = inheritedConstraint{local: local, origins: nn}
+						c.Inheritance.NotNull[7] = inheritedConstraint{Local: local, Origins: nn}
 						original = cloneInheritance(c.Inheritance)
 						next.NotNullConstraints = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
@@ -57,10 +57,10 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						c.CheckConstraints = []checkConstraint{{OID: 23002, Name: "fact"}}
 						checks := append([]inheritanceOrigin(nil), origins...)
 						for i := range checks {
-							checks[i].attribute = 0
-							checks[i].constraint = 23000 + ids.OID(i)
+							checks[i].Attribute = 0
+							checks[i].Constraint = 23000 + ids.OID(i)
 						}
-						c.Inheritance.checks["fact"] = inheritedConstraint{local: local, origins: checks}
+						c.Inheritance.Checks["fact"] = inheritedConstraint{Local: local, Origins: checks}
 						original = cloneInheritance(c.Inheritance)
 						next.CheckConstraints = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
@@ -79,20 +79,20 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					if other {
 						wantOrigins = 1
 					}
-					actualLocal := graph.columns[7].local
-					actualOrigins := graph.columns[7].origins
+					actualLocal := graph.Columns[7].Local
+					actualOrigins := graph.Columns[7].Origins
 					if kind == "notnull" {
-						actualLocal = graph.notNull[7].local
-						actualOrigins = graph.notNull[7].origins
+						actualLocal = graph.NotNull[7].Local
+						actualOrigins = graph.NotNull[7].Origins
 					}
 					if kind == "check" {
-						actualLocal = graph.checks["fact"].local
-						actualOrigins = graph.checks["fact"].origins
+						actualLocal = graph.Checks["fact"].Local
+						actualOrigins = graph.Checks["fact"].Origins
 					}
 					if actualLocal != wantLocal || len(actualOrigins) != wantOrigins {
 						t.Fatal("wrong retained provenance", kind, only, other, local, graph)
 					}
-					if other && (actualOrigins[0].parent != q.address || kind != "check" && actualOrigins[0].attribute != 1) {
+					if other && (actualOrigins[0].Parent != q.address || kind != "check" && actualOrigins[0].Attribute != 1) {
 						t.Fatal("surviving parent identity/attribute changed", actualOrigins)
 					}
 					wantDrop := !wantLocal && !other
@@ -122,7 +122,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 		next.revision++
 		next.Comment = "candidate"
 		store := e.storage[old.address]
-		ref := e.catalog.domain.Ref(before.Epoch(), old.address)
+		ref := e.catalog.Domain.Ref(before.Epoch(), old.address)
 		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.versions), store.generation, store.ends); err != nil {
 			t.Fatal(err)
 		}
@@ -149,35 +149,35 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	expression := func(n int64) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: usage}, value: inheritanceQueryInt(e, n)}
 	}
-	p.Defaults = map[int32]columnDefault{1: {expression: expression(1)}}
-	c.Defaults = map[int32]columnDefault{1: {expression: expression(9)}}
-	provenance := inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}
+	p.Defaults = map[int32]columnDefault{1: {Expression: expression(1)}}
+	c.Defaults = map[int32]columnDefault{1: {Expression: expression(9)}}
+	provenance := inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}
 	view := inheritanceUnitView(e, p, c)
 	retained, err := retainInheritedRecipes(view, c, 1, provenance)
-	if err != nil || retained.local || !retained.explicitDefault || !reflect.DeepEqual(retained.origins, provenance.origins) {
+	if err != nil || retained.Local || !retained.ExplicitDefault || !reflect.DeepEqual(retained.Origins, provenance.Origins) {
 		t.Fatal("default authority changed attribute locality/origins", retained, err)
 	}
 	c.Defaults = nil
 	tombstone, err := retainInheritedRecipes(view, c, 1, provenance)
-	if err != nil || tombstone.local || !tombstone.explicitDefault {
+	if err != nil || tombstone.Local || !tombstone.ExplicitDefault {
 		t.Fatal("default absence lost explicit authority", tombstone, err)
 	}
 	p.Defaults = nil
 	plain, err := retainInheritedRecipes(view, c, 1, provenance)
-	if err != nil || plain.explicitDefault || plain.local {
+	if err != nil || plain.ExplicitDefault || plain.Local {
 		t.Fatal("ordinary inherited absence fabricated authority", plain, err)
 	}
 	p = inheritanceUnitRelation(e, "gp", 22002, "a", "g")
 	c = inheritanceUnitRelation(e, "gc", 22003, "a", "g")
-	p.Generations = map[int32]columnGeneration{2: {OID: 24000, kind: generationVirtual, expression: expression(1)}}
-	c.Generations = map[int32]columnGeneration{2: {OID: 24001, kind: generationVirtual, expression: expression(2)}}
-	c.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}, 2: {origins: []inheritanceOrigin{{parent: p.address, attribute: 2}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	p.Generations = map[int32]columnGeneration{2: {OID: 24000, Kind: generationVirtual, Expression: expression(1)}}
+	c.Generations = map[int32]columnGeneration{2: {OID: 24001, Kind: generationVirtual, Expression: expression(2)}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}, 2: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 2}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
 	if err := validateInheritance(view, c); err != nil {
 		t.Fatal("legal ONLY recipe divergence invalidated column origins", err)
 	}
-	effective, err := retainInheritedRecipes(view, c, 2, c.Inheritance.columns[2])
-	if err != nil || effective.local || !effective.explicitGeneration || c.Inheritance.columns[2].explicitGeneration {
+	effective, err := retainInheritedRecipes(view, c, 2, c.Inheritance.Columns[2])
+	if err != nil || effective.Local || !effective.ExplicitGeneration || c.Inheritance.Columns[2].ExplicitGeneration {
 		t.Fatal("capture failed to derive retained recipe without retagging live child", effective, err)
 	}
 	for _, kind := range []string{"kind", "usage", "origin"} {
@@ -186,11 +186,11 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 		next.Inheritance = cloneInheritance(c.Inheritance)
 		switch kind {
 		case "kind":
-			next.Generations = map[int32]columnGeneration{2: {OID: 24001, kind: generationStored, expression: expression(2)}}
+			next.Generations = map[int32]columnGeneration{2: {OID: 24001, Kind: generationStored, Expression: expression(2)}}
 		case "usage":
 			next.Columns[1].Usage = testUsage(e, sqltype.Int8)
 		case "origin":
-			next.Inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}
+			next.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}
 		}
 		if err := validateInheritance(view, &next); err == nil {
 			t.Fatal("recipe equality relaxation bypassed independent invariant", kind)
@@ -198,7 +198,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	foreign := New()
 	definition := c.Generations[2]
-	definition.dependencies = []ids.ObjectRef{foreign.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
+	definition.Dependencies = []ids.ObjectRef{foreign.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.Generations = map[int32]columnGeneration{2: definition}
 	if err := validateGenerationProviders(view, &invalid); err == nil {
@@ -256,8 +256,8 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		if _, exists := parent.Index["b"]; exists {
 			t.Fatal("root column survived actual DROP")
 		}
-		provenance := child.Inheritance.columns[child.Attributes[child.Index["b"]]]
-		if !provenance.local || len(provenance.origins) != 0 || child.Generations[g].OID != generation.OID {
+		provenance := child.Inheritance.Columns[child.Attributes[child.Index["b"]]]
+		if !provenance.Local || len(provenance.Origins) != 0 || child.Generations[g].OID != generation.OID {
 			t.Fatal("ONLY later recipe changed child definition", provenance, child.Generations[g])
 		}
 		expectInts(t, e, "SELECT a,g FROM ONLY p", [][]int64{{1, 11}})
@@ -317,8 +317,8 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 		originals[name] = table
 		graphs[name] = cloneInheritance(table.Inheritance)
 		if name != "p" {
-			fact := table.Inheritance.checks["ck"]
-			if fact.local || len(fact.origins) != 1 {
+			fact := table.Inheritance.Checks["ck"]
+			if fact.Local || len(fact.Origins) != 1 {
 				t.Fatal("recursive new CHECK acquired local contribution", name, fact)
 			}
 		}
@@ -343,8 +343,8 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 			t.Fatal("genuine DROP/ADD did not replace physical CHECK", name)
 		}
 		if name != "p" {
-			fact := table.Inheritance.checks["ck"]
-			if fact.local || len(fact.origins) != 1 {
+			fact := table.Inheritance.Checks["ck"]
+			if fact.Local || len(fact.Origins) != 1 {
 				t.Fatal("replacement localized inherited CHECK", name, fact)
 			}
 		}

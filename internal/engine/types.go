@@ -240,7 +240,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
+		if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}

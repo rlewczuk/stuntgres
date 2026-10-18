@@ -67,15 +67,15 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	seven, _ := sqltype.Integer(typ, 7)
 	negative, _ := sqltype.Integer(typ, -9)
-	origin := e.catalog.domain.Ref(catalog.Epoch(), source.address)
+	origin := e.catalog.Domain.Ref(catalog.Epoch(), source.address)
 	origin.Address.SubID = 2
 	old := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
 	ordinary := *source
-	ordinary.CheckConstraints = []checkConstraint{{Name: "positive", expression: old}}
+	ordinary.CheckConstraints = []checkConstraint{{Name: "positive", Expression: old}}
 	if err := refreshGenerationChecks(&ordinary, catalog); err != nil {
 		t.Fatal(err)
 	}
-	column := ordinary.CheckConstraints[0].expression.(columnExpression)
+	column := ordinary.CheckConstraints[0].Expression.(columnExpression)
 	if column.virtual != nil || column.queryOccurrence != 0 || column.rowWidth != 0 {
 		t.Fatal("ordinary destination retained source payload", column)
 	}
@@ -88,7 +88,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide.Columns = append(append([]ColumnDescriptor(nil), source.Columns...), source.Columns...)
 	wide.Attributes = []int32{3, 4, 1, 2}
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
-	wide.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
+	wide.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
 	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -97,11 +97,11 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	if copiedColumn.virtual != nil || copiedColumn.queryOccurrence != 0 || copiedColumn.rowWidth != 0 || copiedColumn.slot != 3 {
 		t.Fatal("owner copy retained source execution recipe", copiedColumn)
 	}
-	wide.CheckConstraints = []checkConstraint{{Name: "positive", expression: copied}}
+	wide.CheckConstraints = []checkConstraint{{Name: "positive", Expression: copied}}
 	if err := refreshGenerationChecks(&wide, catalog); err != nil {
 		t.Fatal(err)
 	}
-	column = wide.CheckConstraints[0].expression.(columnExpression)
+	column = wide.CheckConstraints[0].Expression.(columnExpression)
 	if column.slot != 3 || column.rowStart != 0 || column.rowWidth != 4 || column.queryOccurrence != 0 {
 		t.Fatal("destination CHECK layout", column)
 	}
@@ -119,13 +119,13 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	e, catalog, d := generatedUnitDescriptor(t)
 	catalog.state = cloneCatalog(catalog.state)
 	catalog.state.setDescriptor(d.address, d)
-	ref := e.catalog.domain.Ref(catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(catalog.Epoch(), d.address)
 	origin := ref
 	origin.Address.SubID = 2
 	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: one}
-	d.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: literal, planned: literal}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: literal, Planned: literal}}
 	left := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
 	right := left
 	right.slot, right.rowStart, right.queryOccurrence = 3, 2, 2

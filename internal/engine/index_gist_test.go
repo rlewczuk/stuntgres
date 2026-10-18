@@ -28,8 +28,8 @@ func logicalGiSTFixture(t *testing.T) (*relationDescriptor, *relationDescriptor,
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := &relationDescriptor{name: "booking_ex", SQLIndex: &indexDefinition{method: gistMethod, keys: []indexKey{{attribute: 1, class: ic}, {attribute: 2, class: rc}}, exclusion: []sqltype.ExclusionOperator{eq, overlap}, ready: true, live: true, valid: true}}
-	index.SQLIndex.constraint = &backingConstraint{kind: exclusionBackingKind, OID: 1, Name: index.name}
+	index := &relationDescriptor{name: "booking_ex", SQLIndex: &indexDefinition{Method: gistMethod, Keys: []indexKey{{Attribute: 1, Class: ic}, {Attribute: 2, Class: rc}}, Exclusion: []sqltype.ExclusionOperator{eq, overlap}, Ready: true, Live: true, Valid: true}}
+	index.SQLIndex.Constraint = &backingConstraint{Kind: exclusionBackingKind, OID: 1, Name: index.name}
 	row := func(id ids.RowID, tenant, during string) rowVersion {
 		a, err := inet.Input(context.Background(), tenant, -1)
 		if err != nil {
@@ -113,10 +113,10 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			index.namespace = parent.namespace
 			index.RelationKind = indexRelation
 			index.Columns = append([]ColumnDescriptor(nil), parent.Columns...)
-			index.SQLIndex.parent = parent.address
+			index.SQLIndex.Parent = parent.address
 			parent.ExclusionConstraints = []exclusionConstraint{{
-				OID: index.SQLIndex.constraint.OID, Name: index.name, Index: index.address,
-				IsLocal: true, Operators: index.SQLIndex.exclusion,
+				OID: index.SQLIndex.Constraint.OID, Name: index.name, Index: index.address,
+				IsLocal: true, Operators: index.SQLIndex.Exclusion,
 			}}
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values

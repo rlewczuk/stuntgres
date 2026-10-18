@@ -64,7 +64,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
 				return err
 			}
-			providerRef := e.catalog.domain.Ref(stage.base.Epoch(), provider.address)
+			providerRef := e.catalog.Domain.Ref(stage.base.Epoch(), provider.address)
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}
@@ -75,11 +75,11 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			intermediateParent := stage.descriptors[survivor.address].(*relationDescriptor)
 			check := func(candidate, parent *relationDescriptor, wantSlot int, wantLayout []int32) {
 				t.Helper()
-				derived := candidate.SQLIndex.keys[0].derived
-				if !slices.Equal(derived.attributes, wantLayout) {
-					t.Fatal("captured layout", derived.attributes, wantLayout)
+				derived := candidate.SQLIndex.Keys[0].Derived
+				if !slices.Equal(derived.Attributes, wantLayout) {
+					t.Fatal("captured layout", derived.Attributes, wantLayout)
 				}
-				for _, expression := range []expr.Expr{derived.definition, derived.execution} {
+				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
 					node := expression.(arithmeticExpression).left
 					for {
 						cast, ok := node.(coercionExpression)
@@ -93,7 +93,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 						t.Fatal("derived slot/attribute", column.slot, column.origin.Address)
 					}
 				}
-				if candidate.name != index.name || candidate.Owner != index.Owner || candidate.namespace != index.namespace || candidate.SQLIndex.ready != index.SQLIndex.ready || candidate.SQLIndex.valid != index.SQLIndex.valid || candidate.SQLIndex.live != index.SQLIndex.live {
+				if candidate.name != index.name || candidate.Owner != index.Owner || candidate.namespace != index.namespace || candidate.SQLIndex.Ready != index.SQLIndex.Ready || candidate.SQLIndex.Valid != index.SQLIndex.Valid || candidate.SQLIndex.Live != index.SQLIndex.Live {
 					t.Fatal("index identity or flags changed")
 				}
 				if err := validateIndexDefinition(e.stageRead(stage), candidate); err != nil {
@@ -104,7 +104,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				}
 			}
 			check(intermediate, intermediateParent, 2, []int32{1, 3, 4})
-			if intermediate == index || intermediate.SQLIndex.keys[0].derived == index.SQLIndex.keys[0].derived {
+			if intermediate == index || intermediate.SQLIndex.Keys[0].Derived == index.SQLIndex.Keys[0].Derived {
 				t.Fatal("first candidate mutated original")
 			}
 			err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.address}, parser.DropCascade, nil, changes, project)
@@ -123,18 +123,18 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			final := stage.descriptors[index.address].(*relationDescriptor)
 			finalParent := stage.descriptors[survivor.address].(*relationDescriptor)
 			check(final, finalParent, 1, []int32{1, 4})
-			if final == intermediate || final.SQLIndex.keys[0].derived == intermediate.SQLIndex.keys[0].derived {
+			if final == intermediate || final.SQLIndex.Keys[0].Derived == intermediate.SQLIndex.Keys[0].Derived {
 				t.Fatal("second candidate mutated first")
 			}
-			if !slices.Equal(index.SQLIndex.keys[0].derived.attributes, []int32{1, 2, 3, 4}) || !slices.Equal(intermediate.SQLIndex.keys[0].derived.attributes, []int32{1, 3, 4}) || len(oldRows[0].values) != 4 || e.indexRoots[index.address] != oldRoot {
+			if !slices.Equal(index.SQLIndex.Keys[0].Derived.Attributes, []int32{1, 2, 3, 4}) || !slices.Equal(intermediate.SQLIndex.Keys[0].Derived.Attributes, []int32{1, 3, 4}) || len(oldRows[0].values) != 4 || e.indexRoots[index.address] != oldRoot {
 				t.Fatal("retained candidate/vector/root mutated")
 			}
 			for _, retained := range []struct {
 				candidate *relationDescriptor
 				slot      int
 			}{{index, 3}, {intermediate, 2}} {
-				derived := retained.candidate.SQLIndex.keys[0].derived
-				for _, expression := range []expr.Expr{derived.definition, derived.execution} {
+				derived := retained.candidate.SQLIndex.Keys[0].Derived
+				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
 					node := expression.(arithmeticExpression).left
 					for {
 						cast, ok := node.(coercionExpression)
@@ -191,7 +191,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if kerr != nil || key != 9 || root.entries[0].row != oldRows[0].row || root.entries[0].version != oldRows[0].version {
 				t.Fatal("rebuilt key/identity", key, kerr)
 			}
-			if originalIndex.SQLIndex.keys[0].derived.attributes[3] != 4 || before != e.storage[survivor.address] {
+			if originalIndex.SQLIndex.Keys[0].Derived.Attributes[3] != 4 || before != e.storage[survivor.address] {
 				t.Fatal("original fixture changed")
 			}
 		})
@@ -262,32 +262,32 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			index = relation
 		}
 	}
-	if parent == nil || index == nil || index.SQLIndex.predicate == nil || index.SQLIndex.keys[0].derived != nil || len(parent.Generations) != 0 || len(parent.Defaults) != 0 || len(parent.CheckConstraints) != 0 || len(parent.Columns) != 1 || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if parent == nil || index == nil || index.SQLIndex.Predicate == nil || index.SQLIndex.Keys[0].Derived != nil || len(parent.Generations) != 0 || len(parent.Defaults) != 0 || len(parent.CheckConstraints) != 0 || len(parent.Columns) != 1 || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixture is not a genuine unmasked plain-key partial predicate")
 	}
-	predicate := index.SQLIndex.predicate
+	predicate := index.SQLIndex.Predicate
 	definitionTypes, executionTypes := map[sqltype.ID]*sqltype.Descriptor{}, map[sqltype.ID]*sqltype.Descriptor{}
 	for _, tree := range []struct {
 		node  expr.Expr
 		types map[sqltype.ID]*sqltype.Descriptor
 	}{
-		{predicate.definition, definitionTypes}, {predicate.execution, executionTypes},
+		{predicate.Definition, definitionTypes}, {predicate.Execution, executionTypes},
 	} {
 		walkBoundExpression(tree.node, func(node expr.Expr) { typ := node.ResultUsage().Type; tree.types[typ.ID()] = typ })
 		if tree.types[sqltype.Bool] == nil || tree.types[sqltype.Int4] == nil {
 			t.Fatal("missing actual predicate BOOL/INT4", tree.types)
 		}
 	}
-	definitionBefore, err := (boundTree{expression: predicate.definition}).StructuralOutput(context.Background())
+	definitionBefore, err := (boundTree{expression: predicate.Definition}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	executionBefore, err := (boundTree{expression: predicate.execution}).StructuralOutput(context.Background())
+	executionBefore, err := (boundTree{expression: predicate.Execution}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := slices.Clone(predicate.dependencies)
-	attributes := slices.Clone(predicate.attributes)
+	manifest := slices.Clone(predicate.Dependencies)
+	attributes := slices.Clone(predicate.Attributes)
 	store, root := e.storage[parent.address], e.indexRoots[index.address]
 	if store == nil || len(store.versions) != 2 || root == nil || len(root.entries) != 1 {
 		t.Fatal("missing actual rows or partial membership root")
@@ -299,7 +299,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.address) != parent || after.Get(index.address) != index || index.SQLIndex.predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
+	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.address) != parent || after.Get(index.address) != index || index.SQLIndex.Predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
 		t.Fatal("replacement changed actual retained catalog/index/store/vector roots")
 	}
 	for _, tree := range []struct {
@@ -307,7 +307,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 		node  expr.Expr
 		types map[sqltype.ID]*sqltype.Descriptor
 	}{
-		{"definition", predicate.definition, definitionTypes}, {"execution", predicate.execution, executionTypes},
+		{"definition", predicate.Definition, definitionTypes}, {"execution", predicate.Execution, executionTypes},
 	} {
 		for id, typ := range tree.types {
 			actual, ok := after.LookupType(id)
@@ -322,12 +322,12 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			}
 		})
 	}
-	definitionAfter, err := (boundTree{expression: predicate.definition}).StructuralOutput(context.Background())
+	definitionAfter, err := (boundTree{expression: predicate.Definition}).StructuralOutput(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	executionAfter, err := (boundTree{expression: predicate.execution}).StructuralOutput(context.Background())
-	if err != nil || definitionAfter != definitionBefore || executionAfter != executionBefore || !slices.Equal(predicate.dependencies, manifest) || !slices.Equal(predicate.attributes, attributes) {
+	executionAfter, err := (boundTree{expression: predicate.Execution}).StructuralOutput(context.Background())
+	if err != nil || definitionAfter != definitionBefore || executionAfter != executionBefore || !slices.Equal(predicate.Dependencies, manifest) || !slices.Equal(predicate.Attributes, attributes) {
 		t.Fatal("replacement mutated predicate trees/manifests/layout", err)
 	}
 	if err := validateIndexDefinition(after, index); err != nil {

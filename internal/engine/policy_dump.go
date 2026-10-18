@@ -56,18 +56,18 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 				return nil, err
 			}
 			option := "PERMISSIVE"
-			if !policy.permissive {
+			if !policy.Permissive {
 				option = "RESTRICTIVE"
 			}
-			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.command)) + " TO ")
-			for i, role := range policy.roles {
+			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.Command)) + " TO ")
+			for i, role := range policy.Roles {
 				if i != 0 {
 					sql.WriteString(", ")
 				}
-				if role.public {
+				if role.Public {
 					sql.WriteString("PUBLIC")
 				} else {
-					principal, err := roles.Descriptor(role.ref)
+					principal, err := roles.Descriptor(role.Ref)
 					if err != nil {
 						return nil, err
 					}
@@ -77,7 +77,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 			for _, clause := range []struct {
 				name string
 				expr *policyExpression
-			}{{"USING", policyExpressionOf(policy.using)}, {"WITH CHECK", policyExpressionOf(policy.check)}} {
+			}{{"USING", policyExpressionOf(policy.Using)}, {"WITH CHECK", policyExpressionOf(policy.Check)}} {
 				if clause.expr == nil {
 					continue
 				}
@@ -91,7 +91,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					}
 				}
 				for _, dependency := range clause.expr.presentation.dependencies {
-					address := dependency.ref.Address
+					address := dependency.Ref.Address
 					address.SubID = 0
 					provider := view.Get(address)
 					if provider == nil {

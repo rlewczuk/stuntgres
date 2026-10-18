@@ -65,7 +65,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	innerEnds, gateEnds := innerStorage.ends, gateStorage.ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := e.catalog.domain.Ref(e.catalog.state.epoch, gate.address)
+	gateRef := e.catalog.Domain.Ref(e.catalog.state.epoch, gate.address)
 	defer e.endLockOwner(holder.transactions.ticket)
 	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		waiting := entry != nil && len(entry.Pending) == 1 &&
 			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare &&
 			entry.Holders[holder.transactions.ticket].Mode&lock.AccessExclusive != 0
-		innerRef := e.catalog.domain.Ref(gateRef.Epoch, inner.address)
+		innerRef := e.catalog.Domain.Ref(gateRef.Epoch, inner.address)
 		innerEntry := lockState.Resources[lock.Resource{ObjectRef: innerRef}]
 		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 		if !waiting || !granted {

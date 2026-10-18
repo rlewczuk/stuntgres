@@ -92,14 +92,14 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if err := op.Context().Err(); err != nil {
 				return Result{}, err
 			}
-			key := defaultACLKey{creator: creator, schema: schema, class: class}
+			key := defaultACLKey{Creator: creator, Schema: schema, Class: class}
 			old, exists := updates[key]
 			if !exists {
 				old = v.catalog.state.defaultACLs[key]
 			}
 			var acl authorization.ACLValue
 			if old != nil {
-				acl = old.acl
+				acl = old.ACL
 			} else {
 				acl = authorization.DefaultBaseline(creator, class, schema != (ids.ObjectAddress{}))
 			}
@@ -116,13 +116,13 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if authorization.MatchesDefaultBaseline(next, creator, class, schema != (ids.ObjectAddress{})) {
 				updates[key] = nil
 			} else {
-				updates[key] = &defaultACLRecord{acl: next}
+				updates[key] = &defaultACLRecord{ACL: next}
 			}
 		}
 	}
 	for key, record := range updates {
 		old := v.catalog.state.defaultACLs[key]
-		if old == record || old != nil && record != nil && authorization.EqualACL(old.acl, record.acl) {
+		if old == record || old != nil && record != nil && authorization.EqualACL(old.ACL, record.ACL) {
 			delete(updates, key)
 		}
 	}

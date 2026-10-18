@@ -71,9 +71,9 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			case "default":
 				defaults = []expr.Expr{nested}
 			case "generation":
-				generations = map[int32]columnGeneration{1: {planned: nested}}
+				generations = map[int32]columnGeneration{1: {Planned: nested}}
 			case "check":
-				checks = []checkConstraint{{expression: nested}}
+				checks = []checkConstraint{{Expression: nested}}
 			}
 			err := b.captureRetainedWriteInput(defaults, generations, checks)
 			lazyNamingOnly := b.input.TypeDiagnosticName != nil && b.input.EnumMemberSafe == nil

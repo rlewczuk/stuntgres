@@ -31,18 +31,18 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDe
 		}
 	}
 	e.mu.Unlock()
-	root.Partition.children = []ids.ObjectAddress{mid.address}
-	root.Partition.defaultChild = mid.address
-	mid.Membership = &partitionMembership{parent: root.address, defaultBound: true}
-	mid.Partition.children = []ids.ObjectAddress{leaf.address}
-	mid.Partition.defaultChild = leaf.address
-	leaf.Membership = &partitionMembership{parent: mid.address, defaultBound: true}
+	root.Partition.Children = []ids.ObjectAddress{mid.address}
+	root.Partition.DefaultChild = mid.address
+	mid.Membership = &partitionMembership{Parent: root.address, DefaultBound: true}
+	mid.Partition.Children = []ids.ObjectAddress{leaf.address}
+	mid.Partition.DefaultChild = leaf.address
+	leaf.Membership = &partitionMembership{Parent: mid.address, DefaultBound: true}
 	class, _ := sqltype.DefaultIndexClass(mid.Columns[0].Usage.Type)
 	index := func(table *relationDescriptor, id ids.OID, name string, parent ids.ObjectAddress, valid bool) *relationDescriptor {
 		columns := slices.Clone(table.Columns)
 		columns[0].OriginTable = uint32(id)
 		columns[0].OriginAttribute = 1
-		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: table.namespace, Owner: table.Owner, name: name, revision: 1, RelationKind: indexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{parent: table.address, partitionParent: parent, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, valid: valid, ready: true, live: true}}
+		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: table.namespace, Owner: table.Owner, name: name, revision: 1, RelationKind: indexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{Parent: table.address, PartitionParent: parent, Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
 	}
 	ri := index(root, 47203, "unique_replay_root_plain", ids.ObjectAddress{}, false)
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.address, true)
@@ -141,7 +141,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				}
 				rootIndex := e.catalog.state.MustRelation(current.UniqueConstraints[0].Index)
 				childIndex := e.catalog.state.MustRelation(child.UniqueConstraints[0].Index)
-				if !rootIndex.SQLIndex.valid || childIndex.SQLIndex.partitionParent != rootIndex.address || childIndex.SQLIndex.constraint.Index != child.UniqueConstraints[0].Index || childIndex.SQLIndex.constraint.Primary != primary {
+				if !rootIndex.SQLIndex.Valid || childIndex.SQLIndex.PartitionParent != rootIndex.address || childIndex.SQLIndex.Constraint.Index != child.UniqueConstraints[0].Index || childIndex.SQLIndex.Constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
 				if e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
@@ -200,11 +200,11 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 		if r.SQLIndex == nil {
 			graph[dumpEventKey{oid: r.address.ObjectID}] = nil
 			if r.Membership != nil {
-				graph[dumpEventKey{oid: r.address.ObjectID}] = []dumpEventKey{{oid: r.Membership.parent.ObjectID}}
+				graph[dumpEventKey{oid: r.address.ObjectID}] = []dumpEventKey{{oid: r.Membership.Parent.ObjectID}}
 			}
 			tables = append(tables, dumpRelation{descriptor: r})
 		} else {
-			graph[dumpEventKey{oid: r.address.ObjectID}] = []dumpEventKey{{oid: r.SQLIndex.parent.ObjectID}}
+			graph[dumpEventKey{oid: r.address.ObjectID}] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
 			indices[r.address.ObjectID] = len(indices)
 		}
 	}

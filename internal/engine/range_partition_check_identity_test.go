@@ -21,7 +21,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if parent.Columns[0].OriginTable == child.Columns[0].OriginTable {
 		t.Fatal("cooked row origin was not reowned")
 	}
-	original := child.CheckConstraints[0].expression
+	original := child.CheckConstraints[0].Expression
 	auth, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(test, err)
 		}
-		if len(definition.CheckConstraints) != 1 || equality.sameGroupExpression(original, definition.CheckConstraints[0].expression) != test.equal {
+		if len(definition.CheckConstraints) != 1 || equality.sameGroupExpression(original, definition.CheckConstraints[0].Expression) != test.equal {
 			t.Fatal("cooked tree comparison simplified or retargeted definition", test)
 		}
 	}
@@ -60,7 +60,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if !equality.sameGroupExpression(implicit, explicit) || grouping.sameGroupExpression(implicit, explicit) {
 		t.Fatal("CHECK-only coercion identity changed grouping semantics")
 	}
-	if len(child.CheckConstraints) != 1 || !equality.sameGroupExpression(child.CheckConstraints[0].expression, original) {
+	if len(child.CheckConstraints) != 1 || !equality.sameGroupExpression(child.CheckConstraints[0].Expression, original) {
 		t.Fatal("private equality binding mutated installed CHECK")
 	}
 }

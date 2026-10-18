@@ -111,7 +111,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 				return prepared, nil
 			}
 		}
-		if index.SQLIndex.nullsNotDistinct {
+		if index.SQLIndex.NullsNotDistinct {
 			prepared.err = sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 			return prepared, nil
 		}
@@ -122,7 +122,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 			}
 		}
 	}
-	if index.SQLIndex.constraint != nil || relationConstraintNameExists(parent, name) {
+	if index.SQLIndex.Constraint != nil || relationConstraintNameExists(parent, name) {
 		prepared.err = usingIndexCatalogDuplicate(parent, name)
 		return prepared, nil
 	}
@@ -133,7 +133,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		prepared.err = err
 		return prepared, nil
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.nullsNotDistinct, Index: index.address}
+	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.address}
 	next := *parent
 	next.UniqueConstraints = make([]uniqueConstraint, len(parent.UniqueConstraints)+1)
 	copy(next.UniqueConstraints, parent.UniqueConstraints)
@@ -146,7 +146,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 	clone.name = name
 	clone.revision++
 	definition := *index.SQLIndex
-	definition.constraint = uniqueBacking(&constraint)
+	definition.Constraint = uniqueBacking(&constraint)
 	clone.SQLIndex = &definition
 	prepared.next, prepared.replacement = &next, &clone
 	return prepared, nil

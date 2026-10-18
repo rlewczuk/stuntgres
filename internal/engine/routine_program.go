@@ -32,8 +32,8 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []expressi
 			dependencies = c.routineChecks
 		}
 		for _, candidate := range dependencies {
-			if candidate.ref.Address == routine.address {
-				ref = candidate.ref
+			if candidate.Ref.Address == routine.address {
+				ref = candidate.Ref
 				break
 			}
 		}
@@ -61,7 +61,7 @@ func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
 		if err := current.roles.ValidatePrincipal(call.actor); err != nil {
 			return err
 		}
-		dependency := [1]expressionDependency{{ref: call.reference, revision: call.routine.revision}}
+		dependency := [1]expressionDependency{{Ref: call.reference, Revision: call.routine.revision}}
 		if err := admitRoutineDescriptor(current, dependency[:], call.routine, call.consumer); err != nil {
 			return call.body.annotate(err)
 		}

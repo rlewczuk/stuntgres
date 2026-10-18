@@ -53,7 +53,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	var authorize func(ids.ObjectRef, authorization.PrincipalRef, queryRowMark) error
 	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
 		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if relation.RelationKind != viewRelation {
@@ -99,7 +99,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	}
 	for _, ref := range refs {
 		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
@@ -110,7 +110,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	var collect func(ids.ObjectRef, bool) error
 	collect = func(ref ids.ObjectRef, only bool) error {
 		relation, ok := catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
+		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if relation.RelationKind == viewRelation {
@@ -135,7 +135,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		if relation.Partition != nil && !only {
-			for _, address := range relation.Partition.children {
+			for _, address := range relation.Partition.Children {
 				child, ok := catalog.Relation(address)
 				if !ok {
 					return ids.ErrCatalogReplaced

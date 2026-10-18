@@ -86,7 +86,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.Result = 25 }, func(p *procedureDescriptor) { p.Volatility = expr.Stable },
 		func(p *procedureDescriptor) { p.Strict = false }, func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
 		func(p *procedureDescriptor) { p.Implementation = stockIntarray }, func(p *procedureDescriptor) {
-			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
 		},
 		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.Extension = ids.ObjectAddress{} },
 		func(p *procedureDescriptor) { p.Dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
@@ -218,7 +218,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("dependency", refs, err)
 	}
 	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{
-		1: {expression: n, dependencies: []ids.ObjectRef{n.ref}},
+		1: {Expression: n, Dependencies: []ids.ObjectRef{n.ref}},
 	}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal("installed generation procedure dependency", err)
@@ -227,7 +227,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	badRef.Address.SubID = 1
 	invalid := *consumer
 	invalid.Generations = map[int32]columnGeneration{
-		1: {expression: n, dependencies: []ids.ObjectRef{badRef}},
+		1: {Expression: n, Dependencies: []ids.ObjectRef{badRef}},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
@@ -312,7 +312,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		if ref.Address == ext.Members[0] {
 			ref.Address = imported.Members[0]
 		}
-		ref = target.catalog.domain.Ref(ref.Epoch, ref.Address)
+		ref = target.catalog.Domain.Ref(ref.Epoch, ref.Address)
 		ref.Epoch = target.CatalogRead().Epoch()
 		return ref
 	}, nil)
@@ -344,7 +344,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.catalog.domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

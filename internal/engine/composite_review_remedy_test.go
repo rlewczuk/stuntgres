@@ -142,7 +142,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
 			t.Fatal("diamond owner pruning lost", original.name)
 		}
-		if _, exists := pruned.Inheritance.checks["field_check"]; exists {
+		if _, exists := pruned.Inheritance.Checks["field_check"]; exists {
 			t.Fatal("diamond retained retired origin", original.name)
 		}
 	}
@@ -168,7 +168,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "keep_check" {
 		t.Fatal("propagation resurrected removed check")
 	}
-	if _, exists := next.Inheritance.checks["field_check"]; exists {
+	if _, exists := next.Inheritance.Checks["field_check"]; exists {
 		t.Fatal("retired constraint origin retained")
 	}
 	if err := stage.Replace(&next); err != nil {

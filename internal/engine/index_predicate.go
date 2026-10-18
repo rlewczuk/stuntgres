@@ -10,9 +10,9 @@ import (
 // A persisted predicate keeps original dependencies even when planning removes
 // an arm. Both trees use the immutable parent attribute layout.
 type indexPredicate struct {
-	definition, execution expr.Expr
-	dependencies          []ids.ObjectRef
-	attributes            []int32
+	Definition, Execution expr.Expr
+	Dependencies          []ids.ObjectRef
+	Attributes            []int32
 }
 
 // A build or command owns this value. It is never part of a published index
@@ -54,17 +54,17 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 	if p.constantsPrepared {
 		return nil
 	}
-	for i, key := range definition.keys {
-		if key.derived == nil {
+	for i, key := range definition.Keys {
+		if key.Derived == nil {
 			continue
 		}
-		source := key.derived.definition
+		source := key.Derived.Definition
 		if !definition.requiresInsertionOutput() {
 			// No callable or domain conversion can have disappeared here.
 			// Retain the established body-free cooked programme fast path.
-			source = key.derived.execution
+			source = key.Derived.Execution
 		}
-		prepared, err := prepareIndexRecipe(evaluation, source, key.derived.dependencies, parent, &p.admission, false)
+		prepared, err := prepareIndexRecipe(evaluation, source, key.Derived.Dependencies, parent, &p.admission, false)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 			ordering.derived[i] = prepared
 		} else {
 			if p.ordinary == nil {
-				p.ordinary = make([]expr.Expr, len(definition.keys))
+				p.ordinary = make([]expr.Expr, len(definition.Keys))
 			}
 			p.ordinary[i] = prepared
 		}
@@ -100,11 +100,11 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent 
 	if err := p.prepareConstants(evaluation, parent, definition, ordering, hash); err != nil {
 		return err
 	}
-	for i, key := range definition.keys {
-		if key.derived == nil {
+	for i, key := range definition.Keys {
+		if key.Derived == nil {
 			continue
 		}
-		local := indexRecipeEvaluation(evaluation, key.derived.dependencies, parent)
+		local := indexRecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
 		local.routineProgram = &p.admission
 		if err := validateExpressionJoinExecution(&local, p.keyProgram(i, ordering, hash), local.catalog); err != nil {
 			return err
@@ -157,7 +157,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 			return nil, nil
 		}
 	}
-	return &indexPredicate{definition: definition, execution: execution, attributes: parent.Attributes, dependencies: dependencies}, nil
+	return &indexPredicate{Definition: definition, Execution: execution, Attributes: parent.Attributes, Dependencies: dependencies}, nil
 }
 
 // Shared build/maintenance/private-admission contract:
@@ -170,15 +170,15 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 	if err := p.prepareConstants(evaluation, parent, definition, ordering, hash); err != nil {
 		return false, err
 	}
-	if definition.predicate == nil {
+	if definition.Predicate == nil {
 		return true, nil
 	}
 	if !p.predicatePrepared {
-		source := definition.predicate.definition
+		source := definition.Predicate.Definition
 		if !definition.requiresInsertionOutput() {
-			source = definition.predicate.execution
+			source = definition.Predicate.Execution
 		}
-		prepared, err := prepareIndexRecipe(evaluation, source, definition.predicate.dependencies, parent, &p.admission, true)
+		prepared, err := prepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
 		if err != nil {
 			return false, err
 		}
@@ -195,13 +195,13 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 
 func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logicalIndexRoot {
 	root := &logicalIndexRoot{entries: entries}
-	if d.predicate != nil {
+	if d.Predicate != nil {
 		root.membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {
 			root.membership[entry.row] = entry.version
 		}
 	}
-	if (d.unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
+	if (d.Unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
 		root.rowEntries = make(map[ids.RowID]int, len(entries))
 		for i, entry := range entries {
 			root.rowEntries[entry.row] = i

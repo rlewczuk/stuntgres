@@ -25,27 +25,27 @@ func indexLayoutInputsUnchanged(index, oldParent, parent *relationDescriptor) bo
 		oldSlot, newSlot := slices.Index(oldParent.Attributes, attribute), slices.Index(parent.Attributes, attribute)
 		return oldSlot >= 0 && newSlot >= 0 && oldParent.Columns[oldSlot].Usage == parent.Columns[newSlot].Usage
 	}
-	for _, key := range index.SQLIndex.keys {
-		if key.derived == nil {
-			if !sameAttribute(key.attribute) {
+	for _, key := range index.SQLIndex.Keys {
+		if key.Derived == nil {
+			if !sameAttribute(key.Attribute) {
 				return false
 			}
 			continue
 		}
-		for _, dependency := range key.derived.dependencies {
+		for _, dependency := range key.Derived.Dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
 				return false
 			}
 		}
 	}
-	for _, attribute := range index.SQLIndex.include {
+	for _, attribute := range index.SQLIndex.Include {
 		if !sameAttribute(attribute) {
 			return false
 		}
 	}
-	if predicate := index.SQLIndex.predicate; predicate != nil {
-		for _, dependency := range predicate.dependencies {
+	if predicate := index.SQLIndex.Predicate; predicate != nil {
+		for _, dependency := range predicate.Dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !sameAttribute(a.SubID) {
 				return false
@@ -91,7 +91,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if lineage.targetParent.address != parent.address {
 			continue
 		}
-		if lineage.target.SQLIndex.parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
+		if lineage.target.SQLIndex.Parent != parent.address || !indexLayoutInputsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) || !indexLayoutInputsUnchanged(lineage.target, lineage.targetParent, parent) {
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
@@ -267,7 +267,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
 		if _, captured := changes.originals[index.address]; !captured {
@@ -286,19 +286,19 @@ func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, chan
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !index.SQLIndex.ready || !index.SQLIndex.live || parent.RelationKind == partitionedRelation {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == partitionedRelation {
 			delete(changes.uniqueRoots, index.address)
 			delete(changes.indexCandidates, index.address)
 			continue
 		}
 		var root *logicalIndexRoot
-		if index.SQLIndex.method == hashMethod {
+		if index.SQLIndex.Method == hashMethod {
 			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err

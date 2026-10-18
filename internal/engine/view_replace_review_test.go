@@ -27,7 +27,7 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 				if err := e.SetObjectACL(context.Background(), source, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin, Grantee: authorization.ACLGrantee{Role: creator.Ref}, Privileges: authorization.SelectPrivilege}, {Grantor: admin, Grantee: authorization.ACLGrantee{Role: otherOwner.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 					t.Fatal(err)
 				}
-				targetNS := e.catalog.domain.Ref(e.catalog.state.epoch, e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "target_schema"})[0])
+				targetNS := e.catalog.Domain.Ref(e.catalog.state.epoch, e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "target_schema"})[0])
 				// The actor has CREATE and owns the target view, but has no USAGE
 				// on the target namespace. Its independently accessible body source
 				// must not impose target-schema lookup requirements.

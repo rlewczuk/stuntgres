@@ -42,13 +42,13 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if _, err := (scalarRenderer{aclOutput: captured, owner: relation, dependencies: &refs}).sql(context.Background(), view, comparison); err != nil {
 		t.Fatal(err)
 	}
-	check := checkConstraint{OID: 45001, Name: "acl_render_check", expression: comparison}
+	check := checkConstraint{OID: 45001, Name: "acl_render_check", Expression: comparison}
 	for _, ref := range refs {
 		descriptor, ok := view.Descriptor(ref.Address)
 		if !ok {
 			t.Fatal("missing real provider dependency", ref.Address.ObjectID)
 		}
-		check.dependencies = append(check.dependencies, expressionDependency{ref: ref, revision: descriptor.Revision()})
+		check.Dependencies = append(check.Dependencies, expressionDependency{Ref: ref, Revision: descriptor.Revision()})
 	}
 	relation.CheckConstraints = []checkConstraint{check}
 	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {

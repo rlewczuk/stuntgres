@@ -20,8 +20,8 @@ func TestInheritanceUsingIndexPreparedNotNull(t *testing.T) {
 			leaf := retiredUnitTable(t, e, "leaf")
 			attribute := before.Attributes[before.Index["a"]]
 			fact := before.NotNullConstraints[0]
-			origin := before.Inheritance.notNull[attribute]
-			if origin.local || len(origin.origins) != 1 || before.Inheritance.columns[attribute].local {
+			origin := before.Inheritance.NotNull[attribute]
+			if origin.Local || len(origin.Origins) != 1 || before.Inheritance.Columns[attribute].Local {
 				t.Fatal("fixture did not start with inherited-only NN/attribute", origin)
 			}
 			target := "c"
@@ -30,8 +30,8 @@ func TestInheritanceUsingIndexPreparedNotNull(t *testing.T) {
 			}
 			ownershipUnitExec(t, e, "ALTER TABLE "+target+" ADD CONSTRAINT attached PRIMARY KEY USING INDEX ci")
 			after := retiredUnitTable(t, e, "c")
-			next := after.Inheritance.notNull[attribute]
-			if !next.local || !reflect.DeepEqual(next.origins, origin.origins) || after.NotNullConstraints[0].OID != fact.OID || after.NotNullConstraints[0].Name != fact.Name || after.Inheritance.columns[attribute].local {
+			next := after.Inheritance.NotNull[attribute]
+			if !next.Local || !reflect.DeepEqual(next.Origins, origin.Origins) || after.NotNullConstraints[0].OID != fact.OID || after.NotNullConstraints[0].Name != fact.Name || after.Inheritance.Columns[attribute].Local {
 				t.Fatal("implicit KEY NN did not localize exactly the existing constraint", next, after.NotNullConstraints)
 			}
 			if retiredUnitTable(t, e, "leaf") != leaf {
@@ -52,10 +52,10 @@ func TestInheritanceUsingIndexPreparedNamespace(t *testing.T) {
 	index := retiredUnitTable(t, e, "original")
 	ownershipUnitExec(t, e, "ALTER TABLE p ADD CONSTRAINT renamed PRIMARY KEY USING INDEX original,ADD CONSTRAINT sees_renamed CHECK('renamed'::regclass IS NOT NULL)")
 	parent, child, renamed := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "c"), retiredUnitTable(t, e, "renamed")
-	if renamed.address != index.address || renamed.SQLIndex.constraint == nil || len(parent.UniqueConstraints) != 1 || len(child.UniqueConstraints) != 0 || len(parent.NotNullConstraints) != 1 || len(child.NotNullConstraints) != 1 || len(parent.CheckConstraints) != 1 || len(child.CheckConstraints) != 1 {
+	if renamed.address != index.address || renamed.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || len(child.UniqueConstraints) != 0 || len(parent.NotNullConstraints) != 1 || len(child.NotNullConstraints) != 1 || len(parent.CheckConstraints) != 1 || len(child.CheckConstraints) != 1 {
 		t.Fatal("prepared physical rename and recursive NN/CHECK effects diverged", parent.UniqueConstraints, child.UniqueConstraints)
 	}
-	if parent.Inheritance != nil && !parent.Inheritance.notNull[parent.NotNullConstraints[0].Attribute].local {
+	if parent.Inheritance != nil && !parent.Inheritance.NotNull[parent.NotNullConstraints[0].Attribute].Local {
 		t.Fatal("physical root NN lost its local contribution")
 	}
 }

@@ -30,7 +30,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)
-			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, sourceDescriptor.address)
+			sourceRef := e.catalog.Domain.Ref(e.catalog.state.epoch, sourceDescriptor.address)
 			session := sessionStart(t, e, nil)
 			op := transactionOperation(t, session)
 			isolation := "serializable"

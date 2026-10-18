@@ -10,7 +10,7 @@ import (
 
 func hasHashPartition(catalog *catalogState) bool {
 	for _, d := range catalog.Descriptors() {
-		if relation, ok := d.(*relationDescriptor); ok && relation.Partition != nil && relation.Partition.strategy == parser.PartitionHash {
+		if relation, ok := d.(*relationDescriptor); ok && relation.Partition != nil && relation.Partition.Strategy == parser.PartitionHash {
 			return true
 		}
 	}
@@ -85,12 +85,12 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 					return nil, err
 				}
 				var selected *relationDescriptor
-				for _, childAddress := range destination.Partition.children {
+				for _, childAddress := range destination.Partition.Children {
 					child := catalog.MustRelation(childAddress)
-					if child.Membership.defaultBound {
+					if child.Membership.DefaultBound {
 						continue
 					}
-					contains, err := partitionContains(ctx, destination.Partition.keys, child.Membership, key, evaluation.Input)
+					contains, err := partitionContains(ctx, destination.Partition.Keys, child.Membership, key, evaluation.Input)
 					if err != nil {
 						return nil, err
 					}
@@ -99,8 +99,8 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 						break
 					}
 				}
-				if selected == nil && destination.Partition.defaultChild != (ids.ObjectAddress{}) {
-					selected = catalog.MustRelation(destination.Partition.defaultChild)
+				if selected == nil && destination.Partition.DefaultChild != (ids.ObjectAddress{}) {
+					selected = catalog.MustRelation(destination.Partition.DefaultChild)
 				}
 				if selected == nil {
 					state := partitionInsertState{catalog: catalog, auth: auth, target: root}
@@ -126,7 +126,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			// insertion would enforce their constraints as well.
 			child := destination
 			for child.Membership != nil {
-				parent := catalog.MustRelation(child.Membership.parent)
+				parent := catalog.MustRelation(child.Membership.Parent)
 				allowed, err := partitionAccepts(catalog, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
 				if err != nil {
 					return nil, err

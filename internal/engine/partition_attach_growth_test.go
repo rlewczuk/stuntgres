@@ -25,7 +25,7 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: lo}}, upper: []partitionDatum{{value: hi}}}
+	return &partitionMembership{Parent: parent.address, Lower: []partitionDatum{{Value: lo}}, Upper: []partitionDatum{{Value: hi}}}
 }
 
 func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
@@ -97,7 +97,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			old := inheritanceUnitRelation(e, "attach_growth_old", 46101, "k")
 			old.RelationKind = tableRelation
 			old.Membership = partitionAttachUnitRange(t, parent, 20, 30)
-			parent.Partition.children = []ids.ObjectAddress{old.address}
+			parent.Partition.Children = []ids.ObjectAddress{old.address}
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.RelationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
@@ -106,7 +106,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate = e.catalog.state.MustRelation(candidate.address)
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.catalog.domain.Ref(e.catalog.state.epoch, old.address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, old.address)
 			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.address
@@ -119,7 +119,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			p, c := *parent, *candidate
 			definition := *parent.Partition
-			definition.children = []ids.ObjectAddress{old.address, candidate.address}
+			definition.Children = []ids.ObjectAddress{old.address, candidate.address}
 			p.Partition = &definition
 			p.revision++
 			c.Membership = partitionAttachUnitRange(t, parent, 1, 3)
@@ -178,7 +178,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lock.Resource{ObjectRef: e.catalog.domain.Ref(ref.Epoch, candidate.address)}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: e.catalog.Domain.Ref(ref.Epoch, candidate.address)}]
 			newHold := entry != nil && entry.Holders[reader.ticket].Mode != 0
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")
@@ -195,12 +195,12 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target := partitionAttachUnitRoot(t, e, "attach_frontier_target", 46111)
 			leaf := inheritanceUnitRelation(e, "attach_frontier_leaf", 46112, "k")
 			leaf.RelationKind = tableRelation
-			leaf.Membership = &partitionMembership{parent: target.address, defaultBound: true}
-			target.Partition.children = []ids.ObjectAddress{leaf.address}
-			target.Partition.defaultChild = leaf.address
+			leaf.Membership = &partitionMembership{Parent: target.address, DefaultBound: true}
+			target.Partition.Children = []ids.ObjectAddress{leaf.address}
+			target.Partition.DefaultChild = leaf.address
 			view := inheritanceUnitView(e, parent, target, leaf)
 			usage, boolean := target.Columns[0].Usage, testUsage(e, sqltype.Bool)
-			ref := e.catalog.domain.Ref(view.Epoch(), target.address)
+			ref := e.catalog.Domain.Ref(view.Epoch(), target.address)
 			ref.Address.SubID = 1
 			key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 			cmp := func(op string, n int64) expr.Expr {
@@ -224,7 +224,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				proof = logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalAnd, left: nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, right: bounds}
 			}
 			if mode != "default_unproven" {
-				check := checkConstraint{OID: 46113, Name: "frontier_proof", expression: proof}
+				check := checkConstraint{OID: 46113, Name: "frontier_proof", Expression: proof}
 				var dependencies []ids.ObjectRef
 				if _, err := (scalarRenderer{owner: target, dependencies: &dependencies}).sql(context.Background(), view, proof); err != nil {
 					t.Fatal(err)
@@ -236,7 +236,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 					if !ok {
 						t.Fatal("missing real cooked dependency", address)
 					}
-					check.dependencies = append(check.dependencies, expressionDependency{ref: dependency, revision: d.Revision()})
+					check.Dependencies = append(check.Dependencies, expressionDependency{Ref: dependency, Revision: d.Revision()})
 				}
 				target.CheckConstraints = []checkConstraint{check}
 			}
@@ -245,7 +245,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target = e.catalog.state.MustRelation(target.address)
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.catalog.domain.Ref(e.catalog.state.epoch, leaf.address)
+			leafRef := e.catalog.Domain.Ref(e.catalog.state.epoch, leaf.address)
 			targetRef := leafRef
 			targetRef.Address = target.address
 			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)

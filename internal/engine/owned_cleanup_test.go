@@ -46,14 +46,14 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 }
 func TestDropOwnedPolicyTargets(t *testing.T) {
 	_, _, source, target, _ := ownershipUnitRoles()
-	old := []policyDefinition{{Name: "mixed", roles: []policyRole{{ref: source}, {ref: target}, {ref: source}}}, {Name: "last", roles: []policyRole{{ref: source}, {ref: source}}}, {Name: "public", roles: []policyRole{{public: true}, {ref: source}}}}
-	before := []int{len(old[0].roles), len(old[1].roles), len(old[2].roles)}
+	old := []policyDefinition{{Name: "mixed", Roles: []policyRole{{Ref: source}, {Ref: target}, {Ref: source}}}, {Name: "last", Roles: []policyRole{{Ref: source}, {Ref: source}}}, {Name: "public", Roles: []policyRole{{Public: true}, {Ref: source}}}}
+	before := []int{len(old[0].Roles), len(old[1].Roles), len(old[2].Roles)}
 	got, changed := ownedPolicies(old, map[authorization.PrincipalRef]bool{source: true})
-	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].roles) != 1 || got[0].roles[0].ref != target || got[1].Name != "public" || len(got[1].roles) != 1 || !got[1].roles[0].public {
+	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].Roles) != 1 || got[0].Roles[0].Ref != target || got[1].Name != "public" || len(got[1].Roles) != 1 || !got[1].Roles[0].Public {
 		t.Fatal(got, changed)
 	}
 	for i, n := range before {
-		if len(old[i].roles) != n {
+		if len(old[i].Roles) != n {
 			t.Fatal("policy input mutated", old)
 		}
 	}

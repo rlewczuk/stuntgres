@@ -23,8 +23,8 @@ const (
 )
 
 type routineBodyEdge struct {
-	routine *procedureDescriptor
-	demand  routineBodyDemand
+	Routine *procedureDescriptor
+	Demand  routineBodyDemand
 }
 
 var builtinRoutineBodyEdges = [...]struct {
@@ -103,7 +103,7 @@ func bodyCastMatches(edge routineBodyEdge, argument expr.Expr) bool {
 		return false
 	}
 	id := argument.ResultUsage().Type.BaseType().ID()
-	return edge.demand == bodyBooleanText && id == sqltype.Bool || edge.demand == bodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
+	return edge.Demand == bodyBooleanText && id == sqltype.Bool || edge.Demand == bodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
 }
 
 // Capture at binding, before descriptors can be remapped or published with a new
@@ -117,7 +117,7 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
 	for _, edge := range outer.Body {
 		if bodyCastMatches(edge, argument) {
-			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.Builtin); err != nil {
+			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 				return err
 			}
 		}
@@ -127,13 +127,13 @@ func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
 
 func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error {
 	for _, edge := range outer.Body {
-		if edge.demand == bodyBooleanText || edge.demand == bodyNetworkText {
+		if edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText {
 			continue
 		}
-		if edge.routine == nil || edge.routine.Builtin == nil {
+		if edge.Routine == nil || edge.Routine.Builtin == nil {
 			return fmt.Errorf("stuntgres: invalid SQL body declaration")
 		}
-		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.routine.Builtin); err != nil {
+		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 			return err
 		}
 	}
@@ -145,13 +145,13 @@ func (b *expressionBinder) captureRoutineBody(outer *procedureDescriptor) error 
 func walkRoutineBody(outer *procedureDescriptor, node expr.Expr, visit func(*procedureDescriptor) error) error {
 	argument := polymorphicBodyArgument(node, outer.address.ObjectID)
 	for _, edge := range outer.Body {
-		if (edge.demand == bodyBooleanText || edge.demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
+		if (edge.Demand == bodyBooleanText || edge.Demand == bodyNetworkText) && !bodyCastMatches(edge, argument) {
 			continue
 		}
-		if err := visit(edge.routine); err != nil {
+		if err := visit(edge.Routine); err != nil {
 			return err
 		}
-		if err := walkRoutineBody(edge.routine, nil, visit); err != nil {
+		if err := walkRoutineBody(edge.Routine, nil, visit); err != nil {
 			return err
 		}
 	}

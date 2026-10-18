@@ -32,31 +32,31 @@ func TestTableLikeIndexClone(t *testing.T) {
 		}
 		count++
 		definition := index.SQLIndex
-		if definition.parent != destination.address || index.Owner != destination.Owner || !definition.ready || !definition.valid || !definition.live || index.ACL.Explicit {
+		if definition.Parent != destination.address || index.Owner != destination.Owner || !definition.Ready || !definition.Valid || !definition.Live || index.ACL.Explicit {
 			t.Fatal(index)
 		}
 		switch index.name {
 		case "clone_a_key":
-			if definition.keys[0].attribute != 3 || !definition.unique || !definition.nullsNotDistinct || definition.constraint == nil || definition.constraint.OID == 0 || definition.constraint.Index != index.address || definition.constraint.Name != index.name || len(destination.UniqueConstraints) != 1 || destination.UniqueConstraints[0].OID != definition.constraint.OID {
+			if definition.Keys[0].Attribute != 3 || !definition.Unique || !definition.NullsNotDistinct || definition.Constraint == nil || definition.Constraint.OID == 0 || definition.Constraint.Index != index.address || definition.Constraint.Name != index.name || len(destination.UniqueConstraints) != 1 || destination.UniqueConstraints[0].OID != definition.Constraint.OID {
 				t.Fatal("backing constraint mismatch", index)
 			}
 		case "clone_b_a_idx":
-			key := definition.keys[0]
-			if key.attribute != 4 || !key.desc || key.nullsFirst || key.class.Name != "text_pattern_ops" || key.collation != 950 || !slices.Equal(definition.include, []int32{3}) {
+			key := definition.Keys[0]
+			if key.Attribute != 4 || !key.Desc || key.NullsFirst || key.Class.Name != "text_pattern_ops" || key.Collation != 950 || !slices.Equal(definition.Include, []int32{3}) {
 				t.Fatal("covering key attributes lost", definition)
 			}
 		case "clone_expr_idx":
-			key := definition.keys[0].derived
-			if key == nil || !slices.Equal(key.attributes, destination.Attributes) {
+			key := definition.Keys[0].Derived
+			if key == nil || !slices.Equal(key.Attributes, destination.Attributes) {
 				t.Fatal("derived layout lost", definition)
 			}
-			for _, ref := range key.dependencies {
+			for _, ref := range key.Dependencies {
 				if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID != destination.address.ObjectID {
 					t.Fatal("derived source row dependency", ref)
 				}
 			}
 		case "clone_a_idx":
-			if definition.method != hashMethod || definition.keys[0].attribute != 3 || definition.keys[0].class.Name != "int4_ops" {
+			if definition.Method != hashMethod || definition.Keys[0].Attribute != 3 || definition.Keys[0].Class.Name != "int4_ops" {
 				t.Fatal("hash definition lost", definition)
 			}
 		default:
@@ -107,9 +107,9 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		original := candidate.MustRelation(ref.Address)
 		copy := *original
 		definition := *original.SQLIndex
-		definition.ready, definition.valid = false, false
+		definition.Ready, definition.Valid = false, false
 		if name == "dropping_source" {
-			definition.live = false
+			definition.Live = false
 		}
 		copy.SQLIndex = &definition
 		candidate.setDescriptor(ref.Address, &copy)
@@ -131,7 +131,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 			continue
 		}
 		count++
-		if index.name != "clone_a_idx" || !index.SQLIndex.unique || !index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live {
+		if index.name != "clone_a_idx" || !index.SQLIndex.Unique || !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
 			t.Fatal("invalid source definition not rebuilt", index)
 		}
 	}

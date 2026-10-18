@@ -21,9 +21,9 @@ type domainCheckConstraint struct {
 	OID          ids.OID
 	Name         string
 	NotValid     bool
-	ordinal      int
-	expression   expr.Expr
-	dependencies []expressionDependency
+	Ordinal      int
+	Expression   expr.Expr
+	Dependencies []expressionDependency
 }
 
 type domainValueExpression struct{ expr.Info }
@@ -67,7 +67,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 	}
 	firstOrdinal := len(d.DomainChecks)
 	for _, check := range d.DomainChecks {
-		firstOrdinal = max(firstOrdinal, check.ordinal+1)
+		firstOrdinal = max(firstOrdinal, check.Ordinal+1)
 	}
 	for ordinal, column := range raw {
 		check := column.Check
@@ -103,7 +103,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		if err != nil {
 			return err
 		}
-		definition := domainCheckConstraint{OID: oid, Name: name, NotValid: check.NotValid, ordinal: firstOrdinal + ordinal, expression: node}
+		definition := domainCheckConstraint{OID: oid, Name: name, NotValid: check.NotValid, Ordinal: firstOrdinal + ordinal, Expression: node}
 		for _, ref := range refs {
 			address := ref.Address
 			address.SubID = 0
@@ -111,7 +111,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 			if !ok {
 				return fmt.Errorf("stuntgres: missing domain CHECK provider")
 			}
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: provider.Revision()})
+			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: provider.Revision()})
 			if stage != nil {
 				stage.domainBases = append(stage.domainBases, provider)
 			}
@@ -225,10 +225,10 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 		for i, check := range d.DomainChecks {
 			checkEvaluation := *c
 			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
-			checkEvaluation.routineChecks = check.dependencies
+			checkEvaluation.routineChecks = check.Dependencies
 			checkEvaluation.routineReferences, checkEvaluation.routineConsumer = nil, nil
 			checkEvaluation.routineProgram = &phase.admission
-			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, check.expression, true)
+			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
 			c.preparedDomainChecks = checkEvaluation.preparedDomainChecks
 			if err != nil {
 				return err
@@ -240,7 +240,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 				if programme.expressions == nil {
 					programme.expressions = make([]expr.Expr, len(d.DomainChecks))
 					for j := range d.DomainChecks {
-						programme.expressions[j] = d.DomainChecks[j].expression
+						programme.expressions[j] = d.DomainChecks[j].Expression
 					}
 				}
 				programme.expressions[i] = node
@@ -306,8 +306,8 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 		// Preserve the original CHECK recipe for lazily demanded bodies,
 		// without changing the phase's actual invoker/RI authority.
 		c.routineRecipe, c.routineGraft = true, false
-		c.routineChecks, c.routineReferences, c.routineConsumer = check.dependencies, nil, nil
-		node := check.expression
+		c.routineChecks, c.routineReferences, c.routineConsumer = check.Dependencies, nil, nil
+		node := check.Expression
 		if expressions != nil {
 			node = expressions[i]
 		}
@@ -368,18 +368,18 @@ func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) er
 	}
 	previous := ""
 	for _, check := range domain.DomainChecks {
-		if check.OID == 0 || check.Name == "" || len(check.Name) > 63 || !utf8.ValidString(check.Name) || strings.IndexByte(check.Name, 0) >= 0 || previous != "" && previous >= check.Name || check.ordinal < 0 || check.expression == nil || check.expression.ResultUsage().Type == nil || check.expression.ResultUsage().Type.ID() != sqltype.Bool {
+		if check.OID == 0 || check.Name == "" || len(check.Name) > 63 || !utf8.ValidString(check.Name) || strings.IndexByte(check.Name, 0) >= 0 || previous != "" && previous >= check.Name || check.Ordinal < 0 || check.Expression == nil || check.Expression.ResultUsage().Type == nil || check.Expression.ResultUsage().Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid domain CHECK definition")
 		}
 		previous = check.Name
-		if _, err := (scalarRenderer{domainValue: &base}).sql(context.Background(), view, check.expression); err != nil {
+		if _, err := (scalarRenderer{domainValue: &base}).sql(context.Background(), view, check.Expression); err != nil {
 			return err
 		}
-		for _, dependency := range check.dependencies {
-			address := dependency.ref.Address
+		for _, dependency := range check.Dependencies {
+			address := dependency.Ref.Address
 			address.SubID = 0
 			provider, exists := view.Descriptor(address)
-			if !exists || dependency.ref.Domain() != view.owner.domain || dependency.ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
+			if !exists || dependency.Ref.Domain() != view.owner.Domain || dependency.Ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
 				return fmt.Errorf("stuntgres: invalid domain CHECK provider")
 			}
 		}

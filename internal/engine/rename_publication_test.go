@@ -22,10 +22,10 @@ func TestAlterRenamePublication(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.catalog.providers[ids.RelationClassID]
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.catalog.Providers[ids.RelationClassID]
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.catalog.providers[ids.RelationClassID] = provider
+					e.catalog.Providers[ids.RelationClassID] = provider
 					switch kind {
 					case "collision":
 						run(t, e, "CREATE TABLE winner(a INT)")

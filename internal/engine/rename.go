@@ -73,7 +73,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			return fail(err)
 		}
 	} else {
-		if err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, old.namespace)); err != nil {
+		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.namespace)); err != nil {
 			return fail(err)
 		}
 		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: destination}); exists {
@@ -100,7 +100,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	if !columnRename && old.SQLIndex != nil && old.SQLIndex.constraint != nil {
+	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
 		if err = stageBackingIndexRename(stage, &next); err != nil {
 			e.mu.Unlock()
 			e.DiscardCatalogStage(stage)

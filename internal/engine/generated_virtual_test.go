@@ -15,7 +15,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
 	typ := d.Columns[0].Usage.Type
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	d.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
 	two, _ := sqltype.Integer(typ, 2)
 	seven, _ := sqltype.Integer(typ, 7)
 	ten, _ := sqltype.Integer(typ, 10)
@@ -54,7 +54,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if _, err = generated.Eval(&inner); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	d.Generations = map[int32]columnGeneration{2: {kind: generationStored, expression: base, planned: base}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Expression: base, Planned: base}}
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	typ := d.Columns[0].Usage.Type
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
-	d.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
-	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: base, Planned: base}}
+	ref := e.catalog.Domain.Ref(view.Epoch(), d.address)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	node := b.queryColumnAt(queryColumn{descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
@@ -159,9 +159,9 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	original := d.address
 	d.address.ObjectID++
 	d.Columns[1].Usage = oid.Usage()
-	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.address)
 	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
-	d.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: node, planned: node}}
+	d.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := cloneCatalog(view.state)

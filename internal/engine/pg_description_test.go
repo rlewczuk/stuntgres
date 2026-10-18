@@ -18,7 +18,7 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.
 	if !ok {
 		t.Fatal("missing catalog descriptor")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {

@@ -50,7 +50,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if proc.name != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.namespace != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
-	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)
@@ -71,7 +71,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) {
-			p.Implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+			p.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
 		},
 		func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
 		func(p *procedureDescriptor) { p.Builtin = builtinRoutineByOID[3432] },
@@ -94,7 +94,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad := *proc
 		mutate(&bad)
 		view.state.setDescriptor(address, &bad)
-		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.ValidateExtension(view, ext)
 		view.state.setDescriptor(address, proc)
 		if failure == nil || manifest == nil {
@@ -133,7 +133,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad.Implementation = stockUUIDOssp
 		intaggView.state.setDescriptor(address, &bad)
 		manifestFailure := stockIntagg.ValidateExtension(intaggView, intaggExt)
-		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
+		admissionFailure := intaggEngine.catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.state.setDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
@@ -142,7 +142,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
 	mixed.Implementation = stockUUIDOssp
-	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
+	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }

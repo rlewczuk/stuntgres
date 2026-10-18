@@ -134,7 +134,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.catalog.domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
+	if err = drop.removeObject(e.catalog.Domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -185,7 +185,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.state.CurrentUser = reader
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a.Address())
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a.Address())
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}

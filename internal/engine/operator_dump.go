@@ -37,11 +37,11 @@ func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
-	namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.namespace})
+	namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.Namespace})
 	if namespace == nil {
 		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
 	}
-	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.name), nil
+	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.Name), nil
 }
 func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
@@ -169,11 +169,11 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 	negator := false
 	for key, declaration := range builtinOperatorRoutineByDeclaration {
 		comm := shell.Left != 0 && key.left == shell.Right && key.right == shell.Left
-		neg := key.left == shell.Left && key.right == shell.Right && declaration.result == ids.OID(sqltype.Bool)
+		neg := key.left == shell.Left && key.right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
 			continue
 		}
-		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id})
+		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID})
 		if candidate != nil && (routine == nil || candidate.address.ObjectID < routine.address.ObjectID) {
 			routine = candidate
 			negator = !comm

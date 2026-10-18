@@ -89,7 +89,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	actor := auth.roles.LookupRef("pg_monitor")
 	auth.state.CurrentUser = actor
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
@@ -148,10 +148,10 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), private.address)); err == nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.address)); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.catalog.domain.Ref(auth.catalog.Epoch(), private.address), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(auth.catalog.Epoch(), private.address), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
@@ -161,7 +161,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), private.address)); err != nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.address)); err != nil {
 		t.Fatal("actual namespace USAGE grant", err)
 	}
 }
@@ -202,7 +202,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage = e.BeginCatalogStage(view)
-	if err = stage.Remove(e.catalog.domain.Ref(view.Epoch(), first.address)); err != nil {
+	if err = stage.Remove(e.catalog.Domain.Ref(view.Epoch(), first.address)); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
@@ -226,7 +226,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{offset: 7, typeID: sqltype.Regprocedure, value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
-	if err := stage.Remove(e.catalog.domain.Ref(view.Epoch(), second.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(view.Epoch(), second.address)); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)

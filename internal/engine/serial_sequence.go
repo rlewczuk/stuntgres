@@ -62,7 +62,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 			return sqltype.Value{}, err
 		}
 		sequence, ok := descriptor.(*relationDescriptor)
-		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.owned != owner {
+		if !ok || sequence.RelationKind != sequenceRelation || sequence.Sequence == nil || sequence.Sequence.Owned != owner {
 			continue
 		}
 		namespace, ok := catalog.Namespace(sequence.namespace)

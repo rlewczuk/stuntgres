@@ -18,8 +18,8 @@ type partitionInvalidReplay struct {
 }
 
 func partitionIndexPreservedInvalid(view CatalogRead, index *relationDescriptor) bool {
-	table, ok := view.Relation(index.SQLIndex.parent)
-	return ok && table.Partition != nil && !index.SQLIndex.valid && partitionIndexCoverageComplete(view, index)
+	table, ok := view.Relation(index.SQLIndex.Parent)
+	return ok && table.Partition != nil && !index.SQLIndex.Valid && partitionIndexCoverageComplete(view, index)
 }
 
 func partitionReplayNameCompare(view CatalogRead, a, b *relationDescriptor) int {
@@ -31,7 +31,7 @@ func partitionReplayNameCompare(view CatalogRead, a, b *relationDescriptor) int 
 
 func partitionPreservedReplayChild(view CatalogRead, table *relationDescriptor) *relationDescriptor {
 	var chosen *relationDescriptor
-	for _, address := range table.Partition.children {
+	for _, address := range table.Partition.Children {
 		child := view.MustRelation(address)
 		if chosen == nil || partitionReplayNameCompare(view, child, chosen) < 0 {
 			chosen = child
@@ -41,36 +41,36 @@ func partitionPreservedReplayChild(view CatalogRead, table *relationDescriptor) 
 }
 
 func partitionPreservedReplayBacking(view CatalogRead, index *relationDescriptor) bool {
-	if index.SQLIndex.constraint != nil || index.SQLIndex.partitionParent == (ids.ObjectAddress{}) {
+	if index.SQLIndex.Constraint != nil || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 		return false
 	}
-	parent := view.MustRelation(index.SQLIndex.partitionParent)
+	parent := view.MustRelation(index.SQLIndex.PartitionParent)
 	if !partitionIndexPreservedInvalid(view, parent) {
 		return false
 	}
-	table := view.MustRelation(parent.SQLIndex.parent)
+	table := view.MustRelation(parent.SQLIndex.Parent)
 	child := partitionPreservedReplayChild(view, table)
-	return child != nil && child.address == index.SQLIndex.parent
+	return child != nil && child.address == index.SQLIndex.Parent
 }
 
 // Unattached local unique providers must not steal a saved attached backing
 // during the one table reattachment that preserves complete-invalid validity.
 func partitionPreservedReplayLocal(view CatalogRead, index *relationDescriptor) bool {
-	if !index.SQLIndex.unique || index.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
+	if !index.SQLIndex.Unique || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		return false
 	}
-	table := view.MustRelation(index.SQLIndex.parent)
+	table := view.MustRelation(index.SQLIndex.Parent)
 	if table.Membership == nil {
 		return false
 	}
-	parent := view.MustRelation(table.Membership.parent)
+	parent := view.MustRelation(table.Membership.Parent)
 	chosen := partitionPreservedReplayChild(view, parent)
 	if chosen == nil || chosen.address != table.address {
 		return false
 	}
 	for _, descriptor := range view.Descriptors() {
 		candidate, ok := descriptor.(*relationDescriptor)
-		if ok && candidate.SQLIndex != nil && candidate.SQLIndex.parent == parent.address && partitionIndexPreservedInvalid(view, candidate) {
+		if ok && candidate.SQLIndex != nil && candidate.SQLIndex.Parent == parent.address && partitionIndexPreservedInvalid(view, candidate) {
 			saved := partitionDumpIndexBacking(view, candidate.address, table.address)
 			match, err := partitionIndexEquivalent(context.Background(), view, table, saved.SQLIndex, index.SQLIndex)
 			if err == nil && match {
@@ -82,15 +82,15 @@ func partitionPreservedReplayLocal(view CatalogRead, index *relationDescriptor) 
 }
 
 func partitionReplayUsingIndex(view CatalogRead, index *relationDescriptor) bool {
-	table := view.MustRelation(index.SQLIndex.parent)
-	return usingIndexDump(index) && partitionReplayVirtualUniqueRoot(view, index) == nil || table.Partition == nil && index.SQLIndex.constraint != nil && index.SQLIndex.constraint.kind == uniqueBackingKind && partitionPreservedReplayLocal(view, index)
+	table := view.MustRelation(index.SQLIndex.Parent)
+	return usingIndexDump(index) && partitionReplayVirtualUniqueRoot(view, index) == nil || table.Partition == nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == uniqueBackingKind && partitionPreservedReplayLocal(view, index)
 }
 
 // An index subtree, not all table-local providers/rows, is required before the
 // reattachment. Deferred local origins and their data consumers follow it.
 func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, event dumpEventKey, index *relationDescriptor) {
-	table := view.MustRelation(index.SQLIndex.parent)
-	if index.SQLIndex.constraint != nil && !partitionReplayUsingIndex(view, index) {
+	table := view.MustRelation(index.SQLIndex.Parent)
+	if index.SQLIndex.Constraint != nil && !partitionReplayUsingIndex(view, index) {
 		addDumpDependency(graph, event, dumpEventKey{oid: table.address.ObjectID})
 	} else {
 		addDumpDependency(graph, event, dumpEventKey{oid: index.address.ObjectID})
@@ -105,10 +105,10 @@ func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEv
 	if table.Partition == nil {
 		return
 	}
-	for _, address := range table.Partition.children {
+	for _, address := range table.Partition.Children {
 		child := partitionDumpIndexBacking(view, index.address, address)
 		partitionReplayIndexReady(view, graph, event, child)
-		if index.SQLIndex.constraint == nil {
+		if index.SQLIndex.Constraint == nil {
 			addDumpDependency(graph, event, dumpEventKey{oid: child.address.ObjectID, phase: dumpIndexAttachment})
 		}
 	}
@@ -122,7 +122,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 	for oid := range indexIndices {
 		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		if partitionIndexPreservedInvalid(view, index) {
-			groups[index.SQLIndex.parent] = append(groups[index.SQLIndex.parent], index)
+			groups[index.SQLIndex.Parent] = append(groups[index.SQLIndex.Parent], index)
 		}
 	}
 	if len(groups) == 0 {
@@ -170,7 +170,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 				addDumpDependency(graph, declaration, prepare)
 				addDumpDependency(graph, finish, declaration)
 			}
-			for _, address := range table.Partition.children {
+			for _, address := range table.Partition.Children {
 				child := view.MustRelation(address)
 				member := dumpEventKey{oid: address.ObjectID}
 				if partitionDumpNeedsAttach(view, child) {
@@ -213,7 +213,7 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 				for event, predecessors := range graph {
 					graph[event] = slices.DeleteFunc(predecessors, func(p dumpEventKey) bool { return p == attachment })
 				}
-				for _, address := range table.Partition.children {
+				for _, address := range table.Partition.Children {
 					if address == item.child.address {
 						continue
 					}
@@ -225,10 +225,10 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 			// otherwise ATTACH would generate unwanted backings for their gaps.
 			for indexOID := range indexIndices {
 				index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
-				if index.SQLIndex.parent == table.address && !index.SQLIndex.valid && !partitionIndexPreservedInvalid(view, index) {
+				if index.SQLIndex.Parent == table.address && !index.SQLIndex.Valid && !partitionIndexPreservedInvalid(view, index) {
 					addDumpDependency(graph, dumpEventKey{oid: indexOID}, finish)
 				}
-				if index.SQLIndex.parent == item.child.address && partitionPreservedReplayLocal(view, index) {
+				if index.SQLIndex.Parent == item.child.address && partitionPreservedReplayLocal(view, index) {
 					addDumpDependency(graph, dumpEventKey{oid: indexOID}, finish)
 				}
 			}

@@ -28,7 +28,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for _, column := range parent.Columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}
@@ -90,10 +90,10 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for i := range d.NotNullConstraints {
 		constraint := &d.NotNullConstraints[i]
 		slot := d.indexForAttribute(constraint.Attribute)
-		constraint.partitionLocal = declarations[slot].columnNotNull
+		constraint.PartitionLocal = declarations[slot].columnNotNull
 		for _, element := range syntax.Elements {
 			if element.NotNull != nil && element.NotNull.Column.Text == d.Columns[slot].Name {
-				constraint.partitionLocal = true
+				constraint.PartitionLocal = true
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				if attribute != 0 {
 					old.Address.SubID = d.Attributes[parent.indexForAttribute(attribute)]
 				}
-				old = e.catalog.domain.Ref(old.Epoch, old.Address)
+				old = e.catalog.Domain.Ref(old.Epoch, old.Address)
 				old.Epoch = auth.catalog.Epoch()
 			}
 			return old
@@ -150,16 +150,16 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 			definition := original
 			definition.OID = 0
-			definition.expression, err = remapBoundExpressionWithQuery(original.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
+			definition.Expression, err = remapBoundExpressionWithQuery(original.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots, nil, rowRef)
 			if err != nil {
 				return nil, err
 			}
 			var refs []ids.ObjectRef
-			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, definition.expression)
+			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, definition.Expression)
 			if err != nil {
 				return nil, err
 			}
-			definition.dependencies = make([]expressionDependency, 0, len(refs))
+			definition.Dependencies = make([]expressionDependency, 0, len(refs))
 			for _, ref := range refs {
 				address := ref.Address
 				address.SubID = 0
@@ -167,7 +167,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				if object, ok := auth.catalog.Descriptor(address); ok {
 					revision = object.Revision()
 				}
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
+				definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
 			}
 			d.CheckConstraints = append(d.CheckConstraints, definition)
 			inherited[definition.Name] = definition

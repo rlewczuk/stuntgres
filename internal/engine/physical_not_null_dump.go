@@ -149,7 +149,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 			continue
 		}
 		if relation.Inheritance != nil {
-			for _, parent := range relation.Inheritance.parents {
+			for _, parent := range relation.Inheritance.Parents {
 				index := deferred[parent]
 				if index == nil || !partitionReplaySeparateConstraint(view, index) {
 					continue

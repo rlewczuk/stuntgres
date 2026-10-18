@@ -14,7 +14,7 @@ type uuidOsspProvider struct{ control extensionControl }
 // Control implements extensionImplementation.
 func (p *uuidOsspProvider) Control() extensionControl { return p.control.detached() }
 
-var stockUUIDOssp = &uuidOsspProvider{control: extensionControl{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: new("generate universally unique identifiers (UUIDs)")}}
+var stockUUIDOssp = &uuidOsspProvider{control: extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
 
 func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	oid, err := e.catalog.allocateOIDLocked()
@@ -36,7 +36,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid uuid-ossp manifest") }
-	if p != stockUUIDOssp || ext.name != "uuid-ossp" || ext.Version != p.control.version || len(ext.Members) != 1 {
+	if p != stockUUIDOssp || ext.name != "uuid-ossp" || ext.Version != p.control.Version || len(ext.Members) != 1 {
 		return invalid()
 	}
 	address := ext.Members[0]

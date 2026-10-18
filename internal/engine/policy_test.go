@@ -141,7 +141,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []policyDefinition{{OID: oid, Name: "p", permissive: true, command: "all", roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -179,7 +179,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{ref: d.Owner}, {ref: d.Owner}}, using: policyPayloadOf(expression)}}
+	next.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -205,24 +205,24 @@ func TestRLSPolicyRemap(t *testing.T) {
 			break
 		}
 	}
-	if copied == nil || len(copied.Policies) != 1 || len(copied.Policies[0].roles) != 2 {
+	if copied == nil || len(copied.Policies) != 1 || len(copied.Policies[0].Roles) != 2 {
 		t.Fatal("lost attached policy")
 	}
 	p := copied.Policies[0]
-	if imported.Roles().ValidatePrincipal(p.roles[0].ref) != nil || p.roles[1].ref != p.roles[0].ref {
+	if imported.Roles().ValidatePrincipal(p.Roles[0].Ref) != nil || p.Roles[1].Ref != p.Roles[0].Ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if policyExpressionOf(p.using) == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.domain {
+	if policyExpressionOf(p.Using) == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.Domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
 	if err != nil {
 		t.Fatal(err)
 	}
-	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.using))
+	importedSQL, err := policyExpressionSQL(context.Background(), view, policyExpressionOf(p.Using))
 	if err != nil || importedSQL != originalSQL {
 		t.Fatal("remapped presentation lost frozen context", originalSQL, importedSQL, err)
 	}
@@ -255,7 +255,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := cloneCatalog(base.state)
 			attached := *owner
-			attached.Policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: policyPayloadOf(expression)}}
+			attached.Policies = []policyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 			state.setDescriptor(owner.address, &attached)
 			base.state = state
 			var target ids.ObjectAddress

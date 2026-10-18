@@ -11,7 +11,7 @@ import (
 )
 
 func policyDepends(p policyDefinition, target ids.ObjectAddress) bool {
-	for _, condition := range []policyPayload{p.using, p.check} {
+	for _, condition := range []policyPayload{p.Using, p.Check} {
 		if condition != nil && condition.DependsOn(target) {
 			return true
 		}

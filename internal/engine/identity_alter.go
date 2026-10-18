@@ -43,7 +43,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if old.Columns[slot].Nullable {
 			return old, sqlError("55000", message+" must be declared NOT NULL before identity can be added")
 		}
-		if _, ok := old.Defaults[attribute]; ok || old.Generations[attribute].expression != nil {
+		if _, ok := old.Defaults[attribute]; ok || old.Generations[attribute].Expression != nil {
 			return old, sqlError("55000", message+" already has a default value")
 		}
 		return &next, nil
@@ -51,7 +51,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if !exists {
 		return old, sqlError("55000", message+" is not an identity column")
 	}
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), identity.sequence)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), identity.Sequence)
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -66,7 +66,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 			return old, err
 		}
 		e.mu.Lock()
-		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.sequence, definition.Options)
+		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.Sequence, definition.Options)
 		e.mu.Unlock()
 		if err != nil {
 			return old, err
@@ -79,7 +79,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	next := *old
 	next.Identities = maps.Clone(old.Identities)
 	if definition.Mode != parser.IdentityNone {
-		identity.mode = definition.Mode
+		identity.Mode = definition.Mode
 		next.Identities[attribute] = identity
 	}
 	return &next, nil
@@ -140,7 +140,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
-	ref := e.catalog.domain.Ref(stage.base.Epoch(), address)
+	ref := e.catalog.Domain.Ref(stage.base.Epoch(), address)
 	if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
 	}

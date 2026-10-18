@@ -60,7 +60,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 	if !ok {
 		t.Fatal("INT4")
 	}
-	key := partitionKeyEntry{usage: integer.Usage()}
+	key := partitionKeyEntry{Usage: integer.Usage()}
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -68,7 +68,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 		}
 		return v
 	}
-	membership := &partitionMembership{lower: []partitionDatum{{value: value(0)}}, upper: []partitionDatum{{value: value(10)}}}
+	membership := &partitionMembership{Lower: []partitionDatum{{Value: value(0)}}, Upper: []partitionDatum{{Value: value(10)}}}
 	tree := partitionBoundTree{membership: membership, keys: []partitionKeyEntry{key}}
 	want := `{PartitionBound strategy range default false lower ({type 23 typmod -1 collation 0 value "0"}) upper ({type 23 typmod -1 collation 0 value "10"})}`
 	if got, err := tree.StructuralOutput(context.Background()); err != nil || got != want {
@@ -76,7 +76,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 	}
 	// Replacing the descriptor's topology does not retarget an already captured tree.
 	relation := &relationDescriptor{Membership: membership}
-	relation.Membership = &partitionMembership{defaultBound: true}
+	relation.Membership = &partitionMembership{DefaultBound: true}
 	if got, err := tree.StructuralOutput(context.Background()); err != nil || got != want {
 		t.Fatal("captured tree retargeted", got, err)
 	}
@@ -84,7 +84,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 	if got, err := defaultTree.StructuralOutput(context.Background()); err != nil || got != "{PartitionBound strategy range default true}" {
 		t.Fatal(got, err)
 	}
-	multi := partitionBoundTree{keys: []partitionKeyEntry{key, key}, membership: &partitionMembership{lower: []partitionDatum{{kind: -1}, {kind: -1}}, upper: []partitionDatum{{kind: 1}, {kind: 1}}}}
+	multi := partitionBoundTree{keys: []partitionKeyEntry{key, key}, membership: &partitionMembership{Lower: []partitionDatum{{Kind: -1}, {Kind: -1}}, Upper: []partitionDatum{{Kind: 1}, {Kind: 1}}}}
 	if got, err := multi.StructuralOutput(context.Background()); err != nil || got != "{PartitionBound strategy range default false lower (MINVALUE MINVALUE) upper (MAXVALUE MAXVALUE)}" {
 		t.Fatal(got, err)
 	}
@@ -95,7 +95,7 @@ func TestPgClassPartitionTree(t *testing.T) {
 	usage := character.Usage()
 	usage.Typmod = 14
 	usage.Collation.ID = 950
-	quoted := partitionBoundTree{keys: []partitionKeyEntry{{usage: usage}}, membership: &partitionMembership{lower: []partitionDatum{{value: sqltype.String(character, "a\"b")}}, upper: []partitionDatum{{value: sqltype.String(character, "z")}}}}
+	quoted := partitionBoundTree{keys: []partitionKeyEntry{{Usage: usage}}, membership: &partitionMembership{Lower: []partitionDatum{{Value: sqltype.String(character, "a\"b")}}, Upper: []partitionDatum{{Value: sqltype.String(character, "z")}}}}
 	wantQuoted := `{PartitionBound strategy range default false lower ({type 1043 typmod 14 collation 950 value "a\"b"}) upper ({type 1043 typmod 14 collation 950 value "z"})}`
 	if got, err := quoted.StructuralOutput(context.Background()); err != nil || got != wantQuoted {
 		t.Fatal("captured key usage/escaping", got, err)

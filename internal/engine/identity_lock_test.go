@@ -34,8 +34,8 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 				sessionSQL(t, b, `INSERT INTO i VALUES(55)`)
 			} else {
 				d := e.catalog.state.MustRelation(ref.Address)
-				if d.Sequence.increment != 3 {
-					t.Fatal("stale option overwrite", d.Sequence.increment)
+				if d.Sequence.Increment != 3 {
+					t.Fatal("stale option overwrite", d.Sequence.Increment)
 				}
 				sessionSQL(t, b, `INSERT INTO i DEFAULT VALUES`)
 				want := int64(10)

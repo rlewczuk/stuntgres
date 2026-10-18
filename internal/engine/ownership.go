@@ -21,7 +21,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 	return nil
 }
 func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress))
+	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress))
 }
 func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -39,7 +39,7 @@ func ownershipEligibility(auth AuthorizationView, target authorization.Principal
 	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
-	return targetAuth.CheckCreate(auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), namespace))
+	return targetAuth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), namespace))
 }
 func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	switch spec.Identity {
@@ -60,7 +60,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	case *namespaceDescriptor:
 		return t.Temporary == (ids.SessionToken{}) && t.address.ObjectID != ids.PGCatalogNamespaceOID && t.address.ObjectID != ids.PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
-		return t.RelationKind != catalogRelation && t.RelationKind != indexRelation && t.RelationKind != compositeRelation && (t.Sequence == nil || t.Sequence.owned == (ids.ObjectAddress{}))
+		return t.RelationKind != catalogRelation && t.RelationKind != indexRelation && t.RelationKind != compositeRelation && (t.Sequence == nil || t.Sequence.Owned == (ids.ObjectAddress{}))
 	case *typeDescriptor:
 		if !t.SQLType.IsUserDefined() || t.SQLType.IsArray() {
 			return false
@@ -190,9 +190,9 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 				if !ok {
 					continue
 				}
-				linked := r.SQLIndex != nil && r.SQLIndex.parent == old.address
+				linked := r.SQLIndex != nil && r.SQLIndex.Parent == old.address
 				if r.Sequence != nil {
-					parent := r.Sequence.owned
+					parent := r.Sequence.Owned
 					parent.SubID = 0
 					linked = linked || parent == old.address
 				}
@@ -282,8 +282,8 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if old.Sequence != nil && old.Sequence.owned != (ids.ObjectAddress{}) {
-		parent := old.Sequence.owned
+	if old.Sequence != nil && old.Sequence.Owned != (ids.ObjectAddress{}) {
+		parent := old.Sequence.Owned
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
 	}
@@ -298,7 +298,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			if a == old.address {
 				continue
 			}
-			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -373,7 +373,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return fail(err)
 	}
@@ -385,7 +385,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	e.mu.Unlock()
 	if err == nil {
 		for _, a := range ownershipRelationLocks(stage.base, []ids.ObjectAddress{old.Address()}) {
-			if err = scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
@@ -423,7 +423,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), database.address), OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), database.address), OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	if err = ownershipSuccessor(auth, target); err != nil {

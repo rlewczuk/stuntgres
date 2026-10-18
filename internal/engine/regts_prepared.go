@@ -16,7 +16,7 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 					return sqltype.Value{}, err
 				}
 				for _, dependency := range c.operands {
-					b.dependency(dependency.ref, dependency.revision)
+					b.dependency(dependency.Ref, dependency.Revision)
 				}
 				b.regtypeConstants = append(b.regtypeConstants, c)
 				return value, nil
@@ -37,7 +37,7 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 	}
 	constant.value = value
 	for _, dependency := range constant.operands {
-		b.dependency(dependency.ref, dependency.revision)
+		b.dependency(dependency.Ref, dependency.Revision)
 	}
 	b.regtypeConstants = append(b.regtypeConstants, constant)
 	return value, nil

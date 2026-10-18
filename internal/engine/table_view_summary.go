@@ -16,7 +16,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		address := index.SQLIndex.parent
+		address := index.SQLIndex.Parent
 		descriptor, staged := stage.descriptors[address]
 		if !staged {
 			descriptor = stage.base.Get(address)
@@ -61,7 +61,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent, ok := catalog.Relation(index.SQLIndex.parent)
+		parent, ok := catalog.Relation(index.SQLIndex.Parent)
 		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}

@@ -313,7 +313,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		old = auth.catalog.MustRelation(address)
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
 		if ref != scope.lockedRef {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced

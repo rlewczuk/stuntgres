@@ -90,13 +90,13 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 	}
 	definition.dependencies = append([]expressionDependency(nil), original.dependencies...)
 	for i := range definition.dependencies {
-		definition.dependencies[i].ref = ref(definition.dependencies[i].ref)
-		if definition.dependencies[i].ref.Address.ClassID == ids.ProcedureClassID {
-			procedure, ok := view.Procedure(definition.dependencies[i].ref.Address)
+		definition.dependencies[i].Ref = ref(definition.dependencies[i].Ref)
+		if definition.dependencies[i].Ref.Address.ClassID == ids.ProcedureClassID {
+			procedure, ok := view.Procedure(definition.dependencies[i].Ref.Address)
 			if !ok {
 				return nil, ids.ErrCatalogReplaced
 			}
-			definition.dependencies[i].revision = procedure.revision
+			definition.dependencies[i].Revision = procedure.revision
 		}
 	}
 	root, err := remapViewQuery(view, original.query.Root, ref, typ, collation)

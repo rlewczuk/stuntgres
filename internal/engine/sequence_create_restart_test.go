@@ -108,7 +108,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), "s")
 				d := e.catalog.state.MustRelation(ref.Address)
 				options := d.Sequence
-				want := sequenceOptions{typ: tc.typ, increment: tc.increment, min: tc.min, max: tc.max, start: tc.start, cache: 1, persistence: "logged"}
+				want := sequenceOptions{SQLType: tc.typ, Increment: tc.increment, Min: tc.min, Max: tc.max, Start: tc.start, Cache: 1, Persistence: "logged"}
 				if !reflect.DeepEqual(*options, want) || e.sequences[ref.Address].last != tc.initial || e.sequences[ref.Address].called || e.sequences[ref.Address].generation == 0 {
 					t.Fatal("configured START and initial uncalled state", options, e.sequences[ref.Address], want)
 				}
@@ -180,7 +180,7 @@ func TestSequenceCreateRestartCache(t *testing.T) {
 				}
 				ref := held.sequences.constants[0].ref
 				options := e.catalog.state.MustRelation(ref.Address).Sequence
-				want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: math.MaxInt64, start: 5, cache: 3, persistence: persistence.catalog}
+				want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: math.MaxInt64, Start: 5, Cache: 3, Persistence: persistence.catalog}
 				if !reflect.DeepEqual(*options, want) {
 					t.Fatal("persistence/configured options", options, want)
 				}

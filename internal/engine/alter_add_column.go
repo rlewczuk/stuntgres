@@ -126,8 +126,8 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(alterCookingError(err))
 		}
 		if !structuralNull(node) {
-			persisted := columnDefault{expression: node}
-			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.dependencies, commentSnapshot: &persisted.catalogSnapshot, catalogAliasReferences: &persisted.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+			persisted := columnDefault{Expression: node}
+			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.Defaults == nil {
@@ -135,7 +135,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			}
 			next.Defaults[attribute] = persisted
 			added.expression = node
-			added.dependencies, added.consumer = persisted.dependencies, old
+			added.dependencies, added.consumer = persisted.Dependencies, old
 		}
 	}
 	if err := refreshGenerationChecks(&next, auth.catalog); err != nil {

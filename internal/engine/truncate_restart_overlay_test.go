@@ -226,7 +226,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 			t.Fatal("TEMP ownership not isolated")
 		}
 		lockState := e.locks.Inspect(scope.ticket)
-		foreignRef := e.catalog.domain.Ref(catalog.Epoch(), foreign)
+		foreignRef := e.catalog.Domain.Ref(catalog.Epoch(), foreign)
 		_, journaled := lockState.Journals[scope.ticket][lock.Resource{ObjectRef: foreignRef}]
 		excluded := lockState.Resources[lock.Resource{ObjectRef: foreignRef}] == nil && !journaled
 		if !excluded {
@@ -249,7 +249,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)
-		if e.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).Sequence.owned != (ids.ObjectAddress{}) {
+		if e.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).Sequence.Owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
 		sequenceScalar(t, s, "SELECT nextval('later')", 90)

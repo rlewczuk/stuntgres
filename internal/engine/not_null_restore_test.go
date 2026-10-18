@@ -129,7 +129,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	old = e.CatalogRead().MustRelation(old.address)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.NotNullConstraints[0].OID}
+	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.NotNullConstraints[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
 	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		case "nullable":
 			altered.Columns[0].Nullable = true
 		case "inherited":
-			altered.Inheritance = &tableInheritance{notNull: map[int32]inheritedConstraint{1: {origins: []inheritanceOrigin{{parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, attribute: 1, constraint: 23001}}}}}
+			altered.Inheritance = &tableInheritance{NotNull: map[int32]inheritedConstraint{1: {Origins: []inheritanceOrigin{{Parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, Attribute: 1, Constraint: 23001}}}}}
 		case "primary":
 			altered.UniqueConstraints = []uniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}

@@ -28,7 +28,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.name))
 	}
-	if definition.kind == generationVirtual {
+	if definition.Kind == generationVirtual {
 		message := ""
 		if action.Action == parser.DropExpression {
 			message = "ALTER TABLE / DROP EXPRESSION is not supported for virtual generated columns"

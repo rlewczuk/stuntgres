@@ -17,10 +17,10 @@ type truncateSequence struct {
 }
 
 func truncateOwnsSequence(d *relationDescriptor, selected map[ids.ObjectAddress]int) bool {
-	if d.RelationKind != sequenceRelation || d.Sequence.owned == (ids.ObjectAddress{}) {
+	if d.RelationKind != sequenceRelation || d.Sequence.Owned == (ids.ObjectAddress{}) {
 		return false
 	}
-	a := d.Sequence.owned
+	a := d.Sequence.Owned
 	a.SubID = 0
 	return selected[a] != 0
 }
@@ -38,7 +38,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 				continue
 			}
 			s.truncateSequences = append(s.truncateSequences, truncateSequence{
-				ref:      e.catalog.domain.Ref(s.txRef.Epoch(), a),
+				ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
 				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.sequences[a],
 			})
 		}
@@ -110,7 +110,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.address] = &sequenceGenerator{last: d.Sequence.start, generation: rev}
+		stage.generators[d.address] = &sequenceGenerator{last: d.Sequence.Start, generation: rev}
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {

@@ -40,7 +40,7 @@ func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: d.Columns[0].Usage, class: class, comparison: comparison, label: "k"}}}
+	d.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
 	return d
 }
 
@@ -50,11 +50,11 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, catalog CatalogRead, pare
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	p, c := *parent, *child
 	definition := *p.Partition
-	definition.children = append(append([]ids.ObjectAddress(nil), definition.children...), child.address)
-	definition.defaultChild = child.address
+	definition.Children = append(append([]ids.ObjectAddress(nil), definition.Children...), child.address)
+	definition.DefaultChild = child.address
 	p.Partition = &definition
 	p.revision++
-	c.Membership = &partitionMembership{parent: p.address, defaultBound: true}
+	c.Membership = &partitionMembership{Parent: p.address, DefaultBound: true}
 	c.revision++
 	if err := stage.Replace(&p); err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
-			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.Membership != nil || len(parent.Partition.children) != 0 {
+			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.Membership != nil || len(parent.Partition.Children) != 0 {
 				t.Fatal("failed attachment changed original edges")
 			}
 		})

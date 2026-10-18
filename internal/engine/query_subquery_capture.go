@@ -56,7 +56,7 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 	}
 	dependencies := make([]expressionDependency, 0, len(b.dependencies))
 	for _, dependency := range b.dependencies {
-		address := dependency.ref.Address
+		address := dependency.Ref.Address
 		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
 			if _, retained := refs.addresses[address]; !retained {
 				continue

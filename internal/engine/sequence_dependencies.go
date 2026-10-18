@@ -68,10 +68,10 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 			d = replacement
 		}
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.RelationKind != sequenceRelation || r.Sequence.owned == (ids.ObjectAddress{}) {
+		if !ok || r.RelationKind != sequenceRelation || r.Sequence.Owned == (ids.ObjectAddress{}) {
 			continue
 		}
-		owned := r.Sequence.owned
+		owned := r.Sequence.Owned
 		remove := false
 		for _, target := range targets {
 			if owned.ClassID == target.ClassID && owned.ObjectID == target.ObjectID && (target.SubID == 0 || owned.SubID == target.SubID) {
@@ -82,7 +82,7 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 		if !remove {
 			continue
 		}
-		ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), a)
+		ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), a)
 		if err := prepare(ref); err != nil {
 			return err
 		}

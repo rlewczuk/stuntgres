@@ -174,7 +174,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.catalog.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
 				stage.initialTables[d.address].versions[0].values = nil
@@ -355,7 +355,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.gate(&parser.Insert{}); outcome != nil {
 		t.Fatal(outcome)
 	}
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, ordinary.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, ordinary.address)
 	if outcome = scope.stage.Apply(ref, [][]sqltype.Value{{value}}); outcome != nil {
 		t.Fatal(outcome)
 	}

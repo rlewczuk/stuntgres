@@ -117,10 +117,10 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 	}
 	foundColumn, foundText := false, false
 	for _, dep := range bound.dependencies {
-		if dep.ref == original.origin {
+		if dep.Ref == original.origin {
 			foundColumn = true
 		}
-		if dep.ref.Address.ClassID == ids.TypeClassID && dep.ref.Address.ObjectID == ids.OID(sqltype.Text) {
+		if dep.Ref.Address.ClassID == ids.TypeClassID && dep.Ref.Address.ObjectID == ids.OID(sqltype.Text) {
 			foundText = true
 		}
 	}

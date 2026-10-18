@@ -14,11 +14,11 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options.persistence, options.owned = "temporary", table.address
-	options.owned.SubID = 1
+	options.Persistence, options.Owned = "temporary", table.address
+	options.Owned.SubID = 1
 	sequence := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, namespace: table.namespace, name: "owned", revision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
 	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: indexRelation, SQLIndex: &indexDefinition{parent: table.address, keys: []indexKey{{attribute: 1, class: class}}}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, namespace: table.namespace, name: "backing", revision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: table.address, Keys: []indexKey{{Attribute: 1, Class: class}}}}
 	peer := sessionStart(t, e, nil)
 	peerNamespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, name: "pg_temp_peer", revision: 1, Owner: table.Owner, Temporary: peer.token}
 	peerTable := *table
@@ -33,7 +33,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	store := &relationStorage{versions: rows}
 	peerStore := &relationStorage{}
 	e.storage[table.address], e.storage[peerTable.address] = store, peerStore
-	generator := &sequenceGenerator{last: options.start, generation: 1}
+	generator := &sequenceGenerator{last: options.Start, generation: 1}
 	e.sequences[sequence.address] = generator
 	root := &logicalIndexRoot{}
 	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
@@ -80,7 +80,7 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescr
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "cleanup_survivor"})
 	survivor := e.catalog.state.MustRelation(address)
-	if len(survivor.CheckConstraints) != 1 || len(survivor.CheckConstraints[0].dependencies) == 0 {
+	if len(survivor.CheckConstraints) != 1 || len(survivor.CheckConstraints[0].Dependencies) == 0 {
 		t.Fatal("missing real CHECK manifest")
 	}
 	return e, op, owner, sequence, survivor
@@ -92,7 +92,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *rel
 	stage.terminalCleanup = true
 	targets := []ids.ObjectAddress{owner.address, sequence.address}
 	for _, address := range targets {
-		if err := stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}

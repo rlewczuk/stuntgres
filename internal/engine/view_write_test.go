@@ -29,7 +29,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, Owner: owner, RelationKind: tableRelation, Attributes: []int32{7, 11, 19}, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
-	baseRef := e.catalog.domain.Ref(e.catalog.state.epoch, base.address)
+	baseRef := e.catalog.Domain.Ref(e.catalog.state.epoch, base.address)
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
@@ -39,7 +39,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
 	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
-	viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
+	viewRef := e.catalog.Domain.Ref(e.catalog.state.epoch, view.address)
 	e.catalog.state.setDescriptor(base.address, base)
 	e.catalog.state.setDescriptor(view.address, view)
 	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}, base.address)
@@ -158,7 +158,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
-	f.base.Defaults = map[int32]columnDefault{19: {expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
+	f.base.Defaults = map[int32]columnDefault{19: {Expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: constant}}}
 	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	f.e.catalog.state.setDescriptor(indexAddress, &relationDescriptor{
 		address:  indexAddress,
-		SQLIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
+		SQLIndex: &indexDefinition{Parent: f.base.address, Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := &boundInsertConflict{}
 	evaluation := EvalContext{Context: context.Background()}

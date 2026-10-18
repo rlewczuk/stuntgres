@@ -956,17 +956,17 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		})
 	}
 	for _, definition := range d.Defaults {
-		expression(definition.expression)
+		expression(definition.Expression)
 	}
 	for _, definition := range d.Generations {
-		expression(definition.expression)
-		expression(definition.planned)
+		expression(definition.Expression)
+		expression(definition.Planned)
 	}
 	for _, constraint := range d.CheckConstraints {
-		expression(constraint.expression)
+		expression(constraint.Expression)
 	}
 	for _, policy := range d.Policies {
-		for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
+		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)
 				changed = changed || queryDescriptorsChanged(condition.presentation.query.Root, typ)
@@ -980,31 +980,31 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		}
 	}
 	if d.SQLIndex != nil {
-		for _, key := range d.SQLIndex.keys {
-			if key.derived != nil {
-				expression(key.derived.definition)
-				expression(key.derived.execution)
+		for _, key := range d.SQLIndex.Keys {
+			if key.Derived != nil {
+				expression(key.Derived.Definition)
+				expression(key.Derived.Execution)
 			}
 		}
-		if predicate := d.SQLIndex.predicate; predicate != nil {
-			expression(predicate.definition)
-			expression(predicate.execution)
+		if predicate := d.SQLIndex.Predicate; predicate != nil {
+			expression(predicate.Definition)
+			expression(predicate.Execution)
 		}
 	}
 	if d.Partition != nil {
-		for _, key := range d.Partition.keys {
-			changed = changed || key.usage.Type != typ(key.usage.Type)
-			if key.derived != nil {
-				expression(key.derived.definition)
-				expression(key.derived.execution)
+		for _, key := range d.Partition.Keys {
+			changed = changed || key.Usage.Type != typ(key.Usage.Type)
+			if key.Derived != nil {
+				expression(key.Derived.Definition)
+				expression(key.Derived.Execution)
 			}
 		}
 	}
 	if d.Membership != nil {
-		for _, tuple := range [][]partitionDatum{d.Membership.lower, d.Membership.upper} {
+		for _, tuple := range [][]partitionDatum{d.Membership.Lower, d.Membership.Upper} {
 			for _, datum := range tuple {
-				if datum.kind == 0 {
-					changed = changed || datum.value.Type() != typ(datum.value.Type())
+				if datum.Kind == 0 {
+					changed = changed || datum.Value.Type() != typ(datum.Value.Type())
 				}
 			}
 		}

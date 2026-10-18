@@ -39,7 +39,7 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 	t.Helper()
 	view := e.CatalogRead()
 	for a, d := range view.Descriptors() {
-		if err := e.catalog.providers[a.ClassID].Validate(view, d); err != nil {
+		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal("invalid published descriptor", a, err)
 		}
 		found := view.Lookup(descriptorNameKey(d))
@@ -281,7 +281,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	r.Rows.Close()
 	importedTable := roleTableRef(t, dest, "portable.owner_table").Address
 	importedSequence := roleTableRef(t, dest, "portable.owned_s").Address
-	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).Sequence.owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
+	if importedTable == sourceTable || dest.catalog.state.MustRelation(importedSequence).Sequence.Owned != (ids.ObjectAddress{ClassID: importedTable.ClassID, ObjectID: importedTable.ObjectID, SubID: 1}) {
 		t.Fatal("persistent collision did not remap OWNED BY", importedTable, dest.catalog.state.Get(importedSequence))
 	}
 	sequenceScalar(t, b, "SELECT nextval('portable.owned_s')", 40)
@@ -289,7 +289,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		t.Fatal("remapped persistent rows missing", got)
 	}
 	index, indexRoot := btreeRoot(t, dest, "portable.owner_idx")
-	if index.SQLIndex.parent != importedTable || sourceIndex.SQLIndex.parent != sourceTable || index.SQLIndex == sourceIndex.SQLIndex {
+	if index.SQLIndex.Parent != importedTable || sourceIndex.SQLIndex.Parent != sourceTable || index.SQLIndex == sourceIndex.SQLIndex {
 		t.Fatal("index parent collision remapping lost source/destination authority")
 	}
 	if got := btreeKeys(t, indexRoot); !reflect.DeepEqual(got, []string{"7"}) {

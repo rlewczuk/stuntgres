@@ -61,7 +61,7 @@ func TestBtreeIndexBuildAndBatchMaintenance(t *testing.T) {
 	run(t, e, "CREATE INDEX s_idx ON t USING btree(s DESC NULLS LAST,n)")
 	old := btreeWantKeys(t, e, "n_idx", "1", "2", "2", "3", "NULL")
 	index, descending := btreeRoot(t, e, "s_idx")
-	if len(index.SQLIndex.keys) != 2 || !index.SQLIndex.keys[0].desc || index.SQLIndex.keys[0].nullsFirst {
+	if len(index.SQLIndex.Keys) != 2 || !index.SQLIndex.Keys[0].Desc || index.SQLIndex.Keys[0].NullsFirst {
 		t.Fatal(index.SQLIndex)
 	}
 	if got := btreeKeys(t, descending); !reflect.DeepEqual(got, []string{"c", "b", "b", "a", "NULL"}) {

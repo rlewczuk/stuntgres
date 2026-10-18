@@ -37,7 +37,7 @@ func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *
 	if got := expressionRootTuples(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(name, got, want)
 	}
-	store := e.storage[index.SQLIndex.parent]
+	store := e.storage[index.SQLIndex.Parent]
 	if store == nil {
 		t.Fatal("missing real parent storage")
 	}
@@ -119,8 +119,8 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		t.Fatal("failed evaluation replaced predecessor")
 	}
 	sourceIndex, _ := btreeRoot(t, source, "ix")
-	if sourceIndex.SQLIndex.parent != temporary {
-		t.Fatal("fixture did not establish a retained persistent/TEMP address collision", sourceIndex.SQLIndex.parent, temporary)
+	if sourceIndex.SQLIndex.Parent != temporary {
+		t.Fatal("fixture did not establish a retained persistent/TEMP address collision", sourceIndex.SQLIndex.Parent, temporary)
 	}
 	run(t, target, "CREATE TABLE unrelated(n INT)")
 	run(t, target, "INSERT INTO unrelated VALUES(99),(99),(99),(99),(99)")
@@ -151,24 +151,24 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		t.Fatal("destination write changed source authority")
 	}
 	index, _ := btreeRoot(t, target, "ix")
-	if index.SQLIndex.parent == temporary {
+	if index.SQLIndex.Parent == temporary {
 		t.Fatal("replacement did not remap collided parent dependency")
 	}
-	for _, key := range index.SQLIndex.keys {
-		if key.derived == nil {
+	for _, key := range index.SQLIndex.Keys {
+		if key.Derived == nil {
 			t.Fatal("replacement lost derived definition")
 		}
 		parentDependency := false
-		for _, dependency := range key.derived.dependencies {
-			if dependency.Domain() != target.catalog.domain || dependency.Epoch != target.CatalogRead().Epoch() {
+		for _, dependency := range key.Derived.Dependencies {
+			if dependency.Domain() != target.catalog.Domain || dependency.Epoch != target.CatalogRead().Epoch() {
 				t.Fatal("replacement retained source dependency authority", dependency)
 			}
-			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.SQLIndex.parent.ObjectID {
+			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.SQLIndex.Parent.ObjectID {
 				parentDependency = true
 			}
 		}
 		if !parentDependency {
-			t.Fatal("replacement lost remapped parent dependency", key.derived.dependencies)
+			t.Fatal("replacement lost remapped parent dependency", key.Derived.Dependencies)
 		}
 	}
 }

@@ -14,7 +14,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	base := f.e.CatalogRead()
-	key := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
+	key := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	record := base.state.defaultACLs[key]
 	next := cloneCatalog(base.state)
 	next.defaultACLs = overlayDefaultACLs(next.defaultACLs, map[defaultACLKey]*defaultACLRecord{key: nil})
@@ -62,7 +62,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f.e.mu.Lock()
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
-	key := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
+	key := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || private.state.defaultACLs[key] == nil || changes.roles == nil || changes.rolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
@@ -170,8 +170,8 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	f.grant(t, "tables", "insert", []string{"default_schema"})
-	global := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
-	scoped := defaultACLKey{creator: f.owner, schema: f.schema, class: authorization.DefaultTables}
+	global := defaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
+	scoped := defaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultTables}
 	old := f.e.CatalogRead()
 	record := old.state.defaultACLs[scoped]
 	stage := f.e.BeginCatalogStage(old)
@@ -200,7 +200,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	}
 	before := f.e.CatalogRead()
 	drop := f.e.BeginCatalogStage(before)
-	ref := f.e.catalog.domain.Ref(before.Epoch(), f.schema)
+	ref := f.e.catalog.Domain.Ref(before.Epoch(), f.schema)
 	if err := drop.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}

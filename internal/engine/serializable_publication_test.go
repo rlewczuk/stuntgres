@@ -66,7 +66,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 	for address, generator := range e.sequences {
 		s.generators[address] = *generator
 	}
-	for class, provider := range e.catalog.providers {
+	for class, provider := range e.catalog.Providers {
 		s.providers[class] = reflect.TypeOf(provider)
 	}
 	return s
@@ -113,7 +113,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	sessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
 	sessionSQL(t, setup, "CREATE SEQUENCE existing_s")
 	var validations atomic.Int32
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() { validations.Add(1) }}
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() { validations.Add(1) }}
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	sessionSQL(t, a, "INSERT INTO indexed VALUES(7),(8)")
 	sessionSQL(t, a, "ALTER TABLE indexed ADD COLUMN marker INT DEFAULT 7")

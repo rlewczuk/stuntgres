@@ -131,7 +131,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					assertTemporaryNamespacePair(t, e, a.token, ns.address)
 					address := NameAddressForTempMove(t, e, ns.address, "created")
 					d := e.catalog.state.MustRelation(address)
-					want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: 9223372036854775807, start: 60, cache: 3, persistence: "temporary"}
+					want := sequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
 					g := e.sequences[address]
 					if d.namespace != ns.address || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.SequencePlanStamp != d.revision {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
@@ -186,7 +186,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
 				ns := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
-				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, s, "SET SESSION AUTHORIZATION creator")

@@ -54,7 +54,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*restoredGenerationRecipe){
 		"epoch":     func(r *restoredGenerationRecipe) { r.ref.Epoch++ },
-		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.domain.Ref(r.ref.Epoch, r.ref.Address) },
+		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.Domain.Ref(r.ref.Epoch, r.ref.Address) },
 		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
 		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
 		"kind":      func(r *restoredGenerationRecipe) { r.kind = generationStored },
@@ -126,7 +126,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	before := e.catalog.state
 	child := *before.MustRelation(refs["c"].Address)
 	child.Inheritance = cloneInheritance(child.Inheritance)
-	child.Inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: refs["q"].Address, attribute: 1}}}
+	child.Inheritance.Columns[2] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
 	changed := cloneCatalog(before)
 	changed.setDescriptor(child.address, &child)
 	e.catalog.state = changed
@@ -153,7 +153,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	roleExecute(t, e, op, "ALTER TABLE public.q ADD CONSTRAINT positive CHECK(a>0)")
 	current := e.CatalogRead().MustRelation(refs["c"].Address)
-	if provenance := current.Inheritance.checks["positive"]; provenance.local || len(provenance.origins) != 1 || provenance.origins[0].parent != refs["q"].Address {
+	if provenance := current.Inheritance.Checks["positive"]; provenance.Local || len(provenance.Origins) != 1 || provenance.Origins[0].Parent != refs["q"].Address {
 		t.Fatal("actual ADD did not rebuild exact other-parent support", provenance)
 	}
 	retained, err := e.closeRestoredRecipesForData(op, statement(t, "INSERT INTO public.c(a) VALUES(1)").(*parser.Insert), []restoredGenerationRecipe{repair})

@@ -42,7 +42,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				predecessor, before := parent, e.CatalogRead()
 				storage := e.storage[parent.address]
 				childStage, d := queryCreateStage(t, e, "c", 1)
-				d.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.Attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.Attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+				d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.address}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: parent.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 					t.Fatal(err)
 				}
@@ -54,7 +54,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 			}
 			ref := func(d *relationDescriptor) ids.ObjectRef {
-				return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+				return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
 			}
 			parentRef, parentStorage := ref(parent), e.storage[parent.address]
 			ctx, cancelScan := context.WithCancel(context.Background())

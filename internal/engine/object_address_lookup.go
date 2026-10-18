@@ -320,7 +320,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			return missing("42883", noun+" "+sig+" does not exist")
 		}
-		actual := objectRoutineKind(p.id)
+		actual := objectRoutineKind(p.ID)
 		if kind == "aggregate" && actual != "aggregate" {
 			return missing("42809", "function "+sig+" is not an aggregate")
 		}
@@ -330,7 +330,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if kind == "function" && actual == "procedure" {
 			return missing("42809", sig+" is not a function")
 		}
-		a.ObjectID = p.id
+		a.ObjectID = p.ID
 		return a, nil
 	case 2617:
 		path, err := objectLookupPath(scope, names)

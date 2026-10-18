@@ -97,8 +97,8 @@ func (r installedExtensionRoutine) Validate() error {
 // Levenshtein, Metaphone and Soundex calls, which always appended.
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
-	ref := b.engine.catalog.domain.Ref(r.catalog.Epoch(), p.address)
-	appended := expressionDependency{ref: ref, revision: p.revision}
+	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.address)
+	appended := expressionDependency{Ref: ref, Revision: p.revision}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
 		if p.uuidOsspProvider() != stockUUIDOssp {

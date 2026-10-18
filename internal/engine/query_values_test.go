@@ -40,7 +40,7 @@ func TestQueryFromValuesCommonSchema(t *testing.T) {
 				t.Fatal("synthetic source acquired physical identity", output, b.querySources)
 			}
 			for _, dependency := range b.dependencies {
-				if dependency.ref.Address.ClassID == ids.RelationClassID {
+				if dependency.Ref.Address.ClassID == ids.RelationClassID {
 					t.Fatal("synthetic source acquired relation dependency", dependency)
 				}
 			}

@@ -17,10 +17,10 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	old := e.catalog.state.Get(table.Address)
 	originalView := e.catalog.state.MustRelation(view.Address)
 	store := e.storage[table.Address]
-	provider := e.catalog.providers[ids.RelationClassID]
+	provider := e.catalog.Providers[ids.RelationClassID]
 	var added ids.ObjectAddress
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-		e.catalog.providers[ids.RelationClassID] = provider
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+		e.catalog.Providers[ids.RelationClassID] = provider
 		e.mu.Lock()
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {

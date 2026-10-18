@@ -11,7 +11,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if raw == nil {
 		return nil, nil
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -63,8 +63,8 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		whole := address
 		whole.SubID = 0
 		frozen.dependencies = append(frozen.dependencies, expressionDependency{
-			ref:      e.catalog.domain.Ref(auth.catalog.Epoch(), address),
-			revision: auth.catalog.Get(whole).Revision(),
+			Ref:      e.catalog.Domain.Ref(auth.catalog.Epoch(), address),
+			Revision: auth.catalog.Get(whole).Revision(),
 		})
 	}
 	return &policyExpression{syntax: raw, expression: node, presentation: frozen}, nil

@@ -17,8 +17,8 @@ type partitionRoutineIdentity struct {
 }
 
 func evaluatePartitionRecipe(evaluation *EvalContext, owner *relationDescriptor, keyIndex int, row []sqltype.Value) (sqltype.Value, error) {
-	key := owner.Partition.keys[keyIndex].derived
-	local := indexRecipeEvaluation(evaluation, key.dependencies, owner)
+	key := owner.Partition.Keys[keyIndex].Derived
+	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
 	scope := local.liveScope()
 	if scope != nil {
@@ -39,12 +39,12 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *relationDescriptor,
 	}
 	if expressions == nil {
 		var admission routineAdmissionProgram
-		expressions = make([]expr.Expr, len(owner.Partition.keys))
-		for i, entry := range owner.Partition.keys {
-			if entry.derived == nil {
+		expressions = make([]expr.Expr, len(owner.Partition.Keys))
+		for i, entry := range owner.Partition.Keys {
+			if entry.Derived == nil {
 				continue
 			}
-			expressions[i], err = prepareIndexRecipe(&local, entry.derived.definition, entry.derived.dependencies, owner, &admission, true)
+			expressions[i], err = prepareIndexRecipe(&local, entry.Derived.Definition, entry.Derived.Dependencies, owner, &admission, true)
 			evaluation.preparedDomainChecks = local.preparedDomainChecks
 			if err != nil {
 				return sqltype.Value{}, err

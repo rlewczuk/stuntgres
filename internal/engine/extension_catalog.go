@@ -121,8 +121,8 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	var ext ids.ObjectAddress
 	switch d := d.(type) {
 	case *extensionDescriptor:
-		implementation, registered := v.owner.extensions[d.name]
-		if !registered || d.Version != implementation.Control().version || d.Namespace() != (ids.ObjectAddress{}) {
+		implementation, registered := v.owner.Extensions[d.name]
+		if !registered || d.Version != implementation.Control().Version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 		if _, ok := v.Namespace(d.TargetNamespace); !ok {
@@ -151,21 +151,21 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.Foreign != nil {
 			p := d.Foreign
-			if p.name.Name != d.name || d.Extension != (ids.ObjectAddress{}) || d.Implementation != nil || d.Conversion.Name() != "" || d.Builtin != nil {
+			if p.Name.Name != d.name || d.Extension != (ids.ObjectAddress{}) || d.Implementation != nil || d.Conversion.Name() != "" || d.Builtin != nil {
 				return invalid()
 			}
-			if p.wrapper != nil {
-				if p.validator != nil || d.Signature != foreignHandlerSignature || d.Result != 3115 {
+			if p.Wrapper != nil {
+				if p.Validator != nil || d.Signature != foreignHandlerSignature || d.Result != 3115 {
 					return invalid()
 				}
-			} else if p.validator == nil || d.Signature != foreignValidatorSignature || d.Result != 2278 {
+			} else if p.Validator == nil || d.Signature != foreignValidatorSignature || d.Result != 2278 {
 				return invalid()
 			}
 			break
 		}
 		if d.Builtin != nil {
 			declared := d.Builtin
-			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.Signature != declared.identity.signature || d.RoutineKind != declared.kind || d.Result != declared.result || d.Strict != declared.strict || d.Volatility != declared.volatility || d.Implementation != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
+			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || d.name != declared.Identity.Name || d.Signature != declared.Identity.Signature || d.RoutineKind != declared.Kind || d.Result != declared.Result || d.Strict != declared.Strict || d.Volatility != declared.Volatility || d.Implementation != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Foreign != nil {
 				return invalid()
 			}
 			break

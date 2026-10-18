@@ -23,22 +23,22 @@ func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error
 	if t.membership == nil {
 		return "", fmt.Errorf("stuntgres: missing partition bound")
 	}
-	if t.membership.strategy == parser.PartitionHash {
-		return fmt.Sprintf("{PartitionBound strategy hash default false modulus %d remainder %d}", t.membership.modulus, t.membership.remainder), nil
+	if t.membership.Strategy == parser.PartitionHash {
+		return fmt.Sprintf("{PartitionBound strategy hash default false modulus %d remainder %d}", t.membership.Modulus, t.membership.Remainder), nil
 	}
-	if t.membership.defaultBound {
+	if t.membership.DefaultBound {
 		return "{PartitionBound strategy range default true}", nil
 	}
-	if len(t.keys) != len(t.membership.lower) || len(t.keys) != len(t.membership.upper) {
+	if len(t.keys) != len(t.membership.Lower) || len(t.keys) != len(t.membership.Upper) {
 		return "", fmt.Errorf("stuntgres: invalid partition bound shape")
 	}
 	var out strings.Builder
 	out.WriteString("{PartitionBound strategy range default false lower (")
-	if err := t.appendDatums(ctx, &out, t.membership.lower); err != nil {
+	if err := t.appendDatums(ctx, &out, t.membership.Lower); err != nil {
 		return "", err
 	}
 	out.WriteString(") upper (")
-	if err := t.appendDatums(ctx, &out, t.membership.upper); err != nil {
+	if err := t.appendDatums(ctx, &out, t.membership.Upper); err != nil {
 		return "", err
 	}
 	out.WriteString(")}")
@@ -53,14 +53,14 @@ func (t partitionBoundTree) appendDatums(ctx context.Context, out *strings.Build
 		if i != 0 {
 			out.WriteByte(' ')
 		}
-		switch datum.kind {
+		switch datum.Kind {
 		case -1:
 			out.WriteString("MINVALUE")
 		case 1:
 			out.WriteString("MAXVALUE")
 		case 0:
-			usage := t.keys[i].usage
-			text, err := datum.value.Type().Output(ctx, datum.value)
+			usage := t.keys[i].Usage
+			text, err := datum.Value.Type().Output(ctx, datum.Value)
 			if err != nil {
 				return err
 			}

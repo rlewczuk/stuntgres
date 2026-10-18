@@ -64,8 +64,8 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 		for _, constraint := range relation.NotNullConstraints {
 			if constraint.Name == name && constraint.Attribute == attribute && !constraint.NotValid {
 				if graph := relation.Inheritance; graph != nil {
-					fact := graph.notNull[attribute]
-					if !fact.local || fact.count() != 0 {
+					fact := graph.NotNull[attribute]
+					if !fact.Local || fact.count() != 0 {
 						return
 					}
 				}
@@ -175,8 +175,8 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		}
 	}
 	if graph := old.Inheritance; graph != nil {
-		fact := graph.notNull[origin.attribute]
-		if !fact.local || fact.count() != 0 {
+		fact := graph.NotNull[origin.attribute]
+		if !fact.Local || fact.count() != 0 {
 			e.mu.Unlock()
 			return sqlError("0A000", restoreNoInheritBoundary)
 		}

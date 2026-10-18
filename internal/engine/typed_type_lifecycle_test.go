@@ -114,17 +114,17 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	child.address.ObjectID += 2000
 	child.OfType = ids.ObjectAddress{}
 	child.Attributes = []int32{3, 8}
-	child.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{root.address, other.address}, columns: map[int32]inheritedColumn{3: {origins: []inheritanceOrigin{{parent: root.address, attribute: 1}, {parent: other.address, attribute: 1}}}, 8: {local: true, origins: []inheritanceOrigin{{parent: root.address, attribute: 7}, {parent: other.address, attribute: 7}}}}}
+	child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{root.address, other.address}, Columns: map[int32]inheritedColumn{3: {Origins: []inheritanceOrigin{{Parent: root.address, Attribute: 1}, {Parent: other.address, Attribute: 1}}}, 8: {Local: true, Origins: []inheritanceOrigin{{Parent: root.address, Attribute: 7}, {Parent: other.address, Attribute: 7}}}}}
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
 	state := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{root.address: &changed, other.address: &other}}
 	actions, renames, graph, err := typedInheritedActions(e.catalog.read(state), &child, nil)
-	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.columns[3].origins, []inheritanceOrigin{{parent: other.address, attribute: 1}}) || len(child.Inheritance.columns[3].origins) != 2 {
+	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.Columns[3].Origins, []inheritanceOrigin{{Parent: other.address, Attribute: 1}}) || len(child.Inheritance.Columns[3].Origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
 	}
 	other.Columns, other.Attributes, other.Index = nil, nil, map[string]int{}
 	actions, _, graph, err = typedInheritedActions(e.catalog.read(state), &child, nil)
-	if err != nil || len(actions) != 1 || actions[0].action.Column.Text != "id" || !graph.columns[8].local {
+	if err != nil || len(actions) != 1 || actions[0].action.Column.Text != "id" || !graph.Columns[8].Local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
 	}
 }

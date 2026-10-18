@@ -140,9 +140,9 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			table := defaultUnitTable(t, f, stage, "paused", f.owner)
 			entered, release := make(chan struct{}), make(chan struct{})
-			provider := f.e.catalog.providers[ids.RelationClassID]
+			provider := f.e.catalog.Providers[ids.RelationClassID]
 			var once sync.Once
-			f.e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
+			f.e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { close(entered); <-release }) }}
 			type result struct {
 				p   *PreparedCatalogPublication
 				err error
@@ -156,7 +156,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			f.grant(t, "tables", "insert", nil)
 			close(release)
 			r := <-resultCh
-			f.e.catalog.providers[ids.RelationClassID] = provider
+			f.e.catalog.Providers[ids.RelationClassID] = provider
 			if r.err != nil {
 				t.Fatal(r.err)
 			}
@@ -165,7 +165,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.defaultReads {
-				if key.class != authorization.DefaultTables || key.creator != f.owner || record != stage.base.state.defaultACLs[key] {
+				if key.Class != authorization.DefaultTables || key.Creator != f.owner || record != stage.base.state.defaultACLs[key] {
 					t.Fatal("incorrect creation observations")
 				}
 			}

@@ -21,7 +21,7 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	if parent == nil {
 		return nil, nil
 	}
-	if index.SQLIndex.constraint != nil && !backingConstraintPresent(parent, index) {
+	if index.SQLIndex.Constraint != nil && !backingConstraintPresent(parent, index) {
 		return nil, nil
 	}
 	definition := index.SQLIndex
@@ -38,21 +38,21 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 		}
 		return true
 	}
-	for i, key := range index.SQLIndex.keys {
-		if key.derived == nil {
-			if !dependentAttribute(key.attribute) {
+	for i, key := range index.SQLIndex.Keys {
+		if key.Derived == nil {
+			if !dependentAttribute(key.Attribute) {
 				return nil, nil
 			}
 			continue
 		}
 		var slots map[int32]int
-		for _, dependency := range key.derived.dependencies {
+		for _, dependency := range key.Derived.Dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 {
 				if !dependentAttribute(a.SubID) {
 					return nil, nil
 				}
-				if !slices.Equal(key.derived.attributes, parent.Attributes) && slots == nil {
+				if !slices.Equal(key.Derived.Attributes, parent.Attributes) && slots == nil {
 					slots = make(map[int32]int, len(parent.Attributes))
 					for slot, id := range parent.Attributes {
 						slots[id] = slot
@@ -64,56 +64,56 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 			continue
 		}
 		remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-		node, err := remapBoundExpression(key.derived.definition, remap, slots)
+		node, err := remapBoundExpression(key.Derived.Definition, remap, slots)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := remapBoundExpression(key.derived.execution, remap, slots)
+		execution, err := remapBoundExpression(key.Derived.Execution, remap, slots)
 		if err != nil {
 			return nil, err
 		}
 		if definition == index.SQLIndex {
 			copy := *definition
-			copy.keys = append([]indexKey(nil), copy.keys...)
+			copy.Keys = append([]indexKey(nil), copy.Keys...)
 			definition = &copy
 		}
-		derived := *key.derived
-		derived.definition, derived.execution = node, execution
-		derived.attributes = parent.Attributes
-		definition.keys[i].derived = &derived
+		derived := *key.Derived
+		derived.Definition, derived.Execution = node, execution
+		derived.Attributes = parent.Attributes
+		definition.Keys[i].Derived = &derived
 	}
-	if predicate := definition.predicate; predicate != nil {
-		for _, dependency := range predicate.dependencies {
+	if predicate := definition.Predicate; predicate != nil {
+		for _, dependency := range predicate.Dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 && !dependentAttribute(a.SubID) {
 				return nil, nil
 			}
 		}
-		if !slices.Equal(predicate.attributes, parent.Attributes) {
+		if !slices.Equal(predicate.Attributes, parent.Attributes) {
 			slots := make(map[int32]int, len(parent.Attributes))
 			for slot, id := range parent.Attributes {
 				slots[id] = slot
 			}
 			remap := func(ref ids.ObjectRef) ids.ObjectRef { return ref }
-			node, err := remapBoundExpression(predicate.definition, remap, slots)
+			node, err := remapBoundExpression(predicate.Definition, remap, slots)
 			if err != nil {
 				return nil, err
 			}
-			execution, err := remapBoundExpression(predicate.execution, remap, slots)
+			execution, err := remapBoundExpression(predicate.Execution, remap, slots)
 			if err != nil {
 				return nil, err
 			}
 			if definition == index.SQLIndex {
 				copy := *definition
-				copy.keys = append([]indexKey(nil), copy.keys...)
+				copy.Keys = append([]indexKey(nil), copy.Keys...)
 				definition = &copy
 			}
 			copy := *predicate
-			copy.definition, copy.execution, copy.attributes = node, execution, parent.Attributes
-			definition.predicate = &copy
+			copy.Definition, copy.Execution, copy.Attributes = node, execution, parent.Attributes
+			definition.Predicate = &copy
 		}
 	}
-	for _, attribute := range definition.include {
+	for _, attribute := range definition.Include {
 		if !dependentAttribute(attribute) {
 			return nil, nil
 		}
@@ -121,26 +121,26 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	if reconstruct {
 		if definition == index.SQLIndex {
 			next := *definition
-			next.keys = append([]indexKey(nil), definition.keys...)
+			next.Keys = append([]indexKey(nil), definition.Keys...)
 			definition = &next
 		}
-		definition.ready, definition.valid, definition.live = true, true, true
-		for i, key := range definition.keys {
+		definition.Ready, definition.Valid, definition.Live = true, true, true
+		for i, key := range definition.Keys {
 			var oldUsage, newUsage sqltype.Usage
-			if key.derived != nil {
-				oldUsage, newUsage = key.derived.definition.ResultUsage(), key.derived.execution.ResultUsage()
+			if key.Derived != nil {
+				oldUsage, newUsage = key.Derived.Definition.ResultUsage(), key.Derived.Execution.ResultUsage()
 			} else {
-				oldUsage = oldParent.Columns[slices.Index(oldParent.Attributes, key.attribute)].Usage
-				newUsage = parent.Columns[slices.Index(parent.Attributes, key.attribute)].Usage
+				oldUsage = oldParent.Columns[slices.Index(oldParent.Attributes, key.Attribute)].Usage
+				newUsage = parent.Columns[slices.Index(parent.Attributes, key.Attribute)].Usage
 			}
-			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.method)
+			definition.Keys[i] = reconstructIndexKey(key, oldUsage, newUsage, definition.Method)
 		}
 	}
 	if err := bindIndexProvider(parent, definition); err != nil {
 		return nil, err
 	}
 	changed := definition != index.SQLIndex || index.namespace != parent.namespace || index.Owner != parent.Owner
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
@@ -154,16 +154,16 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	clone.namespace, clone.Owner = parent.namespace, parent.Owner
 	clone.SQLIndex = definition
 	clone.Columns = append([]ColumnDescriptor(nil), index.Columns...)
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
 		clone.Columns[i].Usage = usage
 	}
-	for i, attribute := range definition.include {
+	for i, attribute := range definition.Include {
 		slot := slices.Index(parent.Attributes, attribute)
-		clone.Columns[len(definition.keys)+i].Usage = parent.Columns[slot].Usage
+		clone.Columns[len(definition.Keys)+i].Usage = parent.Columns[slot].Usage
 	}
 	clone.revision++
 	if clone.revision == 0 {
@@ -207,9 +207,9 @@ func (provider *dropProvider) indexEvolutionInput(address ids.ObjectAddress, des
 		index = replacement
 	}
 	var parent Descriptor
-	if provider.removed(index.SQLIndex.parent) {
+	if provider.removed(index.SQLIndex.Parent) {
 		parent = nil
-	} else if replacement := provider.replacement(index.SQLIndex.parent); replacement != nil {
+	} else if replacement := provider.replacement(index.SQLIndex.Parent); replacement != nil {
 		parent = replacement
 	} else {
 		return nil, nil, false, false
@@ -233,7 +233,7 @@ func (provider *dropProvider) evolveIndexes(typeParent ids.ObjectAddress, transf
 }
 
 func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, parent *relationDescriptor, staged bool, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
-	oldParent := provider.base.MustRelation(index.SQLIndex.parent)
+	oldParent := provider.base.MustRelation(index.SQLIndex.Parent)
 	prior, chained := provider.indexLayout(address)
 	chained = chained && prior.target == index
 	if chained {
@@ -242,7 +242,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 	var dependentTypes []columnTransformation
 	// Layout passes evolve the current candidate without lifecycle repair.
 	// Actual TYPE dependencies retain their captured reconstruction semantics.
-	if index.SQLIndex.parent == typeParent && (!staged || uniqueIndexTypeAffected(index.SQLIndex, transformations)) {
+	if index.SQLIndex.Parent == typeParent && (!staged || uniqueIndexTypeAffected(index.SQLIndex, transformations)) {
 		dependentTypes = transformations
 	}
 	next, err := evolveIndexRevision(index, oldParent, parent, dependentTypes, provider.terminalCleanup())
@@ -250,7 +250,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 		return err
 	}
 	if next == nil {
-		if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), address), false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address), false); err != nil {
 			return err
 		}
 	} else if next != index {
@@ -258,7 +258,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 			return err
 		}
 	}
-	if next != nil && next.SQLIndex.ready && next.SQLIndex.live && len(dependentTypes) == 0 && indexLayoutInputsUnchanged(index, oldParent, parent) {
+	if next != nil && next.SQLIndex.Ready && next.SQLIndex.Live && len(dependentTypes) == 0 && indexLayoutInputsUnchanged(index, oldParent, parent) {
 		source, ok := provider.base.Relation(address)
 		if chained {
 			source, ok = index, true
@@ -286,13 +286,13 @@ func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, catalog 
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		if parent, ok := catalog.Relation(index.SQLIndex.parent); ok && parent.Partition != nil {
+		if parent, ok := catalog.Relation(index.SQLIndex.Parent); ok && parent.Partition != nil {
 			continue
 		}
 		if captured == nil {
 			captured = make(map[ids.ObjectAddress]*relationStorage)
 		}
-		a := index.SQLIndex.parent
+		a := index.SQLIndex.Parent
 		if captured[a] != nil {
 			continue
 		}
@@ -313,7 +313,7 @@ func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*relationStora
 		if !ok || index.SQLIndex == nil || prepared != nil && prepared[address] == previous[address] {
 			continue
 		}
-		a := index.SQLIndex.parent
+		a := index.SQLIndex.Parent
 		if parent, ok := next.Relation(a); ok && parent.Partition != nil {
 			continue
 		}
@@ -362,7 +362,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
-		parent := next.MustRelation(index.SQLIndex.parent)
+		parent := next.MustRelation(index.SQLIndex.Parent)
 		owner, runtime := runtimeOwners[parent.address]
 		indexAuth := auth
 		if runtime && auth.engine != nil {
@@ -387,8 +387,8 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			}
 			continue
 		}
-		intent := rebuildParents[index.SQLIndex.parent] || rebuildIndexes[a] != nil
-		if !index.SQLIndex.ready && rebuildIndexes[a] == nil {
+		intent := rebuildParents[index.SQLIndex.Parent] || rebuildIndexes[a] != nil
+		if !index.SQLIndex.Ready && rebuildIndexes[a] == nil {
 			if current.Get(a) != index {
 				if err := validateIndexDefinition(catalog, index); err != nil {
 					return nil, err
@@ -408,13 +408,13 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			root = candidate.root
 		}
 		old, _ := current.Relation(a)
-		if roots != nil && root == nil && old != nil && old.SQLIndex.ready && !intent {
+		if roots != nil && root == nil && old != nil && old.SQLIndex.Ready && !intent {
 			return nil, fmt.Errorf("stuntgres: ready index root is missing")
 		}
 		rebuild := !produced && (root == nil || old == nil || intent || !sameIndexKeySemantics(old, index))
 		// Generic parent shape changes cannot heal invalid indexes. Supplied
 		// phase roots and ready-invalid maintenance still use the same core.
-		if old != nil && !index.SQLIndex.valid && rebuildIndexes[a] == nil && !runtime {
+		if old != nil && !index.SQLIndex.Valid && rebuildIndexes[a] == nil && !runtime {
 			if root == nil {
 				return nil, fmt.Errorf("stuntgres: ready index root is missing")
 			}
@@ -454,7 +454,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		if root != nil {
 			entries = root.entries
 		}
-		if index.SQLIndex.method == hashMethod {
+		if index.SQLIndex.Method == hashMethod {
 			var err error
 			if rebuild {
 				if err := validateIndexDefinition(e.catalog.read(next), index); err != nil {
@@ -469,7 +469,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				if publications[i].address != parent.address {
 					continue
 				}
-				reconstruct := !produced && (rebuildParents[parent.address] || old == nil) && index.SQLIndex.valid
+				reconstruct := !produced && (rebuildParents[parent.address] || old == nil) && index.SQLIndex.Valid
 				root, err = mergeHashIndexRoot(evaluation, parent, index, root, &publications[i], reconstruct, materialize || index.SQLIndex.isExclusion())
 				if err != nil {
 					return nil, err
@@ -499,7 +499,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				return nil, err
 			}
 			root = nil
-			if index.SQLIndex.unique || index.SQLIndex.isExclusion() {
+			if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
 				// Namespace metadata belongs to integrity diagnostics, not ordinary
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for ordinary nonintegrity roots.
@@ -518,10 +518,10 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				continue
 			}
 			schema := ""
-			if index.SQLIndex.unique || index.SQLIndex.isExclusion() {
+			if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
 				schema = next.MustNamespace(parent.namespace).name
 			}
-			reconstruct := !produced && (rebuildParents[parent.address] || old == nil) && index.SQLIndex.valid
+			reconstruct := !produced && (rebuildParents[parent.address] || old == nil) && index.SQLIndex.Valid
 			merged, err := mergeIndexRoot(evaluation, parent, index, entries, &publications[i], reconstruct, materialize, false, schema, output, indexAuth)
 			if err != nil {
 				return nil, err
@@ -562,7 +562,7 @@ func sameIndexKeySemantics(a, b *relationDescriptor) bool {
 }
 
 func sameIndexDefinitionSemantics(a, b *indexDefinition) bool {
-	return a != nil && b != nil && a.method == b.method && a.parent == b.parent && slices.Equal(a.keys, b.keys) && slices.Equal(a.include, b.include) && slices.Equal(a.exclusion, b.exclusion) && a.unique == b.unique && a.nullsNotDistinct == b.nullsNotDistinct && a.predicate == b.predicate
+	return a != nil && b != nil && a.Method == b.Method && a.Parent == b.Parent && slices.Equal(a.Keys, b.Keys) && slices.Equal(a.Include, b.Include) && slices.Equal(a.Exclusion, b.Exclusion) && a.Unique == b.Unique && a.NullsNotDistinct == b.NullsNotDistinct && a.Predicate == b.Predicate
 }
 
 // Only changed roots require a storage fence. Unchanged siblings may have
@@ -602,7 +602,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.ready || !index.SQLIndex.live || !index.SQLIndex.hasRuntimeDomainConversion() || len(s.stage.rows[index.SQLIndex.parent]) == 0 {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.hasRuntimeDomainConversion() || len(s.stage.rows[index.SQLIndex.Parent]) == 0 {
 			continue
 		}
 		auth := programmeAuth
@@ -630,17 +630,17 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: input, Output: s.output, catalog: view}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.ready || !index.SQLIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
-		rows := s.stage.rows[index.SQLIndex.parent]
+		rows := s.stage.rows[index.SQLIndex.Parent]
 		if len(rows) == 0 {
 			continue
 		}
-		if index.SQLIndex.predicate == nil {
+		if index.SQLIndex.Predicate == nil {
 			derived := false
-			for _, key := range index.SQLIndex.keys {
-				derived = derived || key.derived != nil
+			for _, key := range index.SQLIndex.Keys {
+				derived = derived || key.Derived != nil
 			}
 			if !derived {
 				continue
@@ -650,13 +650,13 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		var ordering indexOrdering
 		var hash hashIndexBinding
 		var preparation indexExecutionPreparation
-		parent, ok := view.Relation(index.SQLIndex.parent)
+		parent, ok := view.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
 		if pending {
 			var err error
-			if index.SQLIndex.method == hashMethod {
+			if index.SQLIndex.Method == hashMethod {
 				hash, err = bindHashIndex(parent, index.SQLIndex)
 			} else {
 				ordering, err = bindIndexKeys(parent, index.SQLIndex)
@@ -670,7 +670,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 			if !rowMaintainsIndex(row, index) {
 				continue
 			}
-			if !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.parent]) {
+			if !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
 				continue
 			}
 			if output, ok := row.indexOutputs[index.address]; ok && output.matches(index) {
@@ -706,8 +706,8 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				return err
 			}
 			evaluation.Row = row.values
-			for keyIndex, key := range index.SQLIndex.keys {
-				if key.derived == nil {
+			for keyIndex, key := range index.SQLIndex.Keys {
+				if key.Derived == nil {
 					continue
 				}
 				if _, err := preparation.ordinary[keyIndex].Eval(&evaluation); err != nil {
@@ -716,7 +716,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 			}
 		}
 		if copied {
-			s.stage.rows[index.SQLIndex.parent] = rows
+			s.stage.rows[index.SQLIndex.Parent] = rows
 		}
 	}
 	return nil

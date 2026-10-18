@@ -19,7 +19,7 @@ type defaultDependencyEdge struct {
 
 func defaultDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, definition := range d.Defaults {
-		for _, dependency := range definition.dependencies {
+		for _, dependency := range definition.Dependencies {
 			a := dependency.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 				return true
@@ -41,7 +41,7 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 }
 
 func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, definition columnDefault) error {
-	for _, ref := range definition.dependencies {
+	for _, ref := range definition.Dependencies {
 		address := ref.Address
 		address.SubID = 0
 		provider, ok := view.Descriptor(address)
@@ -60,7 +60,7 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 				}
 			}
 		} else if provider.Kind() == ids.CollationObject {
-			if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
+			if err := validateStoredCollationDependency(view, ref, definition.Expression); err != nil {
 				return err
 			}
 		} else if provider.Kind() == ids.NamespaceObject {
@@ -110,7 +110,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 				continue
 			}
 			var dependency ids.ObjectAddress
-			for _, ref := range definition.dependencies {
+			for _, ref := range definition.Dependencies {
 				for _, target := range targets {
 					a := ref.Address
 					if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {

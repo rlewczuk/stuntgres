@@ -30,7 +30,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		return v
 	}
 	makeCheck := func(oid ids.OID, name string, slot int, operator sqltype.ComparisonOperator, n int64) checkConstraint {
-		ref := catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)
+		ref := catalog.owner.Domain.Ref(catalog.Epoch(), leaf.address)
 		ref.Address.SubID = leaf.Attributes[slot]
 		column := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: integer(n)}
@@ -39,7 +39,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 			t.Fatal(err)
 		}
 		expression := comparisonExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true}}, left: column, right: literal, predicate: predicate}
-		return checkConstraint{OID: oid, Name: name, NotValid: true, expression: expression, dependencies: []expressionDependency{{ref: ref}}}
+		return checkConstraint{OID: oid, Name: name, NotValid: true, Expression: expression, Dependencies: []expressionDependency{{Ref: ref}}}
 	}
 	leaf.CheckConstraints = []checkConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
 	oldValues := []sqltype.Value{integer(1), integer(0)}
@@ -118,14 +118,14 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// A virtual generated CHECK input has no stored payload; its stored
 	// dependency cells still determine whether this old constraint is affected.
 	virtualLeaf := *leaf
-	sourceColumn := leaf.CheckConstraints[1].expression.(comparisonExpression).left.(columnExpression)
-	virtualLeaf.Generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: sourceColumn, planned: sourceColumn, dependencies: []ids.ObjectRef{sourceColumn.origin}}}
+	sourceColumn := leaf.CheckConstraints[1].Expression.(comparisonExpression).left.(columnExpression)
+	virtualLeaf.Generations = map[int32]columnGeneration{2: {Kind: generationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
-	virtualExpression := virtualCheck.expression.(comparisonExpression)
+	virtualExpression := virtualCheck.Expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)
 	virtualColumn = virtualColumn.withGeneration(&virtualLeaf, 1, 0)
 	virtualExpression.left = virtualColumn
-	virtualCheck.expression = virtualExpression
+	virtualCheck.Expression = virtualExpression
 	virtualLeaf.CheckConstraints = []checkConstraint{virtualCheck}
 	virtualHistory := history
 	virtualHistory.relation = &virtualLeaf
@@ -178,7 +178,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("material reminted literal input was ignored", affected, err)
 	}
 	oidType, _ := catalog.LookupType(sqltype.Oid)
-	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.owner.domain.Ref(catalog.Epoch(), leaf.address)}
+	ownerValue := tableOIDExpression{Info: expr.Info{Usage: oidType.Usage()}, owner: catalog.owner.Domain.Ref(catalog.Epoch(), leaf.address)}
 	if affected, err := partitionCheckRecipeAffected(evaluation.Context, ownerValue, ownerValue, true); err != nil || !affected {
 		t.Fatal("owner-sensitive recipe input was ignored", affected, err)
 	}
@@ -186,11 +186,11 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// despite unchanged row cells and an unrelated old violating constraint.
 	literalLeaf := *leaf
 	literalLeaf.CheckConstraints = append([]checkConstraint(nil), leaf.CheckConstraints...)
-	literalCheck := literalLeaf.CheckConstraints[1].expression.(comparisonExpression)
+	literalCheck := literalLeaf.CheckConstraints[1].Expression.(comparisonExpression)
 	changedConstant := literalCheck.right.(literalExpression)
 	changedConstant.value = integer(2)
 	literalCheck.right = changedConstant
-	literalLeaf.CheckConstraints[1].expression = literalCheck
+	literalLeaf.CheckConstraints[1].Expression = literalCheck
 	var literalPolicy partitionRetainedChecks
 	literalDescriptor, err := literalPolicy.forRow(evaluation.Context, history, &literalLeaf, oldValues, oldValues, snapshot, &evaluation)
 	if err != nil {

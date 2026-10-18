@@ -14,12 +14,12 @@ import (
 func TestPartitionExclusionCoverage(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	d := *f.parent.SQLIndex
-	d.unique = false
+	d.Unique = false
 	c := exclusionConstraint{OID: 30000, Name: f.parent.name, Index: f.parent.address, IsLocal: true}
-	d.constraint = exclusionBacking(&c)
-	d.keys = slices.Clone(d.keys)
-	d.exclusion = make([]sqltype.ExclusionOperator, len(d.keys))
-	for i, key := range d.keys {
+	d.Constraint = exclusionBacking(&c)
+	d.Keys = slices.Clone(d.Keys)
+	d.Exclusion = make([]sqltype.ExclusionOperator, len(d.Keys))
+	for i, key := range d.Keys {
 		usage, err := indexKeyUsage(f.root, key)
 		if err != nil {
 			t.Fatal(err)
@@ -28,8 +28,8 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 		if !ok {
 			t.Fatal("missing class")
 		}
-		d.keys[i].class = class
-		d.exclusion[i], err = sqltype.BindExclusionOperator(usage, class, "=")
+		d.Keys[i].Class = class
+		d.Exclusion[i], err = sqltype.BindExclusionOperator(usage, class, "=")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,19 +41,19 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(mapped.exclusion) != len(d.exclusion) || &mapped.exclusion[0] == &d.exclusion[0] {
+	if len(mapped.Exclusion) != len(d.Exclusion) || &mapped.Exclusion[0] == &d.Exclusion[0] {
 		t.Fatal("child must own rebound operators")
 	}
-	for i, key := range mapped.keys {
+	for i, key := range mapped.Keys {
 		usage, err := indexKeyUsage(f.leaf, key)
-		if err != nil || !mapped.exclusion[i].MatchesUsage(usage) {
+		if err != nil || !mapped.Exclusion[i].MatchesUsage(usage) {
 			t.Fatal("child usage", err)
 		}
 	}
 	missing := d
-	missing.keys = missing.keys[1:]
-	missing.exclusion = missing.exclusion[1:]
-	missing.include = []int32{10}
+	missing.Keys = missing.Keys[1:]
+	missing.Exclusion = missing.Exclusion[1:]
+	missing.Include = []int32{10}
 	var diagnostic *sqlstate.Error
 	if err := partitionUniqueCoverage(f.root, &missing); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Detail != `EXCLUDE constraint on table "unit_root" lacks column "a" which is part of the partition key.` {
 		t.Fatal("INCLUDE cannot cover exclusion key", err)
@@ -62,7 +62,7 @@ func TestPartitionExclusionCoverage(t *testing.T) {
 	if err := partitionUniqueCoverage(f.leaf, &missing); err != nil {
 		t.Fatal("local scope", err)
 	}
-	if len(d.keys) != len(f.parent.SQLIndex.keys) || len(d.exclusion) != len(mapped.exclusion) {
+	if len(d.Keys) != len(f.parent.SQLIndex.Keys) || len(d.Exclusion) != len(mapped.Exclusion) {
 		t.Fatal("source definition changed")
 	}
 }

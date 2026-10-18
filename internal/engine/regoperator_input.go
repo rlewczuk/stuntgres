@@ -15,10 +15,10 @@ type operatorGroups map[string][]*operatorDescriptor
 
 func collectOperatorGroups(view CatalogRead) operatorGroups {
 	groups := make(operatorGroups)
-	for key, addresses := range view.state.operatorNames.buckets {
+	for key, addresses := range view.state.operatorNames.Buckets {
 		for _, address := range addresses {
 			d := view.MustOperator(address)
-			groups[key.name] = append(groups[key.name], d)
+			groups[key.Name] = append(groups[key.Name], d)
 		}
 	}
 	return groups
@@ -112,7 +112,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 		if ns == (ids.ObjectAddress{}) {
 			return nil, nil
 		}
-		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
 			return nil, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {

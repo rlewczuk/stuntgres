@@ -47,10 +47,10 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 			}
 			removeView(view)
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			var added ids.ObjectAddress
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				e.mu.Lock()
 				oid, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {

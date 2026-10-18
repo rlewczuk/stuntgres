@@ -30,7 +30,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*re
 	if !ok {
 		t.Fatal("missing pg_parameter_acl")
 	}
-	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog CatalogRead, roles authorization.Read) *querySource {
@@ -88,7 +88,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		if i == 2 {
 			dimensions = 1
 		}
-		if fact.name != name || fact.typeID != uint32(id) || fact.number != int32(i+1) || fact.typmod != -1 || fact.notNull != (i < 2) || fact.dimensions != dimensions || fact.collation != collation {
+		if fact.Name != name || fact.TypeID != uint32(id) || fact.Number != int32(i+1) || fact.Typmod != -1 || fact.NotNull != (i < 2) || fact.Dimensions != dimensions || fact.Collation != collation {
 			t.Fatal("attribute", i, fact)
 		}
 	}

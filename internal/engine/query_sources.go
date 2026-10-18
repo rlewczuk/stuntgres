@@ -129,7 +129,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.Relation(source.ref.Address)
-	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
+	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
 		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.RelationKind != source.relation.RelationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ids.ErrCatalogReplaced
@@ -262,17 +262,17 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 		}
 	}
 	for _, definition := range relation.Defaults {
-		if definition.catalogSnapshot {
+		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
 	for _, definition := range relation.Generations {
-		if definition.catalogSnapshot {
+		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
 	for _, check := range relation.CheckConstraints {
-		if check.commentSnapshot {
+		if check.CommentSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
@@ -281,7 +281,7 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 
 func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
 	for _, check := range relation.CheckConstraints {
-		if check.visibilitySnapshot {
+		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
 		}
 	}

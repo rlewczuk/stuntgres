@@ -64,25 +64,25 @@ func projectAvailableExtension(name string, registration extensionControl, insta
 		}
 	}
 	text(0, name)
-	text(1, registration.version)
+	text(1, registration.Version)
 	if source.address.ObjectID == 12081 {
 		if installed != nil {
 			text(2, installed.Version)
 		}
-		optional(3, registration.comment)
+		optional(3, registration.Comment)
 	} else {
-		for i, value := range []bool{installed != nil && installed.Version == registration.version, registration.superuser, registration.trusted, registration.relocatable} {
+		for i, value := range []bool{installed != nil && installed.Version == registration.Version, registration.Superuser, registration.Trusted, registration.Relocatable} {
 			row[i+2] = sqltype.Boolean(source.Columns[i+2].Usage.Type, value)
 		}
-		optional(6, registration.schema)
-		if len(registration.requires) != 0 {
-			value, err := sqltype.Names(source.Columns[7].Usage.Type, registration.requires)
+		optional(6, registration.Schema)
+		if len(registration.Requires) != 0 {
+			value, err := sqltype.Names(source.Columns[7].Usage.Type, registration.Requires)
 			if err != nil {
 				return nil, err
 			}
 			row[7] = value
 		}
-		optional(8, registration.comment)
+		optional(8, registration.Comment)
 	}
 	return row, nil
 }

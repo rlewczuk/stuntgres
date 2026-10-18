@@ -54,24 +54,24 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		row[0] = sqltype.String(source.Columns[0].Usage.Type, ns.name)
 		row[1] = sqltype.String(source.Columns[1].Usage.Type, relation.name)
 		row[2] = sqltype.String(source.Columns[2].Usage.Type, owner.Name)
-		row[3], err = sqltype.RegtypeValue(source.Columns[3].Usage.Type, uint32(relation.Sequence.typ))
+		row[3], err = sqltype.RegtypeValue(source.Columns[3].Usage.Type, uint32(relation.Sequence.SQLType))
 		if err != nil {
 			return err
 		}
-		for i, value := range [4]int64{relation.Sequence.start, relation.Sequence.min, relation.Sequence.max, relation.Sequence.increment} {
+		for i, value := range [4]int64{relation.Sequence.Start, relation.Sequence.Min, relation.Sequence.Max, relation.Sequence.Increment} {
 			row[i+4], err = sqltype.Integer(source.Columns[i+4].Usage.Type, value)
 			if err != nil {
 				return err
 			}
 		}
-		row[8] = sqltype.Boolean(source.Columns[8].Usage.Type, relation.Sequence.cycle)
-		row[9], err = sqltype.Integer(source.Columns[9].Usage.Type, relation.Sequence.cache)
+		row[8] = sqltype.Boolean(source.Columns[8].Usage.Type, relation.Sequence.Cycle)
+		row[9], err = sqltype.Integer(source.Columns[9].Usage.Type, relation.Sequence.Cache)
 		if err != nil {
 			return err
 		}
 		row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 		rows = append(rows, row)
-		provider.refs = append(provider.refs, e.catalog.domain.Ref(base.epoch, relation.address))
+		provider.refs = append(provider.refs, e.catalog.Domain.Ref(base.epoch, relation.address))
 		return nil
 	}
 	for address, descriptor := range base.Descriptors() {
@@ -107,7 +107,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch {
 		return ids.ErrCatalogReplaced
 	}
 	auth, err := e.authorizationLocked(p.scope.op)

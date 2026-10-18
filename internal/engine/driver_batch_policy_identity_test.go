@@ -45,7 +45,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal("private policy escaped before owner publication")
 				}
 			}
-			if private.Policies[0].Name != "renamed" || private.Policies[0].using == nil || private.Policies[0].check == nil {
+			if private.Policies[0].Name != "renamed" || private.Policies[0].Using == nil || private.Policies[0].Check == nil {
 				t.Fatal("ALTER/rename lost private policy definition", private.Policies)
 			}
 			e.mu.Lock()

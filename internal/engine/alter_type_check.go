@@ -34,8 +34,8 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 		attribute := original.Attributes[slot]
 		for _, check := range ordered {
 			affected := false
-			for _, dependency := range check.dependencies {
-				if dependency.ref.Address.ClassID == survivor.address.ClassID && dependency.ref.Address.ObjectID == survivor.address.ObjectID && dependency.ref.Address.SubID == attribute {
+			for _, dependency := range check.Dependencies {
+				if dependency.Ref.Address.ClassID == survivor.address.ClassID && dependency.Ref.Address.ObjectID == survivor.address.ObjectID && dependency.Ref.Address.SubID == attribute {
 					affected = true
 					break
 				}
@@ -43,12 +43,12 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 			if !affected {
 				continue
 			}
-			index := slices.IndexFunc(survivor.CheckConstraints, func(c checkConstraint) bool { return c.ordinal == check.ordinal })
+			index := slices.IndexFunc(survivor.CheckConstraints, func(c checkConstraint) bool { return c.Ordinal == check.Ordinal })
 			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
 				continue
 			}
 			var literals []literalExpression
-			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.expression)
+			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -98,9 +98,9 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		}
 		definition := replacement.CheckConstraints[pending.index]
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
-		definition.expression, definition.dependencies, definition.commentSnapshot, definition.visibilitySnapshot = node, nil, false, false
+		definition.Expression, definition.Dependencies, definition.CommentSnapshot, definition.VisibilitySnapshot = node, nil, false, false
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return nil, nil, err
 		}
 		for _, dependency := range dependencies {
@@ -110,7 +110,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			if descriptor, exists := auth.catalog.Descriptor(address); exists {
 				revision = descriptor.Revision()
 			}
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: dependency, revision: revision})
+			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: dependency, Revision: revision})
 		}
 		replacement.CheckConstraints[pending.index] = definition
 	}

@@ -27,11 +27,11 @@ func rangePartitionIntegerTuple(t *testing.T, keys []partitionKeyEntry, integers
 	}
 	result := make([]partitionDatum, len(keys))
 	for i, n := range integers {
-		value, err := sqltype.Integer(keys[i].usage.Type, n)
+		value, err := sqltype.Integer(keys[i].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
-		result[i] = partitionDatum{value: value}
+		result[i] = partitionDatum{Value: value}
 	}
 	return result
 }
@@ -50,7 +50,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 	root := rangePartitionRelation(t, e, "root")
 	bounded := rangePartitionRelation(t, e, "bounded")
 	rest := rangePartitionRelation(t, e, "rest")
-	keys := root.Partition.keys
+	keys := root.Partition.Keys
 	for _, test := range []struct {
 		left, right      []int64
 		order, component int
@@ -78,18 +78,18 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		if err != nil || inside != test.explicit {
 			t.Fatal(test, inside, err)
 		}
-		row := []sqltype.Value{tuple[0].value, tuple[1].value}
+		row := []sqltype.Value{tuple[0].Value, tuple[1].Value}
 		accepted, err := partitionAccepts(e.CatalogRead(), root, rest, row, &EvalContext{Context: context.Background()})
 		if err != nil || accepted == test.explicit {
 			t.Fatal(test, accepted, err)
 		}
 	}
-	nullRow := []sqltype.Value{sqltype.Null(keys[0].usage.Type), rangePartitionIntegerTuple(t, keys, 1, 1)[1].value}
+	nullRow := []sqltype.Value{sqltype.Null(keys[0].Usage.Type), rangePartitionIntegerTuple(t, keys, 1, 1)[1].Value}
 	accepted, err := partitionAccepts(e.CatalogRead(), root, rest, nullRow, &EvalContext{Context: context.Background()})
 	if err != nil || !accepted {
 		t.Fatal("NULL must reach DEFAULT", accepted, err)
 	}
-	sentinels := []partitionDatum{{kind: -1}, {kind: -1}}
+	sentinels := []partitionDatum{{Kind: -1}, {Kind: -1}}
 	finite := rangePartitionIntegerTuple(t, keys, -999, -999)
 	order, component, err := comparePartitionTuple(context.Background(), keys, sentinels, finite, sqltype.InputEnvironment{})
 	if err != nil || order != -1 || component != 0 {
@@ -104,7 +104,7 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 	roleExecute(t, e, op, "DROP TABLE bounded")
 	newRoot := rangePartitionRelation(t, e, "root")
 	newRest := rangePartitionRelation(t, e, "rest")
-	row := []sqltype.Value{finite[0].value, finite[1].value}
+	row := []sqltype.Value{finite[0].Value, finite[1].Value}
 	for _, catalog := range []CatalogRead{retained, e.CatalogRead()} {
 		parent, child := root, rest
 		if catalog.state == e.CatalogRead().state {
@@ -116,11 +116,11 @@ func TestRangePartitionTypedTupleAndLiveDefault(t *testing.T) {
 		}
 	}
 	formerlyExplicit := rangePartitionIntegerTuple(t, keys, 1, 2)
-	accepted, err = partitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].value, formerlyExplicit[1].value}, &EvalContext{Context: context.Background()})
+	accepted, err = partitionAccepts(e.CatalogRead(), newRoot, newRest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &EvalContext{Context: context.Background()})
 	if err != nil || !accepted {
 		t.Fatal("DEFAULT did not track removal", accepted, err)
 	}
-	oldAccepted, err := partitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].value, formerlyExplicit[1].value}, &EvalContext{Context: context.Background()})
+	oldAccepted, err := partitionAccepts(retained, root, rest, []sqltype.Value{formerlyExplicit[0].Value, formerlyExplicit[1].Value}, &EvalContext{Context: context.Background()})
 	if err != nil || oldAccepted {
 		t.Fatal("retained topology changed", oldAccepted, err)
 	}
@@ -163,8 +163,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		roleExecute(t, e, op, `CREATE TABLE rp_admission_root(k TEXT) PARTITION BY RANGE(k COLLATE rp_admission_coll)`)
 		relation := rangePartitionRelation(t, e, "rp_admission_root")
 		view := e.CatalogRead()
-		key := relation.Partition.keys[0]
-		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.usage.Collation.ID)}
+		key := relation.Partition.Keys[0]
+		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)}
 		provider := view.MustCollation(address)
 		var other *collationDescriptor
 		for _, descriptor := range view.Descriptors() {
@@ -192,13 +192,13 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 		candidate := *relation
 		definition := *relation.Partition
-		definition.keys = slices.Clone(definition.keys)
-		definition.keys[0].collation = uint32(other.OID)
+		definition.Keys = slices.Clone(definition.Keys)
+		definition.Keys[0].Collation = uint32(other.OID)
 		candidate.Partition = &definition
 		if err := validatePartitionDescriptor(view, &candidate); err == nil {
 			t.Fatal("admitted raw explicit identity inconsistent with effective authority")
 		}
-		definition.keys[0].collation = 0
+		definition.Keys[0].Collation = 0
 		if err := validatePartitionDescriptor(view, &candidate); err != nil {
 			t.Fatal("effective authority without explicit clause", err)
 		}
@@ -214,15 +214,15 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		{"wrong kind", func(d *relationDescriptor) { d.RelationKind = tableRelation }},
 		{"duplicate child", func(d *relationDescriptor) {
 			p := *d.Partition
-			p.children = append(slices.Clone(p.children), p.children[0])
+			p.Children = append(slices.Clone(p.Children), p.Children[0])
 			d.Partition = &p
 		}},
-		{"foreign default", func(d *relationDescriptor) { p := *d.Partition; p.defaultChild = leaf.address; d.Partition = &p }},
-		{"no keys", func(d *relationDescriptor) { p := *d.Partition; p.keys = nil; d.Partition = &p }},
+		{"foreign default", func(d *relationDescriptor) { p := *d.Partition; p.DefaultChild = leaf.address; d.Partition = &p }},
+		{"no keys", func(d *relationDescriptor) { p := *d.Partition; p.Keys = nil; d.Partition = &p }},
 		{"missing comparison", func(d *relationDescriptor) {
 			p := *d.Partition
-			p.keys = slices.Clone(p.keys)
-			p.keys[0].comparison = sqltype.IndexComparison{}
+			p.Keys = slices.Clone(p.Keys)
+			p.Keys[0].Comparison = sqltype.IndexComparison{}
 			d.Partition = &p
 		}},
 	} {
@@ -238,10 +238,10 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		name   string
 		mutate func(*partitionMembership)
 	}{
-		{"wrong arity", func(m *partitionMembership) { m.lower = m.lower[:1] }},
-		{"mixed sentinel suffix", func(m *partitionMembership) { m.lower = []partitionDatum{{kind: -1}, {kind: 1}} }},
-		{"empty range", func(m *partitionMembership) { m.lower = slices.Clone(m.upper) }},
-		{"reversed range", func(m *partitionMembership) { m.lower, m.upper = m.upper, m.lower }},
+		{"wrong arity", func(m *partitionMembership) { m.Lower = m.Lower[:1] }},
+		{"mixed sentinel suffix", func(m *partitionMembership) { m.Lower = []partitionDatum{{Kind: -1}, {Kind: 1}} }},
+		{"empty range", func(m *partitionMembership) { m.Lower = slices.Clone(m.Upper) }},
+		{"reversed range", func(m *partitionMembership) { m.Lower, m.Upper = m.Upper, m.Lower }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := *middle
@@ -255,17 +255,17 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	}
 	badDefault := *rest
 	membership := *rest.Membership
-	membership.lower = rangePartitionIntegerTuple(t, root.Partition.keys, 0, 0)
+	membership.Lower = rangePartitionIntegerTuple(t, root.Partition.Keys, 0, 0)
 	badDefault.Membership = &membership
 	if err := validatePartitionDescriptor(e.CatalogRead(), &badDefault); err == nil {
 		t.Fatal("DEFAULT retained explicit tuple")
 	}
 	cyclic := cloneCatalog(e.CatalogRead().state)
 	cyclicRoot, cyclicMiddle := *root, *middle
-	cyclicRoot.Membership = &partitionMembership{parent: middle.address, defaultBound: true}
+	cyclicRoot.Membership = &partitionMembership{Parent: middle.address, DefaultBound: true}
 	middleDefinition := *middle.Partition
-	middleDefinition.children = []ids.ObjectAddress{root.address}
-	middleDefinition.defaultChild = root.address
+	middleDefinition.Children = []ids.ObjectAddress{root.address}
+	middleDefinition.DefaultChild = root.address
 	cyclicMiddle.Partition = &middleDefinition
 	cyclic.setDescriptor(root.address, &cyclicRoot)
 	cyclic.setDescriptor(middle.address, &cyclicMiddle)
@@ -275,15 +275,15 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlapping := cloneCatalog(e.CatalogRead().state)
 	overlappingRoot, overlappingRest := *root, *rest
 	rootDefinition := *root.Partition
-	rootDefinition.defaultChild = ids.ObjectAddress{}
+	rootDefinition.DefaultChild = ids.ObjectAddress{}
 	overlappingRoot.Partition = &rootDefinition
-	overlappingRest.Membership = &partitionMembership{parent: root.address, lower: slices.Clone(middle.Membership.lower), upper: slices.Clone(middle.Membership.upper)}
+	overlappingRest.Membership = &partitionMembership{Parent: root.address, Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
 	overlapping.setDescriptor(root.address, &overlappingRoot)
 	overlapping.setDescriptor(rest.address, &overlappingRest)
 	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
-	if len(root.Partition.children) != 2 || root.Partition.defaultChild != rest.address || middle.Membership.lower[1].kind != -1 {
+	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.address || middle.Membership.Lower[1].Kind != -1 {
 		t.Fatal("validation mutated source metadata")
 	}
 }

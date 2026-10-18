@@ -80,7 +80,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	removal := e.BeginCatalogStage(catalog)
 	defer e.DiscardCatalogStage(removal)
-	if err := removal.Remove(e.catalog.domain.Ref(catalog.Epoch(), view.address)); err != nil {
+	if err := removal.Remove(e.catalog.Domain.Ref(catalog.Epoch(), view.address)); err != nil {
 		t.Fatal(err)
 	}
 	retired := e.stageRead(removal)
@@ -184,7 +184,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	if storedViewReferenceValid(retained, &fake, ref) || storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("unretained/foreign consumer accepted")
 	}
-	for _, bad := range []ids.ObjectRef{New().catalog.domain.Ref(ref.Epoch, ref.Address), e.catalog.domain.Ref(next.epoch+1, ref.Address), e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
+	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(ref.Epoch, ref.Address), e.catalog.Domain.Ref(next.epoch+1, ref.Address), e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.address.ObjectID, SubID: 99})} {
 		if storedViewReferenceValid(retained, view, bad) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}

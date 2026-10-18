@@ -18,13 +18,13 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.O
 	if !ok {
 		t.Fatal("missing pg_constraint")
 	}
-	return source, e.catalog.domain.Ref(e.catalog.state.epoch, address)
+	return source, e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
-	ref := e.catalog.domain.Ref(view.Epoch(), address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), address)
 	got, err := capturePGConstraint(context.Background(), view, ref, source)
 	if err != nil {
 		t.Fatal(err)

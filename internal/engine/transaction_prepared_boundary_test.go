@@ -296,8 +296,8 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 		if !ok || index.SQLIndex == nil || index.name != "prepared_boundary_index" {
 			continue
 		}
-		derived := index.SQLIndex.keys[0].derived
-		derived.execution = &preparedBoundaryExpression{Expr: derived.execution, barrier: func() {
+		derived := index.SQLIndex.Keys[0].Derived
+		derived.Execution = &preparedBoundaryExpression{Expr: derived.Execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
 			for _, lock := range []*sync.Mutex{&e.mu, &origin.mu, &origin.transactions.mu, &finisher.mu, &finisher.transactions.mu} {
@@ -434,7 +434,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	found := false
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if ok && index.SQLIndex != nil && index.SQLIndex.parent == parent {
+		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 			root := e.indexRoots[address]
 			if root == nil || len(root.entries) != 2 {
 				t.Fatal("coupled UPDATE/insert index root did not publish")

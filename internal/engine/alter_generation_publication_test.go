@@ -78,7 +78,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.Generations[2].kind != generationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.Generations[2].Kind != generationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.versions {
@@ -130,12 +130,12 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			provider := e.catalog.providers[ids.RelationClassID]
-			defer func() { e.catalog.providers[ids.RelationClassID] = provider }()
+			provider := e.catalog.Providers[ids.RelationClassID]
+			defer func() { e.catalog.Providers[ids.RelationClassID] = provider }()
 			calls := 0
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.catalog.providers[ids.RelationClassID] = provider
+				e.catalog.Providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Error("generation callback held Engine.mu")
 				} else {

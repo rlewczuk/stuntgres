@@ -204,7 +204,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 		name:         "grant_unit_b_idx",
 		Owner:        parent.Owner,
 		RelationKind: indexRelation,
-		SQLIndex:     &indexDefinition{parent: address},
+		SQLIndex:     &indexDefinition{Parent: address},
 	}
 	var dependencies []roleDependency
 	descriptorRoleDependencies(parent, parent.Owner, &dependencies)

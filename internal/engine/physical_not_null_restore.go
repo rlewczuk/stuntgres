@@ -166,8 +166,8 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 			return reject()
 		}
 		if graph := current.Inheritance; graph != nil {
-			fact := graph.notNull[attribute]
-			if !fact.local || fact.count() != 0 {
+			fact := graph.NotNull[attribute]
+			if !fact.Local || fact.count() != 0 {
 				return reject()
 			}
 		}
@@ -194,7 +194,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 				if constructor.indexName != "" && !physicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
 					return reject()
 				}
-			} else if primary.OID != pair.primary.constraint || primary.Index != pair.primary.index {
+			} else if primary.OID != pair.primary.Constraint || primary.Index != pair.primary.Index {
 				return reject()
 			}
 		}
@@ -260,8 +260,8 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return reject()
 	}
 	if graph := old.Inheritance; graph != nil {
-		provenance := graph.notNull[fact.attribute]
-		if !provenance.local || provenance.count() != 0 {
+		provenance := graph.NotNull[fact.attribute]
+		if !provenance.Local || provenance.count() != 0 {
 			e.mu.Unlock()
 			return reject()
 		}
@@ -287,18 +287,18 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		next.Inheritance = cloneInheritance(old.Inheritance)
 	}
 	removeDetachedNotNullMetadata(&next, old.NotNullConstraints[index])
-	cause := &physicalNotNullCause{kind: physicalNotNullImportFlag, ref: ref, origin: ref, attribute: fact.attribute, removedNN: fact.oid, usage: fact.usage}
+	cause := &physicalNotNullCause{Kind: physicalNotNullImportFlag, Ref: ref, Origin: ref, Attribute: fact.attribute, RemovedNN: fact.oid, Usage: fact.usage}
 	if pair.primary != nil {
-		cause.kind = physicalNotNullImportCleanup
-		cause.primary = pair.primary.constraint
-		cause.index = pair.primary.index
+		cause.Kind = physicalNotNullImportCleanup
+		cause.Primary = pair.primary.Constraint
+		cause.Index = pair.primary.Index
 	}
-	cause.self = cause
+	cause.Self = cause
 	next.PhysicalNotNull = maps.Clone(old.PhysicalNotNull)
 	if next.PhysicalNotNull == nil {
 		next.PhysicalNotNull = make(map[int32]physicalNotNullProof)
 	}
-	next.PhysicalNotNull[fact.attribute] = physicalNotNullProof{cause: cause, usage: fact.usage, support: pair.primary}
+	next.PhysicalNotNull[fact.attribute] = physicalNotNullProof{Cause: cause, Usage: fact.usage, Support: pair.primary}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

@@ -27,7 +27,7 @@ func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*builtinRoutin
 		}
 		operator := builtinOperators[i]
 		declaration := builtinRoutineByOID[association.routine]
-		if declaration == nil || declaration.providers&operatorRoutineProvider == 0 {
+		if declaration == nil || declaration.Providers&operatorRoutineProvider == 0 {
 			panic("stuntgres: missing genuine operator routine association")
 		}
 		byDeclaration[builtinOperatorRoutineKey{operator.name, operator.left, operator.right}] = declaration

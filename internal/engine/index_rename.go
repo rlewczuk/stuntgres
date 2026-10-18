@@ -10,7 +10,7 @@ import (
 // Publish parent constraint and backing descriptor together, preserving all key
 // and constraint identities and sharing their immutable attribute vectors.
 func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) error {
-	parent, ok := stage.base.Relation(index.SQLIndex.parent)
+	parent, ok := stage.base.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -35,7 +35,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.SQLIndex.constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.address {
 			slot = i
 		}
 	}
@@ -43,7 +43,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		if err := collision(c.Name); err != nil {
 			return err
 		}
-		if c.OID == index.SQLIndex.constraint.OID && c.Index == index.address {
+		if c.OID == index.SQLIndex.Constraint.OID && c.Index == index.address {
 			slot = i
 		}
 	}
@@ -63,9 +63,9 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 		next.UniqueConstraints[slot].Name = index.name
 	}
 	definition := *index.SQLIndex
-	constraint := *definition.constraint
+	constraint := *definition.Constraint
 	constraint.Name = index.name
-	definition.constraint = &constraint
+	definition.Constraint = &constraint
 	index.SQLIndex = &definition
 	return stage.Replace(&next)
 }

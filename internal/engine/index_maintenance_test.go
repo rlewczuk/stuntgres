@@ -52,8 +52,8 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	si, oldS := btreeRoot(t, e, "si")
 	ei, oldE := btreeRoot(t, e, "ei")
 	unique, oldU := btreeRoot(t, e, "u")
-	parent := e.catalog.state.Get(ni.SQLIndex.parent)
-	store := e.storage[ni.SQLIndex.parent]
+	parent := e.catalog.state.Get(ni.SQLIndex.Parent)
+	store := e.storage[ni.SQLIndex.Parent]
 	generation, ends := store.generation, store.ends
 	run(t, e, "REINDEX INDEX ni")
 	_, newN := btreeRoot(t, e, "ni")
@@ -63,7 +63,7 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	btreeWantKeys(t, e, "ni", "1", "2", "2", "3", "NULL")
 	run(t, e, "ALTER INDEX ni RENAME TO new_ni")
 	renamed, root := btreeRoot(t, e, "new_ni")
-	if root != newN || renamed.address != ni.address || renamed.SQLIndex != ni.SQLIndex || e.catalog.state.Get(ni.SQLIndex.parent) != parent {
+	if root != newN || renamed.address != ni.address || renamed.SQLIndex != ni.SQLIndex || e.catalog.state.Get(ni.SQLIndex.Parent) != parent {
 		t.Fatal("simple rename rebuilt roots or changed parent/key identity")
 	}
 	run(t, e, "REINDEX TABLE t")
@@ -75,7 +75,7 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 			t.Fatal("rebuild reminted/dropped live duplicate versions")
 		}
 	}
-	if e.catalog.state.Get(renamed.SQLIndex.parent) != parent || e.storage[renamed.SQLIndex.parent] != store || store.generation != generation || store.ends != ends {
+	if e.catalog.state.Get(renamed.SQLIndex.Parent) != parent || e.storage[renamed.SQLIndex.Parent] != store || store.generation != generation || store.ends != ends {
 		t.Fatal("reindex changed table definition/storage/membership")
 	}
 	run(t, e, "UPDATE t SET n=4 WHERE n=3")
@@ -90,9 +90,9 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 		t.Fatal(got)
 	}
 	survivor := derived
-	survivorStore := e.storage[renamed.SQLIndex.parent]
+	survivorStore := e.storage[renamed.SQLIndex.Parent]
 	run(t, e, "DROP INDEX new_ni,si,new_ni CASCADE")
-	if e.catalog.state.Get(renamed.address) != nil || e.catalog.state.Get(si.address) != nil || e.indexRoots[renamed.address] != nil || e.indexRoots[si.address] != nil || e.indexRoots[ei.address] != survivor || e.storage[renamed.SQLIndex.parent] != survivorStore {
+	if e.catalog.state.Get(renamed.address) != nil || e.catalog.state.Get(si.address) != nil || e.indexRoots[renamed.address] != nil || e.indexRoots[si.address] != nil || e.indexRoots[ei.address] != survivor || e.storage[renamed.SQLIndex.Parent] != survivorStore {
 		t.Fatal("group drop did not isolate/deduplicate removals")
 	}
 	run(t, e, "CREATE INDEX new_ni ON t(n)")
@@ -111,15 +111,15 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	old, root := btreeRoot(t, e, "u")
 	sibling, siblingRoot := btreeRoot(t, e, "sibling")
 	derived, derivedRoot := btreeRoot(t, e, "derived")
-	parent := e.catalog.state.MustRelation(old.SQLIndex.parent)
+	parent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
 	constraint := parent.UniqueConstraints[0]
 	run(t, e, "ALTER INDEX u RENAME TO u_new")
 	next, same := btreeRoot(t, e, "u_new")
-	nextParent := e.catalog.state.MustRelation(old.SQLIndex.parent)
-	if same != root || next.address != old.address || next.SQLIndex.constraint.OID != constraint.OID || next.SQLIndex.constraint.Index != constraint.Index || next.SQLIndex.constraint.Name != "u_new" || nextParent.UniqueConstraints[0].Name != "u_new" || nextParent.UniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
+	nextParent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
+	if same != root || next.address != old.address || next.SQLIndex.Constraint.OID != constraint.OID || next.SQLIndex.Constraint.Index != constraint.Index || next.SQLIndex.Constraint.Name != "u_new" || nextParent.UniqueConstraints[0].Name != "u_new" || nextParent.UniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
 		t.Fatal("backing rename did not preserve real identities/roots")
 	}
-	if parent.UniqueConstraints[0].Name != "u" || old.SQLIndex.constraint.Name != "u" {
+	if parent.UniqueConstraints[0].Name != "u" || old.SQLIndex.Constraint.Name != "u" {
 		t.Fatal("rename mutated captured descriptors")
 	}
 	before := indexMaintenanceCapture(e)

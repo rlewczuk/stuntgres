@@ -73,7 +73,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 		if stage.domainAlter != nil {
 			if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
-				parent := index.SQLIndex.parent
+				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
 					store := e.stageStorageLocked(stage, parent)
 					if shape, ok := stage.rowShapes[parent]; ok {

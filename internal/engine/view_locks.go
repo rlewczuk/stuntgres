@@ -41,7 +41,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
 		d, ok := catalog.Relation(ref.Address)
-		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !ok {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || !ok {
 			return ids.ErrCatalogReplaced
 		}
 		if s.materializedRefresh && !visited {
@@ -80,8 +80,8 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				}
 			}
 			for _, dependency := range viewOf(d).dependencies {
-				if dependency.ref.Address.ClassID == ids.RelationClassID {
-					child, err := storedViewUseReference(catalog, d, dependency.ref)
+				if dependency.Ref.Address.ClassID == ids.RelationClassID {
+					child, err := storedViewUseReference(catalog, d, dependency.Ref)
 					if err != nil {
 						return err
 					}
@@ -200,7 +200,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		}
 		e.mu.Lock()
 		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
-		valid := ref.Domain() == e.catalog.domain && ref.Epoch == e.catalog.state.epoch && exists
+		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.epoch && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
 			s.preparedChangedDuringAdmission = true
 		}
@@ -232,7 +232,7 @@ func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
 		refs = append(refs, ref)
 	}
 	for _, dependency := range b.dependencies {
-		add(dependency.ref)
+		add(dependency.Ref)
 	}
 	for _, constant := range b.sequenceConstants {
 		if constant.represented {

@@ -14,7 +14,7 @@ type intaggProvider struct{ control extensionControl }
 // Control implements extensionImplementation.
 func (p *intaggProvider) Control() extensionControl { return p.control.detached() }
 
-var stockIntagg = &intaggProvider{control: extensionControl{version: "1.1", superuser: true, relocatable: true, comment: new("integer aggregator and enumerator (obsolete)")}}
+var stockIntagg = &intaggProvider{control: extensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 
 var intaggMembers = [...]struct {
 	name      string
@@ -51,8 +51,8 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 				return err
 			}
 			proc.Aggregate = &ownedAggregate{
-				definition: intaggDefinition(oid, state, final),
-				helpers: [2]routineIdentity{
+				Definition: intaggDefinition(oid, state, final),
+				Helpers: [2]routineIdentity{
 					{state, ext.TargetNamespace.ObjectID, "int_agg_state", "2281,23"},
 					{final, ext.TargetNamespace.ObjectID, "int_agg_final_array", "2281"},
 				},
@@ -70,7 +70,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 
 func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.Version != p.control.version || len(ext.Members) != len(intaggMembers) {
+	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.Version != p.control.Version || len(ext.Members) != len(intaggMembers) {
 		return invalid()
 	}
 	var seen [len(intaggMembers)]bool
@@ -95,7 +95,7 @@ func (p *intaggProvider) ValidateExtension(v CatalogRead, ext *extensionDescript
 		if !found {
 			return invalid()
 		}
-		if proc.Owner.ID() == 0 || proc.Owner != v.owner.principals.Principal(proc.Owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 	}

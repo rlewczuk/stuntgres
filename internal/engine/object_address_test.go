@@ -33,8 +33,8 @@ func TestObjectAddressAuthority(t *testing.T) {
 		t.Fatal("released routine count", len(builtinRoutineIdentities))
 	}
 	for _, routine := range builtinRoutineIdentities {
-		identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.id, 0})
-		if err != nil || !identity.found || len(identity.names) != 2 || identity.names[1] != routine.name {
+		identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.ID, 0})
+		if err != nil || !identity.found || len(identity.names) != 2 || identity.names[1] != routine.Name {
 			t.Fatal("lookup-only routine authority", routine, identity, err)
 		}
 	}
@@ -62,7 +62,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	view := e.CatalogRead()
 	view.state = cloneCatalog(view.state)
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
+	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]attributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
 	view.state.setDescriptor(d.address, d)
 	view.state.bindName(descriptorNameKey(d), d.address)
 	return e, view, d

@@ -74,7 +74,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 		if strings.Contains(tc.expr, "public.a") || strings.Contains(tc.expr, "public.label") {
 			found := false
 			for _, dependency := range b.dependencies {
-				if dependency.ref.Address == required.Address() && dependency.revision == required.Revision() {
+				if dependency.Ref.Address == required.Address() && dependency.Revision == required.Revision() {
 					found = true
 				}
 			}

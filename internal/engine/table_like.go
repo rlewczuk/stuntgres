@@ -90,7 +90,7 @@ func (in createLikeInput) rowMapper(destination *relationDescriptor, authority C
 	}
 	// Retained TEMP source rows can carry an older epoch. Only mapped local
 	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.owner.domain.Ref(authority.Epoch(), destination.address)
+	target := authority.owner.Domain.Ref(authority.Epoch(), destination.address)
 	return func(ref ids.ObjectRef) ids.ObjectRef {
 		address := ref.Address
 		address.SubID = 0
@@ -153,18 +153,18 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 			target := destination.Attributes[in.targetSlot(slot)]
 			if in.options&likeIdentity != 0 {
 				if identity, ok := in.source.Identities[attribute]; ok {
-					sequence, ok := auth.catalog.Relation(identity.sequence)
+					sequence, ok := auth.catalog.Relation(identity.Sequence)
 					if !ok || sequence.Sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
 					}
 					stage.captureLikeSource(sequence)
 					options := *sequence.Sequence
-					options.persistence = "logged"
+					options.Persistence = "logged"
 					read := e.stageRead(stage)
 					name := ownedSequenceName(destination.name, destination.Columns[in.targetSlot(slot)].Name, func(n string) bool {
 						return n == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: n})) != 0
 					})
-					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.mode, options, nil); err != nil {
+					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
 					}
 				}
@@ -173,19 +173,19 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 				if old, ok := in.source.Defaults[attribute]; ok {
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
-					node := old.expression
+					node := old.Expression
 					temporary := auth.catalog.MustNamespace(destination.namespace).Temporary
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
-					definition := columnDefault{expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+					definition := columnDefault{Expression: node}
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
 					// identities may be copied unchanged only into its same physical
 					// TEMP lifetime, not certified through an unpublished destination.
-					for _, dependency := range old.dependencies {
+					for _, dependency := range old.Dependencies {
 						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
 							continue
 						}
@@ -199,9 +199,9 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					}
 					destination.Defaults[target] = definition
 					if destination.Inheritance != nil {
-						provenance := destination.Inheritance.columns[target]
-						provenance.explicitDefault = true
-						destination.Inheritance.columns[target] = provenance
+						provenance := destination.Inheritance.Columns[target]
+						provenance.ExplicitDefault = true
+						destination.Inheritance.Columns[target] = provenance
 					}
 				}
 			}
@@ -212,16 +212,16 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.name)
 						return diagnostic
 					}
-					node, err := in.remap(old.expression, destination, auth.catalog)
+					node, err := in.remap(old.Expression, destination, auth.catalog)
 					if err != nil {
 						return err
 					}
-					planned, err := in.remap(old.planned, destination, auth.catalog)
+					planned, err := in.remap(old.Planned, destination, auth.catalog)
 					if err != nil {
 						return err
 					}
-					definition := columnGeneration{kind: old.kind, expression: node, planned: planned}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+					definition := columnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					if destination.Generations == nil {
@@ -251,8 +251,8 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 	}
 	for _, constraint := range destination.CheckConstraints {
 		names[constraint.Name] = true
-		if constraint.ordinal >= ordinal {
-			ordinal = constraint.ordinal + 1
+		if constraint.Ordinal >= ordinal {
+			ordinal = constraint.Ordinal + 1
 		}
 	}
 	for i := range inputs {
@@ -267,13 +267,13 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 			}
-			node, err := in.remap(old.expression, destination, auth.catalog)
+			node, err := in.remap(old.Expression, destination, auth.catalog)
 			if err != nil {
 				return err
 			}
-			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, ordinal: ordinal, expression: node}
+			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, Ordinal: ordinal, Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {
@@ -283,11 +283,11 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 				if provider, ok := auth.catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
+				definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
 			}
 			destination.CheckConstraints = append(destination.CheckConstraints, definition)
 			if destination.Inheritance != nil {
-				destination.Inheritance.checks[definition.Name] = inheritedConstraint{local: true}
+				destination.Inheritance.Checks[definition.Name] = inheritedConstraint{Local: true}
 			}
 			names[old.Name] = true
 			ordinal++

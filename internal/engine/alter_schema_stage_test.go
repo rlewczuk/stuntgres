@@ -45,8 +45,8 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 		addresses = append(addresses, NameAddressForTempMove(t, e, source, name))
 	}
 	calls := 0
-	provider := e.catalog.providers[ids.RelationClassID]
-	e.catalog.providers[ids.RelationClassID] = alterSchemaCandidateProvider{CatalogProvider: provider, inspect: func(v CatalogRead) {
+	provider := e.catalog.Providers[ids.RelationClassID]
+	e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{CatalogProvider: provider, inspect: func(v CatalogRead) {
 		calls++
 		for _, address := range addresses {
 			d, ok := v.Descriptor(address)
@@ -59,7 +59,7 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 		}
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
-	e.catalog.providers[ids.RelationClassID] = provider
+	e.catalog.Providers[ids.RelationClassID] = provider
 	if calls == 0 {
 		t.Fatal("candidate was not validated")
 	}
@@ -156,7 +156,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			address := NameAddressForTempMove(t, e, source, "q2")
-			ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, address)
 			tx := transactionBegin(t, a)
 			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)

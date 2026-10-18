@@ -30,7 +30,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					original := slices.Clone(c.routineDependencies)
 					selected := -1
 					for i, dependency := range original {
-						if dependency.ref.Address.ClassID == ids.ProcedureClassID {
+						if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 							selected = i
 							break
 						}
@@ -47,11 +47,11 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					case "missing":
 						c.routineDependencies = append(c.routineDependencies[:selected], c.routineDependencies[selected+1:]...)
 					case "foreign":
-						c.routineDependencies[selected].ref = New().catalog.domain.Ref(c.routineDependencies[selected].ref.Epoch, c.routineDependencies[selected].ref.Address)
+						c.routineDependencies[selected].Ref = New().catalog.Domain.Ref(c.routineDependencies[selected].Ref.Epoch, c.routineDependencies[selected].Ref.Address)
 					case "epoch":
-						c.routineDependencies[selected].ref.Epoch++
+						c.routineDependencies[selected].Ref.Epoch++
 					case "revision":
-						c.routineDependencies[selected].revision++
+						c.routineDependencies[selected].Revision++
 					}
 					query := "FETCH 1 FROM c"
 					if promotion {

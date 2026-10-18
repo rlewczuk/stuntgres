@@ -85,8 +85,8 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	// Collation/namespace aliases additionally reanalyze changed captured names.
 	for _, constant := range cell.constants {
 		for _, operand := range constant.operands {
-			d := auth.catalog.Get(operand.ref.Address)
-			if d == nil || operand.ref.Domain() != e.catalog.domain || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
+			d := auth.catalog.Get(operand.Ref.Address)
+			if d == nil || operand.Ref.Domain() != e.catalog.Domain || operand.Ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.Revision {
 				return false, nil
 			}
 		}
@@ -100,7 +100,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
 				}
-				if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), reference.namespace)); err != nil {
+				if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), reference.namespace)); err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 						return false, nil
 					}
@@ -112,7 +112,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			if auth.catalog.Get(namespace) == nil {
 				return false, nil
 			}
-			if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
+			if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 					return false, nil
 				}
@@ -269,7 +269,7 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 					return sqltype.Value{}, err
 				}
 				for _, operand := range constant.operands {
-					b.dependency(operand.ref, operand.revision)
+					b.dependency(operand.Ref, operand.Revision)
 				}
 				b.regtypeConstants = append(b.regtypeConstants, constant)
 				return value, nil
@@ -309,7 +309,7 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 		return sqltype.Value{}, err
 	}
 	for _, operand := range constant.operands {
-		b.dependency(operand.ref, operand.revision)
+		b.dependency(operand.Ref, operand.Revision)
 	}
 	b.regtypeConstants = append(b.regtypeConstants, constant)
 	return value, nil

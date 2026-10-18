@@ -27,7 +27,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if event.parent.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if !live || !exists || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.SQLIndex.constraint.OID != event.constraint {
+		if !live || !exists || index.SQLIndex == nil || !index.SQLIndex.isExclusion() || index.SQLIndex.Constraint.OID != event.constraint {
 			continue
 		}
 		c := exclusionDefinition(parent, index)

@@ -17,7 +17,7 @@ import (
 func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
 	table := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: tableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
-		table.Inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+		table.Inheritance = &tableInheritance{Parents: parents, Columns: map[int32]inheritedColumn{}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 	}
 	return table
 }
@@ -42,7 +42,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), p.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), p.address)); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.address})
@@ -80,7 +80,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal("unrelated parent/sibling removed", table.name)
 		}
 	}
-	if e.catalog.state != base.state || leaf.Inheritance.parents[2] != other.address {
+	if e.catalog.state != base.state || leaf.Inheritance.Parents[2] != other.address {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -94,7 +94,7 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, table := range []*relationDescriptor{p, c} {
-		if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), table.address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), table.address)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -155,9 +155,9 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			child.name = "child"
 			child.OnCommit = actions.child
 			child.Inheritance = &tableInheritance{
-				parents: []ids.ObjectAddress{parent.address},
-				columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: parent.address, attribute: 1}}}},
-				checks:  map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{},
+				Parents: []ids.ObjectAddress{parent.address},
+				Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 1}}}},
+				Checks:  map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{},
 			}
 			e.mu.Lock()
 			e.catalogChangeLocked(changes, child.address, &child)

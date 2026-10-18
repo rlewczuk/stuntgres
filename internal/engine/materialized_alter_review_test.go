@@ -125,7 +125,7 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 	store, root := e.storage[parentAddress], e.indexRoots[indexAddress]
 	entries := slices.Clone(root.entries)
 	definition := captured.SQLIndex
-	if definition.parent != parentAddress || len(definition.keys) != 1 || definition.keys[0].attribute != parent.Attributes[0] || len(definition.include) != 1 || definition.include[0] != parent.Attributes[1] || len(root.entries) != 1 {
+	if definition.Parent != parentAddress || len(definition.Keys) != 1 || definition.Keys[0].Attribute != parent.Attributes[0] || len(definition.Include) != 1 || definition.Include[0] != parent.Attributes[1] || len(root.entries) != 1 {
 		t.Fatal("fixture lacks genuine parent/key/include/root")
 	}
 	for _, transition := range []struct{ from, to string }{{"i", "key"}, {"key", "i"}} {

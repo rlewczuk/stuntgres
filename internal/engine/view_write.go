@@ -617,7 +617,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			if _, generated := w.base.Generations[attr]; generated {
 				return generationWriteError(name, true)
 			}
-			if identity, ok := w.base.Identities[attr]; ok && identity.mode == parser.IdentityAlways {
+			if identity, ok := w.base.Identities[attr]; ok && identity.Mode == parser.IdentityAlways {
 				d := identityInsertError(name).(*sqlstate.Error)
 				d.Message = fmt.Sprintf("column %q can only be updated to DEFAULT", name)
 				d.Hint = ""

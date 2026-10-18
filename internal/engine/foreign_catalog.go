@@ -43,9 +43,9 @@ func foreignMappingName(server ids.ObjectAddress, role authorization.PrincipalRe
 }
 
 type foreignTableDefinition struct {
-	server  ids.ObjectAddress
-	options []ForeignOption
-	columns map[int32][]ForeignOption
+	Server  ids.ObjectAddress
+	Options []ForeignOption
+	Columns map[int32][]ForeignOption
 }
 
 type foreignCatalogProvider struct{ class ids.OID }

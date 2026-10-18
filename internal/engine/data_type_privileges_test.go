@@ -25,7 +25,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	ref := catalog.owner.domain.Ref(catalog.Epoch(), source.address)
+	ref := catalog.owner.Domain.Ref(catalog.Epoch(), source.address)
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
 
@@ -67,7 +67,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
-	ref := f.e.catalog.domain.Ref(catalog.Epoch(), source.address)
+	ref := f.e.catalog.Domain.Ref(catalog.Epoch(), source.address)
 	stale := ref
 	stale.Epoch++
 	if rows, err := captureDataTypePrivileges(context.Background(), catalog, auth, "unit_database", stale, source); rows != nil || err == nil {

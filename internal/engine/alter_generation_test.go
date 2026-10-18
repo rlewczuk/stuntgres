@@ -53,7 +53,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	retained := auth.catalog
 	unaffected := old.Generations[3]
 	next, attribute, err := e.generationCandidate(scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
-	if err != nil || attribute != 2 || next == old || next.Generations[2].OID != 0 || next.Generations[2].kind != generationStored {
+	if err != nil || attribute != 2 || next == old || next.Generations[2].OID != 0 || next.Generations[2].Kind != generationStored {
 		t.Fatal(next, attribute, err)
 	}
 	e.mu.Lock()
@@ -123,8 +123,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		t.Fatal("unaffected stored generation demanded")
 		return sqltype.Value{}, errors.New("unexpected evaluation")
 	}}
-	old.Generations = map[int32]columnGeneration{2: {kind: generationStored, planned: untouched}, 3: {kind: generationStored, planned: untouched}}
-	next.Generations = map[int32]columnGeneration{2: {kind: generationStored, planned: generated}, 3: {kind: generationStored, planned: untouched}}
+	old.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Planned: untouched}, 3: {Kind: generationStored, Planned: untouched}}
+	next.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Planned: generated}, 3: {Kind: generationStored, Planned: untouched}}
 	row := func(id ids.RowID, version uint64) rowVersion {
 		return rowVersion{row: id, version: ids.VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
 	}
@@ -176,7 +176,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	old.Columns = append(slices.Clone(base.Columns), ColumnDescriptor{Name: "b", Usage: u, Nullable: true})
 	old.Attributes = []int32{1, 2}
 	old.Index = map[string]int{"a": 0, "b": 1}
-	old.Generations = map[int32]columnGeneration{2: {kind: generationStored}}
+	old.Generations = map[int32]columnGeneration{2: {Kind: generationStored}}
 	next := old
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -190,7 +190,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		cancel()
 		return value, nil
 	}}
-	next.Generations = map[int32]columnGeneration{2: {kind: generationStored, planned: expression}}
+	next.Generations = map[int32]columnGeneration{2: {Kind: generationStored, Planned: expression}}
 	store := &relationStorage{generation: 7, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, value}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value, value}}}}
 	op, cleanup, err := testOperation(e, ctx)
 	if err != nil {

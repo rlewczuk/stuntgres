@@ -15,9 +15,9 @@ const foreignHandlerSignature procedureSignature = ""
 const foreignValidatorSignature procedureSignature = "1009,26"
 
 type foreignProcedure struct {
-	name      ForeignFunctionName
-	wrapper   ForeignDataWrapper
-	validator func(context.Context, ForeignObjectKind, []ForeignOption) error
+	Name      ForeignFunctionName
+	Wrapper   ForeignDataWrapper
+	Validator func(context.Context, ForeignObjectKind, []ForeignOption) error
 }
 
 func foreignFunctionName(name ForeignFunctionName) (ForeignFunctionName, error) {
@@ -101,12 +101,12 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 		return nil
 	}
 	for _, def := range wrappers {
-		if err := install(def.HandlerName, &foreignProcedure{name: def.HandlerName, wrapper: def.Wrapper}, 3115, foreignHandlerSignature); err != nil {
+		if err := install(def.HandlerName, &foreignProcedure{Name: def.HandlerName, Wrapper: def.Wrapper}, 3115, foreignHandlerSignature); err != nil {
 			return err
 		}
 	}
 	for _, def := range validators {
-		if err := install(def.Name, &foreignProcedure{name: def.Name, validator: def.Validate}, 2278, foreignValidatorSignature); err != nil {
+		if err := install(def.Name, &foreignProcedure{Name: def.Name, Validator: def.Validate}, 2278, foreignValidatorSignature); err != nil {
 			return err
 		}
 	}

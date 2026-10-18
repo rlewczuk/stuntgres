@@ -28,17 +28,17 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	child.Membership = partitionAttachUnitRange(t, parent, 1, 3)
 	def := inheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
 	def.RelationKind = tableRelation
-	def.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.Partition.children = []ids.ObjectAddress{child.address, def.address}
-	parent.Partition.defaultChild = def.address
+	def.Membership = &partitionMembership{Parent: parent.address, DefaultBound: true}
+	parent.Partition.Children = []ids.ObjectAddress{child.address, def.address}
+	parent.Partition.DefaultChild = def.address
 	relations := []*relationDescriptor{parent, child, def}
 	leaf := child
 	if nested {
 		leaf = inheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
 		leaf.RelationKind = tableRelation
-		leaf.Membership = &partitionMembership{parent: child.address, defaultBound: true}
-		child.Partition.children = []ids.ObjectAddress{leaf.address}
-		child.Partition.defaultChild = leaf.address
+		leaf.Membership = &partitionMembership{Parent: child.address, DefaultBound: true}
+		child.Partition.Children = []ids.ObjectAddress{leaf.address}
+		child.Partition.DefaultChild = leaf.address
 		relations = append(relations, leaf)
 	}
 	partitionAttachUnitInstall(t, e, relations...)
@@ -66,7 +66,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			view := f.e.stageRead(stage)
 			p := view.MustRelation(f.parent.address)
 			c := view.MustRelation(child.address)
-			if p == f.parent || c == child || c.Membership != nil || slices.Contains(p.Partition.children, child.address) || c.address != child.address || c.RowType != child.RowType || c.Partition != child.Partition {
+			if p == f.parent || c == child || c.Membership != nil || slices.Contains(p.Partition.Children, child.address) || c.address != child.address || c.RowType != child.RowType || c.Partition != child.Partition {
 				t.Fatal("immediate graph/identity/subtree changed incorrectly")
 			}
 			if &c.Columns[0] != &child.Columns[0] || &c.Attributes[0] != &child.Attributes[0] || c.Index == nil {
@@ -75,10 +75,10 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if p.revision != f.parent.revision+1 || c.revision != child.revision+1 {
 				t.Fatal("revision invalidation missing")
 			}
-			if (p.Partition.defaultChild == (ids.ObjectAddress{})) != (kind == "default") {
+			if (p.Partition.DefaultChild == (ids.ObjectAddress{})) != (kind == "default") {
 				t.Fatal("wrong DEFAULT pointer")
 			}
-			if f.e.catalog.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.Partition.children) != 2 || child.Membership == nil {
+			if f.e.catalog.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
 				t.Fatal("private stage mutated published graph/store")
 			}
 			if kind == "nested" && view.Get(f.leaf.address) != f.leaf {
@@ -95,10 +95,10 @@ func TestPartitionDetachDependencies(t *testing.T) {
 	for _, valid := range []bool{false, true} {
 		t.Run(map[bool]string{false: "invalid_complete", true: "valid"}[valid], func(t *testing.T) {
 			f := partitionConstraintDescriptors(t)
-			f.child.SQLIndex.partitionParent = f.parent.address
-			f.parent.SQLIndex.valid = valid
-			f.parent.SQLIndex.include = nil
-			f.child.SQLIndex.include = nil
+			f.child.SQLIndex.PartitionParent = f.parent.address
+			f.parent.SQLIndex.Valid = valid
+			f.parent.SQLIndex.Include = nil
+			f.child.SQLIndex.Include = nil
 			// Build genuine inline-UNIQUE tuple descriptors, not the covering
 			// index fixture's extra payload or nondefault key ordering.
 			for _, index := range [2]*relationDescriptor{f.parent, f.child} {
@@ -106,15 +106,15 @@ func TestPartitionDetachDependencies(t *testing.T) {
 				index.Attributes = index.Attributes[:2]
 				index.AttributeHighWater = 2
 				index.Index = map[string]int{"a": 0, "b": 1}
-				index.SQLIndex.keys[1].desc = false
-				index.SQLIndex.keys[1].nullsFirst = false
+				index.SQLIndex.Keys[1].Desc = false
+				index.SQLIndex.Keys[1].NullsFirst = false
 			}
 			rootKey := uniqueConstraint{OID: 46600, Name: f.parent.name, Index: f.parent.address, Attributes: []int32{10, 20}, IsLocal: true}
 			childKey := uniqueConstraint{OID: 46601, Name: f.child.name, Index: f.child.address, Attributes: []int32{22, 11}, Parent: rootKey.OID}
 			f.root.UniqueConstraints = []uniqueConstraint{rootKey}
 			f.leaf.UniqueConstraints = []uniqueConstraint{childKey}
-			f.parent.SQLIndex.constraint = uniqueBacking(&rootKey)
-			f.child.SQLIndex.constraint = uniqueBacking(&childKey)
+			f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
+			f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
 			f.leaf.NotNullConstraints = []notNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
@@ -124,13 +124,13 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			view := f.e.stageRead(stage)
 			index := view.MustRelation(f.child.address)
 			table := view.MustRelation(f.leaf.address)
-			if index.SQLIndex.partitionParent != (ids.ObjectAddress{}) || index.SQLIndex.constraint != f.child.SQLIndex.constraint || index.SQLIndex.valid != f.child.SQLIndex.valid || table.UniqueConstraints[0].Parent != 0 || !table.UniqueConstraints[0].IsLocal || !table.NotNullConstraints[0].partitionLocal {
+			if index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || index.SQLIndex.Constraint != f.child.SQLIndex.Constraint || index.SQLIndex.Valid != f.child.SQLIndex.Valid || table.UniqueConstraints[0].Parent != 0 || !table.UniqueConstraints[0].IsLocal || !table.NotNullConstraints[0].PartitionLocal {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
-			if table.UniqueConstraints[0].OID != childKey.OID || table.NotNullConstraints[0].OID != 46602 || f.leaf.UniqueConstraints[0].Parent != rootKey.OID || f.child.SQLIndex.partitionParent != f.parent.address {
+			if table.UniqueConstraints[0].OID != childKey.OID || table.NotNullConstraints[0].OID != 46602 || f.leaf.UniqueConstraints[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.address {
 				t.Fatal("own identity or predecessor changed")
 			}
-			if view.Get(f.parent.address) != f.parent || f.parent.SQLIndex.valid != valid {
+			if view.Get(f.parent.address) != f.parent || f.parent.SQLIndex.Valid != valid {
 				t.Fatal("detach promoted or replaced former parent index")
 			}
 			if err := validatePartitionIndex(view, f.parent, view.MustRelation(f.root.address)); err != nil {
@@ -217,11 +217,11 @@ func TestPartitionDetachPublication(t *testing.T) {
 	}
 	// Exhaustion must not mutate any live descriptor or allocate a new identity.
 	f := partitionConstraintDescriptors(t)
-	f.child.SQLIndex.partitionParent = f.parent.address
+	f.child.SQLIndex.PartitionParent = f.parent.address
 	f.child.revision = ids.DefinitionRevision(^uint64(0))
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err == nil || f.leaf.Membership == nil || len(f.root.Partition.children) != 1 {
+	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err == nil || f.leaf.Membership == nil || len(f.root.Partition.Children) != 1 {
 		t.Fatal("exhaustion changed original graph", err)
 	}
 }
@@ -232,7 +232,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	f.child.SQLIndex.partitionParent = f.parent.address
+	f.child.SQLIndex.PartitionParent = f.parent.address
 	if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 	next.state.removeDescriptor(f.child.address)
 	next.state.removeDescriptor(f.leaf.address)
 	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-	if err != nil || roots[f.parent.address] != nil || f.parent.SQLIndex.valid {
+	if err != nil || roots[f.parent.address] != nil || f.parent.SQLIndex.Valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)
 	}
 }

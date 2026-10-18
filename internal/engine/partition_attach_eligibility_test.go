@@ -19,7 +19,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32202}
-	view.state.setDescriptor(ns, &namespaceDescriptor{address: ns, Temporary: e.catalog.domain.Session(99)})
+	view.state.setDescriptor(ns, &namespaceDescriptor{address: ns, Temporary: e.catalog.Domain.Session(99)})
 	child.namespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
 	var got *sqlstate.Error
@@ -45,8 +45,8 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent.Partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}, children: []ids.ObjectAddress{child.address}, defaultChild: child.address}
-	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
+	parent.Partition = &partitionDefinition{Keys: []partitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}, Children: []ids.ObjectAddress{child.address}, DefaultChild: child.address}
+	child.Membership = &partitionMembership{Parent: parent.address, DefaultBound: true}
 	view := inheritanceUnitView(e, parent, child)
 	check := func(wantValid bool) {
 		t.Helper()
@@ -58,9 +58,9 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	check(true)
 	one := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32212}
 	two := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32213}
-	token := e.catalog.domain.Session(99)
+	token := e.catalog.Domain.Session(99)
 	view.state.setDescriptor(one, &namespaceDescriptor{address: one, Temporary: token})
-	view.state.setDescriptor(two, &namespaceDescriptor{address: two, Temporary: e.catalog.domain.Session(100)})
+	view.state.setDescriptor(two, &namespaceDescriptor{address: two, Temporary: e.catalog.Domain.Session(100)})
 	child.namespace = one
 	check(false) // Permanent parent, temporary child.
 	parent.namespace, child.namespace = one, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
@@ -98,7 +98,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			if c.sameName {
 				name = "parent_nn"
 			}
-			child.NotNullConstraints = []notNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, partitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, partitionLocal: true}}
+			child.NotNullConstraints = []notNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
 			original := append([]notNullConstraint(nil), child.NotNullConstraints...)
 			view := inheritanceUnitView(e, parent, child)
 			next, err := partitionAttachSchema(&StatementScope{op: op}, view, parent, child)
@@ -113,7 +113,7 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 					t.Fatal(err)
 				}
 				matched := original[0]
-				matched.partitionLocal = false
+				matched.PartitionLocal = false
 				if !reflect.DeepEqual(next.NotNullConstraints, []notNullConstraint{matched, original[1]}) {
 					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.NotNullConstraints)
 				}

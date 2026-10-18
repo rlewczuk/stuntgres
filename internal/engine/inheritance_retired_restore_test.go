@@ -146,7 +146,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *Operation, *restoredHistoryAu
 	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
-		refs[r.address] = e.catalog.domain.Ref(e.CatalogRead().Epoch(), r.address)
+		refs[r.address] = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), r.address)
 	}
 	e.captureHistoricalFacts(refs, a.facts)
 	return e, op, a
@@ -190,7 +190,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	old := retiredUnitTable(t, e, "c")
 	oid := old.NotNullConstraints[0].OID
 	for name, mutate := range map[string]func(*restoredHistoricalFact){
-		"epoch": func(f *restoredHistoricalFact) { f.ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.ref = New().catalog.domain.Ref(f.ref.Epoch, f.ref.Address) },
+		"epoch": func(f *restoredHistoricalFact) { f.ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.ref = New().catalog.Domain.Ref(f.ref.Epoch, f.ref.Address) },
 		"oid": func(f *restoredHistoricalFact) { f.oid++ }, "name": func(f *restoredHistoricalFact) { f.name = "wrong" },
 		"kind": func(f *restoredHistoricalFact) { f.check = true }, "key": func(f *restoredHistoricalFact) { f.attributes = []int32{1} },
 		"validity": func(f *restoredHistoricalFact) { f.notValid = true }, "noinherit": func(f *restoredHistoricalFact) { f.noInherit = true },
@@ -241,7 +241,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
-	tempRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), temp.address)
+	tempRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.address)
 	tempFacts := make(map[ids.OID]restoredHistoricalFact)
 	captureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
@@ -274,11 +274,11 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("actual paired NN repair rejected", err)
 	}
 	current := retiredUnitTable(t, e, "c")
-	p := current.Inheritance.notNull[current.NotNullConstraints[0].Attribute]
-	if p.local || p.count() != 2 || len(p.origins) != 1 || len(p.retired) != 1 || p.retired[0].archive == 0 || !p.retired[0].replayed || p.retired[0].attribute != 1 || p.retired[0].parent.Address != retiredUnitTable(t, e, "p").address {
+	p := current.Inheritance.NotNull[current.NotNullConstraints[0].Attribute]
+	if p.Local || p.count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").address {
 		t.Fatal("archival rank was treated as current b/live identity", p)
 	}
-	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.revision != old.revision+1 || len(old.Inheritance.notNull[current.NotNullConstraints[0].Attribute].retired) != 0 {
+	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.revision != old.revision+1 || len(old.Inheritance.NotNull[current.NotNullConstraints[0].Attribute].Retired) != 0 {
 		t.Fatal("repair changed anything beyond lineage/locality/revision")
 	}
 	retiredReject(t, e, op, q, a)
@@ -296,8 +296,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("consistent shared source rejected", err)
 	}
 	d := retiredUnitTable(t, e, "d")
-	dh := d.Inheritance.notNull[d.NotNullConstraints[0].Attribute].retired[0]
-	if dh.archive != p.retired[0].archive {
+	dh := d.Inheritance.NotNull[d.NotNullConstraints[0].Attribute].Retired[0]
+	if dh.Archive != p.Retired[0].Archive {
 		t.Fatal("one imported source namespace mapped inconsistently")
 	}
 	// Distinct source epochs/OIDs remain distinct even if their numeric old OID
@@ -327,8 +327,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("archival identities falsely aliased current OID namespace", err)
 	}
 	f := retiredUnitTable(t, e, "f")
-	fp := f.Inheritance.notNull[saved.attributes[0]]
-	if fp.count() != 3 || len(fp.retired) != 2 || fp.retired[0].lifetime == fp.retired[1].lifetime || fp.retired[0].archive != dh.archive {
+	fp := f.Inheritance.NotNull[saved.attributes[0]]
+	if fp.count() != 3 || len(fp.Retired) != 2 || fp.Retired[0].Lifetime == fp.Retired[1].Lifetime || fp.Retired[0].Archive != dh.Archive {
 		t.Fatal("distinct archived lifetimes collapsed", fp)
 	}
 	if ck.NotValid || ck.NoInherit || ck.OID != old.CheckConstraints[0].OID {
@@ -385,11 +385,11 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		c := retiredUnitTable(t, e, "c")
-		h := c.Inheritance.notNull[c.NotNullConstraints[0].Attribute].retired[0]
-		if h.archive <= prior || h.archive == 0 || h.parent.Epoch != e.CatalogRead().Epoch() || h.own != c.NotNullConstraints[0].OID || !h.replayed {
+		h := c.Inheritance.NotNull[c.NotNullConstraints[0].Attribute].Retired[0]
+		if h.Archive <= prior || h.Archive == 0 || h.Parent.Epoch != e.CatalogRead().Epoch() || h.Own != c.NotNullConstraints[0].OID || !h.Replayed {
 			t.Fatal("redump/import reused archive/live namespace", h)
 		}
-		prior = h.archive
+		prior = h.Archive
 		dump.Reset()
 		if err := e.Dump(context.Background(), &dump); err != nil {
 			t.Fatal(err)
@@ -402,7 +402,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE ONLY d ADD CONSTRAINT d_pk PRIMARY KEY(a)")
 	d := retiredUnitTable(t, e, "d")
 	oid := d.NotNullConstraints[0].OID
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
 	captureHistoricalRelation(e.CatalogRead(), ref, a.facts)
 	before := a.facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.local, before.count, retiredRow("n", "0:7", "77"))

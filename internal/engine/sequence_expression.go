@@ -297,7 +297,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
+		return e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -380,7 +380,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
-			if err := r.auth.CanUse(r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+			if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
 			path = []ids.ObjectAddress{ns}
@@ -432,11 +432,11 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = e.catalog.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+		ref = e.catalog.Domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.domain.Ref(e.catalog.state.epoch, scope.op.session.lastSequence)
+		ref = e.catalog.Domain.Ref(e.catalog.state.epoch, scope.op.session.lastSequence)
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
@@ -451,7 +451,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
 	}
-	if beforeErr == nil && (ref.Domain() != e.catalog.domain || ref.Epoch != before.catalog.Epoch()) {
+	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.catalog.Epoch()) {
 		beforeErr = ids.ErrCatalogReplaced
 	}
 	if beforeErr == nil {
@@ -553,7 +553,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		result = m.next
 		m.remaining--
 		if m.remaining != 0 {
-			m.next += d.Sequence.increment
+			m.next += d.Sequence.Increment
 		}
 		m.value, m.valid = result, true
 		session.lastSequence = d.address
@@ -562,8 +562,8 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if result < d.Sequence.min || result > d.Sequence.max {
-			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.name, d.Sequence.min, d.Sequence.max))
+		if result < d.Sequence.Min || result > d.Sequence.Max {
+			return sqltype.Value{}, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.name, d.Sequence.Min, d.Sequence.Max))
 		}
 		called := true
 		if len(x.args) == 3 {

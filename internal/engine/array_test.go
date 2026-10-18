@@ -415,7 +415,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		}
 	}
 	for _, descriptor := range current.Descriptors() {
-		if err := e.catalog.providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
+		if err := e.catalog.Providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
 			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)
 		}
 	}

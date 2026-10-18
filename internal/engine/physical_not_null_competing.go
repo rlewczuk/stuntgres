@@ -43,7 +43,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (
 	if index == nil || index.SQLIndex == nil {
 		return nil, false, nil
 	}
-	parent, ok := view.Relation(index.SQLIndex.parent)
+	parent, ok := view.Relation(index.SQLIndex.Parent)
 	if !ok {
 		return nil, false, nil
 	}
@@ -107,7 +107,7 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 	reject := func() (*physicalNotNullConstructor, error) {
 		return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 	}
-	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.keys) {
+	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.Keys) {
 		return reject()
 	}
 	auth, err := op.Authorization()
@@ -130,7 +130,7 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 			return reject()
 		}
 		attribute := old.Attributes[slot]
-		if !slices.ContainsFunc(provider.primary.keys, func(key physicalPrimaryKeyUsage) bool { return key.attribute == attribute }) {
+		if !slices.ContainsFunc(provider.primary.Keys, func(key physicalPrimaryKeyUsage) bool { return key.Attribute == attribute }) {
 			return reject()
 		}
 		for _, prior := range definition.Columns[:i] {

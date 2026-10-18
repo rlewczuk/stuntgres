@@ -15,9 +15,9 @@ func TestInheritanceGuards(t *testing.T) {
 	catalog := e.catalog.read(cloneCatalog(base.state))
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, name: "p", RelationKind: tableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
 	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, name: "c", RelationKind: tableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []notNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &tableInheritance{
-		parents: []ids.ObjectAddress{parent.address},
-		columns: map[int32]inheritedColumn{5: {origins: []inheritanceOrigin{{parent: parent.address, attribute: 3}}}, 8: {local: true}},
-		notNull: map[int32]inheritedConstraint{5: {origins: []inheritanceOrigin{{parent: parent.address, attribute: 3, constraint: 90003}}}},
+		Parents: []ids.ObjectAddress{parent.address},
+		Columns: map[int32]inheritedColumn{5: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 3}}}, 8: {Local: true}},
+		NotNull: map[int32]inheritedConstraint{5: {Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 3, Constraint: 90003}}}},
 	}}
 	standalone := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: tableRelation}
 	view := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: viewRelation, View: &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: parent.address}}}}}
@@ -67,7 +67,7 @@ func TestInheritanceGuards(t *testing.T) {
 	if err := inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if child.Inheritance.columns[5].local || len(child.Inheritance.columns[5].origins) != 1 || child.NotNullConstraints[0].Name != "p_a_not_null" {
+	if child.Inheritance.Columns[5].Local || len(child.Inheritance.Columns[5].Origins) != 1 || child.NotNullConstraints[0].Name != "p_a_not_null" {
 		t.Fatal("admission changed immutable provenance")
 	}
 }

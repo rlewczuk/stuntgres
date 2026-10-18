@@ -70,7 +70,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 			t.Fatal("argument identity collapsed", i)
 		}
 	}
-	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {kind: generationStored, expression: n, planned: n, dependencies: []ids.ObjectRef{n.ref}}}}
+	consumer := &relationDescriptor{Generations: map[int32]columnGeneration{1: {Kind: generationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.Signature = "25,25" },
 		func(p *procedureDescriptor) { p.name = "levenshtein" },
 		func(p *procedureDescriptor) {
-			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{version: "1.2"}}
+			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
 		},
 		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 	} {
@@ -172,7 +172,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
-	consumer := &relationDescriptor{address: address, Defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
+	consumer := &relationDescriptor{address: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
 	next.setDescriptor(address, consumer)
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
@@ -180,7 +180,7 @@ func TestLevenshteinRemap(t *testing.T) {
 	}
 	view := e.catalog.read(next)
 	relocated := next.MustRelation(address)
-	for _, node := range []expr.Expr{relocated.Defaults[1].expression, relocated.Generations[2].expression, relocated.Generations[2].planned} {
+	for _, node := range []expr.Expr{relocated.Defaults[1].Expression, relocated.Generations[2].Expression, relocated.Generations[2].Planned} {
 		n := node.(installedLevenshteinFunctionExpression)
 		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) {
 			t.Fatal("stale remapped authority", n.ref)

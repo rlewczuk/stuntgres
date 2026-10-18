@@ -23,7 +23,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.ordered AS integer CONSTRAINT z_last CHECK (VALUE>0) CONSTRAINT a_first CHECK (VALUE>10)"))
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "ordered")
-	if len(d.DomainChecks) != 2 || d.DomainChecks[0].Name != "a_first" || d.DomainChecks[0].ordinal != 1 || d.DomainChecks[1].Name != "z_last" || d.DomainChecks[1].ordinal != 0 || !d.SQLType.HasDomainChecks() {
+	if len(d.DomainChecks) != 2 || d.DomainChecks[0].Name != "a_first" || d.DomainChecks[0].Ordinal != 1 || d.DomainChecks[1].Name != "z_last" || d.DomainChecks[1].Ordinal != 0 || !d.SQLType.HasDomainChecks() {
 		t.Fatal("lost own order/identity", d.DomainChecks)
 	}
 	if before.state == view.state || len(before.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.Name()})) != 0 {
@@ -36,10 +36,10 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, check := range d.DomainChecks {
-		if check.expression.Properties().RowDependent || !check.expression.Properties().DomainDependent {
-			t.Fatal("VALUE is not conversion-dependent", check.expression.Properties())
+		if check.Expression.Properties().RowDependent || !check.Expression.Properties().DomainDependent {
+			t.Fatal("VALUE is not conversion-dependent", check.Expression.Properties())
 		}
-		walkBoundExpression(check.expression, func(node expr.Expr) {
+		walkBoundExpression(check.Expression, func(node expr.Expr) {
 			if _, value := node.(domainValueExpression); value && node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base usage")
 			}
@@ -222,7 +222,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if err := validateDomainCheckDefinitions(view, child); err != nil {
 		t.Fatal(err)
 	}
-	walkBoundExpression(child.DomainChecks[0].expression, func(node expr.Expr) {
+	walkBoundExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {
 		if _, value := node.(domainValueExpression); value && node.ResultUsage().Type != d.SQLType {
 			t.Fatal("VALUE retained old base generation")
 		}

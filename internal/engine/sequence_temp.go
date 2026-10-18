@@ -65,7 +65,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
-		return e.catalog.domain.Ref(e.catalog.state.epoch, a), nil
+		return e.catalog.Domain.Ref(e.catalog.state.epoch, a), nil
 	}
 	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
 	if err != nil {
@@ -101,7 +101,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	e.catalogChangeLocked(c, ns.address, ns)
 	e.catalogChangeLocked(c, toast.address, toast)
-	return e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), nil
+	return e.catalog.Domain.Ref(e.catalog.state.epoch, ns.address), nil
 }
 
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
@@ -178,7 +178,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
 		for _, a := range targets {
-			if err = stage.Remove(e.catalog.domain.Ref(base.Epoch(), a)); err != nil {
+			if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				break
 			}
 		}
@@ -230,7 +230,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.parent]) {
+		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.parent] || !index.SQLIndex.ready {
+		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}
 		result.previous[address] = e.indexRoots[address]
@@ -385,7 +385,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 			if !ok || index.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			shape, ok := stage.rowShapes[index.SQLIndex.parent]
+			shape, ok := stage.rowShapes[index.SQLIndex.Parent]
 			candidate, produced := changes.indexCandidates[address]
 			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced

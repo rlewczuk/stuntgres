@@ -115,8 +115,8 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}
 	d.RelationKind = foreignRelation
-	d.Foreign = &foreignTableDefinition{server: server.address, columns: make(map[int32][]ForeignOption)}
-	d.Foreign.options, err = transformForeignOptions(nil, s.Options)
+	d.Foreign = &foreignTableDefinition{Server: server.address, Columns: make(map[int32][]ForeignOption)}
+	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,7 +125,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
 	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := foreignValidatorJob(stage, wrapper, ForeignTable, d.Foreign.options)
+	job, err := foreignValidatorJob(stage, wrapper, ForeignTable, d.Foreign.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,7 +136,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		if er != nil {
 			return nil, nil, er
 		}
-		d.Foreign.columns[attribute] = options
+		d.Foreign.Columns[attribute] = options
 		job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
 		if er != nil {
 			return nil, nil, er
@@ -198,7 +198,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			return e.alterSchemaLocked(scope, scope.op, auth, inner, 0)
 		}
 	}
-	server, ok := auth.catalog.Foreign(old.Foreign.server)
+	server, ok := auth.catalog.Foreign(old.Foreign.Server)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
@@ -215,7 +215,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	defer e.DiscardCatalogStage(stage)
 	next := *old
 	foreign := *old.Foreign
-	foreign.columns = maps.Clone(old.Foreign.columns)
+	foreign.Columns = maps.Clone(old.Foreign.Columns)
 	next.Foreign = &foreign
 	var jobs []foreignValidation
 	var pendingChecks []alterTypeCheck
@@ -243,7 +243,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			}
 			if action.Options != nil {
 				kind := ForeignTable
-				options := next.Foreign.options
+				options := next.Foreign.Options
 				var attribute int32
 				if action.Column.Text != "" {
 					slot, ok := next.Index[action.Column.Text]
@@ -251,7 +251,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, next.name))
 					}
 					attribute = next.Attributes[slot]
-					options = next.Foreign.columns[attribute]
+					options = next.Foreign.Columns[attribute]
 					kind = ForeignAttribute
 				}
 				options, err = transformForeignOptions(options, action.Options)
@@ -259,9 +259,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					return Result{}, err
 				}
 				if attribute == 0 {
-					next.Foreign.options = options
+					next.Foreign.Options = options
 				} else {
-					next.Foreign.columns[attribute] = options
+					next.Foreign.Columns[attribute] = options
 				}
 				job, er := foreignValidatorJob(stage, wrapper, kind, options)
 				if er != nil {
@@ -337,7 +337,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 							return Result{}, er
 						}
 						attribute := candidate.Attributes[candidate.Index[a.Column.Text]]
-						candidate.Foreign.columns[attribute] = options
+						candidate.Foreign.Columns[attribute] = options
 						job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
 						if er != nil {
 							return Result{}, er

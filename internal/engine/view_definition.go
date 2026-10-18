@@ -49,7 +49,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
 		if _, exists := auth.catalog.Find(constant.ref.Address); exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: constant.ref, revision: constant.stamp})
+			definition.dependencies = append(definition.dependencies, expressionDependency{Ref: constant.ref, Revision: constant.stamp})
 		}
 	}
 	for _, constant := range b.regtypeConstants {
@@ -62,7 +62,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 				return nil, err
 			}
 			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.Get(ref.Address).Revision()})
+				definition.dependencies = append(definition.dependencies, expressionDependency{Ref: ref, Revision: auth.catalog.Get(ref.Address).Revision()})
 			}
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.id)}
@@ -70,7 +70,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := auth.catalog.Find(address); exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})
+			definition.dependencies = append(definition.dependencies, expressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: d.Revision()})
 		}
 	}
 	definition.sources = make([]viewLeaf, len(b.querySources))
@@ -98,7 +98,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			capture(leaf.ref)
 		}
 		for _, dependency := range definition.dependencies {
-			capture(dependency.ref)
+			capture(dependency.Ref)
 		}
 	}
 	return definition, nil

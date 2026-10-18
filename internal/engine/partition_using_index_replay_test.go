@@ -15,11 +15,11 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	parent := partitionAttachUnitRoot(t, e, "using_replay_parent", 46800)
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
 	child.RelationKind = tableRelation
-	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.Partition.children = []ids.ObjectAddress{child.address}
-	parent.Partition.defaultChild = child.address
+	child.Membership = &partitionMembership{Parent: parent.address, DefaultBound: true}
+	parent.Partition.Children = []ids.ObjectAddress{child.address}
+	parent.Partition.DefaultChild = child.address
 	class, _ := sqltype.DefaultIndexClass(child.Columns[0].Usage.Type)
-	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, Owner: child.Owner, RelationKind: indexRelation, Columns: slices.Clone(child.Columns), Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{parent: child.address, method: btreeMethod, keys: []indexKey{{attribute: 1, class: class}}, unique: true, ready: true, valid: true, live: true}}
+	index := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, namespace: child.namespace, name: "using_replay_local", revision: 1, Owner: child.Owner, RelationKind: indexRelation, Columns: slices.Clone(child.Columns), Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &indexDefinition{Parent: child.address, Method: btreeMethod, Keys: []indexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}}
 	index.Columns[0].OriginTable = uint32(index.address.ObjectID)
 	index.Columns[0].OriginAttribute = 1
 	child.HasIndexes = true

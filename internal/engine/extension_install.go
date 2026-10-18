@@ -12,23 +12,23 @@ import (
 
 // extensionControl is a registered extension's control-file metadata.
 type extensionControl struct {
-	version                         string
-	trusted, superuser, relocatable bool
-	comment, schema                 *string
-	requires                        []string
+	Version                         string
+	Trusted, Superuser, Relocatable bool
+	Comment, Schema                 *string
+	Requires                        []string
 }
 
 // detached returns a copy that shares no storage with c.
 func (c extensionControl) detached() extensionControl {
-	if c.comment != nil {
-		value := *c.comment
-		c.comment = &value
+	if c.Comment != nil {
+		value := *c.Comment
+		c.Comment = &value
 	}
-	if c.schema != nil {
-		value := *c.schema
-		c.schema = &value
+	if c.Schema != nil {
+		value := *c.Schema
+		c.Schema = &value
 	}
-	c.requires = append([]string(nil), c.requires...)
+	c.Requires = append([]string(nil), c.Requires...)
 	return c
 }
 
@@ -57,16 +57,16 @@ func (e *Engine) registerExtension(name string, implementation extensionInstalle
 	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
-	if name == "" || implementation == nil || implementation.Control().version == "" {
+	if name == "" || implementation == nil || implementation.Control().Version == "" {
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
-	if e.catalog.extensions == nil {
-		e.catalog.extensions = make(map[string]extensionImplementation)
+	if e.catalog.Extensions == nil {
+		e.catalog.Extensions = make(map[string]extensionImplementation)
 	}
-	if _, exists := e.catalog.extensions[name]; exists {
+	if _, exists := e.catalog.Extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
 	}
-	e.catalog.extensions[name] = implementation
+	e.catalog.Extensions[name] = implementation
 	return nil
 }
 
@@ -113,13 +113,13 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
-	implementation, ok := e.catalog.extensions[s.Name.Text]
+	implementation, ok := e.catalog.Extensions[s.Name.Text]
 	installer, installable := implementation.(extensionInstaller)
 	if !ok || !installable {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
 	}
 	registration := implementation.Control()
-	version := registration.version
+	version := registration.Version
 	var schema *parser.Identifier
 	seen := map[string]bool{}
 	for _, option := range s.Options {
@@ -151,7 +151,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if detail != "" {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension version name: "%s"`, version), Detail: detail}
 	}
-	if version != registration.version {
+	if version != registration.Version {
 		return nil, sqlError("22023", fmt.Sprintf(`extension "%s" has no installation script nor update path for version "%s"`, s.Name.Text, version))
 	}
 	var namespace ids.ObjectAddress
@@ -175,10 +175,10 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, err
 	}
 	if !actor.Superuser && !op.restoreTableDestination {
-		if !registration.trusted {
+		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +187,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 	}
 	memberOwner := actor.Ref
-	if registration.superuser && !actor.Superuser {
+	if registration.Superuser && !actor.Superuser {
 		memberOwner = e.authorizationDomain.Principal(10)
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -259,7 +259,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	auth.catalog = e.stageRead(stage)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = owner
-	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ext.TargetNamespace)); err != nil {
+	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ext.TargetNamespace)); err != nil {
 		return err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The

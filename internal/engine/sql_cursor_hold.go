@@ -99,11 +99,11 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	}
 	if err == nil {
 		for _, dependency := range c.routineDependencies {
-			switch dependency.ref.Address.ClassID {
+			switch dependency.Ref.Address.ClassID {
 			case ids.ProcedureClassID, ids.TypeClassID:
 				// These are the original callable and typed binding lifetimes.
 			case ids.RelationClassID:
-				original, _ := c.routineAuth.catalog.Relation(dependency.ref.Address)
+				original, _ := c.routineAuth.catalog.Relation(dependency.Ref.Address)
 				if original == nil || original.View == nil {
 					// Base source shape/storage is fenced by the existing query
 					// source guards, not unrelated metadata revision equality.
@@ -113,11 +113,11 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 				continue
 			}
 			var descriptor Descriptor
-			descriptor, err = auth.object(dependency.ref)
+			descriptor, err = auth.object(dependency.Ref)
 			if err != nil {
 				break
 			}
-			if descriptor.Revision() != dependency.revision {
+			if descriptor.Revision() != dependency.Revision {
 				err = CatalogConflict{}
 				break
 			}

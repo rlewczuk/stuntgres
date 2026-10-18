@@ -9,12 +9,12 @@ import (
 // The actual installed aggregate owns these lookup-only aliases. They are not
 // descriptors, extension members, executable functions, or pg_proc SQL rows.
 type ownedAggregate struct {
-	definition aggregateDefinition
-	helpers    [2]routineIdentity
+	Definition aggregateDefinition
+	Helpers    [2]routineIdentity
 }
 
 func intaggDefinition(function, transition, final ids.OID) aggregateDefinition {
-	return aggregateDefinition{function: function, kind: "n", functions: [8]ids.OID{transition, final}, finalModify: "r", movingFinalModify: "r", transitionType: 2281}
+	return aggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
 }
 
 // A helper's dependencies are dependencies on this real aggregate descriptor,
@@ -25,8 +25,8 @@ func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
 	}
 	for _, d := range view.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
-			for _, helper := range p.Aggregate.helpers {
-				if helper.id == id {
+			for _, helper := range p.Aggregate.Helpers {
+				if helper.ID == id {
 					return p
 				}
 			}
@@ -44,33 +44,33 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 		return nil
 	}
 	owned := proc.Aggregate
-	if owned == nil || owned.definition != intaggDefinition(proc.address.ObjectID, owned.helpers[0].id, owned.helpers[1].id) {
+	if owned == nil || owned.Definition != intaggDefinition(proc.address.ObjectID, owned.Helpers[0].ID, owned.Helpers[1].ID) {
 		return invalid()
 	}
-	for i, helper := range owned.helpers {
+	for i, helper := range owned.Helpers {
 		name, signature := "int_agg_state", procedureSignature("2281,23")
 		if i == 1 {
 			name, signature = "int_agg_final_array", "2281"
 		}
-		if helper.id == 0 || helper.id == owned.helpers[1-i].id || helper.namespace != proc.namespace.ObjectID || helper.name != name || helper.signature != signature {
+		if helper.ID == 0 || helper.ID == owned.Helpers[1-i].ID || helper.Namespace != proc.namespace.ObjectID || helper.Name != name || helper.Signature != signature {
 			return invalid()
 		}
-		if _, builtin := routineByOID[helper.id]; builtin {
+		if _, builtin := routineByOID[helper.ID]; builtin {
 			return invalid()
 		}
 		for address, d := range view.Descriptors() {
-			if address.ObjectID == helper.id {
+			if address.ObjectID == helper.ID {
 				return invalid()
 			}
 			if other, ok := d.(*procedureDescriptor); ok && other != proc && other.Aggregate != nil {
-				for _, alias := range other.Aggregate.helpers {
-					if alias.id == helper.id || alias.namespace == helper.namespace && alias.name == helper.name && alias.signature == helper.signature {
+				for _, alias := range other.Aggregate.Helpers {
+					if alias.ID == helper.ID || alias.Namespace == helper.Namespace && alias.Name == helper.Name && alias.Signature == helper.Signature {
 						return invalid()
 					}
 				}
 			}
 		}
-		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.namespace, Name: helper.name, Signature: string(helper.signature)}) != (ids.ObjectAddress{}) {
+		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.namespace, Name: helper.Name, Signature: string(helper.Signature)}) != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}
@@ -82,15 +82,15 @@ func remapOwnedAggregate(owned *ownedAggregate, owner, namespace ids.ObjectAddre
 		return nil
 	}
 	n := *owned
-	n.definition.function = owner.ObjectID
-	for i, helper := range owned.helpers {
-		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}]; ok {
-			helper.id = destination.ObjectID
+	n.Definition.Function = owner.ObjectID
+	for i, helper := range owned.Helpers {
+		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}]; ok {
+			helper.ID = destination.ObjectID
 		}
-		helper.namespace = namespace.ObjectID
-		n.helpers[i] = helper
+		helper.Namespace = namespace.ObjectID
+		n.Helpers[i] = helper
 	}
-	n.definition.functions[0], n.definition.functions[1] = n.helpers[0].id, n.helpers[1].id
+	n.Definition.Functions[0], n.Definition.Functions[1] = n.Helpers[0].ID, n.Helpers[1].ID
 	if n == *owned {
 		return owned
 	}

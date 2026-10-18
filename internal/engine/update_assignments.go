@@ -79,7 +79,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			b.targets = append(b.targets, slot)
 			continue
 		}
-		if identity, ok := b.relation.Identities[b.relation.Attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
+		if identity, ok := b.relation.Identities[b.relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
 			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""

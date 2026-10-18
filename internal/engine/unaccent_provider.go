@@ -12,4 +12,4 @@ type unaccentProvider struct {
 // Control implements extensionImplementation.
 func (p *unaccentProvider) Control() extensionControl { return p.control.detached() }
 
-var stockUnaccent = &unaccentProvider{control: extensionControl{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: new("text search dictionary that removes accents")}, matcher: functions.StockUnaccent}
+var stockUnaccent = &unaccentProvider{control: extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("text search dictionary that removes accents")}, matcher: functions.StockUnaccent}

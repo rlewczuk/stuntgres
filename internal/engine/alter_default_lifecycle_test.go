@@ -101,14 +101,14 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()
@@ -142,7 +142,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				t.Fatal("stale DROP published")
 			}
 			current := e.catalog.state.MustRelation(ref.Address)
-			if current.Defaults[current.Attributes[0]].expression != old.Defaults[old.Attributes[0]].expression || e.storage[ref.Address] != storage {
+			if current.Defaults[current.Attributes[0]].Expression != old.Defaults[old.Attributes[0]].Expression || e.storage[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

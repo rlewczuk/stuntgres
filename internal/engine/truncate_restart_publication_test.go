@@ -221,16 +221,16 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			scope := truncateRestartUnitStage(t, e, s, "p")
 			oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
 			if change == "Incoming" {
-				owned := e.catalog.state.MustRelation(ps.Address).Sequence.owned
-				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.Sequence; options.owned = owned; d.Sequence = &options })
+				owned := e.catalog.state.MustRelation(ps.Address).Sequence.Owned
+				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.Sequence; options.Owned = owned; d.Sequence = &options })
 			} else {
 				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) {
 					options := *d.Sequence
 					if change == "Removed" {
-						options.owned = ids.ObjectAddress{}
+						options.Owned = ids.ObjectAddress{}
 					} else {
-						options.owned = q.Address
-						options.owned.SubID = 1
+						options.Owned = q.Address
+						options.Owned.SubID = 1
 					}
 					d.Sequence = &options
 				})

@@ -266,13 +266,13 @@ func (e indexPropertyExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 		if e.kind == wholeIndexProperty {
-			switch relation.SQLIndex.method {
+			switch relation.SQLIndex.Method {
 			case btreeMethod, hashMethod, gistMethod:
 				switch property {
 				case "clusterable":
-					result, known = relation.SQLIndex.method != hashMethod, true
+					result, known = relation.SQLIndex.Method != hashMethod, true
 				case "backward_scan":
-					result, known = relation.SQLIndex.method != gistMethod, true
+					result, known = relation.SQLIndex.Method != gistMethod, true
 				case "index_scan", "bitmap_scan":
 					result, known = true, true
 				}
@@ -337,11 +337,11 @@ func indexAMProperty(oid uint32, property string) (bool, bool) {
 }
 
 func indexColumnCapability(index *indexDefinition, ordinal int64, property string) (bool, bool) {
-	if ordinal <= 0 || ordinal > int64(len(index.keys)+len(index.include)) {
+	if ordinal <= 0 || ordinal > int64(len(index.Keys)+len(index.Include)) {
 		return false, false
 	}
-	if index.method == gistMethod {
-		key := ordinal <= int64(len(index.keys))
+	if index.Method == gistMethod {
+		key := ordinal <= int64(len(index.Keys))
 		switch property {
 		case "orderable":
 			return false, true
@@ -355,7 +355,7 @@ func indexColumnCapability(index *indexDefinition, ordinal int64, property strin
 				// before the generic nonkey-column fallback can run.
 				return false, false
 			}
-			switch index.keys[ordinal-1].class.OID() {
+			switch index.Keys[ordinal-1].Class.OID() {
 			case 10017, 10078: // inet_ops has fetch; range_ops has no compress.
 				// Neither admitted class supplies distance ordering.
 				return property == "returnable", true
@@ -363,7 +363,7 @@ func indexColumnCapability(index *indexDefinition, ordinal int64, property strin
 		}
 		return false, false
 	}
-	if index.method == hashMethod {
+	if index.Method == hashMethod {
 		switch property {
 		case "asc", "desc", "nulls_first", "nulls_last", "orderable", "distance_orderable", "returnable", "search_array", "search_nulls":
 			return false, true
@@ -371,7 +371,7 @@ func indexColumnCapability(index *indexDefinition, ordinal int64, property strin
 			return false, false
 		}
 	}
-	key := ordinal <= int64(len(index.keys))
+	key := ordinal <= int64(len(index.Keys))
 	switch property {
 	case "orderable":
 		return key, true
@@ -385,16 +385,16 @@ func indexColumnCapability(index *indexDefinition, ordinal int64, property strin
 	if !key {
 		return false, false
 	}
-	definition := index.keys[ordinal-1]
+	definition := index.Keys[ordinal-1]
 	switch property {
 	case "asc":
-		return !definition.desc, true
+		return !definition.Desc, true
 	case "desc":
-		return definition.desc, true
+		return definition.Desc, true
 	case "nulls_first":
-		return definition.nullsFirst, true
+		return definition.NullsFirst, true
 	case "nulls_last":
-		return !definition.nullsFirst, true
+		return !definition.NullsFirst, true
 	}
 	return false, false
 }

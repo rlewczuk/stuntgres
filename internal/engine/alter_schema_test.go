@@ -30,7 +30,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	for _, subID := range []int32{0, table.Attributes[0]} {
 		address := tableAddress
 		address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
+		if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, address), acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -105,10 +105,10 @@ func TestAlterSchemaPublicationFences(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.catalog.providers[ids.RelationClassID]
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.catalog.Providers[ids.RelationClassID]
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.catalog.providers[ids.RelationClassID] = provider
+					e.catalog.Providers[ids.RelationClassID] = provider
 					switch kind {
 					case "table_collision":
 						run(t, e, "CREATE TABLE s2.t(id INT)")

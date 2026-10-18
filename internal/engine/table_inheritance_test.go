@@ -33,7 +33,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "b", "a")
 	parent.Attributes = []int32{2, 7}
 	child := inheritanceUnitRelation(e, "c", 22001, "a", "b", "local")
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.address)
 	ref.Address.SubID = 7
 	node := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: ref, scope: 1, frame: 1, slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
@@ -65,8 +65,8 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	p.Defaults = map[int32]columnDefault{1: {OID: 23002, expression: literal}}
-	q.Defaults = map[int32]columnDefault{2: {OID: 23003, expression: literal}}
+	p.Defaults = map[int32]columnDefault{1: {OID: 23002, Expression: literal}}
+	q.Defaults = map[int32]columnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
@@ -80,10 +80,10 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
 		t.Fatal(err)
 	}
-	if len(child.NotNullConstraints) != 1 || child.NotNullConstraints[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.notNull[1].origins) != 2 || child.Inheritance.notNull[1].local || child.Inheritance.columns[1].local || !child.Inheritance.columns[3].local {
+	if len(child.NotNullConstraints) != 1 || child.NotNullConstraints[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.Inheritance.parents, []ids.ObjectAddress{p.address, q.address}) || !sameGroupExpression(child.Defaults[1].expression, literal) || child.Defaults[1].OID != 0 || p.Defaults[1].OID != 23002 {
+	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.address, q.address}) || !sameGroupExpression(child.Defaults[1].Expression, literal) || child.Defaults[1].OID != 0 || p.Defaults[1].OID != 23002 {
 		t.Fatal(child.Defaults, p.Defaults)
 	}
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
@@ -101,7 +101,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 	e := New()
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
-	c.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{1: {origins: []inheritanceOrigin{{parent: p.address, attribute: 1}}}}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{1: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 1}}}}}
 	if err := validateInheritance(inheritanceUnitView(e, p, c), c); err != nil {
 		t.Fatal(err)
 	}
@@ -111,19 +111,19 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			child := *c
 			graph := *c.Inheritance
 			child.Inheritance = &graph
-			graph.parents = append([]ids.ObjectAddress(nil), graph.parents...)
-			graph.columns = map[int32]inheritedColumn{1: c.Inheritance.columns[1]}
+			graph.Parents = append([]ids.ObjectAddress(nil), graph.Parents...)
+			graph.Columns = map[int32]inheritedColumn{1: c.Inheritance.Columns[1]}
 			switch kind {
 			case "dangling":
-				graph.parents[0].ObjectID++
+				graph.Parents[0].ObjectID++
 			case "duplicate":
-				graph.parents = append(graph.parents, p.address)
+				graph.Parents = append(graph.Parents, p.address)
 			case "attribute":
-				graph.columns[1] = inheritedColumn{origins: []inheritanceOrigin{{parent: p.address, attribute: 0}}}
+				graph.Columns[1] = inheritedColumn{Origins: []inheritanceOrigin{{Parent: p.address, Attribute: 0}}}
 			case "cycle":
-				parent.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{c.address}}
+				parent.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{c.address}}
 			case "locality":
-				graph.columns[1] = inheritedColumn{}
+				graph.Columns[1] = inheritedColumn{}
 			case "type":
 				parent.Columns = append([]ColumnDescriptor(nil), p.Columns...)
 				parent.Columns[0].Usage = testUsage(e, sqltype.Int8)
@@ -133,7 +133,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			}
 		})
 	}
-	if p.Inheritance != nil || c.Inheritance.parents[0] != p.address {
+	if p.Inheritance != nil || c.Inheritance.Parents[0] != p.address {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -143,9 +143,9 @@ func TestInheritanceGraphDiamondChildren(t *testing.T) {
 	left := inheritanceUnitRelation(e, "left", 22001)
 	right := inheritanceUnitRelation(e, "right", 22002)
 	leaf := inheritanceUnitRelation(e, "leaf", 22003)
-	left.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
-	right.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{base.address}}
-	leaf.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{left.address, right.address, base.address}}
+	left.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{base.address}}
+	right.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{base.address}}
+	leaf.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{left.address, right.address, base.address}}
 	v := inheritanceUnitView(e, base, left, right, leaf)
 	got := inheritanceChildren(v, base.address)
 	if len(got) != 3 || got[0] != left || got[1] != right || got[2] != leaf || len(inheritanceChildren(v, leaf.address)) != 0 {
@@ -168,8 +168,8 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Defaults = map[int32]columnDefault{1: {OID: 23000, expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
-	q.Defaults = map[int32]columnDefault{1: {OID: 23001, expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
+	p.Defaults = map[int32]columnDefault{1: {OID: 23000, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
+	q.Defaults = map[int32]columnDefault{1: {OID: 23001, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -194,7 +194,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 			}
 			continue
 		}
-		if err != nil || len(child.Defaults) != 0 || !child.Inheritance.columns[1].explicitDefault || !child.Inheritance.columns[1].local {
+		if err != nil || len(child.Defaults) != 0 || !child.Inheritance.Columns[1].ExplicitDefault || !child.Inheritance.Columns[1].Local {
 			t.Fatal(child, err)
 		}
 	}
@@ -248,7 +248,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	e := New()
 	d := inheritanceUnitRelation(e, "retained", 22000, "a")
 	v := e.CatalogRead()
-	oldRef := e.catalog.domain.Ref(v.Epoch(), d.address)
+	oldRef := e.catalog.Domain.Ref(v.Epoch(), d.address)
 	oldRef.Address.SubID = 1
 	old := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
 	state := cloneCatalog(v.state)
@@ -283,7 +283,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	parent.Generations = map[int32]columnGeneration{1: {kind: generationStored, expression: expression, planned: expression}}
+	parent.Generations = map[int32]columnGeneration{1: {Kind: generationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -300,11 +300,11 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
 			t.Fatal(err)
 		}
-		provenance := child.Inheritance.columns[1]
-		if !provenance.local || provenance.explicitGeneration != explicit {
+		provenance := child.Inheritance.Columns[1]
+		if !provenance.Local || provenance.ExplicitGeneration != explicit {
 			t.Fatal("generation declaration provenance", provenance, explicit)
 		}
-		if !explicit && !sameGroupExpression(child.Generations[1].expression, expression) {
+		if !explicit && !sameGroupExpression(child.Generations[1].Expression, expression) {
 			t.Fatal("plain local declaration lost inherited generation")
 		}
 	}

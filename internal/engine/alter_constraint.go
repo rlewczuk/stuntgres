@@ -29,8 +29,8 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	next.Inheritance = cloneInheritance(parent.Inheritance)
 	ordinal := 0
 	for _, c := range parent.CheckConstraints {
-		if c.ordinal >= ordinal {
-			ordinal = c.ordinal + 1
+		if c.Ordinal >= ordinal {
+			ordinal = c.Ordinal + 1
 		}
 	}
 	var inherited map[string]checkConstraint
@@ -42,8 +42,8 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 				}
 				merge := scope.inheritanceAlter.descendant
 				if parent.Inheritance != nil {
-					provenance := parent.Inheritance.checks[c.Name]
-					merge = merge || !provenance.local && provenance.count() != 0
+					provenance := parent.Inheritance.Checks[c.Name]
+					merge = merge || !provenance.Local && provenance.count() != 0
 				}
 				if !merge {
 					continue
@@ -69,24 +69,24 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 			if !slices.ContainsFunc(raw, func(declaration *parser.CheckConstraint) bool { return declaration.Name.Text == check.Name }) {
 				continue
 			}
-			provenance := next.Inheritance.checks[check.Name]
-			before := parent.Inheritance.checks[check.Name]
+			provenance := next.Inheritance.Checks[check.Name]
+			before := parent.Inheritance.Checks[check.Name]
 			retained := slices.ContainsFunc(parent.CheckConstraints, func(old checkConstraint) bool { return old.Name == check.Name })
-			provenance.local = retained && before.local
-			next.Inheritance.checks[check.Name] = provenance
+			provenance.Local = retained && before.Local
+			next.Inheritance.Checks[check.Name] = provenance
 		}
 	}
 	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant && next.Inheritance != nil && len(inherited) != 0 {
 		graph := cloneInheritance(next.Inheritance)
 		for name := range inherited {
-			provenance := graph.checks[name]
-			provenance.local = true
-			graph.checks[name] = provenance
+			provenance := graph.Checks[name]
+			provenance.Local = true
+			graph.Checks[name] = provenance
 		}
 		next.Inheritance = graph
 	}
 	for _, c := range orderedChecks(&next) {
-		if c.ordinal >= ordinal && !c.NotValid {
+		if c.Ordinal >= ordinal && !c.NotValid {
 			prepared.scans = append(prepared.scans, c)
 		}
 	}

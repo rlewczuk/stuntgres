@@ -53,9 +53,9 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					found = true
-					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.catalog.domain {
+					if dependency.Revision != captured.revision || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}
@@ -69,7 +69,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			missing := make([]expressionDependency, 0, len(original))
 			for _, dependency := range original {
-				if dependency.ref.Address != address {
+				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
@@ -83,11 +83,11 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, epoch := range []bool{false, true} {
 				stale := append([]expressionDependency(nil), original...)
 				for i := range stale {
-					if stale[i].ref.Address == address {
+					if stale[i].Ref.Address == address {
 						if epoch {
-							stale[i].ref.Epoch++
+							stale[i].Ref.Epoch++
 						} else {
-							stale[i].revision++
+							stale[i].Revision++
 						}
 					}
 				}

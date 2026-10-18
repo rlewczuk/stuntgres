@@ -287,7 +287,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, b, create)
 		late := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *foreignDescriptor) error {
-			return stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), old.address), false)
+			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.address), false)
 		}); err != nil {
 			t.Fatal(err)
 		}

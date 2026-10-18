@@ -17,16 +17,16 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
-	if !relation.CheckConstraints[0].commentSnapshot {
+	if !relation.CheckConstraints[0].CommentSnapshot {
 		t.Fatal("bound inquiry lost snapshot demand")
 	}
 	badRelation := *relation
 	badRelation.CheckConstraints = append([]checkConstraint(nil), relation.CheckConstraints...)
-	badRelation.CheckConstraints[0].commentSnapshot = false
+	badRelation.CheckConstraints[0].CommentSnapshot = false
 	if err := validateChecks(view, &badRelation, map[string]bool{}); err == nil {
 		t.Fatal("invalid snapshot demand persisted")
 	}
-	inquiry := relation.CheckConstraints[0].expression.(nullTestExpression).child.(commentInquiryExpression)
+	inquiry := relation.CheckConstraints[0].Expression.(nullTestExpression).child.(commentInquiryExpression)
 	intType, ok := view.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("missing int4 type")
@@ -125,7 +125,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
-	inquiry := relation.CheckConstraints[0].expression.(distinctExpression).left
+	inquiry := relation.CheckConstraints[0].Expression.(distinctExpression).left
 	op, err := s.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	query := queryState{source: source, input: scope.input, output: scope.output}
 	evaluation := query.evaluation(ctx)
 	evaluation.routineRecipe = true
-	evaluation.routineChecks = relation.CheckConstraints[0].dependencies
+	evaluation.routineChecks = relation.CheckConstraints[0].Dependencies
 	evaluation.routineConsumer = relation
 	if err := admitRoutineCall(&evaluation, inquiry, true, false); err != nil {
 		t.Fatal(err)

@@ -41,7 +41,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	found := false
 	for _, d := range binder.dependencies {
-		if d.ref == n.ref && d.revision == n.procedure.revision {
+		if d.Ref == n.ref && d.Revision == n.procedure.revision {
 			found = true
 		}
 	}
@@ -216,15 +216,15 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.address != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.domain {
+	if err != nil || captured != n.procedure || captured.address != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
 	routines := 0
 	for _, dep := range original {
-		if dep.ref.Address.ClassID == ids.ProcedureClassID {
+		if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 			routines++
-			if dep.ref != n.ref || dep.revision != captured.revision {
+			if dep.Ref != n.ref || dep.Revision != captured.revision {
 				t.Fatal("invented helper edge or incorrect original manifest", dep)
 			}
 		}
@@ -245,19 +245,19 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			case "empty":
 				deps = []expressionDependency{}
 			case "missing":
-				deps = slices.DeleteFunc(deps, func(d expressionDependency) bool { return d.ref.Address == n.ref.Address })
+				deps = slices.DeleteFunc(deps, func(d expressionDependency) bool { return d.Ref.Address == n.ref.Address })
 			default:
 				for i := range deps {
-					if deps[i].ref.Address != n.ref.Address {
+					if deps[i].Ref.Address != n.ref.Address {
 						continue
 					}
 					switch mode {
 					case "epoch":
-						deps[i].ref.Epoch++
+						deps[i].Ref.Epoch++
 					case "revision":
-						deps[i].revision++
+						deps[i].Revision++
 					case "foreign_ref":
-						deps[i].ref = other.catalog.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
+						deps[i].Ref = other.catalog.Domain.Ref(deps[i].Ref.Epoch, deps[i].Ref.Address)
 					}
 				}
 			}
@@ -270,7 +270,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	for _, mutate := range []func(*procedureDescriptor){
 		func(d *procedureDescriptor) { d.Implementation = nil },
 		func(d *procedureDescriptor) {
-			d.Implementation = &uuidOsspProvider{control: extensionControl{version: "1.1"}}
+			d.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
 		},
 		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 	} {
@@ -340,14 +340,14 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	probe.routineChecks = slices.Clone(original)
 	for i := range probe.routineChecks {
-		probe.routineChecks[i].ref = remap(probe.routineChecks[i].ref)
+		probe.routineChecks[i].Ref = remap(probe.routineChecks[i].Ref)
 	}
 	if err := admitRoutineCall(&probe, relocated, true, false); err != nil {
 		t.Fatal("transferred original authority rejected", err)
 	}
 	foreignView := other.CatalogRead()
 	foreignNode, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
-		ref = other.catalog.domain.Ref(foreignView.Epoch(), ref.Address)
+		ref = other.catalog.Domain.Ref(foreignView.Epoch(), ref.Address)
 		return ref
 	}, nil)
 	if err != nil {
@@ -412,7 +412,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 			t.Fatal(err)
 		}
 		current := auth.catalog.MustProcedure(address)
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)

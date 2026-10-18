@@ -153,7 +153,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			roots := append([]ids.ObjectAddress{ext.address}, ext.Members[:]...)
 			for _, a := range roots {
-				if err := stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), a)); err != nil {
+				if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -174,7 +174,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		defer e.DiscardCatalogStage(stage)
 		roots := append([]ids.ObjectAddress{ext.address}, ext.Members[:]...)
 		for _, a := range roots {
-			if err := stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -241,7 +241,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	for _, roots := range [][]ids.ObjectAddress{{member, ext.address}, {ext.address, member}} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		for _, a := range providerRoots {
-			if err := stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -278,7 +278,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	for _, a := range providerRoots {
-		if err := stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), a)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -411,7 +411,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	imported := target.catalog.state.MustRelation(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}))
 	importedIndex := target.catalog.state.MustRelation(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: index.name}))
 	root := target.indexRoots[importedIndex.address]
-	if importedExt.address == ext.address || !reflect.DeepEqual(imported.AutoExtensions, []ids.ObjectAddress{importedExt.address}) || importedIndex.SQLIndex.parent != imported.address || root == nil || len(root.entries) != 3 || len(target.storage[imported.address].versions) != 3 {
+	if importedExt.address == ext.address || !reflect.DeepEqual(imported.AutoExtensions, []ids.ObjectAddress{importedExt.address}) || importedIndex.SQLIndex.Parent != imported.address || root == nil || len(root.entries) != 3 || len(target.storage[imported.address].versions) != 3 {
 		t.Fatal("genuine displaced import lost provider/x/index/rows")
 	}
 	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage[retained] != retainedStore || e.catalog.state.Get(d.address) != d || e.storage[d.address] != sourceStore || d.AutoExtensions[0] != ext.address {
@@ -425,7 +425,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	defer target.DiscardCatalogStage(stage)
 	roots := append([]ids.ObjectAddress{importedExt.address}, importedExt.Members[:]...)
 	for _, address := range roots {
-		if err := stage.Remove(target.catalog.domain.Ref(stage.base.Epoch(), address)); err != nil {
+		if err := stage.Remove(target.catalog.Domain.Ref(stage.base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}

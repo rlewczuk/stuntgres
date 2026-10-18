@@ -102,8 +102,8 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	definition.unique, definition.nullsNotDistinct = true, stmt.NullsNotDistinct
-	definition.predicate, err = e.bindIndexPredicate(op, input, auth, parent, stmt.Predicate)
+	definition.Unique, definition.NullsNotDistinct = true, stmt.NullsNotDistinct
+	definition.Predicate, err = e.bindIndexPredicate(op, input, auth, parent, stmt.Predicate)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
@@ -157,37 +157,37 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			copy := *index
 			definition := *index.SQLIndex
-			definition.keys = append([]indexKey(nil), definition.keys...)
+			definition.Keys = append([]indexKey(nil), definition.Keys...)
 			copy.SQLIndex = &definition
 			eligible := false
 			switch phase {
 			case "eligible":
 				eligible = true
 			case "nonunique":
-				definition.unique = false
+				definition.Unique = false
 			case "invalid_ready":
-				definition.valid = false
+				definition.Valid = false
 			case "not_ready":
-				definition.ready = false
+				definition.Ready = false
 			case "not_live":
-				definition.live = false
+				definition.Live = false
 			case "partial":
-				definition.predicate = &indexPredicate{}
+				definition.Predicate = &indexPredicate{}
 			case "expression":
-				definition.keys[0].derived = &derivedIndexKey{}
+				definition.Keys[0].Derived = &derivedIndexKey{}
 			case "system_key":
-				definition.keys[0].attribute = -1
+				definition.Keys[0].Attribute = -1
 			case "system_include":
-				definition.include = []int32{-1}
+				definition.Include = []int32{-1}
 			case "empty_keys":
-				definition.keys = nil
+				definition.Keys = nil
 			case "foreign_parent":
-				definition.parent.ObjectID++
+				definition.Parent.ObjectID++
 			case "descending":
-				definition.keys[0].desc = true
+				definition.Keys[0].Desc = true
 				eligible = true
 			case "not_distinct":
-				definition.nullsNotDistinct = true
+				definition.NullsNotDistinct = true
 				eligible = true
 			}
 			if materializedIndexEligible(d, &copy) != eligible {
@@ -406,7 +406,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			defer cancel()
 			fault := errors.New("provider veto")
 			if phase == "provider" {
-				e.catalog.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], e: e, t: t, check: func() error { return fault }}
+				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return fault }}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {

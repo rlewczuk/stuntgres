@@ -48,7 +48,7 @@ func (v *viewDefinition) DependsOn(target ids.ObjectAddress) bool {
 		}
 	}
 	for _, dependency := range v.dependencies {
-		a := dependency.ref.Address
+		a := dependency.Ref.Address
 		if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 			return true
 		}

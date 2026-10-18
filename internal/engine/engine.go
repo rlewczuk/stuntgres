@@ -171,11 +171,11 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
-	e.catalog.principals, e.catalog.aclAuthority = &e.authorizationDomain, &e.aclAuthority
+	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{Domain: &ids.Domain{}, Providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
-	e.locks = lock.New(e.catalog.domain)
+	e.locks = lock.New(e.catalog.Domain)
 	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
@@ -429,7 +429,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, expressionDependency{ref: command.binding.ref, revision: command.binding.relation.revision})
+				b.dependencies = append(b.dependencies, expressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.revision})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
@@ -638,7 +638,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.RelationKind == compositeRelation {
-					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.Type(typeRef.Address)
 					if !ok || sourceType.OwningRelation != source.address || sourceType.SQLType.ID() != source.RowType {
@@ -918,7 +918,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
-	return e.catalog.domain.Ref(view.Epoch(), a), nil
+	return e.catalog.Domain.Ref(view.Epoch(), a), nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

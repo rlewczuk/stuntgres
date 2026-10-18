@@ -9,7 +9,7 @@ import (
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
 func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
-	if view.owner == nil || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
+	if view.owner == nil || ref.Domain() != view.owner.Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
 	if ref.Epoch == view.Epoch() {
@@ -70,7 +70,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
 func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
-	if catalog.owner == nil || ref.Domain() != catalog.owner.domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
+	if catalog.owner == nil || ref.Domain() != catalog.owner.Domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
 		return false
 	}
 	address := ref.Address
@@ -127,7 +127,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 			return false
 		}
 		return ok && old.address == address && old.revision != 0 &&
-			old.Owner.ID() != 0 && old.Owner == catalog.owner.principals.Principal(old.Owner.ID()) &&
+			old.Owner.ID() != 0 && old.Owner == catalog.owner.Principals.Principal(old.Owner.ID()) &&
 			sameRoutineDeclaration(actual, old)
 	}
 	return false
@@ -143,7 +143,7 @@ func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, r
 
 func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, token ids.SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
-		return ref.Domain() == view.owner.domain
+		return ref.Domain() == view.owner.Domain
 	}
 	if !storedReferenceEpochValid(view, consumer, ref) {
 		return false
@@ -152,7 +152,7 @@ func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, re
 }
 
 func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.SessionToken) bool {
-	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
+	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
 		return false
 	}
 	sequence, ok := view.Relation(ref.Address)
@@ -180,8 +180,8 @@ func (r scalarRenderer) recordStoredType(view CatalogRead, ref ids.ObjectRef) {
 		}
 	}
 	for _, old := range r.capturedChecks {
-		if old.ref.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old.ref) {
-			r.record(old.ref)
+		if old.Ref.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old.Ref) {
+			r.record(old.Ref)
 			return
 		}
 	}
@@ -215,8 +215,8 @@ func (r scalarRenderer) recordStoredCollation(view CatalogRead, ref ids.ObjectRe
 		}
 	}
 	for _, old := range r.capturedChecks {
-		if old.ref.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old.ref, capability) {
-			r.record(old.ref)
+		if old.Ref.Address == ref.Address && storedCollationReferenceValid(view, r.retainedConsumer(), old.Ref, capability) {
+			r.record(old.Ref)
 			return
 		}
 	}

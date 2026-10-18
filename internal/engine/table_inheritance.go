@@ -12,26 +12,26 @@ import (
 
 // Graph addresses are immutable identities, not definition revision pins.
 type inheritanceOrigin struct {
-	parent     ids.ObjectAddress
-	attribute  int32
-	constraint ids.OID
+	Parent     ids.ObjectAddress
+	Attribute  int32
+	Constraint ids.OID
 }
 type inheritedColumn struct {
-	local              bool
-	explicitDefault    bool
-	explicitGeneration bool
-	origins            []inheritanceOrigin
+	Local              bool
+	ExplicitDefault    bool
+	ExplicitGeneration bool
+	Origins            []inheritanceOrigin
 }
 type inheritedConstraint struct {
-	local   bool
-	origins []inheritanceOrigin
-	retired []retiredInheritanceOrigin
+	Local   bool
+	Origins []inheritanceOrigin
+	Retired []retiredInheritanceOrigin
 }
 type tableInheritance struct {
-	parents []ids.ObjectAddress
-	columns map[int32]inheritedColumn
-	checks  map[string]inheritedConstraint
-	notNull map[int32]inheritedConstraint
+	Parents []ids.ObjectAddress
+	Columns map[int32]inheritedColumn
+	Checks  map[string]inheritedConstraint
+	NotNull map[int32]inheritedConstraint
 }
 type createInheritanceInput struct {
 	ref    ids.ObjectRef
@@ -40,7 +40,7 @@ type createInheritanceInput struct {
 
 func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
-		if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, parent) {
+		if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
 			return true
 		}
 	}
@@ -54,7 +54,7 @@ func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDes
 			continue
 		}
 		d, ok := v.Relation(address)
-		if ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, parent) {
+		if ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
 			children = append(children, d)
 		}
 	}
@@ -167,13 +167,13 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 				if generated[c.Name] != isGenerated {
 					return nil, nil, nil, sqlError("42804", fmt.Sprintf(`inherited column "%s" has a generation conflict`, c.Name))
 				}
-				if isGenerated && kinds[c.Name] != definition.kind {
-					return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], definition.kind)
+				if isGenerated && kinds[c.Name] != definition.Kind {
+					return nil, nil, nil, generationInheritanceError(c.Name, kinds[c.Name], definition.Kind)
 				}
 			} else {
 				index[c.Name] = len(merged)
 				generated[c.Name] = isGenerated
-				kinds[c.Name] = definition.kind
+				kinds[c.Name] = definition.Kind
 				c.Nullable = true
 				c.OriginTable = 0
 				c.OriginAttribute = 0
@@ -253,7 +253,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		for i, attribute := range in.source.Attributes {
 			_, specified := in.source.Defaults[attribute]
 			if in.source.Inheritance != nil {
-				specified = specified || in.source.Inheritance.columns[attribute].explicitDefault
+				specified = specified || in.source.Inheritance.Columns[attribute].ExplicitDefault
 			}
 			if specified {
 				resultDeclarations[in.targetSlot(i)].copiedDefault = true

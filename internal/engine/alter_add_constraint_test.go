@@ -75,7 +75,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	}
 	added := next.UniqueConstraints[1]
 	index := stage.descriptors[added.Index].(*relationDescriptor)
-	if index.SQLIndex.parent != next.address || index.SQLIndex.constraint == nil || index.SQLIndex.constraint.OID != added.OID {
+	if index.SQLIndex.Parent != next.address || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != added.OID {
 		t.Fatal("missing reciprocal real index", added, index)
 	}
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
@@ -146,7 +146,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 	if len(candidate.ForeignKeys) != 1 || candidate.ForeignKeys[0].Index != candidate.UniqueConstraints[0].Index {
 		t.Fatal("FK did not bind completed real key", candidate)
 	}
-	foreignKeyHeldMode(t, e, e.catalog.domain.Ref(e.catalog.state.epoch, original.address), 0, scope.ticket, lock.AccessExclusive)
+	foreignKeyHeldMode(t, e, e.catalog.Domain.Ref(e.catalog.state.epoch, original.address), 0, scope.ticket, lock.AccessExclusive)
 	if len(original.ForeignKeys) != 0 || len(original.UniqueConstraints) != 0 {
 		t.Fatal("published before Finish")
 	}
@@ -188,7 +188,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		t.Fatal("ordinary UPDATE acquired historical provenance")
 	}
 	current := scope.stage.rows[child.address][0]
-	rows, err := scope.captureForeignKeyRows(e.catalog.domain.Ref(e.catalog.state.epoch, child.address), ids.ObjectAddress{})
+	rows, err := scope.captureForeignKeyRows(e.catalog.Domain.Ref(e.catalog.state.epoch, child.address), ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}

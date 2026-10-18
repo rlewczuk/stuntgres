@@ -19,7 +19,7 @@ func domainOf(e *Engine) *ids.Domain {
 	if e == nil {
 		return nil
 	}
-	return e.catalog.domain
+	return e.catalog.Domain
 }
 
 // One immutable physical head per logical row, plus immutable end markers.
@@ -131,7 +131,7 @@ type notNullConstraint struct {
 	Attribute      int32
 	NotValid       bool
 	NoInherit      bool
-	partitionLocal bool // Explicit NN declaration merged with an inherited definition.
+	PartitionLocal bool // Explicit NN declaration merged with an inherited definition.
 }
 
 type catalogState struct {
@@ -160,7 +160,7 @@ func (r CatalogRead) Domain() *ids.Domain {
 	if r.owner == nil {
 		return nil
 	}
-	return r.owner.domain
+	return r.owner.Domain
 }
 
 func (r CatalogRead) Epoch() ids.CatalogEpoch {
@@ -264,7 +264,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.Foreign == nil {
 			return fmt.Errorf("stuntgres: missing foreign relation definition")
 		}
-		server, ok := v.Foreign(r.Foreign.server)
+		server, ok := v.Foreign(r.Foreign.Server)
 		if !ok || server.address.ClassID != ids.ForeignServerClassID {
 			return fmt.Errorf("stuntgres: missing foreign server identity")
 		}
@@ -278,7 +278,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid catalog attribute metadata")
 	}
 	for number, history := range r.DroppedAttributes {
-		if number <= 0 || number > r.AttributeHighWater || history.number != number || !history.dropped || history.typeID != 0 || history.notNull || history.hasDefault || history.generated != "" || history.dimensions < 0 || r.indexForAttribute(number) >= 0 {
+		if number <= 0 || number > r.AttributeHighWater || history.Number != number || !history.Dropped || history.TypeID != 0 || history.NotNull || history.HasDefault || history.Generated != "" || history.Dimensions < 0 || r.indexForAttribute(number) >= 0 {
 			return fmt.Errorf("stuntgres: invalid dropped attribute metadata")
 		}
 	}
@@ -345,22 +345,22 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.SequencePlanStamp == 0 || r.Sequence == nil || len(r.Columns) != 3 || r.Columns[0].Name != "last_value" || r.Columns[1].Name != "log_cnt" || r.Columns[2].Name != "is_called" || r.Columns[0].Usage.Type.ID() != sqltype.Int8 || r.Columns[1].Usage.Type.ID() != sqltype.Int8 || r.Columns[2].Usage.Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid sequence descriptor")
 		}
-		if _, _, err := bindSequenceOptions(r.Sequence, sequenceGenerator{last: r.Sequence.start}, nil); err != nil {
+		if _, _, err := bindSequenceOptions(r.Sequence, sequenceGenerator{last: r.Sequence.Start}, nil); err != nil {
 			return err
 		}
-		if r.Sequence.identity && r.Sequence.owned == (ids.ObjectAddress{}) {
+		if r.Sequence.Identity && r.Sequence.Owned == (ids.ObjectAddress{}) {
 			return fmt.Errorf("stuntgres: identity sequence lacks ownership")
 		}
-		if owned := r.Sequence.owned; owned != (ids.ObjectAddress{}) {
+		if owned := r.Sequence.Owned; owned != (ids.ObjectAddress{}) {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.Relation(tableAddress)
 			if !ok || table.RelationKind != tableRelation && table.RelationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.Owner != r.Owner || table.namespace != r.namespace {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
-			if r.Sequence.identity {
+			if r.Sequence.Identity {
 				identity, exists := table.Identities[owned.SubID]
-				if !exists || identity.sequence != r.address {
+				if !exists || identity.Sequence != r.address {
 					return fmt.Errorf("stuntgres: inconsistent identity sequence ownership")
 				}
 			}
@@ -409,7 +409,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 				break
 			}
 		}
-		if slot < 0 || identity.mode != parser.IdentityAlways && identity.mode != parser.IdentityByDefault {
+		if slot < 0 || identity.Mode != parser.IdentityAlways && identity.Mode != parser.IdentityByDefault {
 			return fmt.Errorf("stuntgres: invalid column identity")
 		}
 		column := r.Columns[slot]
@@ -420,10 +420,10 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if _, exists := r.Defaults[attribute]; exists {
 			return fmt.Errorf("stuntgres: identity column has default")
 		}
-		sequence, exists := v.Relation(identity.sequence)
+		sequence, exists := v.Relation(identity.Sequence)
 		owned := r.address
 		owned.SubID = attribute
-		if !exists || sequence.Sequence == nil || !sequence.Sequence.identity || sequence.Sequence.owned != owned || sequence.Owner != r.Owner || sequence.namespace != r.namespace {
+		if !exists || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned || sequence.Owner != r.Owner || sequence.namespace != r.namespace {
 			return fmt.Errorf("stuntgres: invalid column identity sequence")
 		}
 	}
@@ -435,13 +435,13 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 				break
 			}
 		}
-		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.Columns[slot].Usage {
+		if definition.OID == 0 || slot < 0 || definition.Expression == nil || definition.Expression.ResultUsage() != r.Columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid column default destination")
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
-		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
+		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.Dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.Expression)
+		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || structuralNull(definition.Expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
@@ -455,30 +455,30 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		_, hasDefault := r.Defaults[attribute]
 		_, hasIdentity := r.Identities[attribute]
-		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.Columns[slot].Usage || definition.planned == nil || definition.planned.ResultUsage() != r.Columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.planned) {
+		if definition.OID == 0 || slot < 0 || definition.Expression == nil || definition.Expression.ResultUsage() != r.Columns[slot].Usage || definition.Planned == nil || definition.Planned.ResultUsage() != r.Columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.Planned) {
 			return fmt.Errorf("stuntgres: invalid column generation destination")
 		}
-		if definition.kind != generationStored && definition.kind != generationVirtual {
+		if definition.Kind != generationStored && definition.Kind != generationVirtual {
 			return fmt.Errorf("stuntgres: invalid column generation kind")
 		}
-		if definition.kind == generationVirtual {
+		if definition.Kind == generationVirtual {
 			if err := virtualDestination(r.Columns[slot]); err != nil {
 				return err
 			}
-			if err := virtualGenerationSecurity(definition.expression); err != nil {
+			if err := virtualGenerationSecurity(definition.Expression); err != nil {
 				return err
 			}
-			if err := virtualGenerationSecurity(definition.planned); err != nil {
+			if err := virtualGenerationSecurity(definition.Planned); err != nil {
 				return err
 			}
 		}
-		if err := validateGenerationPlan(v, r, definition.planned); err != nil {
+		if err := validateGenerationPlan(v, r, definition.Planned); err != nil {
 			return err
 		}
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{validation: true, owner: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
-		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot {
+		_, err := (scalarRenderer{validation: true, owner: r, capturedManifest: definition.Dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.Expression)
+		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}
 	}
@@ -863,7 +863,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.SQLType.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.OwningRelation).(*relationDescriptor); ok && backing.RelationKind == compositeRelation {
-			if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
+			if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
 				return err
 			}
 		}
@@ -881,7 +881,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.RowType, row.Array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
+				if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
 					return err
 				}
 			}
@@ -1169,7 +1169,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			observed := removal.descriptor
 			d := current.Get(a)
-			if removal.ref.Domain() != e.catalog.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
+			if removal.ref.Domain() != e.catalog.Domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1199,10 +1199,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
-			store := currentStorage[index.SQLIndex.parent]
-			if shape, changed := s.rowShapes[index.SQLIndex.parent]; changed {
+			store := currentStorage[index.SQLIndex.Parent]
+			if shape, changed := s.rowShapes[index.SQLIndex.Parent]; changed {
 				store = shape.replacement
-			} else if initial := s.initialTables[index.SQLIndex.parent]; initial != nil {
+			} else if initial := s.initialTables[index.SQLIndex.Parent]; initial != nil {
 				store = initial
 			}
 			if !candidate.matchesIndex(index, store) {
@@ -1219,7 +1219,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if indexStores == nil {
 				indexStores = make(map[ids.ObjectAddress]*relationStorage)
 			}
-			a := index.SQLIndex.parent
+			a := index.SQLIndex.Parent
 			if indexStores[a] == nil && currentStorage[a] != nil {
 				copy := *currentStorage[a]
 				copy.indexSource = currentStorage[a]
@@ -1307,7 +1307,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if !ok || index.SQLIndex == nil {
 				continue
 			}
-			a := index.SQLIndex.parent
+			a := index.SQLIndex.Parent
 			parent, staged := s.descriptors[a].(*relationDescriptor)
 			if !staged || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation) || current.Get(a) != nil {
 				continue
@@ -1490,7 +1490,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
+			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}

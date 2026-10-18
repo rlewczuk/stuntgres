@@ -171,7 +171,7 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 		}
 	})
 	lockPending(t, command.e, 1)
-	ref := command.e.catalog.domain.Ref(command.auth.catalog.Epoch(), child.address)
+	ref := command.e.catalog.Domain.Ref(command.auth.catalog.Epoch(), child.address)
 	lockState := command.e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
@@ -216,17 +216,17 @@ func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, curr
 		if action == "set_default" {
 			want = 7
 		}
-		value, err := definition.expression.Eval(&EvalContext{Context: context.Background(), catalog: e.CatalogRead()})
+		value, err := definition.Expression.Eval(&EvalContext{Context: context.Background(), catalog: e.CatalogRead()})
 		if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, want)) {
 			t.Fatal("wrong independent physical default value", current.name, value, err)
 		}
 	}
 	if old.Inheritance != nil {
-		before, after := old.Inheritance.columns[old.Attributes[0]], current.Inheritance.columns[current.Attributes[0]]
-		if before.local != after.local || !reflect.DeepEqual(before.origins, after.origins) || !reflect.DeepEqual(old.Inheritance.notNull, current.Inheritance.notNull) {
+		before, after := old.Inheritance.Columns[old.Attributes[0]], current.Inheritance.Columns[current.Attributes[0]]
+		if before.Local != after.Local || !reflect.DeepEqual(before.Origins, after.Origins) || !reflect.DeepEqual(old.Inheritance.NotNull, current.Inheritance.NotNull) {
 			t.Fatal("metadata operation localized or changed live inherited origins", current.name)
 		}
-		if (action == "set_default" || action == "drop_default") && !after.explicitDefault {
+		if (action == "set_default" || action == "drop_default") && !after.ExplicitDefault {
 			t.Fatal("physical recipe authority was not recorded independently of locality", current.name)
 		}
 	}
@@ -266,7 +266,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					if !present {
 						t.Fatal("queued metadata provider exposed a partial default removal", old.name)
 					}
-					value, err := definition.expression.Eval(&EvalContext{Context: context.Background(), catalog: grown})
+					value, err := definition.Expression.Eval(&EvalContext{Context: context.Background(), catalog: grown})
 					if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, 9)) {
 						t.Fatal("queued metadata provider exposed a partial default change", old.name, value, err)
 					}
@@ -286,7 +286,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					t.Fatal("completed metadata utility changed physical row values")
 				}
 				for _, old := range originals {
-					ref := e.catalog.domain.Ref(grown.Epoch(), old.address)
+					ref := e.catalog.Domain.Ref(grown.Epoch(), old.address)
 					if !command.scope.holdsColumnDropGrant(ref) {
 						t.Fatal("actual reconciled target lacks AX admission", old.name)
 					}

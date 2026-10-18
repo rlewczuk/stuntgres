@@ -18,7 +18,7 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgAMUnitFacts(t *testing.T, source *querySource, d *relationDescriptor) [][]any {
@@ -78,7 +78,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 				t.Fatal("column ownership", i, c)
 			}
 			a := d.CatalogAttributes[i]
-			if !a.notNull || a.dimensions != 0 || uint32(a.collation) != collation {
+			if !a.NotNull || a.Dimensions != 0 || uint32(a.Collation) != collation {
 				t.Fatal("attribute facts", i, a)
 			}
 		}

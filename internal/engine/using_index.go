@@ -52,7 +52,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				clone.Columns[i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
 				clone.Columns[i].OriginTable = uint32(id)
 			}
-			for i, attribute := range index.SQLIndex.include {
+			for i, attribute := range index.SQLIndex.Include {
 				clone.Columns[len(attributes)+i].Name = parent.Columns[slices.Index(parent.Attributes, attribute)].Name
 				clone.Columns[len(attributes)+i].OriginTable = uint32(id)
 			}
@@ -66,7 +66,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				}
 			}
 			e.mu.Lock()
-			err = stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), index.address), false)
+			err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), index.address), false)
 			e.mu.Unlock()
 			if err == nil {
 				err = stage.Create(&clone)
@@ -91,23 +91,23 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 		return nil, diagnostic
 	}
 	name := index.name
-	if definition.constraint != nil {
+	if definition.Constraint != nil {
 		return fail("55000", fmt.Sprintf(`index "%s" is already associated with a constraint`, name), false)
 	}
-	if definition.parent != parent.address {
+	if definition.Parent != parent.address {
 		return fail("55000", fmt.Sprintf(`index "%s" does not belong to table "%s"`, name, parent.name), false)
 	}
-	if !definition.valid {
+	if !definition.Valid {
 		return fail("55000", fmt.Sprintf(`index "%s" is not valid`, name), false)
 	}
-	if !definition.unique {
+	if !definition.Unique {
 		return fail("42809", fmt.Sprintf(`"%s" is not a unique index`, name), true)
 	}
-	if len(definition.keys) == 0 || len(definition.keys) > 32 {
+	if len(definition.Keys) == 0 || len(definition.Keys) > 32 {
 		return nil, fmt.Errorf("stuntgres: invalid attachment key count")
 	}
 	var attributes [32]int32
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		attribute, expression, err := indexCatalogKey(parent, key)
 		if err != nil {
 			return nil, err
@@ -117,26 +117,26 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 		}
 		attributes[i] = attribute
 	}
-	if definition.predicate != nil {
+	if definition.Predicate != nil {
 		return fail("42809", fmt.Sprintf(`"%s" is a partial index`, name), true)
 	}
 	// Deferred native UNIQUE is not represented. Associated EXCLUDE indexes have
 	// already failed above; standalone represented indexes are inherently immediate.
-	if definition.method != btreeMethod {
+	if definition.Method != btreeMethod {
 		return fail("42809", fmt.Sprintf(`index "%s" is not a btree`, name), false)
 	}
-	for i, key := range definition.keys {
+	for i, key := range definition.Keys {
 		usage := parent.Columns[slices.Index(parent.Attributes, attributes[i])].Usage
 		class, ok := sqltype.DefaultIndexClass(usage.Type)
 		keyUsage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
-		if !ok || key.class.OID() != class.OID() || !key.class.SameInferenceIdentity(class) || keyUsage.Collation.ID != usage.Collation.ID || key.desc || key.nullsFirst {
+		if !ok || key.Class.OID() != class.OID() || !key.Class.SameInferenceIdentity(class) || keyUsage.Collation.ID != usage.Collation.ID || key.Desc || key.NullsFirst {
 			return fail("42809", fmt.Sprintf(`index "%s" column number %d does not have default sorting behavior`, name, i+1), true)
 		}
 	}
-	for i, attribute := range attributes[:len(definition.keys)] {
+	for i, attribute := range attributes[:len(definition.Keys)] {
 		if slices.Contains(attributes[:i], attribute) {
 			kind := "unique"
 			if raw.Primary {
@@ -145,7 +145,7 @@ func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingI
 			return fail("42701", fmt.Sprintf(`column "%s" appears twice in %s constraint`, parent.Columns[slices.Index(parent.Attributes, attribute)].Name, kind), false)
 		}
 	}
-	return slices.Clone(attributes[:len(definition.keys)]), nil
+	return slices.Clone(attributes[:len(definition.Keys)]), nil
 }
 
 func usingIndexCatalogDuplicate(parent *relationDescriptor, name string) error {
@@ -196,5 +196,5 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 // CREATE's inline UNIQUE/PK surface cannot represent included attributes.
 // Emit the actual backing index and attach it through the selected ALTER path.
 func usingIndexDump(index *relationDescriptor) bool {
-	return index.SQLIndex != nil && index.SQLIndex.constraint != nil && index.SQLIndex.constraint.kind == uniqueBackingKind && len(index.SQLIndex.include) != 0
+	return index.SQLIndex != nil && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Kind == uniqueBackingKind && len(index.SQLIndex.Include) != 0
 }

@@ -43,7 +43,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	}
 	var missing []expressionDependency
 	for _, dependency := range original {
-		if dependency.ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
+		if dependency.Ref.Address != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1374}) {
 			missing = append(missing, dependency)
 		}
 	}
@@ -111,7 +111,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
 		def := table.Defaults[table.Attributes[0]]
 		return []recipe{
-			{consumer: table, node: def.expression, refs: def.dependencies},
+			{consumer: table, node: def.Expression, refs: def.Dependencies},
 			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).expressions[0], checks: viewOf(stored).dependencies},
 		}
 	}
@@ -140,7 +140,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sourceOwner, sourceRevision := sourceCall.Owner, sourceCall.revision
 	target := New()
 	retired := target.CatalogRead()
-	retiredRef := target.catalog.domain.Ref(retired.Epoch(), sourceCall.address)
+	retiredRef := target.catalog.Domain.Ref(retired.Epoch(), sourceCall.address)
 	change, err := target.ReplaceCatalog(ctx, source, before)
 	if err != nil || !change.Replacement {
 		t.Fatal("replace genuine stored catalog", change, err)
@@ -179,7 +179,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
-					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("DEFAULT manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
@@ -192,14 +192,14 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				probe.routineReferences = nil
 				probe.routineChecks = []expressionDependency{}
 				for _, dependency := range item.checks {
-					ref := dependency.ref
-					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
+					ref := dependency.Ref
+					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("view manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
 						selected = ref
 						d, ok := current.Descriptor(address)
-						if !ok || d.Revision() != dependency.revision {
+						if !ok || d.Revision() != dependency.Revision {
 							t.Fatal("view manifest lost original declaration revision", address)
 						}
 					} else {
@@ -231,8 +231,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			stale := evaluation
 			stale.routineChecks = append([]expressionDependency(nil), item.checks...)
 			for j := range stale.routineChecks {
-				if stale.routineChecks[j].ref.Address == call.address {
-					stale.routineChecks[j].revision++
+				if stale.routineChecks[j].Ref.Address == call.address {
+					stale.routineChecks[j].Revision++
 				}
 			}
 			if err := admitRoutineCall(&stale, item.node, true, false); err == nil {
@@ -324,7 +324,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 				var missing []expressionDependency
 				for _, dependency := range binder.dependencies {
-					if dependency.ref.Address != address {
+					if dependency.Ref.Address != address {
 						missing = append(missing, dependency)
 					}
 				}

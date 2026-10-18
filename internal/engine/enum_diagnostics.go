@@ -267,13 +267,13 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, gener
 		}
 	}
 	for _, definition := range generations {
-		walkBoundExpression(definition.planned, visit)
+		walkBoundExpression(definition.Planned, visit)
 		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range checks {
-		walkBoundExpression(definition.expression, visit)
+		walkBoundExpression(definition.Expression, visit)
 		if failure != nil {
 			return failure
 		}

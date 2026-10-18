@@ -12,9 +12,9 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
 	child.RelationKind = tableRelation
-	child.Membership = &partitionMembership{parent: parent.address, defaultBound: true}
-	parent.Partition.children = []ids.ObjectAddress{child.address}
-	parent.Partition.defaultChild = child.address
+	child.Membership = &partitionMembership{Parent: parent.address, DefaultBound: true}
+	parent.Partition.Children = []ids.ObjectAddress{child.address}
+	parent.Partition.DefaultChild = child.address
 	partitionAttachUnitInstall(t, e, parent, child)
 	child = e.CatalogRead().MustRelation(child.address)
 	op, done := roleOperation(t, e, "postgres")

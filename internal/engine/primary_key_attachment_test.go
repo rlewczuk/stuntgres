@@ -25,8 +25,8 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			next.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
 			backing := *index
 			definition := *index.SQLIndex
-			constraint := *definition.constraint
-			definition.constraint, backing.SQLIndex = &constraint, &definition
+			constraint := *definition.Constraint
+			definition.Constraint, backing.SQLIndex = &constraint, &definition
 			state.setDescriptor(next.address, &next)
 			state.setDescriptor(backing.address, &backing)
 			switch mode {
@@ -40,7 +40,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				constraint.Primary = false
 			case "null_policy":
 				next.UniqueConstraints[0].NullsNotDistinct = true
-				definition.nullsNotDistinct = true
+				definition.NullsNotDistinct = true
 			case "second_primary":
 				second := next.UniqueConstraints[0]
 				second.OID, second.Name = second.OID+1000, "second"
@@ -49,7 +49,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				other.name = second.Name
 				second.Index = other.address
 				otherDefinition := definition
-				otherDefinition.constraint = uniqueBacking(&second)
+				otherDefinition.Constraint = uniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
 				state.setDescriptor(other.address, &other)
 				next.UniqueConstraints = append(next.UniqueConstraints, second)
@@ -65,7 +65,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			} else if mode == "mismatched_kind" && validateIndexDefinition(view, &backing) == nil {
 				t.Fatal("reciprocal index validation lost Primary")
 			}
-			if parent.Columns[0].Nullable || !index.SQLIndex.constraint.Primary || !parent.UniqueConstraints[0].Primary {
+			if parent.Columns[0].Nullable || !index.SQLIndex.Constraint.Primary || !parent.UniqueConstraints[0].Primary {
 				t.Fatal("validation candidate mutated retained descriptors")
 			}
 		})
@@ -75,7 +75,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	e, _, parent, index := primaryKeyUnitFixture(t)
 	view := e.CatalogRead()
-	ref := e.catalog.domain.Ref(view.Epoch(), index.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), index.address)
 	metadata, names, err := projectIndexMetadata(context.Background(), view, ref)
 	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.address.ObjectID || metadata.IndexRelID != index.address.ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
 		t.Fatal(metadata, err)

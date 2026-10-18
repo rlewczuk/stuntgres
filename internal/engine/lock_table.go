@@ -101,7 +101,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	}
 	e := s.op.session.Engine()
 	inspect := func() (*relationDescriptor, error) {
-		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
+		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
 			return nil, ids.ErrCatalogReplaced
 		}
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)

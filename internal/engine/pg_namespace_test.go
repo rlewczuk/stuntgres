@@ -19,7 +19,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescr
 	if !ok {
 		t.Fatal("missing namespace source")
 	}
-	return d, e.catalog.domain.Ref(c.Epoch(), a)
+	return d, e.catalog.Domain.Ref(c.Epoch(), a)
 }
 func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
 	t.Helper()
@@ -241,7 +241,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(foreign.CatalogRead(), e.Roles(), ref, d)
 	reject(c, foreign.Roles(), ref, d)
 	forged := ref
-	forged = foreign.catalog.domain.Ref(forged.Epoch, forged.Address)
+	forged = foreign.catalog.Domain.Ref(forged.Epoch, forged.Address)
 	reject(c, e.Roles(), forged, d)
 	forged = ref
 	forged.Epoch++
@@ -287,7 +287,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
-	invalid.Temporary = foreign.catalog.domain.Session(1)
+	invalid.Temporary = foreign.catalog.Domain.Session(1)
 	next.setDescriptor(ns.address, &invalid)
 	reject(e.catalog.read(next), e.Roles(), ref, d)
 	next = cloneCatalog(c.state)

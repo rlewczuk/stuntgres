@@ -137,7 +137,7 @@ func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) str
 		}
 	}
 	if old, ok := d.DroppedAttributes[sub]; ok {
-		return old.name
+		return old.Name
 	}
 	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
 		return [...]string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"}[-sub-1]
@@ -163,22 +163,22 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 			return r, nil
 		}
 		r.found = true
-		r.kind = objectRoutineKind(p.id)
-		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.namespace})
+		r.kind = objectRoutineKind(p.ID)
+		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
 		r.schema = pgIdentifier(ns)
-		r.names = []string{ns, p.name}
-		if p.signature != "" {
-			for arg := range strings.SplitSeq(string(p.signature), ",") {
+		r.names = []string{ns, p.Name}
+		if p.Signature != "" {
+			for arg := range strings.SplitSeq(string(p.Signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
 				r.args = append(r.args, objectQualifiedType(view, ids.OID(id)))
 			}
 		}
-		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.name) + "(" + strings.Join(r.args, ",") + ")"
-		r.description = "function " + routineSpelling(view, path, p.id, true, false)
+		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.Name) + "(" + strings.Join(r.args, ",") + ")"
+		r.description = "function " + routineSpelling(view, path, p.ID, true, false)
 		return r, nil
 	}
 	if a.ClassID == 1260 {
-		role, ok := roles.Find(view.owner.principals.Principal(uint64(a.ObjectID)))
+		role, ok := roles.Find(view.owner.Principals.Principal(uint64(a.ObjectID)))
 		if !ok {
 			return r, nil
 		}

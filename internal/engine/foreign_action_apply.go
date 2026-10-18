@@ -89,7 +89,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			}
 			defaultEvaluation := evaluation
 			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-			defaultEvaluation.routineReferences = job.child.Defaults[job.child.Attributes[plan.targets[i]]].dependencies
+			defaultEvaluation.routineReferences = job.child.Defaults[job.child.Attributes[plan.targets[i]]].Dependencies
 			defaultEvaluation.routineConsumer = job.child
 			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
@@ -141,7 +141,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.op.session.Engine()
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), job.child.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.address)
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
@@ -348,7 +348,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		parentRef := e.catalog.domain.Ref(auth.catalog.Epoch(), job.parent.address)
+		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.parent.address)
 		parents, err := s.captureForeignKeyRows(parentRef, job.definition.Index)
 		if err != nil {
 			return err

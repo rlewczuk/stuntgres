@@ -19,7 +19,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obj
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()
@@ -139,7 +139,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	options := &sequenceOptions{typ: sqltype.Int4, start: 15, increment: 7, max: 200, min: -20, cache: 9223372036854775807, cycle: true}
+	options := &sequenceOptions{SQLType: sqltype.Int4, Start: 15, Increment: 7, Max: 200, Min: -20, Cache: 9223372036854775807, Cycle: true}
 	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
 	state.setDescriptor(a, d)
 	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{RelationKind: tableRelation})
@@ -153,7 +153,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	if !reflect.DeepEqual(pgSequenceUnitBag(t, rows), want) {
 		t.Fatal(pgSequenceUnitBag(t, rows), want)
 	}
-	if options.cache != 9223372036854775807 || e.sequences[a].last != 99 || !e.sequences[a].called {
+	if options.Cache != 9223372036854775807 || e.sequences[a].last != 99 || !e.sequences[a].called {
 		t.Fatal("projection touched definition or state")
 	}
 }
@@ -163,7 +163,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base := *e.catalog.state
 	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.setDescriptor(a, &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}})
+	base.setDescriptor(a, &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: &sequenceOptions{SQLType: sqltype.Int8, Start: 1, Increment: 1, Max: 9223372036854775807, Min: 1, Cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
@@ -193,7 +193,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	options := &sequenceOptions{typ: sqltype.Int2, start: -1, increment: -3, max: -1, min: -32768, cache: 1}
+	options := &sequenceOptions{SQLType: sqltype.Int2, Start: -1, Increment: -3, Max: -1, Min: -32768, Cache: 1}
 	d := &relationDescriptor{address: a, RelationKind: sequenceRelation, Sequence: options}
 	base.setDescriptor(a, d)
 	other := *d
@@ -207,7 +207,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	own := newCatalogChanges()
 	updated := *d
 	newOptions := *options
-	newOptions.start = -4
+	newOptions.Start = -4
 	updated.Sequence = &newOptions
 	own.descriptors[a] = &updated
 	own.descriptors[dropped] = nil
@@ -228,7 +228,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}
-	if owner.accessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.Sequence.start != -1 {
+	if owner.accessedTemporary || !reflect.DeepEqual(pgSequenceUnitBag(t, old), oldBag) || d.Sequence.Start != -1 {
 		t.Fatal("capture mutated retained rows or physical TEMP authority")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

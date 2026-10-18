@@ -21,9 +21,9 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	generator := e.sequences[seq.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.catalog.providers[ids.RelationClassID]
+	original := e.catalog.Providers[ids.RelationClassID]
 	calls := 0
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		calls++
 		if !e.mu.TryLock() {
 			t.Error("ADD called real provider under Engine.mu")
@@ -41,7 +41,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
-	e.catalog.providers[ids.RelationClassID] = original
+	e.catalog.Providers[ids.RelationClassID] = original
 	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || old.AttributeHighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.last)
 	}

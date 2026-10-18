@@ -14,12 +14,12 @@ import (
 // Generation definitions have stable attribute identities, separate from defaults.
 type columnGeneration struct {
 	OID        ids.OID
-	kind       generationKind
-	expression expr.Expr
+	Kind       generationKind
+	Expression expr.Expr
 	// Retain analyzed syntax for dependencies/deparse and its physical plan for writes.
-	planned         expr.Expr
-	dependencies    []ids.ObjectRef
-	catalogSnapshot bool
+	Planned         expr.Expr
+	Dependencies    []ids.ObjectRef
+	CatalogSnapshot bool
 }
 
 type generationKind uint8
@@ -76,7 +76,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 			if declaration.generation.Kind == "stored" {
 				kind = generationStored
 			}
-			d.Generations[d.Attributes[slot]] = columnGeneration{kind: kind}
+			d.Generations[d.Attributes[slot]] = columnGeneration{Kind: kind}
 		}
 	}
 	if len(d.Generations) == 0 {
@@ -97,7 +97,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 }
 
 func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescriptor) queryNamespace {
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -113,10 +113,10 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 	b.noParameters = true
 	b.queryAuth = &auth
 	b.queryNamespace = ns
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
-	kind := d.Generations[d.Attributes[slot]].kind
+	kind := d.Generations[d.Attributes[slot]].Kind
 	if kind == generationVirtual {
 		if err := virtualDestination(column); err != nil {
 			return columnGeneration{}, err
@@ -174,8 +174,8 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 	if err != nil {
 		return columnGeneration{}, err
 	}
-	definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
-	_, err = (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
+	definition := columnGeneration{Kind: kind, Expression: analyzed, Planned: node}
+	_, err = (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
 	return definition, err
 }
 
@@ -284,12 +284,12 @@ func generationImmutable(node expr.Expr) bool {
 }
 
 func generationRecipeExpression(definition columnGeneration) expr.Expr {
-	if definition.expression != nil {
-		return definition.expression
+	if definition.Expression != nil {
+		return definition.Expression
 	}
 	// Standalone internal provider fixtures may supply only an executable.
 	// Published SQL generation descriptors require the declaration expression.
-	return definition.planned
+	return definition.Planned
 }
 
 // One execution owner uses one fixed generation program for this descriptor.
@@ -311,14 +311,14 @@ func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []
 			slot = selected[i]
 		}
 		definition, exists := d.Generations[d.Attributes[slot]]
-		if !exists || definition.kind != generationStored {
+		if !exists || definition.Kind != generationStored {
 			continue
 		}
 		stored = true
 		recipe := *c
 		recipe.routineRecipe, recipe.routineGraft = true, false
 		recipe.routineChecks = nil
-		recipe.routineReferences = definition.dependencies
+		recipe.routineReferences = definition.Dependencies
 		recipe.routineConsumer = consumer
 		node, changed, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
 		c.preparedDomainChecks = recipe.preparedDomainChecks
@@ -364,7 +364,7 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 		if !ok {
 			continue
 		}
-		if definition.kind == generationVirtual {
+		if definition.Kind == generationVirtual {
 			row[slot] = sqltype.Null(d.Columns[slot].Usage.Type)
 			continue
 		}
@@ -504,7 +504,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		filtered := *descriptor
 		filtered.Generations = nil
 		for attribute, definition := range descriptor.Generations {
-			if definition.kind != generationStored || !generationHasTableOID(definition.planned) {
+			if definition.Kind != generationStored || !generationHasTableOID(definition.Planned) {
 				continue
 			}
 			if filtered.Generations == nil {
@@ -606,7 +606,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 
 func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error {
 	for _, definition := range d.Generations {
-		for _, ref := range definition.dependencies {
+		for _, ref := range definition.Dependencies {
 			address := ref.Address
 			address.SubID = 0
 			if !storedReferenceEpochValid(view, d, ref) {
@@ -641,7 +641,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				}
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
+				if err := validateStoredCollationDependency(view, ref, definition.Expression); err != nil {
 					return err
 				}
 			}
@@ -839,7 +839,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node expr.E
 
 func generationDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, definition := range d.Generations {
-		for _, dependency := range definition.dependencies {
+		for _, dependency := range definition.Dependencies {
 			address := dependency.Address
 			if address.ClassID == target.ClassID && address.ObjectID == target.ObjectID && (target.SubID == 0 || address.SubID == target.SubID) {
 				return true

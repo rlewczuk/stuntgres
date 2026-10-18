@@ -55,16 +55,16 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			if after == parent || backing == index || after.address != parent.address || backing.address != index.address || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
 				t.Fatal("rename copied storage/root or changed group identity")
 			}
-			if backing.name != "new" || backing.Comment != "backing comment" || backing.SQLIndex.constraint.Name != "new" || backing.SQLIndex.constraint.OID != index.SQLIndex.constraint.OID || !backingConstraintPresent(after, backing) {
+			if backing.name != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
 				t.Fatal("nonreciprocal renamed group")
 			}
-			if !reflect.DeepEqual(parent.UniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.ExclusionConstraints, beforeExclusion) || index.name != "old" || index.SQLIndex.constraint.Name != "old" {
+			if !reflect.DeepEqual(parent.UniqueConstraints, beforeUnique) || !reflect.DeepEqual(parent.ExclusionConstraints, beforeExclusion) || index.name != "old" || index.SQLIndex.Constraint.Name != "old" {
 				t.Fatal("mutated old descriptors")
 			}
 			if len(after.Attributes) > 0 && &after.Attributes[0] != &parent.Attributes[0] {
 				t.Fatal("copied attribute vector")
 			}
-			if &backing.SQLIndex.keys[0] != &index.SQLIndex.keys[0] {
+			if &backing.SQLIndex.Keys[0] != &index.SQLIndex.Keys[0] {
 				t.Fatal("copied immutable keys")
 			}
 			candidate := *after
@@ -212,10 +212,10 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 						run(t, e, "CREATE ROLE changed_authority")
 					}
 				}
-				provider := e.catalog.providers[ids.RelationClassID]
+				provider := e.catalog.Providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.catalog.providers[ids.RelationClassID] = provider; mutate() }) }}
+					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {

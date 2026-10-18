@@ -1990,8 +1990,8 @@ type expressionPolicy struct {
 	operand bool
 }
 type expressionDependency struct {
-	ref      ids.ObjectRef
-	revision ids.DefinitionRevision
+	Ref      ids.ObjectRef
+	Revision ids.DefinitionRevision
 }
 type expressionBinder struct {
 	engine                *Engine
@@ -2149,7 +2149,7 @@ func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 }
 func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
 	for _, d := range b.dependencies {
-		if d.ref == ref {
+		if d.Ref == ref {
 			return
 		}
 	}
@@ -2169,11 +2169,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Pro
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), revision)
+	b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), d.Revision())
+			b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
 	return expr.Info{Usage: u, Pos: pos, Property: p}
@@ -2782,7 +2782,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.catalog.Descriptor(address); exists {
-					b.dependency(b.engine.catalog.domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
+					b.dependency(b.engine.catalog.Domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:

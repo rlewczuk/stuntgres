@@ -18,7 +18,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, parentStage)
 	inherit := func(d *relationDescriptor) {
-		d.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{d.Attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.Attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
+		d.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{d.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: p.Attributes[0]}}}}, Checks: map[string]inheritedConstraint{}, NotNull: map[int32]inheritedConstraint{}}
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
@@ -27,7 +27,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, childStage)
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	originalRef := ref(c)
 	originalStorage := e.storage[c.address]

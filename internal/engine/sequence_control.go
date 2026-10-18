@@ -110,7 +110,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			continue
 		}
 		for _, policy := range relation.Policies {
-			for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
+			for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 				if condition == nil {
 					continue
 				}
@@ -123,7 +123,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					}
 				}
 				for _, dependency := range condition.presentation.dependencies {
-					address := dependency.ref.Address
+					address := dependency.Ref.Address
 					address.SubID = 0
 					if _, retained := temporary[address]; retained {
 						continue
@@ -183,32 +183,32 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				walkBoundExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 			}
 			for _, definition := range relation.Defaults {
-				retainExpression(definition.expression)
+				retainExpression(definition.Expression)
 			}
 			for _, definition := range relation.CheckConstraints {
-				retainExpression(definition.expression)
+				retainExpression(definition.Expression)
 			}
 			for _, policy := range relation.Policies {
-				for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
+				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 					if condition != nil {
 						walkQueryArgumentExpression(condition.expression, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}
 				}
 			}
 			for _, definition := range relation.Generations {
-				retainExpression(definition.expression)
-				retainExpression(definition.planned)
+				retainExpression(definition.Expression)
+				retainExpression(definition.Planned)
 			}
 			if index := relation.SQLIndex; index != nil {
-				for _, key := range index.keys {
-					if key.derived != nil {
-						retainExpression(key.derived.definition)
-						retainExpression(key.derived.execution)
+				for _, key := range index.Keys {
+					if key.Derived != nil {
+						retainExpression(key.Derived.Definition)
+						retainExpression(key.Derived.Execution)
 					}
 				}
-				if predicate := index.predicate; predicate != nil {
-					retainExpression(predicate.definition)
-					retainExpression(predicate.execution)
+				if predicate := index.Predicate; predicate != nil {
+					retainExpression(predicate.Definition)
+					retainExpression(predicate.Execution)
 				}
 			}
 			if definition := viewOf(relation); definition != nil {
@@ -305,8 +305,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
-			for _, helper := range proc.Aggregate.helpers {
-				if err := remapCollision(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}); err != nil {
+			for _, helper := range proc.Aggregate.Helpers {
+				if err := remapCollision(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}); err != nil {
 					return err
 				}
 			}
@@ -411,7 +411,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 							return destination
 						}
 						return address
-					}, func(origin inheritanceOrigin) ids.OID { return origin.constraint })
+					}, func(origin inheritanceOrigin) ids.OID { return origin.Constraint })
 				}
 				if target != a {
 					n.Columns = append([]ColumnDescriptor(nil), r.Columns...)
@@ -456,36 +456,36 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				}
 				if r.SQLIndex != nil {
 					definition := *r.SQLIndex
-					if parent, remapped := mapping[definition.partitionParent]; remapped {
-						definition.partitionParent = parent
+					if parent, remapped := mapping[definition.PartitionParent]; remapped {
+						definition.PartitionParent = parent
 					}
-					if parent, remapped := mapping[definition.parent]; remapped {
-						definition.parent = parent
+					if parent, remapped := mapping[definition.Parent]; remapped {
+						definition.Parent = parent
 					}
-					if definition.constraint != nil {
-						constraint := *definition.constraint
+					if definition.Constraint != nil {
+						constraint := *definition.Constraint
 						if dest, remapped := mapping[constraint.Index]; remapped {
 							constraint.Index = dest
 						}
-						definition.constraint = &constraint
+						definition.Constraint = &constraint
 					}
 					n.SQLIndex = &definition
 				}
 				if r.Sequence != nil {
 					o := *r.Sequence
-					whole := o.owned
+					whole := o.Owned
 					whole.SubID = 0
 					if dest, ok := mapping[whole]; ok {
-						dest.SubID = o.owned.SubID
-						o.owned = dest
+						dest.SubID = o.Owned.SubID
+						o.Owned = dest
 					}
 					n.Sequence = &o
 				}
 				if len(r.Identities) != 0 {
 					n.Identities = make(map[int32]columnIdentity, len(r.Identities))
 					for attribute, identity := range r.Identities {
-						if destination, ok := mapping[identity.sequence]; ok {
-							identity.sequence = destination
+						if destination, ok := mapping[identity.Sequence]; ok {
+							identity.Sequence = destination
 						}
 						n.Identities[attribute] = identity
 					}
@@ -663,16 +663,16 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 		}
 		name := quoteIdentifier(s.schema) + "." + quoteIdentifier(s.name)
 		persistence := ""
-		if s.options.persistence == "unlogged" {
+		if s.options.Persistence == "unlogged" {
 			persistence = "UNLOGGED "
 		}
-		_, _, typ := sequenceTypeLimits(s.options.typ)
+		_, _, typ := sequenceTypeLimits(s.options.SQLType)
 		cycle := "NO CYCLE"
-		if s.options.cycle {
+		if s.options.Cycle {
 			cycle = "CYCLE"
 		}
-		if !s.options.identity {
-			prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.increment, s.options.min, s.options.max, s.options.start, s.options.cache, cycle))
+		if !s.options.Identity {
+			prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.Increment, s.options.Min, s.options.Max, s.options.Start, s.options.Cache, cycle))
 			if s.ownedTable != "" {
 				suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
 			}
@@ -680,12 +680,12 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 			if s.divergent {
 				suffix = append(suffix, fmt.Sprintf("ALTER SEQUENCE %s AS %s %s RESTART WITH %d;\n", name, strings.ToUpper(typ), sequenceNumericSQL(s.options), s.state.last))
 			}
-			if s.options.persistence == "unlogged" {
+			if s.options.Persistence == "unlogged" {
 				suffix = append(suffix, "ALTER SEQUENCE "+name+" SET UNLOGGED;\n")
 			}
 		}
 		if s.comment != "" {
-			if s.options.identity {
+			if s.options.Identity {
 				suffix = append(suffix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
 			} else {
 				prefix = append(prefix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")

@@ -94,10 +94,10 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 			if err = putOID(0, uint32(relation.address.ObjectID)); err != nil {
 				return nil, err
 			}
-			if err = putOID(1, uint32(relation.Foreign.server.ObjectID)); err != nil {
+			if err = putOID(1, uint32(relation.Foreign.Server.ObjectID)); err != nil {
 				return nil, err
 			}
-			row[2], err = foreignOptionsValue(source.Columns[2].Usage.Type, relation.Foreign.options)
+			row[2], err = foreignOptionsValue(source.Columns[2].Usage.Type, relation.Foreign.Options)
 		} else {
 			d := descriptor.(*foreignDescriptor)
 			if err = putOID(0, uint32(d.address.ObjectID)); err != nil {

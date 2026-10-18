@@ -80,7 +80,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		// The registry and every member hold the one implementation instance;
 		// typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.extensions["unaccent"] || proc.unaccentProvider() != stockUnaccent || proc.pgcryptoProvider() != nil || proc.intaggProvider() != nil {
+		if proc.Implementation != e.catalog.Extensions["unaccent"] || proc.unaccentProvider() != stockUnaccent || proc.pgcryptoProvider() != nil || proc.intaggProvider() != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
@@ -99,7 +99,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		seen[a] = true
 		d := view.Get(a)
-		if err := e.catalog.providers[a.ClassID].Validate(view, d); err != nil {
+		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 		if d.Namespace() != ext.TargetNamespace || extensionMembership(d) != ext.address {

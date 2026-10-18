@@ -22,7 +22,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ids.Obje
 	actor, _ := e.Roles().Lookup("rename_transition_owner")
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"})
-	ns := e.catalog.domain.Ref(view.Epoch(), address)
+	ns := e.catalog.Domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.MustNamespace(address).Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
@@ -80,9 +80,9 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	oldNamespace := e.catalog.state.Get(ns.Address)
 	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	var once sync.Once
-	provider := e.catalog.providers[ids.RelationClassID]
+	provider := e.catalog.Providers[ids.RelationClassID]
 	var frontier ids.DefinitionRevision
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 		once.Do(func() {
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)

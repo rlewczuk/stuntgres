@@ -15,12 +15,12 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "real_backing_after_detach", true: "childless_collision_reserved"}[empty], func(t *testing.T) {
 			f := partitionConstraintDescriptors(t)
-			f.child.SQLIndex.partitionParent = f.parent.address
+			f.child.SQLIndex.PartitionParent = f.parent.address
 			if empty {
-				f.root.Partition.children = nil
-				f.root.Partition.defaultChild = ids.ObjectAddress{}
+				f.root.Partition.Children = nil
+				f.root.Partition.DefaultChild = ids.ObjectAddress{}
 				f.leaf.Membership = nil
-				f.child.SQLIndex.partitionParent = ids.ObjectAddress{}
+				f.child.SQLIndex.PartitionParent = ids.ObjectAddress{}
 			}
 			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.namespace, Name: partitionReplayStem + "1"}
 			f.view.state.bindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
@@ -75,7 +75,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 					t.Fatal("lost captured bound", text, err)
 				}
 			}
-			if f.parent.SQLIndex.valid || f.child.SQLIndex.partitionParent != (map[bool]ids.ObjectAddress{false: f.parent.address, true: {}}[empty]) {
+			if f.parent.SQLIndex.Valid || f.child.SQLIndex.PartitionParent != (map[bool]ids.ObjectAddress{false: f.parent.address, true: {}}[empty]) {
 				t.Fatal("renderer mutated captured definitions")
 			}
 		})
@@ -84,23 +84,23 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 
 func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	f.child.SQLIndex.partitionParent = f.parent.address
-	f.parent.SQLIndex.include = nil
-	f.child.SQLIndex.include = nil
+	f.child.SQLIndex.PartitionParent = f.parent.address
+	f.parent.SQLIndex.Include = nil
+	f.child.SQLIndex.Include = nil
 	for _, index := range [2]*relationDescriptor{f.parent, f.child} {
 		index.Columns = index.Columns[:2]
 		index.Attributes = index.Attributes[:2]
 		index.AttributeHighWater = 2
 		index.Index = map[string]int{"a": 0, "b": 1}
-		index.SQLIndex.keys[1].desc = false
-		index.SQLIndex.keys[1].nullsFirst = false
+		index.SQLIndex.Keys[1].Desc = false
+		index.SQLIndex.Keys[1].NullsFirst = false
 	}
 	local, definition := *f.child, *f.child.SQLIndex
 	local.address.ObjectID = 19999
 	local.name = "unit_local_older"
-	definition.partitionParent = ids.ObjectAddress{}
+	definition.PartitionParent = ids.ObjectAddress{}
 	constraint := uniqueConstraint{OID: 46900, Name: local.name, Index: local.address, Attributes: []int32{22, 11}, IsLocal: true}
-	definition.constraint = uniqueBacking(&constraint)
+	definition.Constraint = uniqueBacking(&constraint)
 	local.SQLIndex = &definition
 	f.leaf.UniqueConstraints = []uniqueConstraint{constraint}
 	f.view.state.setDescriptor(local.address, &local)
@@ -112,10 +112,10 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, Owner: f.leaf.Owner, name: "unit_local_consumer", revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
-	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
+	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.address)}}}
 	f.view.state.setDescriptor(consumer.address, consumer)
 	f.view.state.bindName(descriptorNameKey(consumer), consumer.address)
-	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].dependencies[0].Address, consumer.address)
+	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].Dependencies[0].Address, consumer.address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	if position(dumpEventKey{oid: li}) >= position(rename) || position(rename) >= position(rows) {
 		t.Fatal("consumer replay precedes its own local index identity", order)
 	}
-	if f.leaf.UniqueConstraints[0].OID != constraint.OID || local.SQLIndex.partitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.partitionParent != f.parent.address {
+	if f.leaf.UniqueConstraints[0].OID != constraint.OID || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.PartitionParent != f.parent.address {
 		t.Fatal("scheduler changed source ownership")
 	}
 }

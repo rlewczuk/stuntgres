@@ -19,10 +19,10 @@ import (
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
 	OID                    ids.OID
-	expression             expr.Expr
-	dependencies           []ids.ObjectRef
-	catalogSnapshot        bool
-	catalogAliasReferences bool
+	Expression             expr.Expr
+	Dependencies           []ids.ObjectRef
+	CatalogSnapshot        bool
+	CatalogAliasReferences bool
 }
 
 // Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
@@ -104,8 +104,8 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 		if structuralNull(node) {
 			continue
 		}
-		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(b.ctx, view, node)
+		definition := columnDefault{Expression: node}
+		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
+		r.recordStoredCollation(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -182,7 +182,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
+	r.recordStoredType(view, view.owner.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.Usage {
@@ -503,7 +503,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node expr.Exp
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
-				r.record(view.owner.domain.Ref(view.Epoch(), address))
+				r.record(view.owner.Domain.Ref(view.Epoch(), address))
 			}
 		}
 		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {

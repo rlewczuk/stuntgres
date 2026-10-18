@@ -79,11 +79,11 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 		if !ok {
 			continue
 		}
-		if r.SQLIndex != nil && group[r.SQLIndex.parent] {
+		if r.SQLIndex != nil && group[r.SQLIndex.Parent] {
 			group[a] = true
 		}
 		if r.Sequence != nil {
-			parent := r.Sequence.owned
+			parent := r.Sequence.Owned
 			parent.SubID = 0
 			if group[parent] {
 				group[a] = true
@@ -212,7 +212,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := e.catalog.domain.Ref(stage.base.Epoch(), a)
+		ref := e.catalog.Domain.Ref(stage.base.Epoch(), a)
 		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
@@ -236,7 +236,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
 				}
 			case *namespaceDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
 				}
@@ -244,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					err = ownershipDatabaseCreate(auth)
 				}
 			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
 				}
@@ -280,7 +280,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
 				break
 			}
 		}

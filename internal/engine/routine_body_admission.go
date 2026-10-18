@@ -51,7 +51,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	var revision ids.DefinitionRevision
 	if c.routineReferences != nil {
 		for _, ref := range c.routineReferences {
-			if ref.Address == edge.routine.address {
+			if ref.Address == edge.Routine.address {
 				original = ref
 				break
 			}
@@ -61,13 +61,13 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 			dependencies = c.routineChecks
 		}
 		for _, dependency := range dependencies {
-			if dependency.ref.Address == edge.routine.address {
-				original, revision = dependency.ref, dependency.revision
+			if dependency.Ref.Address == edge.Routine.address {
+				original, revision = dependency.Ref, dependency.Revision
 				break
 			}
 		}
 	}
-	if original.Address != edge.routine.address {
+	if original.Address != edge.Routine.address {
 		return nil, fmt.Errorf("stuntgres: missing original SQL body lifetime manifest")
 	}
 	ref := original
@@ -85,7 +85,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 		return nil, err
 	}
 	current, ok := descriptor.(*procedureDescriptor)
-	if !ok || !sameRoutineDeclaration(current, edge.routine) {
+	if !ok || !sameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
 	if revision != 0 && current.revision != revision {
@@ -100,13 +100,13 @@ func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *procedur
 		return err
 	}
 	return walkRoutineBody(outer, node, func(body *procedureDescriptor) error {
-		_, err := bodyRoutineDescriptor(c, auth, dependencies, routineBodyEdge{routine: body})
+		_, err := bodyRoutineDescriptor(c, auth, dependencies, routineBodyEdge{Routine: body})
 		return err
 	})
 }
 
 func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBodyEdge) bool {
-	switch edge.demand {
+	switch edge.Demand {
 	case bodyBooleanText, bodyNetworkText:
 		argument := polymorphicBodyArgument(node, outer.address.ObjectID)
 		return bodyCastMatches(edge, argument) && !randomLiteralNull(argument)
@@ -116,7 +116,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *procedureDescriptor, edge routineBo
 			return false
 		}
 		at := 0
-		if edge.demand == bodyRightDuration {
+		if edge.Demand == bodyRightDuration {
 			at = 2
 		}
 		return !randomLiteralNull(overlap.Args[at]) && !randomLiteralNull(overlap.Args[at+1])
@@ -178,7 +178,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 		demand = bodyRightDuration
 	}
 	for _, edge := range outer.Body {
-		if edge.demand != demand || !bodyEdgeDemanded(e, outer, edge) {
+		if edge.Demand != demand || !bodyEdgeDemanded(e, outer, edge) {
 			continue
 		}
 		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)

@@ -56,7 +56,7 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 type aclItemValidationOutput struct{ owner *catalogOwner }
 
 func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if r.owner == nil || authority != r.owner.aclAuthority {
+	if r.owner == nil || authority != r.owner.ACLAuthority {
 		return "", fmt.Errorf("stuntgres: foreign ACL validation identity")
 	}
 	return strconv.FormatUint(uint64(id), 10), nil

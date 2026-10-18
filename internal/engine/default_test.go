@@ -46,7 +46,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
 			probe.Info = expr.Info{Usage: old.Columns[1].Usage}
-			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {expression: probe}}
+			next.Defaults = map[int32]columnDefault{old.Attributes[1]: {Expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
 			state := cloneCatalog(e.catalog.state)
@@ -135,14 +135,14 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		t.Fatal("CREATE evaluated deferred narrowing", err)
 	}
 	for i, d := range defaults {
-		if d.expression.ResultUsage() != b.createColumns[i-1].Usage || d.expression.Properties() != (expr.Properties{}) {
+		if d.Expression.ResultUsage() != b.createColumns[i-1].Usage || d.Expression.Properties() != (expr.Properties{}) {
 			t.Fatal(d)
 		}
 	}
 	// Rebinding under a different operation clock must not change already-bound leaves.
 	c := &EvalContext{Context: context.Background()}
 	for _, attribute := range []int32{2, 3} {
-		value, err := defaults[attribute].expression.Eval(c)
+		value, err := defaults[attribute].Expression.Eval(c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -154,7 +154,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 			t.Fatal(value, expected)
 		}
 	}
-	if _, err := defaults[1].expression.Eval(c); err == nil {
+	if _, err := defaults[1].Expression.Eval(c); err == nil {
 		t.Fatal("deferred narrowing not applied")
 	}
 }
@@ -194,7 +194,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 		}
 		current := e.CatalogRead().MustRelation(ref.Address)
 		stored := current.Defaults[current.Attributes[1]]
-		cast, ok := stored.expression.(coercionExpression)
+		cast, ok := stored.Expression.(coercionExpression)
 		if !ok || cast.mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
 			t.Fatal("execution preflight replaced stored default", stored, definition)
 		}
@@ -227,12 +227,12 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			d := view.MustRelation(ref.Address)
 			original := d.Defaults[d.Attributes[0]]
 			c := &EvalContext{Context: context.Background()}
-			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)
+			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
 			}
 			literal, ok := planned.(literalExpression)
-			if !ok || literal.Info != original.expression.(logicalExpression).Info {
+			if !ok || literal.Info != original.Expression.(logicalExpression).Info {
 				t.Fatal("whole result or conservative metadata was lost", planned)
 			}
 			value, err := literal.Eval(c)
@@ -245,7 +245,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			}
 			// The same original node still demands both branches under ordinary
 			// preflight. No flag or execution-folded node leaks into the catalog.
-			_, _, err = preflightCoercions(c, original.expression)
+			_, _, err = preflightCoercions(c, original.Expression)
 			state(t, err, "22P02")
 			if err := (relationProvider{}).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)

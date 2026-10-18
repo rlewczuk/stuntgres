@@ -167,8 +167,8 @@ type roleDependency struct {
 func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.Policies {
-			for _, role := range policy.roles {
-				if !role.public && role.ref == ref {
+			for _, role := range policy.Roles {
+				if !role.Public && role.Ref == ref {
 					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.address, policyName: policy.Name}) {
 						return true
 					}

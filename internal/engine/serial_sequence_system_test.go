@@ -43,7 +43,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	f.table.Columns[0].Name = "ctid"
 	delete(f.table.Index, "ID")
 	f.table.Index["ctid"] = 0
-	f.sequence.Sequence.owned = ids.ObjectAddress{}
+	f.sequence.Sequence.Owned = ids.ObjectAddress{}
 	text := f.node.ResultUsage().Type
 	f.node.args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "ctid")}
 	value, err := f.node.Eval(f.context)

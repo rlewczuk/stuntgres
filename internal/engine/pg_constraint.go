@@ -65,7 +65,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				builder.oid(row, 9, domain.Address().ObjectID)
 				builder.boolean(row, 7, !check.NotValid)
 				var err error
-				row[27], err = catalogTree(types[27], check.expression)
+				row[27], err = catalogTree(types[27], check.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -99,7 +99,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			}
 			local, count := nonuniqueConstraintProvenance(catalog, table, c.Name, c.Attribute, false)
 			builder.boolean(row, 7, !c.NotValid)
-			builder.boolean(row, 16, local || c.partitionLocal)
+			builder.boolean(row, 16, local || c.PartitionLocal)
 			builder.integer(row, 17, count)
 			builder.boolean(row, 18, c.NoInherit)
 			builder.keys(row, 20, []int32{c.Attribute})
@@ -114,8 +114,8 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
 			builder.boolean(row, 18, c.NoInherit)
-			builder.checkKeys(ctx, row, table, c.expression)
-			row[27], err = catalogTree(types[27], c.expression)
+			builder.checkKeys(ctx, row, table, c.Expression)
+			row[27], err = catalogTree(types[27], c.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -182,12 +182,12 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 			}
 			builder.boolean(row, 18, c.Parent == 0)
 			index, ok := catalog.Relation(c.Index)
-			if !ok || index.SQLIndex == nil || len(index.SQLIndex.keys) != len(c.Operators) {
+			if !ok || index.SQLIndex == nil || len(index.SQLIndex.Keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")
 			}
 			keys := make([]sqltype.Value, len(c.Operators))
 			operators := make([]sqltype.Value, len(c.Operators))
-			for i, key := range index.SQLIndex.keys {
+			for i, key := range index.SQLIndex.Keys {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}

@@ -36,7 +36,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 				t.Helper()
 				a := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
-				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -58,7 +58,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			if tc.name == "nonowner_with_table_rights" {
 				table := e.catalog.state.MustRelation(a)
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.SelectPrivilege}}}
-				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}

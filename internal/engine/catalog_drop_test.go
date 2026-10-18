@@ -93,7 +93,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "CREATE TABLE a(id INT)")
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "a")
-	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().catalog.domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
+	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
 		s := e.BeginCatalogStage(base)
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
@@ -294,7 +294,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 	base = e.CatalogRead()
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.TypeClassID, ObjectID: 23}, custom.address} {
 		stage = e.BeginCatalogStage(base)
-		if err = stage.Remove(e.catalog.domain.Ref(base.Epoch(), address)); err == nil {
+		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
 		if len(stage.removals) != 0 || e.CatalogRead().state != base.state {

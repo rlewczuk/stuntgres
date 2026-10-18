@@ -14,7 +14,7 @@ func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 	empty, err := capturePGCursors(context.Background(), ref, d, s.cursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
 		t.Fatal(empty, err)
@@ -50,7 +50,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
 	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
-	currentRef := current.catalog.domain.Ref(current.catalog.state.epoch, currentDescriptor.address)
+	currentRef := current.catalog.Domain.Ref(current.catalog.state.epoch, currentDescriptor.address)
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := capturePGCursors(context.Background(), currentRef, currentDescriptor, s.cursors)
 	if err != nil {

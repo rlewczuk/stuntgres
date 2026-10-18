@@ -19,7 +19,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	old := e.catalog.state.MustRelation(ref.Address)
 	storage := e.storage[ref.Address]
 	epoch := e.CatalogRead().Epoch()
-	owner := e.catalog.domain
+	owner := e.catalog.Domain
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old
 	next.revision++
@@ -37,7 +37,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}
-		if e.catalog.domain != owner || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
+		if e.catalog.Domain != owner || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed identity/storage")
 		}
 		var after bytes.Buffer
@@ -57,7 +57,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	}
 	run(t, e, `ALTER TABLE sentinel DROP a`)
 	live := e.catalog.state.MustRelation(ref.Address)
-	if len(live.Defaults) != 1 || live.Defaults[3].expression == nil || old.Defaults[2].expression == nil {
+	if len(live.Defaults) != 1 || live.Defaults[3].Expression == nil || old.Defaults[2].Expression == nil {
 		t.Fatal("attribute-key ownership changed", live.Defaults, old.Defaults)
 	}
 	run(t, e, `INSERT INTO sentinel(id) VALUES(2)`)

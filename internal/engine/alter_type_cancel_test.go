@@ -28,9 +28,9 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer cleanup()
-				provider := e.catalog.providers[ids.RelationClassID]
-				e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-					e.catalog.providers[ids.RelationClassID] = provider
+				provider := e.catalog.Providers[ids.RelationClassID]
+				e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+					e.catalog.Providers[ids.RelationClassID] = provider
 					switch kind {
 					case "cancel":
 						cancel()

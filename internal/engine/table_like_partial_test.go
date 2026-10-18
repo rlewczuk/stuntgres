@@ -22,12 +22,12 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "CREATE INDEX source_expression ON src((10/n)) WHERE active")
 	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	external := roleTableRef(t, e, "anchor")
-	externalType := e.catalog.domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
+	externalType := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
 	ordinary := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_partial").Address)
 	expression := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_expression").Address)
-	sourcePredicate := ordinary.SQLIndex.predicate
-	sourceAttributes := slices.Clone(sourcePredicate.attributes)
-	sourceDependencies := slices.Clone(sourcePredicate.dependencies)
+	sourcePredicate := ordinary.SQLIndex.Predicate
+	sourceAttributes := slices.Clone(sourcePredicate.Attributes)
+	sourceDependencies := slices.Clone(sourcePredicate.Dependencies)
 	sourceRoots := e.indexRoots
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -36,7 +36,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	local := e.catalog.domain.Ref(stage.base.Epoch(), destination.address)
+	local := e.catalog.Domain.Ref(stage.base.Epoch(), destination.address)
 	local.Address.SubID = 4
 	var copied []*relationDescriptor
 	for _, descriptor := range stage.descriptors {
@@ -49,25 +49,25 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if index.name == "clone_expr_idx" {
 			old = expression
 		}
-		predicate := index.SQLIndex.predicate
-		if predicate == nil || predicate == old.SQLIndex.predicate || !reflect.DeepEqual(predicate.attributes, []int32{1, 2, 3, 4, 5}) {
+		predicate := index.SQLIndex.Predicate
+		if predicate == nil || predicate == old.SQLIndex.Predicate || !reflect.DeepEqual(predicate.Attributes, []int32{1, 2, 3, 4, 5}) {
 			t.Fatal("source predicate/container/layout retained", index.name, predicate)
 		}
-		if index.address == old.address || index.Revision() == old.Revision() || index.SQLIndex.parent != destination.address || !index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live {
+		if index.address == old.address || index.Revision() == old.Revision() || index.SQLIndex.Parent != destination.address || !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
 			t.Fatal("index identity/parent/state copied", index)
 		}
-		if predicate.definition.ResultUsage() != old.SQLIndex.predicate.definition.ResultUsage() || predicate.execution.ResultUsage() != old.SQLIndex.predicate.execution.ResultUsage() || predicate.definition.Properties() != old.SQLIndex.predicate.definition.Properties() || predicate.execution.Properties() != old.SQLIndex.predicate.execution.Properties() || plannedVolatility(predicate.execution) != expr.Immutable {
+		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || plannedVolatility(predicate.Execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
 		}
-		if !slices.Contains(predicate.dependencies, local) {
-			t.Fatal("destination-local predicate dependency missing", predicate.dependencies)
+		if !slices.Contains(predicate.Dependencies, local) {
+			t.Fatal("destination-local predicate dependency missing", predicate.Dependencies)
 		}
-		for _, dependency := range predicate.dependencies {
+		for _, dependency := range predicate.Dependencies {
 			if dependency.Address.ObjectID == source.address.ObjectID {
 				t.Fatal("source row dependency retained", dependency)
 			}
 		}
-		for _, node := range []expr.Expr{predicate.definition, predicate.execution} {
+		for _, node := range []expr.Expr{predicate.Definition, predicate.Execution} {
 			if _, err := (scalarRenderer{owner: destination}).sql(context.Background(), e.stageRead(stage), node); err != nil {
 				t.Fatal("wrong owner in predicate tree", err)
 			}
@@ -82,40 +82,40 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			n, _ := sqltype.Integer(integer, 2)
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
 			evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
-			got, err := preparation.predicateMatches(&evaluation, destination, &indexDefinition{predicate: predicate}, row, nil, nil)
+			got, err := preparation.predicateMatches(&evaluation, destination, &indexDefinition{Predicate: predicate}, row, nil, nil)
 			want, _ := TruthOf(truth)
 			if err != nil || got != (want == True) {
 				t.Fatal("execution predicate retains source slot", got, want, err)
 			}
 		}
 		var executionDependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), predicate.execution); err != nil {
+		if _, err := (scalarRenderer{owner: destination, dependencies: &executionDependencies}).sql(context.Background(), e.stageRead(stage), predicate.Execution); err != nil {
 			t.Fatal(err)
 		}
 		if slices.Contains(executionDependencies, external) || slices.Contains(executionDependencies, externalType) {
 			t.Fatal("fixture lacks analyzed-only dependency", executionDependencies)
 		}
 		if index.name == "clone_k_id_idx" {
-			if index.SQLIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.SQLIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
+			if index.SQLIndex.Keys[0].Attribute != 3 || !reflect.DeepEqual(index.SQLIndex.Include, []int32{2}) || !slices.Contains(predicate.Dependencies, external) {
 				t.Fatal("key/include/external identity lost", index.SQLIndex)
 			}
-			booleanType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
-			regclassType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-			regtypeType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
-			if !slices.Equal(predicate.dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
-				t.Fatal("analyzed predicate dependency manifest", predicate.dependencies)
+			booleanType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			if !slices.Equal(predicate.Dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
+				t.Fatal("analyzed predicate dependency manifest", predicate.Dependencies)
 			}
 		} else if index.name == "clone_expr_idx" {
-			key := index.SQLIndex.keys[0].derived
-			if key == nil || !reflect.DeepEqual(key.attributes, destination.Attributes) {
+			key := index.SQLIndex.Keys[0].Derived
+			if key == nil || !reflect.DeepEqual(key.Attributes, destination.Attributes) {
 				t.Fatal("derived key layout lost", key)
 			}
 			target := local
 			target.Address.SubID = 5
-			if !slices.Contains(key.dependencies, target) {
-				t.Fatal("dropped attribute mapping lost", key.dependencies)
+			if !slices.Contains(key.Dependencies, target) {
+				t.Fatal("dropped attribute mapping lost", key.Dependencies)
 			}
-			for _, node := range []expr.Expr{key.definition, key.execution} {
+			for _, node := range []expr.Expr{key.Definition, key.Execution} {
 				if _, err := (scalarRenderer{owner: destination}).sql(context.Background(), e.stageRead(stage), node); err != nil {
 					t.Fatal(err)
 				}
@@ -169,7 +169,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "UPDATE clone SET active=NULL WHERE id=4")
 	run(t, e, "UPDATE clone SET active=TRUE,n=2 WHERE id=2 OR id=3")
 	assertMembership(3)
-	if ordinary.SQLIndex.predicate != sourcePredicate || !reflect.DeepEqual(sourcePredicate.attributes, sourceAttributes) || !reflect.DeepEqual(sourcePredicate.dependencies, sourceDependencies) {
+	if ordinary.SQLIndex.Predicate != sourcePredicate || !reflect.DeepEqual(sourcePredicate.Attributes, sourceAttributes) || !reflect.DeepEqual(sourcePredicate.Dependencies, sourceDependencies) {
 		t.Fatal("source definition mutated")
 	}
 }
@@ -193,11 +193,11 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 			copied = index
 		}
 	}
-	if copied == nil || copied.address == source.address || !copied.SQLIndex.unique || !copied.SQLIndex.nullsNotDistinct || copied.SQLIndex.constraint != nil || len(destination.UniqueConstraints) != 0 || copied.SQLIndex.keys[0].attribute != 3 || copied.SQLIndex.predicate == nil || copied.SQLIndex.predicate == source.SQLIndex.predicate {
+	if copied == nil || copied.address == source.address || !copied.SQLIndex.Unique || !copied.SQLIndex.NullsNotDistinct || copied.SQLIndex.Constraint != nil || len(destination.UniqueConstraints) != 0 || copied.SQLIndex.Keys[0].Attribute != 3 || copied.SQLIndex.Predicate == nil || copied.SQLIndex.Predicate == source.SQLIndex.Predicate {
 		t.Fatal("standalone partial unique/backing authority lost", copied)
 	}
-	predicate := copied.SQLIndex.predicate
-	for _, node := range []expr.Expr{predicate.definition, predicate.execution} {
+	predicate := copied.SQLIndex.Predicate
+	for _, node := range []expr.Expr{predicate.Definition, predicate.Execution} {
 		column, ok := node.(columnExpression)
 		if !ok || column.origin.Address.ObjectID != destination.address.ObjectID || column.origin.Address.SubID != 4 || column.slot != 3 {
 			t.Fatal("partial unique predicate row mapping", node)
@@ -237,12 +237,12 @@ func TestTableLikePartialConstants(t *testing.T) {
 				t.Fatal("constant predicate index omitted")
 			}
 			if truth == "TRUE" {
-				if copied.SQLIndex.predicate != nil {
+				if copied.SQLIndex.Predicate != nil {
 					t.Fatal("TRUE canonicalization changed")
 				}
 			} else {
-				p := copied.SQLIndex.predicate
-				if p == nil || p == source.SQLIndex.predicate || !reflect.DeepEqual(p.attributes, destination.Attributes) {
+				p := copied.SQLIndex.Predicate
+				if p == nil || p == source.SQLIndex.Predicate || !reflect.DeepEqual(p.Attributes, destination.Attributes) {
 					t.Fatal("constant predicate container/layout shared")
 				}
 			}
@@ -295,7 +295,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 			definition, columns, attributes, lookup, bindErr := e.bindIndexAttributes(op, sqltype.InputEnvironment{}, auth, source, raw)
 			err = bindErr
 			if err == nil {
-				definition.predicate = predicate
+				definition.Predicate = predicate
 				oid, allocationErr := e.catalog.allocateOIDLocked()
 				err = allocationErr
 				if err == nil {

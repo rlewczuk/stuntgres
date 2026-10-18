@@ -72,7 +72,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	var once sync.Once
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() {
 		if gated.CompareAndSwap(false, true) {
 			close(entered)
 			<-release

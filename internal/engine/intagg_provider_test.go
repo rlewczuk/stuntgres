@@ -20,8 +20,8 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.catalog.extensions["intagg"].Control()
-	if registration.version != "1.1" || registration.trusted || !registration.superuser || !registration.relocatable || registration.comment == nil || *registration.comment != "integer aggregator and enumerator (obsolete)" {
+	registration := e.catalog.Extensions["intagg"].Control()
+	if registration.Version != "1.1" || registration.Trusted || !registration.Superuser || !registration.Relocatable || registration.Comment == nil || *registration.Comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
 	if len(ext.Members) != 2 {
@@ -51,7 +51,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
 			func(p *procedureDescriptor) { p.Implementation = stockUnaccent }, func(p *procedureDescriptor) { p.Implementation = stockIntarray },
 			func(p *procedureDescriptor) {
-				p.Implementation = &intaggProvider{control: extensionControl{version: "1.1"}}
+				p.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
 			},
 		} {
 			state := cloneCatalog(e.catalog.state)
@@ -111,7 +111,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			bad := *member
 			bad.Implementation = stockIntagg
 			state.setDescriptor(member.address, &bad)
-			if err := other.catalog.extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
+			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

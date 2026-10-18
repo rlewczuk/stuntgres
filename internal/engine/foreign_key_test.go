@@ -243,13 +243,13 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 		definition := *index.SQLIndex
 		switch phase {
 		case "nonunique":
-			definition.unique = false
+			definition.Unique = false
 		case "nonready":
-			definition.ready = false
+			definition.Ready = false
 		case "invalid":
-			definition.valid = false
+			definition.Valid = false
 		case "notlive":
-			definition.live = false
+			definition.Live = false
 		}
 		copy.SQLIndex = &definition
 		state.setDescriptor(index.address, &copy)

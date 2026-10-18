@@ -86,7 +86,7 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 	stage.terminalCleanup = true
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	for _, target := range targets {
-		if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), target)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), target)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -512,7 +512,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if e.catalog.state.NameAddress(descriptorNameKey(d)) != member {
 			t.Fatal("signature key lost", member)
 		}
-		if err := e.catalog.providers[member.ClassID].Validate(e.CatalogRead(), d); err != nil {
+		if err := e.catalog.Providers[member.ClassID].Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
 	}

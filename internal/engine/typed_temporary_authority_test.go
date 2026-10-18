@@ -30,16 +30,16 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						roleExecute(t, e, reader, "BEGIN")
 						defer roleExecute(t, e, reader, "ROLLBACK")
 					}
-					original := e.catalog.providers[ids.RelationClassID]
-					defer func() { e.catalog.providers[ids.RelationClassID] = original }()
+					original := e.catalog.Providers[ids.RelationClassID]
+					defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 					called := false
 					var winner *catalogState
-					e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						if called {
 							return
 						}
 						called = true
-						e.catalog.providers[ids.RelationClassID] = original
+						e.catalog.Providers[ids.RelationClassID] = original
 						typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 						winner = e.CatalogRead().state
 					}}

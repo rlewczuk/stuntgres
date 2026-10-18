@@ -255,7 +255,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []ids.TxRef{{}, New().catalog.domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.catalog.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
+	for _, bad := range []ids.TxRef{{}, New().catalog.Domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.catalog.Domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}

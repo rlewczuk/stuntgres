@@ -501,18 +501,18 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		switch source.address.ObjectID {
 		case 2610:
 			if definition := relation.SQLIndex; definition != nil {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), oid(1, uint32(definition.parent.ObjectID)), boolean(2, definition.unique), boolean(3, definition.constraint != nil && definition.constraint.Primary), boolean(4, definition.valid), boolean(5, definition.ready), boolean(6, definition.live), boolean(7, definition.nullsNotDistinct)})
+				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct)})
 			}
 		case 2604:
 			for attribute, definition := range relation.Defaults {
-				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.expression)
+				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
 			}
 			for attribute, definition := range relation.Generations {
-				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.expression)
+				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -543,16 +543,16 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 
 func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescriptor, name string, attribute int32, check bool) (bool, int64) {
 	if graph := table.Inheritance; graph != nil {
-		provenance, exists := graph.notNull[attribute]
+		provenance, exists := graph.NotNull[attribute]
 		if check {
-			provenance, exists = graph.checks[name]
+			provenance, exists = graph.Checks[name]
 		}
 		if exists {
-			return provenance.local, int64(provenance.count())
+			return provenance.Local, int64(provenance.count())
 		}
 	}
 	if table.Membership != nil {
-		parent := catalog.MustRelation(table.Membership.parent)
+		parent := catalog.MustRelation(table.Membership.Parent)
 		if check {
 			for _, constraint := range parent.CheckConstraints {
 				if constraint.Name == name {

@@ -191,7 +191,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 // certifies lifetime (including the existing retained-TEMP epoch bridge).
 func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, slot int, dependencies *[]expressionDependency, private *bool) error {
 	definition, ok := parent.Defaults[parent.Attributes[slot]]
-	if !ok || definition.OID == 0 || definition.expression == nil || definition.expression.ResultUsage() != parent.Columns[slot].Usage {
+	if !ok || definition.OID == 0 || definition.Expression == nil || definition.Expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
 	}
 	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
@@ -211,7 +211,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 			failure = CatalogConflict{}
 			return
 		}
-		for _, original := range definition.dependencies {
+		for _, original := range definition.Dependencies {
 			if original.Address != captured.address {
 				continue
 			}
@@ -222,7 +222,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 			ref := original
 			ref.Epoch = view.Epoch() // Project only the certified source recipe.
 			for _, existing := range *dependencies {
-				if existing.ref == ref && existing.revision == captured.revision {
+				if existing.Ref == ref && existing.Revision == captured.revision {
 					return
 				}
 			}
@@ -230,12 +230,12 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 				*dependencies = slices.Clone(*dependencies)
 				*private = true
 			}
-			*dependencies = append(*dependencies, expressionDependency{ref: ref, revision: captured.revision})
+			*dependencies = append(*dependencies, expressionDependency{Ref: ref, Revision: captured.revision})
 			return
 		}
 		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
 	}
-	walkBoundExpression(definition.expression, func(node expr.Expr) {
+	walkBoundExpression(definition.Expression, func(node expr.Expr) {
 		if failure != nil {
 			return
 		}
@@ -749,7 +749,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	rules := rulesOf(b.relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
 	if matched {
-		dependency := expressionDependency{ref: b.ref, revision: current.revision}
+		dependency := expressionDependency{Ref: b.ref, Revision: current.revision}
 		if !slices.Contains(program.events, dependency) {
 			program.events = append(program.events, dependency)
 		}
@@ -815,7 +815,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.catalog.Find(whole); ok {
-				b.dependencies = append(b.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: descriptor.Revision()})
+				b.dependencies = append(b.dependencies, expressionDependency{Ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
@@ -1137,7 +1137,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	var sources []queryLeaf
 	for i, source := range b.querySources {
 		current, ok := catalog.Relation(source.ref.Address)
-		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
+		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.Domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
 			return b, ids.ErrCatalogReplaced
 		}
 		storage := auth.engine.authorizationStorageLocked(auth, source.ref.Address)

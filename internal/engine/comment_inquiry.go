@@ -177,7 +177,7 @@ func (e commentInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) 
 		if e.kind == sharedDescription {
 			if name == "pg_authid" {
 				r := scope.commentRoles
-				role, _ := r.Find(scope.commentCatalog.owner.principals.Principal(uint64(oid)))
+				role, _ := r.Find(scope.commentCatalog.owner.Principals.Principal(uint64(oid)))
 				text = role.Comment
 			}
 		} else {

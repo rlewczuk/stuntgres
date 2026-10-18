@@ -199,12 +199,12 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 						t.Fatal("dishonest selected/committed DB pair")
 					}
-					if err := auth.CheckCreate(e.catalog.domain.Ref(auth.catalog.Epoch(), ns)); err != nil {
+					if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err != nil {
 						t.Fatal("canonical DB owner cannot CREATE in strict namespace", err)
 					}
 					withoutDB := auth
 					withoutDB.state.CurrentUser = auth.roles.LookupRef("ownership_reader")
-					if err := withoutDB.CheckCreate(e.catalog.domain.Ref(auth.catalog.Epoch(), ns)); err == nil {
+					if err := withoutDB.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err == nil {
 						t.Fatal("namespace PUBLIC/direct rights bypass DB-derived CREATE")
 					}
 					retainedACL := authorization.ACLValue{Explicit: old.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.ACL.Entries...)}
@@ -237,7 +237,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 								created = d
 							}
 						}
-						if created == nil || created.namespace != ns || created.Owner != auth.state.CurrentUser || created.Sequence.start != 51 || created.Sequence.increment != 2 || created.Sequence.cache != 4 || created.Sequence.owned != (ids.ObjectAddress{}) || created.ACL.Explicit {
+						if created == nil || created.namespace != ns || created.Owner != auth.state.CurrentUser || created.Sequence.Start != 51 || created.Sequence.Increment != 2 || created.Sequence.Cache != 4 || created.Sequence.Owned != (ids.ObjectAddress{}) || created.ACL.Explicit {
 							t.Fatal("CREATE did not stage actual options/owner/default ACL")
 						}
 						g := candidate.generators[created.address]
@@ -363,7 +363,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 					t.Fatal("OWNED fixture lacks honest selected/predecessor pair")
 				}
-				if err := auth.CheckCreate(e.catalog.domain.Ref(auth.catalog.Epoch(), ns)); err != nil || auth.catalog.MustRelation(table.Address).Owner != auth.state.CurrentUser {
+				if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err != nil || auth.catalog.MustRelation(table.Address).Owner != auth.state.CurrentUser {
 					t.Fatal("OWNED fixture lacks DB-derived CREATE and directly owned table", err)
 				}
 				blockerSession := sessionStart(t, e, nil)
@@ -433,7 +433,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if replace && !private && fresh.CheckCreate(e.catalog.domain.Ref(fresh.catalog.Epoch(), ns)) == nil {
+				if replace && !private && fresh.CheckCreate(e.catalog.Domain.Ref(fresh.catalog.Epoch(), ns)) == nil {
 					t.Fatal("DB-only replacement did not remove earlier schema CREATE authority")
 				}
 				candidate := message.scope.catalog
@@ -445,7 +445,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				}
 				owned := table.Address
 				owned.SubID = auth.catalog.MustRelation(table.Address).Attributes[0]
-				if created == nil || created.Owner != auth.state.CurrentUser || created.namespace != ns || created.Sequence.owned != owned || created.Sequence.start != 71 || candidate.generators[created.address] == nil || candidate.generators[created.address].called || candidate.generators[created.address].last != 71 || e.catalog.state != before.roots.catalog {
+				if created == nil || created.Owner != auth.state.CurrentUser || created.namespace != ns || created.Sequence.Owned != owned || created.Sequence.Start != 71 || candidate.generators[created.address] == nil || candidate.generators[created.address].called || candidate.generators[created.address].last != 71 || e.catalog.state != before.roots.catalog {
 					t.Fatal("real OWNED helper did not stage otherwise-valid associated sequence without prefix")
 				}
 				finishErr := message.scope.Finish(nil)

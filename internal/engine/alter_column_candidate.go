@@ -39,8 +39,8 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 		return old, nil
 	}
 	history := relationAttributeMetadata(old, slot)
-	history.name = fmt.Sprintf("........pg.dropped.%d........", history.number)
-	history.typeID, history.notNull, history.hasDefault, history.generated, history.dropped = 0, false, false, "", true
+	history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
+	history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
 	target := ref.Address
 	target.SubID = old.Attributes[slot]
 	for _, attribute := range old.Attributes {
@@ -49,7 +49,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 			continue
 		}
 		dependent := false
-		for _, dependency := range definition.dependencies {
+		for _, dependency := range definition.Dependencies {
 			if dependency.Address == target {
 				dependent = true
 				break
@@ -119,15 +119,15 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 	next := *old
 	if old.Foreign != nil {
 		foreign := *old.Foreign
-		foreign.columns = maps.Clone(old.Foreign.columns)
-		delete(foreign.columns, target.SubID)
+		foreign.Columns = maps.Clone(old.Foreign.Columns)
+		delete(foreign.Columns, target.SubID)
 		next.Foreign = &foreign
 	}
 	next.DroppedAttributes = maps.Clone(old.DroppedAttributes)
 	if next.DroppedAttributes == nil {
 		next.DroppedAttributes = make(map[int32]attributeMetadata)
 	}
-	next.DroppedAttributes[history.number] = history
+	next.DroppedAttributes[history.Number] = history
 	next.Columns = make([]ColumnDescriptor, 0, len(old.Columns)-1)
 	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
 	next.Index = make(map[string]int, len(old.Index)-1)
@@ -161,7 +161,7 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
 		}
-		dependent = dependent || slices.Contains(index.SQLIndex.include, old.Attributes[slot])
+		dependent = dependent || slices.Contains(index.SQLIndex.Include, old.Attributes[slot])
 		if !dependent {
 			next.UniqueConstraints = append(next.UniqueConstraints, constraint)
 		}
@@ -190,8 +190,8 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 		}
 		for _, c := range old.CheckConstraints {
 			dependent := false
-			for _, dep := range c.dependencies {
-				if dep.ref.Address == target {
+			for _, dep := range c.Dependencies {
+				if dep.Ref.Address == target {
 					dependent = true
 					break
 				}
@@ -199,11 +199,11 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 			if dependent {
 				continue
 			}
-			expression, err := remapBoundExpression(c.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			expression, err := remapBoundExpression(c.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
-			c.expression = expression
+			c.Expression = expression
 			next.CheckConstraints = append(next.CheckConstraints, c)
 		}
 	}
@@ -229,16 +229,16 @@ func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor fun
 			if attribute == target.SubID {
 				continue
 			}
-			planned, err := remapBoundExpression(definition.planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			planned, err := remapBoundExpression(definition.Planned, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
-			definition.planned = planned
-			node, err := remapBoundExpression(definition.expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
+			definition.Planned = planned
+			node, err := remapBoundExpression(definition.Expression, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, slots)
 			if err != nil {
 				return nil, err
 			}
-			definition.expression = node
+			definition.Expression = node
 			next.Generations[attribute] = definition
 		}
 	}

@@ -84,7 +84,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
 		child.RelationKind = tableRelation
 		partitionAttachUnitInstall(t, e, child)
-		ref := e.catalog.domain.Ref(e.catalog.state.epoch, child.address)
+		ref := e.catalog.Domain.Ref(e.catalog.state.epoch, child.address)
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		partitionAttachUnitWrite(t, e, writer, ref, 1)
 		partitionAttachUnitBegin(t, e, owner, RepeatableRead)
@@ -169,7 +169,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			child = e.catalog.state.MustRelation(child.address)
 			owner := sessionStart(t, e, nil)
 			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
-			parentRef := e.catalog.domain.Ref(e.catalog.state.epoch, parent.address)
+			parentRef := e.catalog.Domain.Ref(e.catalog.state.epoch, parent.address)
 			childRef := parentRef
 			childRef.Address = child.address
 			before, beforeOp := partitionAttachUnitScope(t, e, owner)
@@ -200,7 +200,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			attachOp.Done()
 			private := e.privateCatalogLocked(owner.transactions.catalog)
-			if private.MustRelation(child.address).Membership == nil || e.catalog.state.Get(child.address) != child || len(parent.Partition.children) != 0 {
+			if private.MustRelation(child.address).Membership == nil || e.catalog.state.Get(child.address) != child || len(parent.Partition.Children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
 			if end == "savepoint" {

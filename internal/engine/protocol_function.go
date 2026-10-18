@@ -52,7 +52,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
-			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.name))
+			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))
 		}
 		return ProtocolField{}, sqlError("42883", fmt.Sprintf("function with OID %d does not exist", oid))
 	}
@@ -61,8 +61,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
 	}
 	ns := auth.catalog.Get(d.namespace)
-	nsRef := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.namespace)
-	ref := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.address)
+	nsRef := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.namespace)
+	ref := auth.catalog.owner.Domain.Ref(auth.catalog.Epoch(), d.address)
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}

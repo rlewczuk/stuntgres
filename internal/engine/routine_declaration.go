@@ -29,7 +29,7 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 }
 
 func (d *procedureDescriptor) returnsSet() bool {
-	return d.Builtin != nil && d.Builtin.returnsSet ||
+	return d.Builtin != nil && d.Builtin.ReturnsSet ||
 		d.intaggProvider() == stockIntagg && d.RoutineKind == functionRoutine &&
 			d.name == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }
@@ -37,16 +37,16 @@ func (d *procedureDescriptor) returnsSet() bool {
 // A provider association describes an already-implemented declaration, not an
 // execution capability. It cannot make a lookup-only signature callable.
 type builtinRoutineDeclaration struct {
-	identity   routineIdentity
-	kind       routineKind
-	result     ids.OID
-	strict     bool
-	volatility expr.Volatility
-	parallel   byte
-	returnsSet bool
-	variadic   ids.OID
-	defaults   uint8
-	providers  routineProvider
+	Identity   routineIdentity
+	Kind       routineKind
+	Result     ids.OID
+	Strict     bool
+	Volatility expr.Volatility
+	Parallel   byte
+	ReturnsSet bool
+	Variadic   ids.OID
+	Defaults   uint8
+	Providers  routineProvider
 }
 
 // Temporary aliases for the provider vocabulary that moved to functions in

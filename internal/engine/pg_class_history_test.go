@@ -26,13 +26,13 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, namespace: parent.namespace, name: "history_child", revision: 1, Owner: parent.Owner}
 			switch edge {
 			case "inheritance":
-				child.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
+				child.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{parent.address}}
 			case "table_partition":
-				child.Membership = &partitionMembership{parent: parent.address}
+				child.Membership = &partitionMembership{Parent: parent.address}
 			case "index_partition":
-				child.SQLIndex = &indexDefinition{partitionParent: parent.address}
+				child.SQLIndex = &indexDefinition{PartitionParent: parent.address}
 			case "ordinary_index":
-				child.SQLIndex = &indexDefinition{parent: parent.address}
+				child.SQLIndex = &indexDefinition{Parent: parent.address}
 			}
 			if err := stage.Create(child); err != nil {
 				t.Fatal(err)
@@ -74,7 +74,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "same_stage", revision: 7, RowType: 200112, Owner: e.authorizationDomain.Principal(10)}
-	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, namespace: parent.namespace, name: "same_child", revision: 8, Owner: parent.Owner, Inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
+	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, namespace: parent.namespace, name: "same_child", revision: 8, Owner: parent.Owner, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.address}}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	catalog, parent := pgClassHistoryCatalog(e)
-	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
+	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.address}}}
 	catalog.state.setDescriptor(child.address, child)
 	history := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 	catalog.state.setDescriptor(history.address, history)

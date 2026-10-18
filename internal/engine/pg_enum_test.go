@@ -104,7 +104,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectR
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestPGEnumShapeAndCapture(t *testing.T) {

@@ -316,7 +316,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine.catalog.owner() || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.domain || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine.catalog.owner() || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(currentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -543,12 +543,12 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	}
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.Policies {
-			for _, role := range policy.roles {
-				if role.public {
-					if role.ref != (authorization.PrincipalRef{}) {
+			for _, role := range policy.Roles {
+				if role.Public {
+					if role.Ref != (authorization.PrincipalRef{}) {
 						return fmt.Errorf("stuntgres: PUBLIC policy principal")
 					}
-				} else if _, err := r.Descriptor(role.ref); err != nil {
+				} else if _, err := r.Descriptor(role.Ref); err != nil {
 					return err
 				}
 			}
@@ -584,9 +584,9 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.Policies {
-			for _, role := range policy.roles {
-				if !role.public {
-					refs = append(refs, role.ref)
+			for _, role := range policy.Roles {
+				if !role.Public {
+					refs = append(refs, role.Ref)
 				}
 			}
 		}
@@ -786,7 +786,7 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address

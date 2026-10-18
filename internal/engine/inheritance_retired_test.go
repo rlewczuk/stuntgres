@@ -60,14 +60,14 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		own, source ids.OID
 		check       bool
 	}{
-		{current.Inheritance.notNull[nn.Attribute], nn.OID, parentNN, false},
-		{current.Inheritance.checks[ck.Name], ck.OID, parentCK, true},
+		{current.Inheritance.NotNull[nn.Attribute], nn.OID, parentNN, false},
+		{current.Inheritance.Checks[ck.Name], ck.OID, parentCK, true},
 	} {
-		if pair.p.local || pair.p.count() != 2 || len(pair.p.origins) != 1 || len(pair.p.retired) != 1 {
+		if pair.p.Local || pair.p.count() != 2 || len(pair.p.Origins) != 1 || len(pair.p.Retired) != 1 {
 			t.Fatal("DROP did not move exactly one live contribution to history", pair.p)
 		}
-		h := pair.p.retired[0]
-		if h.parent.Address != p.address || h.parent.Epoch != before.Epoch() || h.archive != 0 || h.replayed || h.attribute != 1 || h.column != "a" || h.constraint != pair.source || h.own != pair.own || h.check != pair.check || h.lifetime != uint64(before.Epoch()) {
+		h := pair.p.Retired[0]
+		if h.Parent.Address != p.address || h.Parent.Epoch != before.Epoch() || h.Archive != 0 || h.Replayed || h.Attribute != 1 || h.Column != "a" || h.Constraint != pair.source || h.Own != pair.own || h.Check != pair.check || h.Lifetime != uint64(before.Epoch()) {
 			t.Fatal("wrong actual removed provider certificate", h)
 		}
 		if err := validateRetiredInheritance(e.CatalogRead(), current, pair.p, pair.own, pair.check); err != nil {
@@ -84,14 +84,14 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		p      inheritedConstraint
 		source ids.OID
 	}{
-		{bottom.Inheritance.notNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
-		{bottom.Inheritance.checks[ck.Name], ck.OID},
+		{bottom.Inheritance.NotNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
+		{bottom.Inheritance.Checks[ck.Name], ck.OID},
 	} {
-		if pair.p.count() != 1 || len(pair.p.retired) != 0 || len(pair.p.origins) != 1 || pair.p.origins[0].parent != c.address || pair.p.origins[0].constraint != pair.source {
+		if pair.p.count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.address || pair.p.Origins[0].Constraint != pair.source {
 			t.Fatal("leaf copied ancestor historical multiplicity instead of actual live child fact", pair.p)
 		}
 	}
-	if !reflect.DeepEqual(leaf.Inheritance, bottom.Inheritance) || len(c.Inheritance.notNull[nn.Attribute].retired) != 0 {
+	if !reflect.DeepEqual(leaf.Inheritance, bottom.Inheritance) || len(c.Inheritance.NotNull[nn.Attribute].Retired) != 0 {
 		t.Fatal("published capture mutated in place")
 	}
 	// A re-added same-name column has a new stable rank and new provider facts.
@@ -104,7 +104,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		t.Fatal("re-add reused retired source identity")
 	}
 	live := retiredUnitTable(t, e, "c")
-	if live.Inheritance.notNull[nn.Attribute].count() != 3 || live.Inheritance.checks[ck.Name].count() != 3 {
+	if live.Inheritance.NotNull[nn.Attribute].count() != 3 || live.Inheritance.Checks[ck.Name].count() != 3 {
 		t.Fatal("re-add omitted live plus archived support")
 	}
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
@@ -113,9 +113,9 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		p      inheritedConstraint
 		newOID ids.OID
 	}{
-		{final.Inheritance.notNull[nn.Attribute], newNN}, {final.Inheritance.checks[ck.Name], newCK},
+		{final.Inheritance.NotNull[nn.Attribute], newNN}, {final.Inheritance.Checks[ck.Name], newCK},
 	} {
-		if pair.p.count() != 3 || len(pair.p.retired) != 2 || len(pair.p.origins) != 1 || pair.p.retired[0].constraint == pair.p.retired[1].constraint || pair.p.retired[1].constraint != pair.newOID {
+		if pair.p.count() != 3 || len(pair.p.Retired) != 2 || len(pair.p.Origins) != 1 || pair.p.Retired[0].Constraint == pair.p.Retired[1].Constraint || pair.p.Retired[1].Constraint != pair.newOID {
 			t.Fatal("distinct DROP lifetimes collapsed or inflated", pair.p)
 		}
 	}
@@ -145,7 +145,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	}
 	graph := cloneInheritance(c.Inheritance)
 	inheritRetiredColumnConstraints(state, c, graph, c.Attributes[c.Index["a"]])
-	if len(graph.notNull[1].retired) != 1 || len(graph.checks["ck"].retired) != 1 {
+	if len(graph.NotNull[1].Retired) != 1 || len(graph.Checks["ck"].Retired) != 1 {
 		t.Fatal("recorded DROP failed to issue historical support")
 	}
 	// A caller flag, a DROP CONSTRAINT, or an unrelated source OID is not a
@@ -157,43 +157,43 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 		state.events[p.address] = []inheritanceAlterEvent{bad}
 		g := cloneInheritance(c.Inheritance)
 		inheritRetiredColumnConstraints(state, c, g, 1)
-		if len(g.notNull[1].retired) != 0 || len(g.checks["ck"].retired) != 0 {
+		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
 			t.Fatal("noncontributing event issued history", bad)
 		}
 	}
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	current := retiredUnitTable(t, e, "c")
 	view := e.CatalogRead()
-	provenance := current.Inheritance.notNull[1]
+	provenance := current.Inheritance.NotNull[1]
 	for name, mutate := range map[string]func(*retiredInheritanceOrigin){
-		"own": func(h *retiredInheritanceOrigin) { h.own++ }, "kind": func(h *retiredInheritanceOrigin) { h.check = true },
-		"epoch": func(h *retiredInheritanceOrigin) { h.parent.Epoch++ }, "foreign_owner": func(h *retiredInheritanceOrigin) {
-			h.parent = New().catalog.domain.Ref(h.parent.Epoch, h.parent.Address)
+		"own": func(h *retiredInheritanceOrigin) { h.Own++ }, "kind": func(h *retiredInheritanceOrigin) { h.Check = true },
+		"epoch": func(h *retiredInheritanceOrigin) { h.Parent.Epoch++ }, "foreign_owner": func(h *retiredInheritanceOrigin) {
+			h.Parent = New().catalog.Domain.Ref(h.Parent.Epoch, h.Parent.Address)
 		},
-		"rank": func(h *retiredInheritanceOrigin) { h.attribute = 2 }, "zero_lifetime": func(h *retiredInheritanceOrigin) { h.lifetime = 0 },
-		"namespace": func(h *retiredInheritanceOrigin) { h.archive = 1 }, "column": func(h *retiredInheritanceOrigin) { h.column = "" },
+		"rank": func(h *retiredInheritanceOrigin) { h.Attribute = 2 }, "zero_lifetime": func(h *retiredInheritanceOrigin) { h.Lifetime = 0 },
+		"namespace": func(h *retiredInheritanceOrigin) { h.Archive = 1 }, "column": func(h *retiredInheritanceOrigin) { h.Column = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := provenance
-			bad.retired = slices.Clone(provenance.retired)
-			mutate(&bad.retired[0])
+			bad.Retired = slices.Clone(provenance.Retired)
+			mutate(&bad.Retired[0])
 			if err := validateRetiredInheritance(view, current, bad, current.NotNullConstraints[0].OID, false); err == nil {
 				t.Fatal("forged runtime lineage validated", name)
 			}
 		})
 	}
 	duplicate := provenance
-	duplicate.retired = append(slices.Clone(provenance.retired), provenance.retired[0])
+	duplicate.Retired = append(slices.Clone(provenance.Retired), provenance.Retired[0])
 	if err := validateRetiredInheritance(view, current, duplicate, current.NotNullConstraints[0].OID, false); err == nil {
 		t.Fatal("duplicate source lifetime validated")
 	}
 	// Retirement must not relax exact current provider OID/key validation.
 	forged := *current
 	forged.Inheritance = cloneInheritance(current.Inheritance)
-	live := forged.Inheritance.notNull[1]
-	live.origins = slices.Clone(live.origins)
-	live.origins[0].constraint++
-	forged.Inheritance.notNull[1] = live
+	live := forged.Inheritance.NotNull[1]
+	live.Origins = slices.Clone(live.Origins)
+	live.Origins[0].Constraint++
+	forged.Inheritance.NotNull[1] = live
 	if err := validateInheritance(view, &forged); err == nil {
 		t.Fatal("historical support laundered a forged live provider")
 	}
@@ -221,8 +221,8 @@ func TestInheritanceConstraintHistoryValidity(t *testing.T) {
 	if !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) {
 		t.Fatal("retirement silently validated or rebuilt invalid enforcement")
 	}
-	for _, dependency := range current.CheckConstraints[0].dependencies {
-		if dependency.ref.Address.ClassID == ids.RelationClassID && dependency.ref.Address.ObjectID == retiredUnitTable(t, e, "p").address.ObjectID && dependency.ref.Address.SubID == 1 {
+	for _, dependency := range current.CheckConstraints[0].Dependencies {
+		if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == retiredUnitTable(t, e, "p").address.ObjectID && dependency.Ref.Address.SubID == 1 {
 			t.Fatal("retained history pinned the removed live source column")
 		}
 	}

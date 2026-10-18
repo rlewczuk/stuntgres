@@ -14,7 +14,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, C
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return nil, CatalogRead{}, ids.ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
@@ -65,26 +65,26 @@ retry:
 	var checkedNonunique []*relationDescriptor
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != parent.address || !index.SQLIndex.live {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.address || !index.SQLIndex.Live {
 			continue
 		}
-		if index.SQLIndex.ready && index.SQLIndex.requiresInsertionOutput() {
+		if index.SQLIndex.Ready && index.SQLIndex.requiresInsertionOutput() {
 			b.checked = true
-			if !index.SQLIndex.unique && !index.SQLIndex.isExclusion() {
+			if !index.SQLIndex.Unique && !index.SQLIndex.isExclusion() {
 				checkedNonunique = append(checkedNonunique, index)
 			}
 		}
-		if !index.SQLIndex.unique && !index.SQLIndex.isExclusion() {
+		if !index.SQLIndex.Unique && !index.SQLIndex.isExclusion() {
 			continue
 		}
 		// REL18 row-key eligibility is independent of readiness/validity.
 		// An expression anywhere excludes the whole index; INCLUDE is payload.
 		var slots [32]int
-		if len(index.SQLIndex.keys) > len(slots) {
+		if len(index.SQLIndex.Keys) > len(slots) {
 			return nil, errors.New("stuntgres: invalid unique index key count")
 		}
 		simple := true
-		for at, key := range index.SQLIndex.keys {
+		for at, key := range index.SQLIndex.Keys {
 			attribute, node, err := indexCatalogKey(parent, key)
 			if err != nil {
 				return nil, err
@@ -95,14 +95,14 @@ retry:
 			}
 			slots[at] = slices.Index(parent.Attributes, attribute)
 		}
-		if index.SQLIndex.unique && simple && index.SQLIndex.predicate == nil {
-			for _, slot := range slots[:len(index.SQLIndex.keys)] {
+		if index.SQLIndex.Unique && simple && index.SQLIndex.Predicate == nil {
+			for _, slot := range slots[:len(index.SQLIndex.Keys)] {
 				if !slices.Contains(b.keySlots, slot) {
 					b.keySlots = append(b.keySlots, slot)
 				}
 			}
 		}
-		if index.SQLIndex.ready {
+		if index.SQLIndex.Ready {
 			indexes = append(indexes, index)
 		}
 	}
@@ -128,22 +128,22 @@ retry:
 		if err != nil {
 			return nil, err
 		}
-		n := len(index.SQLIndex.keys)
-		if index.SQLIndex.method != gistMethod {
+		n := len(index.SQLIndex.Keys)
+		if index.SQLIndex.Method != gistMethod {
 			bound.grouping = make([]sqltype.Grouping, n)
 		}
 		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
-		for j, key := range index.SQLIndex.keys {
+		for j, key := range index.SQLIndex.Keys {
 			usage, usageErr := indexKeyUsage(parent, key)
 			if usageErr != nil {
 				return nil, usageErr
 			}
-			if index.SQLIndex.method == gistMethod {
+			if index.SQLIndex.Method == gistMethod {
 				continue
 			}
 			// network_ops owns typed comparison but not generic grouping. Its
 			// claims use the existing comparator-based shared bucket.
-			if key.class.Family == "network_ops" {
+			if key.Class.Family == "network_ops" {
 				continue
 			}
 			bound.grouping[j], err = sqltype.BindGrouping(usage)
@@ -160,7 +160,7 @@ retry:
 		}
 		for _, index := range checkedNonunique {
 			bound := indexInsertionBinding{index: index, parent: parent}
-			if index.SQLIndex.method == hashMethod {
+			if index.SQLIndex.Method == hashMethod {
 				bound.hash, err = bindHashIndex(parent, index.SQLIndex)
 			} else {
 				bound.ordering, err = bindIndexKeys(parent, index.SQLIndex)
@@ -271,7 +271,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 		if !member {
 			continue
 		}
-		if !index.SQLIndex.nullsNotDistinct && uniqueHasNull(key) {
+		if !index.SQLIndex.NullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref
@@ -317,7 +317,7 @@ type uniqueConflict struct {
 }
 
 func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error {
-	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.SQLIndex.keys)
+	allowed, err := uniqueKeyDetailAllowed(c.auth, ref, c.index.SQLIndex.Keys)
 	if err != nil {
 		return err
 	}
@@ -402,7 +402,7 @@ retry:
 		if !member {
 			continue
 		}
-		if !index.SQLIndex.nullsNotDistinct && uniqueHasNull(key) {
+		if !index.SQLIndex.NullsNotDistinct && uniqueHasNull(key) {
 			continue
 		}
 		indexRef := ref

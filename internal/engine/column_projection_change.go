@@ -151,7 +151,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	if err == nil {
 		for address, descriptor := range stage.descriptors {
 			index, ok := descriptor.(*relationDescriptor)
-			if ok && index.SQLIndex != nil && index.SQLIndex.parent == old.address {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == old.address {
 				e.catalogChangeLocked(changes, address, index)
 			}
 		}

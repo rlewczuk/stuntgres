@@ -12,21 +12,21 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	before := cloneCatalog(f.e.catalog.state)
 	before.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 	for class := authorization.DefaultTables; class <= authorization.DefaultLargeObjects; class++ {
-		before.defaultACLs[defaultACLKey{creator: f.owner, class: class}] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true}}
+		before.defaultACLs[defaultACLKey{Creator: f.owner, Class: class}] = &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true}}
 		if class <= authorization.DefaultTypes {
-			before.defaultACLs[defaultACLKey{creator: f.owner, schema: f.schema, class: class}] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: authorization.DefaultMask(class)}}}}
+			before.defaultACLs[defaultACLKey{Creator: f.owner, Schema: f.schema, Class: class}] = &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: authorization.DefaultMask(class)}}}}
 		}
 	}
-	retainedEmpty := defaultACLKey{creator: f.member, class: authorization.DefaultRoutines}
-	before.defaultACLs[retainedEmpty] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.ExecutePrivilege, GrantOptions: authorization.ExecutePrivilege}}}}
-	baseline := defaultACLKey{creator: f.member, class: authorization.DefaultTables}
+	retainedEmpty := defaultACLKey{Creator: f.member, Class: authorization.DefaultRoutines}
+	before.defaultACLs[retainedEmpty] = &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.ExecutePrivilege, GrantOptions: authorization.ExecutePrivilege}}}}
+	baseline := defaultACLKey{Creator: f.member, Class: authorization.DefaultTables}
 	acl := authorization.DefaultBaseline(f.member, authorization.DefaultTables, false)
 	acl.Entries = append(acl.Entries, authorization.ACLEntry{Grantor: f.member, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege})
-	before.defaultACLs[baseline] = &defaultACLRecord{acl: acl}
-	untouched := defaultACLKey{creator: f.reader, class: authorization.DefaultTypes}
-	before.defaultACLs[untouched] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true}}
+	before.defaultACLs[baseline] = &defaultACLRecord{ACL: acl}
+	untouched := defaultACLKey{Creator: f.reader, Class: authorization.DefaultTypes}
+	before.defaultACLs[untouched] = &defaultACLRecord{ACL: authorization.ACLValue{Explicit: true}}
 	f.e.catalog.state = before
-	oldACL := append([]authorization.ACLEntry(nil), before.defaultACLs[baseline].acl.Entries...)
+	oldACL := append([]authorization.ACLEntry(nil), before.defaultACLs[baseline].ACL.Entries...)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	defer f.e.DiscardCatalogStage(stage)
 	stage.roleRevision = f.e.roles.revision
@@ -42,15 +42,15 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	for key := range f.e.catalog.state.defaultACLs {
-		if key.creator == f.owner || key == baseline {
+		if key.Creator == f.owner || key == baseline {
 			t.Fatal("selected creator or baseline policy survived", key)
 		}
 	}
 	empty := f.e.catalog.state.defaultACLs[retainedEmpty]
-	if empty == nil || !empty.acl.Explicit || len(empty.acl.Entries) != 0 || empty == before.defaultACLs[retainedEmpty] {
+	if empty == nil || !empty.ACL.Explicit || len(empty.ACL.Entries) != 0 || empty == before.defaultACLs[retainedEmpty] {
 		t.Fatal("nonbaseline global empty policy was lost or mutated")
 	}
-	if f.e.catalog.state.defaultACLs[untouched] != before.defaultACLs[untouched] || len(before.defaultACLs) != 13 || !reflect.DeepEqual(before.defaultACLs[baseline].acl.Entries, oldACL) || len(before.defaultACLs[retainedEmpty].acl.Entries) != 1 {
+	if f.e.catalog.state.defaultACLs[untouched] != before.defaultACLs[untouched] || len(before.defaultACLs) != 13 || !reflect.DeepEqual(before.defaultACLs[baseline].ACL.Entries, oldACL) || len(before.defaultACLs[retainedEmpty].ACL.Entries) != 1 {
 		t.Fatal("cleanup changed retained records or unrelated pointer identity")
 	}
 }

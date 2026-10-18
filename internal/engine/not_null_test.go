@@ -251,14 +251,14 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 			ends, generation := storage.ends, storage.generation
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.providers[ids.RelationClassID] = provider
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()

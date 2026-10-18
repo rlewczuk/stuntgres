@@ -21,7 +21,7 @@ func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obj
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {

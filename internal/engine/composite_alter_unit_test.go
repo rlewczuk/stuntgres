@@ -19,7 +19,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), source.address)
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.mu.Lock()
@@ -47,11 +47,11 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.providers[ids.RelationClassID]
+			provider := e.catalog.Providers[ids.RelationClassID]
 			calls := 0
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.catalog.providers[ids.RelationClassID] = provider
+				e.catalog.Providers[ids.RelationClassID] = provider
 				if !e.mu.TryLock() {
 					t.Fatal("provider called under engine lock")
 				}

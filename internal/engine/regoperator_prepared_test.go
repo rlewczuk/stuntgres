@@ -249,7 +249,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			old := regoperatorPreparedSnapshot(d.regtypes.constants)
 			signature := slices.Clone(d.Results)
 			operands := old[1].operands
-			if len(operands) != 2 || operands[0].ref.Address != typ.Address() || operands[0].revision != typ.Revision() || operands[1].ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) {
+			if len(operands) != 2 || operands[0].Ref.Address != typ.Address() || operands[0].Revision != typ.Revision() || operands[1].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) {
 				t.Fatal("shared cell lacks exact ordered operand identity/revision manifest", operands)
 			}
 			if !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
@@ -264,7 +264,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			if change == "Revision" {
 				found := false
 				for _, dep := range d.analysis.dependencies {
-					if dep.ref.Address == typ.Address() && dep.revision == typ.Revision() {
+					if dep.Ref.Address == typ.Address() && dep.Revision == typ.Revision() {
 						found = true
 					}
 				}
@@ -370,7 +370,7 @@ func TestRegOperatorPreparedOperandBoundaries(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	_, d := sequencePreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
 	constants := d.regtypes.constants
-	if len(constants) != 3 || len(constants[0].operands) != 1 || constants[0].operands[0].ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].operands) != 0 || len(constants[2].operands) != 0 {
+	if len(constants) != 3 || len(constants[0].operands) != 1 || constants[0].operands[0].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].operands) != 0 || len(constants[2].operands) != 0 {
 		t.Fatal("NONE, numeric, or name-only input invented operand identities", constants)
 	}
 }

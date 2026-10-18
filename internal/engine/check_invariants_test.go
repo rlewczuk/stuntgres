@@ -17,13 +17,13 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
 	original := descriptor.(*relationDescriptor)
-	predicate := original.CheckConstraints[0].expression.(comparisonExpression)
+	predicate := original.CheckConstraints[0].Expression.(comparisonExpression)
 	column := predicate.left.(columnExpression)
 	for _, tc := range []struct {
 		name   string
 		change func(*columnExpression)
 	}{
-		{"foreign owner", func(c *columnExpression) { c.origin = New().catalog.domain.Ref(c.origin.Epoch, c.origin.Address) }},
+		{"foreign owner", func(c *columnExpression) { c.origin = New().catalog.Domain.Ref(c.origin.Epoch, c.origin.Address) }},
 		{"foreign relation", func(c *columnExpression) { c.origin.Address.ObjectID++ }},
 		{"foreign epoch", func(c *columnExpression) { c.origin.Epoch++ }},
 		{"stale attribute", func(c *columnExpression) { c.origin.Address.SubID++ }},
@@ -39,7 +39,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 			tc.change(&bad)
 			p := predicate
 			p.left = bad
-			copy.CheckConstraints[0].expression = p
+			copy.CheckConstraints[0].Expression = p
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
 			}
@@ -51,14 +51,14 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	} {
 		copy := *original
 		copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
-		copy.CheckConstraints[0].expression = node
+		copy.CheckConstraints[0].Expression = node
 		if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
 	copy.CheckConstraints = append([]checkConstraint(nil), original.CheckConstraints...)
-	copy.CheckConstraints[0].dependencies = nil
+	copy.CheckConstraints[0].Dependencies = nil
 	if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
 	}

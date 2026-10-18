@@ -12,18 +12,18 @@ const pgAggregateOID ids.OID = 2600
 // An aggregate definition belongs to its implemented routine. Optional seeds
 // distinguish SQL NULL from an empty string without allocating seed pointers.
 type aggregateDefinition struct {
-	function                       ids.OID
-	kind                           string
-	directArgs                     int16
-	functions                      [8]ids.OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
-	finalExtra, movingFinalExtra   bool
-	finalModify, movingFinalModify string
-	sortOperator, transitionType   ids.OID
-	transitionSpace                int32
-	movingType                     ids.OID
-	movingSpace                    int32
-	initial, movingInitial         string
-	hasInitial, hasMovingInitial   bool
+	Function                       ids.OID
+	Kind                           string
+	DirectArgs                     int16
+	Functions                      [8]ids.OID // transition, final, combine, serialize, deserialize, moving, inverse, moving-final
+	FinalExtra, MovingFinalExtra   bool
+	FinalModify, MovingFinalModify string
+	SortOperator, TransitionType   ids.OID
+	TransitionSpace                int32
+	MovingType                     ids.OID
+	MovingSpace                    int32
+	Initial, MovingInitial         string
+	HasInitial, HasMovingInitial   bool
 }
 
 var aggregateColumnTypes = [...]sqltype.ID{
@@ -37,7 +37,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source || len(source.Columns) != len(aggregateColumnTypes) {
+	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.Domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source || len(source.Columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {
@@ -65,40 +65,40 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 			var err error
 			switch {
 			case i == 0:
-				row[i], err = sqltype.RegprocValue(typ, uint32(d.function))
+				row[i], err = sqltype.RegprocValue(typ, uint32(d.Function))
 			case i == 1:
-				row[i] = sqltype.String(typ, d.kind)
+				row[i] = sqltype.String(typ, d.Kind)
 			case i == 2:
-				row[i], err = sqltype.Integer(typ, int64(d.directArgs))
+				row[i], err = sqltype.Integer(typ, int64(d.DirectArgs))
 			case i >= 3 && i <= 10:
-				row[i], err = sqltype.RegprocValue(typ, uint32(d.functions[i-3]))
+				row[i], err = sqltype.RegprocValue(typ, uint32(d.Functions[i-3]))
 			case i == 11:
-				row[i] = sqltype.Boolean(typ, d.finalExtra)
+				row[i] = sqltype.Boolean(typ, d.FinalExtra)
 			case i == 12:
-				row[i] = sqltype.Boolean(typ, d.movingFinalExtra)
+				row[i] = sqltype.Boolean(typ, d.MovingFinalExtra)
 			case i == 13:
-				row[i] = sqltype.String(typ, d.finalModify)
+				row[i] = sqltype.String(typ, d.FinalModify)
 			case i == 14:
-				row[i] = sqltype.String(typ, d.movingFinalModify)
+				row[i] = sqltype.String(typ, d.MovingFinalModify)
 			case i == 15:
-				row[i], err = sqltype.OIDValue(typ, uint32(d.sortOperator))
+				row[i], err = sqltype.OIDValue(typ, uint32(d.SortOperator))
 			case i == 16:
-				row[i], err = sqltype.OIDValue(typ, uint32(d.transitionType))
+				row[i], err = sqltype.OIDValue(typ, uint32(d.TransitionType))
 			case i == 17:
-				row[i], err = sqltype.Integer(typ, int64(d.transitionSpace))
+				row[i], err = sqltype.Integer(typ, int64(d.TransitionSpace))
 			case i == 18:
-				row[i], err = sqltype.OIDValue(typ, uint32(d.movingType))
+				row[i], err = sqltype.OIDValue(typ, uint32(d.MovingType))
 			case i == 19:
-				row[i], err = sqltype.Integer(typ, int64(d.movingSpace))
+				row[i], err = sqltype.Integer(typ, int64(d.MovingSpace))
 			case i == 20:
 				row[i] = sqltype.Null(typ)
-				if d.hasInitial {
-					row[i] = sqltype.String(typ, d.initial)
+				if d.HasInitial {
+					row[i] = sqltype.String(typ, d.Initial)
 				}
 			case i == 21:
 				row[i] = sqltype.Null(typ)
-				if d.hasMovingInitial {
-					row[i] = sqltype.String(typ, d.movingInitial)
+				if d.HasMovingInitial {
+					row[i] = sqltype.String(typ, d.MovingInitial)
 				}
 			}
 			if err != nil {
@@ -116,7 +116,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	}
 	for _, d := range catalog.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
-			if err := put(&p.Aggregate.definition); err != nil {
+			if err := put(&p.Aggregate.Definition); err != nil {
 				return nil, err
 			}
 		}

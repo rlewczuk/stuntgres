@@ -35,7 +35,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		if i == 3 {
-			ns.Temporary = e.catalog.domain.Session(99)
+			ns.Temporary = e.catalog.Domain.Session(99)
 		}
 		view.state.setDescriptor(ns.address, &ns)
 		view.state.bindName(descriptorNameKey(&ns), ns.address)
@@ -313,7 +313,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()
@@ -337,13 +337,13 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	if dictionary == nil {
 		t.Fatal("real dictionary provider missing")
 	}
-	ref := e.catalog.domain.Ref(view.Epoch(), dictionary.address)
+	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.address)
 	consumer := func(ref ids.ObjectRef) *relationDescriptor {
 		return &relationDescriptor{
 			address:          ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			CheckConstraints: []checkConstraint{{dependencies: []expressionDependency{{ref: ref, revision: dictionary.revision}}}},
-			Defaults:         map[int32]columnDefault{1: {dependencies: []ids.ObjectRef{ref}}},
-			Generations:      map[int32]columnGeneration{1: {dependencies: []ids.ObjectRef{ref}}},
+			CheckConstraints: []checkConstraint{{Dependencies: []expressionDependency{{Ref: ref, Revision: dictionary.revision}}}},
+			Defaults:         map[int32]columnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
+			Generations:      map[int32]columnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
 		}
 	}
 	for name, validate := range map[string]func(CatalogRead, *relationDescriptor) error{

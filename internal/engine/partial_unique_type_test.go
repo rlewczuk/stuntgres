@@ -72,8 +72,8 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	// Real candidate descriptor/predicate, separately owned private publication.
 	next := *f.index
 	definition := *f.index.SQLIndex
-	predicate := *definition.predicate
-	definition.predicate = &predicate
+	predicate := *definition.Predicate
+	definition.Predicate = &predicate
 	next.SQLIndex = &definition
 	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]Descriptor{next.address: &next}, originals: map[ids.ObjectAddress]Descriptor{next.address: f.index}}
 	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {

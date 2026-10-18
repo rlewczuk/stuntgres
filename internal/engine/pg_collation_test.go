@@ -18,7 +18,7 @@ func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 	if !ok {
 		t.Fatal("missing pg_collation")
 	}
-	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func TestPGCollationShapeAndOwnership(t *testing.T) {

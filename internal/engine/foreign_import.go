@@ -27,7 +27,7 @@ func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*foreig
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.name))
 	}
 	p, ok := catalog.Procedure(wrapper.Handler)
-	if !ok || p.Foreign == nil || p.Foreign.wrapper == nil {
+	if !ok || p.Foreign == nil || p.Foreign.Wrapper == nil {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.name))
 	}
 	return p.Foreign, nil
@@ -67,7 +67,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	importer, ok := handler.wrapper.(ForeignSchemaImporter)
+	importer, ok := handler.Wrapper.(ForeignSchemaImporter)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, sqlError("HV00P", fmt.Sprintf(`foreign-data wrapper "%s" does not support IMPORT FOREIGN SCHEMA`, wrapper.name))

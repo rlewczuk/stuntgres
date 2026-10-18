@@ -106,18 +106,18 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.name != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.revision == 0 || len(captured.Body) != 0 || ext.name != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.namespace != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.name != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.revision == 0 || len(captured.Body) != 0 || ext.name != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.namespace != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dep := range original {
-				if dep.ref.Address == ref.Address {
+				if dep.Ref.Address == ref.Address {
 					found = true
-					if dep.ref != ref || dep.revision != captured.revision {
+					if dep.Ref != ref || dep.Revision != captured.revision {
 						t.Fatal("original ref/revision mismatch")
 					}
-				} else if dep.ref.Address.ClassID == ids.ProcedureClassID {
+				} else if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("invented core/helper dependency", dep)
 				}
 			}
@@ -154,20 +154,20 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				case "missing":
 					deps = deps[:0]
 					for _, dep := range original {
-						if dep.ref.Address != ref.Address {
+						if dep.Ref.Address != ref.Address {
 							deps = append(deps, dep)
 						}
 					}
 				default:
 					for i := range deps {
-						if deps[i].ref.Address == ref.Address {
+						if deps[i].Ref.Address == ref.Address {
 							switch mode {
 							case "epoch":
-								deps[i].ref.Epoch++
+								deps[i].Ref.Epoch++
 							case "revision":
-								deps[i].revision++
+								deps[i].Revision++
 							case "foreign_ref":
-								deps[i].ref = other.catalog.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
+								deps[i].Ref = other.catalog.Domain.Ref(deps[i].Ref.Epoch, deps[i].Ref.Address)
 							}
 						}
 					}
@@ -185,7 +185,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			for _, mutate := range []func(*procedureDescriptor){
 				func(d *procedureDescriptor) { d.Implementation = nil },
 				func(d *procedureDescriptor) {
-					d.Implementation = &intaggProvider{control: extensionControl{version: "1.1"}}
+					d.Implementation = &intaggProvider{control: extensionControl{Version: "1.1"}}
 				},
 				func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
 			} {
@@ -230,7 +230,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
 					foreignEnum := node.(unnestExpression)
-					foreignEnum.ref = other.catalog.domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
+					foreignEnum.ref = other.catalog.Domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
 					foreignEnum.ref.Epoch = foreign.catalog.Epoch()
 					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
@@ -308,14 +308,14 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					deps := append([]expressionDependency(nil), original...)
 					for i := range deps {
-						deps[i].ref = remap(deps[i].ref)
+						deps[i].Ref = remap(deps[i].Ref)
 					}
 					probe.routineChecks = deps
 					if err := admitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
 					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
-						r = other.catalog.domain.Ref(r.Epoch, r.Address)
+						r = other.catalog.Domain.Ref(r.Epoch, r.Address)
 						r.Epoch = foreign.catalog.Epoch()
 						return r
 					}, nil)

@@ -206,7 +206,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateGenerationPlan(e.CatalogRead(), nil, selected); err != nil {
 		t.Fatal("owned anonymous tree", err)
 	}
-	if defaultReplayDeferrable(columnDefault{expression: selected}) {
+	if defaultReplayDeferrable(columnDefault{Expression: selected}) {
 		t.Fatal("immutable constructor acquired deferred sequence replay")
 	}
 	other := New()

@@ -116,7 +116,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return false, false, errors.New("stuntgres: inactive write stage")
 	}
-	if ref.Domain() != e.catalog.domain {
+	if ref.Domain() != e.catalog.Domain {
 		return false, false, errors.New("stuntgres: foreign catalog reference")
 	}
 	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.owner.ref.Epoch() {

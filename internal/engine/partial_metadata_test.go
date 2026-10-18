@@ -15,7 +15,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	capture := view.read().catalog
 	rows := view.read().committed[f.parent.address]
 	oldRoot := f.e.indexRoots[f.index.address]
-	ref := f.e.catalog.domain.Ref(capture.Epoch(), f.index.address)
+	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.address)
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition := *f.index.SQLIndex
-	definition.predicate = predicate
+	definition.Predicate = predicate
 	index := *f.index
 	index.revision++
 	index.SQLIndex = &definition
@@ -111,7 +111,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	// Decisive FALSE excludes every row; structural consumers must still
 	// recover the original attribute reference even after simplification.
 	definition := *f.index.SQLIndex
-	definition.predicate = predicate
+	definition.Predicate = predicate
 	index := *f.index
 	index.SQLIndex = &definition
 	next := cloneCatalog(capture.state)
@@ -120,7 +120,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := projectIndexMetadata(ctx, candidate, f.e.catalog.domain.Ref(candidate.Epoch(), index.address))
+	metadata, _, err := projectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), index.address))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 			attributes = append(attributes, dependency)
 		}
 	}
-	wantRef := f.e.catalog.domain.Ref(candidate.Epoch(), f.parent.address)
+	wantRef := f.e.catalog.Domain.Ref(candidate.Epoch(), f.parent.address)
 	wantRef.Address.SubID = 20
 	if !reflect.DeepEqual(attributes, []ids.ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)
@@ -153,7 +153,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil || truth != False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.row, truth, err)
 		}
-		matched, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{predicate: predicate}, row.values, nil, nil)
+		matched, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{Predicate: predicate}, row.values, nil, nil)
 		if err != nil || matched {
 			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.row, matched, err)
 		}

@@ -29,15 +29,15 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 		}
 		return oid
 	}
-	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, namespace: namespace, name: "p", Owner: owner, revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]attributeMetadata{1: {number: 1, dropped: true}}}
+	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}, namespace: namespace, name: "p", Owner: owner, revision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{2}, Index: map[string]int{"b": 0}, AttributeHighWater: 2, DroppedAttributes: map[int32]attributeMetadata{1: {Number: 1, Dropped: true}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	primary := uniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
-	history := retiredInheritanceOrigin{parent: e.catalog.domain.Ref(base.Epoch(), parent.address), attribute: 1, column: "a", name: "nn", constraint: 20001, lifetime: uint64(base.Epoch()), own: 20002}
-	old := &relationDescriptor{address: address, namespace: namespace, name: "c", Owner: owner, revision: 1, RelationKind: tableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []uniqueConstraint{primary}, Inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{1: {local: true}, 2: {local: true}}, notNull: map[int32]inheritedConstraint{1: {retired: []retiredInheritanceOrigin{history}}, 2: {local: true}}}}
-	index := &relationDescriptor{address: indexAddress, namespace: namespace, name: "c_key", Owner: owner, revision: 1, RelationKind: indexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &indexDefinition{parent: address, keys: []indexKey{{attribute: 1}, {attribute: 2}}, unique: true, ready: true, valid: true, live: true, constraint: uniqueBacking(&primary)}}
+	history := retiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.address), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
+	old := &relationDescriptor{address: address, namespace: namespace, name: "c", Owner: owner, revision: 1, RelationKind: tableRelation, HasIndexes: true, Columns: []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, NotNullConstraints: []notNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, UniqueConstraints: []uniqueConstraint{primary}, Inheritance: &tableInheritance{Parents: []ids.ObjectAddress{parent.address}, Columns: map[int32]inheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]inheritedConstraint{1: {Retired: []retiredInheritanceOrigin{history}}, 2: {Local: true}}}}
+	index := &relationDescriptor{address: indexAddress, namespace: namespace, name: "c_key", Owner: owner, revision: 1, RelationKind: indexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, AttributeHighWater: 2, SQLIndex: &indexDefinition{Parent: address, Keys: []indexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: uniqueBacking(&primary)}}
 	parent.HasSubclasses = true
-	old.Inheritance.columns[2] = inheritedColumn{local: true, origins: []inheritanceOrigin{{parent: parent.address, attribute: 2}}}
+	old.Inheritance.Columns[2] = inheritedColumn{Local: true, Origins: []inheritanceOrigin{{Parent: parent.address, Attribute: 2}}}
 	created := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(created) })
 	for _, descriptor := range []Descriptor{parent, old, index} {
@@ -46,7 +46,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 		}
 	}
 	view := e.stageRead(created)
-	if err := validateRetiredInheritance(view, old, old.Inheritance.notNull[1], old.NotNullConstraints[0].OID, false); err != nil {
+	if err := validateRetiredInheritance(view, old, old.Inheritance.NotNull[1], old.NotNullConstraints[0].OID, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateInheritance(view, old); err != nil {
@@ -73,29 +73,29 @@ func TestPhysicalNotNullCauseAndCurrentSupport(t *testing.T) {
 	e, stage, old, clean := physicalNotNullFixture(t)
 	view := e.stageRead(stage)
 	proof := clean.PhysicalNotNull[1]
-	if proof.cause.self != proof.cause || proof.cause.removedNN != old.NotNullConstraints[0].OID || proof.cause.primary != old.UniqueConstraints[0].OID || proof.cause.index != old.UniqueConstraints[0].Index || proof.cause.origin != proof.cause.ref || proof.cause.usage != old.Columns[0].Usage || len(proof.support.keys) != 2 {
+	if proof.Cause.Self != proof.Cause || proof.Cause.RemovedNN != old.NotNullConstraints[0].OID || proof.Cause.Primary != old.UniqueConstraints[0].OID || proof.Cause.Index != old.UniqueConstraints[0].Index || proof.Cause.Origin != proof.Cause.Ref || proof.Cause.Usage != old.Columns[0].Usage || len(proof.Support.Keys) != 2 {
 		t.Fatal("issuer guessed or truncated actual source identities/Usage")
 	}
-	if len(old.PhysicalNotNull) != 0 || len(old.NotNullConstraints) != 2 || len(old.Inheritance.notNull[1].retired) != 1 {
+	if len(old.PhysicalNotNull) != 0 || len(old.NotNullConstraints) != 2 || len(old.Inheritance.NotNull[1].Retired) != 1 {
 		t.Fatal("issuer mutated the retained source capture")
 	}
 	for name, mutate := range map[string]func(*physicalNotNullProof){
-		"caller flag":     func(p *physicalNotNullProof) { p.cause = nil },
-		"copied receipt":  func(p *physicalNotNullProof) { copy := *p.cause; p.cause = &copy },
-		"current Usage":   func(p *physicalNotNullProof) { p.usage = testUsage(e, sqltype.Int8) },
-		"current primary": func(p *physicalNotNullProof) { copy := *p.support; copy.constraint++; p.support = &copy },
-		"current index":   func(p *physicalNotNullProof) { copy := *p.support; copy.index.ObjectID++; p.support = &copy },
+		"caller flag":     func(p *physicalNotNullProof) { p.Cause = nil },
+		"copied receipt":  func(p *physicalNotNullProof) { copy := *p.Cause; p.Cause = &copy },
+		"current Usage":   func(p *physicalNotNullProof) { p.Usage = testUsage(e, sqltype.Int8) },
+		"current primary": func(p *physicalNotNullProof) { copy := *p.Support; copy.Constraint++; p.Support = &copy },
+		"current index":   func(p *physicalNotNullProof) { copy := *p.Support; copy.Index.ObjectID++; p.Support = &copy },
 		"nonfirst key Usage": func(p *physicalNotNullProof) {
-			copy := *p.support
-			copy.keys = slices.Clone(copy.keys)
-			copy.keys[1].usage = testUsage(e, sqltype.Int8)
-			p.support = &copy
+			copy := *p.Support
+			copy.Keys = slices.Clone(copy.Keys)
+			copy.Keys[1].Usage = testUsage(e, sqltype.Int8)
+			p.Support = &copy
 		},
 		"nonfirst key rank": func(p *physicalNotNullProof) {
-			copy := *p.support
-			copy.keys = slices.Clone(copy.keys)
-			copy.keys[1].attribute = 1
-			p.support = &copy
+			copy := *p.Support
+			copy.Keys = slices.Clone(copy.Keys)
+			copy.Keys[1].Attribute = 1
+			p.Support = &copy
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestPhysicalNotNullRetirementAndSupersession(t *testing.T) {
 	retired.UniqueConstraints = nil
 	transitionPhysicalNotNull(clean, &retired)
 	kept := retired.PhysicalNotNull[1]
-	if kept.cause != proof.cause || kept.support != nil || kept.retired != proof.support || retired.Columns[0].Nullable {
+	if kept.Cause != proof.Cause || kept.Support != nil || kept.Retired != proof.Support || retired.Columns[0].Nullable {
 		t.Fatal("actual key retirement cleared flag or retained live provider authority")
 	}
 	if err := validatePhysicalNotNull(e.stageRead(stage), &retired, physicalOrdinaryNotNull(&retired)); err != nil {
@@ -188,9 +188,9 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	index.revision++
 	index.Columns = slices.Clone(next.Columns)
 	definition := *oldIndex.SQLIndex
-	definition.constraint = uniqueBacking(&next.UniqueConstraints[0])
+	definition.Constraint = uniqueBacking(&next.UniqueConstraints[0])
 	index.SQLIndex = &definition
-	if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), oldIndex.address)); err != nil {
+	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), oldIndex.address)); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Create(&index); err != nil {
@@ -204,13 +204,13 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	proof := rebuilt.PhysicalNotNull[1]
-	if proof.cause != clean.PhysicalNotNull[1].cause || proof.support.constraint != constraintOID || proof.support.index != index.address || proof.support.keys[1].usage != next.Columns[1].Usage || proof.support.keys[0].usage != next.Columns[0].Usage {
+	if proof.Cause != clean.PhysicalNotNull[1].Cause || proof.Support.Constraint != constraintOID || proof.Support.Index != index.address || proof.Support.Keys[1].Usage != next.Columns[1].Usage || proof.Support.Keys[0].Usage != next.Columns[0].Usage {
 		t.Fatal("real group replacement lost immutable origin or full composite current Usage")
 	}
 	if err := validatePhysicalNotNull(e.stageRead(stage), rebuilt, physicalOrdinaryNotNull(rebuilt)); err != nil {
 		t.Fatal(err)
 	}
-	if clean.PhysicalNotNull[1].support.constraint == constraintOID || clean.Columns[1].Usage == next.Columns[1].Usage {
+	if clean.PhysicalNotNull[1].Support.Constraint == constraintOID || clean.Columns[1].Usage == next.Columns[1].Usage {
 		t.Fatal("rebind mutated genuine earlier capture")
 	}
 }
@@ -219,9 +219,9 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	e, source, old, _ := physicalNotNullFixture(t)
 	local := *old
 	local.Inheritance = cloneInheritance(old.Inheritance)
-	provenance := local.Inheritance.notNull[1]
-	provenance.local = true
-	local.Inheritance.notNull[1] = provenance
+	provenance := local.Inheritance.NotNull[1]
+	provenance.Local = true
+	local.Inheritance.NotNull[1] = provenance
 	stage := e.BeginCatalogStage(source.base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&local); err != nil {
@@ -231,7 +231,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := local.NotNullConstraints[0]
-	archive := provenance.retired[0]
+	archive := provenance.Retired[0]
 	rebuilt, err := e.rebuildAlterNotNullsLocked(stage, &local, []columnTransformation{{attribute: 1}})
 	if err != nil {
 		t.Fatal(err)
@@ -240,8 +240,8 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	if after.OID == 0 || after.OID == before.OID || after.Attribute != before.Attribute || after.Name != before.Name {
 		t.Fatal("actual NN reconstruction failed to mint the same surviving fact")
 	}
-	current := rebuilt.Inheritance.notNull[1]
-	if !current.local || current.count() != len(provenance.origins) || len(current.retired) != 0 || local.Inheritance.notNull[1].retired[0] != archive {
+	current := rebuilt.Inheritance.NotNull[1]
+	if !current.Local || current.count() != len(provenance.Origins) || len(current.Retired) != 0 || local.Inheritance.NotNull[1].Retired[0] != archive {
 		t.Fatal("fresh NN inherited destroyed historical contributions or mutated the old archive")
 	}
 	if err := validateInheritance(e.stageRead(stage), rebuilt); err != nil {
@@ -250,9 +250,9 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	forged := *rebuilt
 	forged.Inheritance = cloneInheritance(rebuilt.Inheritance)
 	stale := provenance
-	stale.retired = slices.Clone(provenance.retired)
-	stale.retired[0].own++
-	forged.Inheritance.notNull[1] = stale
+	stale.Retired = slices.Clone(provenance.Retired)
+	stale.Retired[0].Own++
+	forged.Inheritance.NotNull[1] = stale
 	if err := retireRebuiltNotNullHistory(&local, &forged); err == nil {
 		t.Fatal("stale own identity rescued by actual NN reconstruction")
 	}
@@ -272,19 +272,19 @@ func TestInheritanceRetiredLocalCheckReconstruction(t *testing.T) {
 	}
 	old := retiredUnitTable(t, e, "c")
 	before := old.CheckConstraints[0]
-	provenance := old.Inheritance.checks["ck"]
-	if !provenance.local || len(provenance.retired) != 1 {
+	provenance := old.Inheritance.Checks["ck"]
+	if !provenance.Local || len(provenance.Retired) != 1 {
 		t.Fatal("actual local retired CHECK fixture did not reach its source boundary")
 	}
-	archive := provenance.retired[0]
+	archive := provenance.Retired[0]
 	roleExecute(t, e, op, "ALTER TABLE c ALTER a TYPE BIGINT USING a+10")
 	current := retiredUnitTable(t, e, "c")
 	after := current.CheckConstraints[0]
-	reconstructed := current.Inheritance.checks["ck"]
-	if after.OID == 0 || after.OID == before.OID || !reconstructed.local || reconstructed.count() != 0 || len(reconstructed.retired) != 0 {
+	reconstructed := current.Inheritance.Checks["ck"]
+	if after.OID == 0 || after.OID == before.OID || !reconstructed.Local || reconstructed.count() != 0 || len(reconstructed.Retired) != 0 {
 		t.Fatal("real CHECK rebuild transferred destroyed historical support")
 	}
-	if old.Inheritance.checks["ck"].retired[0] != archive {
+	if old.Inheritance.Checks["ck"].Retired[0] != archive {
 		t.Fatal("CHECK reconstruction mutated the captured old archive")
 	}
 	if err := validateInheritance(e.CatalogRead(), current); err != nil {
@@ -293,9 +293,9 @@ func TestInheritanceRetiredLocalCheckReconstruction(t *testing.T) {
 	forged := *current
 	forged.Inheritance = cloneInheritance(current.Inheritance)
 	stale := provenance
-	stale.retired = slices.Clone(provenance.retired)
-	stale.retired[0].own++
-	forged.Inheritance.checks["ck"] = stale
+	stale.Retired = slices.Clone(provenance.Retired)
+	stale.Retired[0].Own++
+	forged.Inheritance.Checks["ck"] = stale
 	if err := retireRebuiltCheckHistory(old, &forged); err == nil {
 		t.Fatal("CHECK reconstruction rescued a stale own identity")
 	}

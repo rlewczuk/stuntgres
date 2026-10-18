@@ -27,7 +27,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 				tableAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(49010 + i)}
 				indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(49020 + i)}
 				tables[i] = &relationDescriptor{address: tableAddress, namespace: namespaces[i], name: names[i] + "_table", Partition: &partitionDefinition{}, UniqueConstraints: []uniqueConstraint{{Name: names[i], Index: indexAddress}}}
-				indexes[i] = &relationDescriptor{address: indexAddress, namespace: namespaces[i], name: names[i], SQLIndex: &indexDefinition{parent: tableAddress}}
+				indexes[i] = &relationDescriptor{address: indexAddress, namespace: namespaces[i], name: names[i], SQLIndex: &indexDefinition{Parent: tableAddress}}
 				for _, d := range []*relationDescriptor{tables[i], indexes[i]} {
 					state.setDescriptor(d.address, d)
 					state.bindName(descriptorNameKey(d), d.address)

@@ -85,7 +85,7 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	database.revision++
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth.catalog = e.catalog.read(candidate)
-	ref := e.catalog.domain.Ref(retained.Epoch(), currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(retained.Epoch(), currentDatabaseAddress)
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
@@ -109,7 +109,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	candidate.setDescriptor(currentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader
-	ref := e.catalog.domain.Ref(candidate.epoch, currentDatabaseAddress)
+	ref := e.catalog.Domain.Ref(candidate.epoch, currentDatabaseAddress)
 	for _, tc := range []struct {
 		requirement AccessRequirement
 		message     string

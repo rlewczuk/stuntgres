@@ -143,12 +143,12 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 			if constraint.NotValid && !a.NotValid {
 				return nil, incompatibleNotValid(constraint.Name, old.name)
 			}
-			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.notNull[constraint.Attribute].local {
+			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
 				next.Inheritance = cloneInheritance(old.Inheritance)
-				provenance := next.Inheritance.notNull[constraint.Attribute]
-				provenance.local = true
-				next.Inheritance.notNull[constraint.Attribute] = provenance
+				provenance := next.Inheritance.NotNull[constraint.Attribute]
+				provenance.Local = true
+				next.Inheritance.NotNull[constraint.Attribute] = provenance
 				return &next, nil
 			}
 		}
@@ -162,12 +162,12 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 			if recursion == notNullInherited {
 				return old, nil
 			}
-			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.notNull[constraint.Attribute].local {
+			if recursion == notNullDirect && old.Inheritance != nil && !old.Inheritance.NotNull[constraint.Attribute].Local {
 				next := *old
 				next.Inheritance = cloneInheritance(old.Inheritance)
-				provenance := next.Inheritance.notNull[constraint.Attribute]
-				provenance.local = true
-				next.Inheritance.notNull[constraint.Attribute] = provenance
+				provenance := next.Inheritance.NotNull[constraint.Attribute]
+				provenance.Local = true
+				next.Inheritance.NotNull[constraint.Attribute] = provenance
 				return &next, nil
 			}
 			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(catalog, old.address)) != 0 {

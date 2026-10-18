@@ -11,19 +11,19 @@ import (
 // parent; attached indexes use the separate partitionParent identity.
 func visitSubclassParents(child *relationDescriptor, visit func(ids.ObjectAddress) error) error {
 	if child.Inheritance != nil {
-		for _, parent := range child.Inheritance.parents {
+		for _, parent := range child.Inheritance.Parents {
 			if err := visit(parent); err != nil {
 				return err
 			}
 		}
 	}
 	if child.Membership != nil {
-		if err := visit(child.Membership.parent); err != nil {
+		if err := visit(child.Membership.Parent); err != nil {
 			return err
 		}
 	}
-	if child.SQLIndex != nil && child.SQLIndex.partitionParent != (ids.ObjectAddress{}) {
-		if err := visit(child.SQLIndex.partitionParent); err != nil {
+	if child.SQLIndex != nil && child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+		if err := visit(child.SQLIndex.PartitionParent); err != nil {
 			return err
 		}
 	}

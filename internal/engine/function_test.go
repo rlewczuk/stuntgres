@@ -162,7 +162,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	}
 	refs := map[ids.ObjectRef]bool{}
 	for _, dep := range bound.dependencies {
-		refs[dep.ref] = true
+		refs[dep.Ref] = true
 	}
 	for _, sub := range []int{2, 3} {
 		column := ref

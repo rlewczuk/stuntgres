@@ -239,7 +239,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 				}
 			}
 			e.mu.Lock()
-			b, err := e.describe(ctx, s, auth, e.catalog.domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
+			b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				return err

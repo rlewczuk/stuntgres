@@ -36,7 +36,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				if !output.member {
 					continue
 				}
-				if index.SQLIndex.method == hashMethod {
+				if index.SQLIndex.Method == hashMethod {
 					if output.key.IsNull() {
 						continue
 					}
@@ -55,7 +55,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				if err := preparation.prepareKeys(&evaluation, parent, index.SQLIndex, &ordering, nil); err != nil {
 					return err
 				}
-				keys = make([]sqltype.Value, len(index.SQLIndex.keys))
+				keys = make([]sqltype.Value, len(index.SQLIndex.Keys))
 				if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {
 					return err
 				}

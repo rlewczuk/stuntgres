@@ -114,14 +114,14 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	}
 	parent := e.catalog.state.MustRelation(ref.Address)
 	index, _ := btreeRoot(t, e, "public.ui_index")
-	if !index.SQLIndex.unique || index.SQLIndex.nullsNotDistinct != nnd || len(index.SQLIndex.keys) != count {
+	if !index.SQLIndex.Unique || index.SQLIndex.NullsNotDistinct != nnd || len(index.SQLIndex.Keys) != count {
 		t.Fatal("invalid unique fixture")
 	}
 	if attached {
-		if index.SQLIndex.constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.address {
+		if index.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.address {
 			t.Fatal("attachment must be genuine")
 		}
-	} else if index.SQLIndex.constraint != nil || len(parent.UniqueConstraints) != 0 {
+	} else if index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 {
 		t.Fatal("standalone fixture fabricated attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -195,7 +195,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	parents := map[ids.ObjectAddress]bool{f.parent.address: rebuild}
 	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
 	if materialize {
-		if err := f.e.prepareRowPublication(&publication, f.e.catalog.domain.Tx(ids.SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
+		if err := f.e.prepareRowPublication(&publication, f.e.catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
 			t.Fatal(err)
 		}
 	}

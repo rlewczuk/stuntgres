@@ -74,9 +74,9 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	}
 	// Inline attachments collapse to their parent. INCLUDE UNIQUE/PK indexes
 	// instead have a real CREATE + attachment graph node of their own.
-	if source.RelationKind == indexRelation && source.SQLIndex != nil && source.SQLIndex.constraint != nil {
-		unique := source.SQLIndex.constraint
-		parent, ok := view.Relation(source.SQLIndex.parent)
+	if source.RelationKind == indexRelation && source.SQLIndex != nil && source.SQLIndex.Constraint != nil {
+		unique := source.SQLIndex.Constraint
+		parent, ok := view.Relation(source.SQLIndex.Parent)
 		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != partitionedRelation) || parent.namespace != source.namespace || parent.Owner != source.Owner || unique.Index != source.address {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
@@ -95,14 +95,14 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		}
 	}
 	if source.RelationKind == sequenceRelation {
-		if !source.Sequence.identity {
+		if !source.Sequence.Identity {
 			return 0, nil
 		}
-		owned := source.Sequence.owned
+		owned := source.Sequence.Owned
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].sequence != address || table.namespace != source.namespace {
+		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.namespace != source.namespace {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table

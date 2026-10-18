@@ -35,7 +35,7 @@ remain explicitly separate from native compatibility assertions.
 
 ## Concrete identity and providers
 
-`indexDefinition.method` is a small B-tree/hash discriminator, not a plugin
+`indexDefinition.Method` is a small B-tree/hash discriminator, not a plugin
 registry. Class lookup/default selection, definition validation, TYPE
 reconstruction, semantic equality, root build/merge and deparse use the actual
 method. UNIQUE constructors explicitly retain B-tree identity.

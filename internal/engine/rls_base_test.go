@@ -46,25 +46,25 @@ func TestRLSBaseDecision(t *testing.T) {
 	check("direct bypass", bypass, policySelect, false, rlsUnrestricted)
 	check("attribute not inherited", member, policySelect, false, rlsDefaultDeny)
 	check("direct superuser", d.Owner, policySelect, false, rlsUnrestricted)
-	next.Policies = []policyDefinition{{permissive: false, command: policyAll, roles: []policyRole{{public: true}}, using: policyPayloadOf(using)}}
+	next.Policies = []policyDefinition{{Permissive: false, Command: policyAll, Roles: []policyRole{{Public: true}}, Using: policyPayloadOf(using)}}
 	check("restrictive only", member, policySelect, false, rlsDefaultDeny)
-	next.Policies[0].permissive = true
-	next.Policies[0].roles = []policyRole{{ref: owner}}
+	next.Policies[0].Permissive = true
+	next.Policies[0].Roles = []policyRole{{Ref: owner}}
 	check("role inapplicable", member, policySelect, false, rlsDefaultDeny)
 	check("inherited policy", reader, policySelect, false, rlsNeedsExpressions)
-	next.Policies[0].roles = []policyRole{{public: true}}
+	next.Policies[0].Roles = []policyRole{{Public: true}}
 	check("public constant is not a shortcut", member, policySelect, false, rlsNeedsExpressions)
 	check("ALL check falls back", member, policyInsert, true, rlsNeedsExpressions)
-	next.Policies[0].command = policySelect
+	next.Policies[0].Command = policySelect
 	check("command inapplicable", member, policyInsert, true, rlsDefaultDeny)
 	got, err := rowSecurityGroups(auth, &next, member, policyUpdate, false, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
-	next.Policies[0].using = nil
+	next.Policies[0].Using = nil
 	check("omitted using", member, policySelect, false, rlsDefaultDeny)
-	next.Policies[0].command = policyInsert
-	next.Policies[0].check = policyPayloadOf(using)
+	next.Policies[0].Command = policyInsert
+	next.Policies[0].Check = policyPayloadOf(using)
 	check("explicit check", member, policyInsert, true, rlsNeedsExpressions)
 	got, err = rowSecurityGroups(auth, &next, member, policyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
@@ -164,13 +164,13 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *d
-	old.Policies = []policyDefinition{{OID: oid, Name: "retained", permissive: true, command: policyAll, roles: []policyRole{{ref: d.Owner}}, using: policyPayloadOf(expression), check: policyPayloadOf(expression)}}
+	old.Policies = []policyDefinition{{OID: oid, Name: "retained", Permissive: true, Command: policyAll, Roles: []policyRole{{Ref: d.Owner}}, Using: policyPayloadOf(expression), Check: policyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
 	next := rowSecurityFlags(&old, actions)
 	if next == &old || next.RLSEnabled || !next.RLSForced || old.RLSEnabled || old.RLSForced {
 		t.Fatal("independent flags/old snapshot")
 	}
-	if &next.Policies[0] != &old.Policies[0] || policyExpressionOf(next.Policies[0].using) != expression || policyExpressionOf(next.Policies[0].check) != expression || next.Policies[0].OID != oid {
+	if &next.Policies[0] != &old.Policies[0] || policyExpressionOf(next.Policies[0].Using) != expression || policyExpressionOf(next.Policies[0].Check) != expression || next.Policies[0].OID != oid {
 		t.Fatal("flag action copied or changed immutable policy payload")
 	}
 	if rowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
@@ -197,7 +197,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
 		if ok && copy.name == "t" {
-			if copy.RLSEnabled || !copy.RLSForced || len(copy.Policies) != 1 || policyExpressionOf(copy.Policies[0].using) == expression {
+			if copy.RLSEnabled || !copy.RLSForced || len(copy.Policies) != 1 || policyExpressionOf(copy.Policies[0].Using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")
 			}
 			return

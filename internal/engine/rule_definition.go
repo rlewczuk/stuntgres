@@ -117,7 +117,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	if side == "new" {
 		frame = 2
 	}
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: ns.relation.revision})
+	b.dependencies = append(b.dependencies, expressionDependency{Ref: ref, Revision: ns.relation.revision})
 	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 

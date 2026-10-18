@@ -273,7 +273,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 						continue
 					}
 					found = true
-					rendered, err := renderer.sql(c.Context, def.expression, pgRenderParent{})
+					rendered, err := renderer.sql(c.Context, def.Expression, pgRenderParent{})
 					if err != nil {
 						return sqltype.Value{}, err
 					}
@@ -311,7 +311,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 				}
 				found = true
 				renderer.relation = relation
-				rendered, err := renderer.sql(c.Context, def.expression, pgRenderParent{})
+				rendered, err := renderer.sql(c.Context, def.Expression, pgRenderParent{})
 				if err != nil {
 					return sqltype.Value{}, err
 				}

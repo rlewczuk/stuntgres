@@ -103,7 +103,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		return nil, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
-		if ref.Domain() != e.catalog.domain {
+		if ref.Domain() != e.catalog.Domain {
 			return nil, errors.New("stuntgres: foreign catalog reference")
 		}
 		if ref.Epoch != e.catalog.state.epoch {

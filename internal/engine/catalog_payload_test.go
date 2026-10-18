@@ -19,7 +19,7 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	captured := &relationDescriptor{address: source}
 	ref := domain.Ref(7, source)
 	token := domain.Session(5)
-	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []expressionDependency{{ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
+	definition := &viewDefinition{rule: 30001, consumer: consumer, temporary: token, sources: []viewLeaf{{ref: ref}}, dependencies: []expressionDependency{{Ref: domain.Ref(7, column)}}, references: map[ids.ObjectRef]Descriptor{ref: captured}}
 	d := &relationDescriptor{address: consumer, View: viewPayloadOf(definition)}
 	if viewOf(d) != definition || d.View.RuleOID() != 30001 {
 		t.Fatal("view payload identity")
@@ -50,12 +50,12 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 		t.Fatal("absent policy payload")
 	}
 	condition := &policyExpression{presentation: definition}
-	policy := policyDefinition{using: policyPayloadOf(condition)}
-	if policyExpressionOf(policy.using) != condition || policy.check != nil {
+	policy := policyDefinition{Using: policyPayloadOf(condition)}
+	if policyExpressionOf(policy.Using) != condition || policy.Check != nil {
 		t.Fatal("policy payload identity")
 	}
 	for target, want := range map[ids.ObjectAddress]bool{source: true, column: true, other: false} {
-		if policy.using.DependsOn(target) != want || policyDepends(policy, target) != want {
+		if policy.Using.DependsOn(target) != want || policyDepends(policy, target) != want {
 			t.Fatal("policy dependency", target, want)
 		}
 	}

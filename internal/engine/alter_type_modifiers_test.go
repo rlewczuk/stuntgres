@@ -70,12 +70,12 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO d(id) VALUES(1)")
 	ref := roleTableRef(t, e, "d")
 	before := e.catalog.state.MustRelation(ref.Address)
-	if before.Defaults[before.Attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if before.Defaults[before.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("fixture default is not Stable")
 	}
 	sessionSQL(t, s, "ALTER TABLE d ALTER c TYPE TIMESTAMPTZ(2)")
 	after := e.catalog.state.MustRelation(ref.Address)
-	if after.Columns[1].Usage.Typmod != 2 || after.Defaults[after.Attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if after.Columns[1].Usage.Typmod != 2 || after.Defaults[after.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("TYPE froze stable default", after)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'America/New_York'")
@@ -92,7 +92,7 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored := e.catalog.state.MustRelation(roleTableRef(t, e, "d").Address)
-	if restored.Columns[1].Usage.Typmod != 2 || restored.Defaults[restored.Attributes[1]].expression.Properties().Volatility != expr.Stable {
+	if restored.Columns[1].Usage.Typmod != 2 || restored.Defaults[restored.Attributes[1]].Expression.Properties().Volatility != expr.Stable {
 		t.Fatal("Restore lost stable default or precision", restored)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'UTC'")

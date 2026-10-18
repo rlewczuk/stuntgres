@@ -213,10 +213,10 @@ func TestExprCollationGeneratedTableOIDReachability(t *testing.T) {
 		want bool
 	}{{2, true}, {3, true}, {4, false}} {
 		generation := table.Generations[table.Attributes[tc.slot]]
-		if got := generationHasTableOID(generation.expression); got != tc.want {
+		if got := generationHasTableOID(generation.Expression); got != tc.want {
 			t.Fatal("owner-dependent row traversal", tc.slot, got, tc.want)
 		}
-		if got := generationHasTableOID(generation.planned); got != tc.want {
+		if got := generationHasTableOID(generation.Planned); got != tc.want {
 			t.Fatal("planned owner-dependent row traversal", tc.slot, got, tc.want)
 		}
 	}

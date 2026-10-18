@@ -13,18 +13,18 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 	childDefault, hasDefault := child.Defaults[attribute]
 	childGeneration, generated := child.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
-	for _, origin := range provenance.origins {
-		parent, ok := view.Relation(origin.parent)
+	for _, origin := range provenance.Origins {
+		parent, ok := view.Relation(origin.Parent)
 		if !ok {
 			return provenance, ids.ErrCatalogReplaced
 		}
-		if definition, exists := parent.Defaults[origin.attribute]; exists {
+		if definition, exists := parent.Defaults[origin.Attribute]; exists {
 			suppliedDefault = true
-			if !hasDefault || !sameInheritedExpression(definition.expression, childDefault.expression, child, view) {
-				provenance.explicitDefault = true
+			if !hasDefault || !sameInheritedExpression(definition.Expression, childDefault.Expression, child, view) {
+				provenance.ExplicitDefault = true
 			}
 		}
-		if definition, exists := parent.Generations[origin.attribute]; exists && generated {
+		if definition, exists := parent.Generations[origin.Attribute]; exists && generated {
 			suppliedGeneration = true
 			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
 			for i, column := range parent.Columns {
@@ -34,20 +34,20 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 				}
 				mapper.targetSlots[i] = slot
 			}
-			mapped, err := mapper.remap(definition.expression, child, view)
+			mapped, err := mapper.remap(definition.Expression, child, view)
 			if err != nil {
 				return provenance, err
 			}
-			if !sameInheritedExpression(mapped, childGeneration.expression, child, view) {
-				provenance.explicitGeneration = true
+			if !sameInheritedExpression(mapped, childGeneration.Expression, child, view) {
+				provenance.ExplicitGeneration = true
 			}
 		}
 	}
 	if hasDefault && !suppliedDefault {
-		provenance.explicitDefault = true
+		provenance.ExplicitDefault = true
 	}
 	if generated && !suppliedGeneration {
-		provenance.explicitGeneration = true
+		provenance.ExplicitGeneration = true
 	}
 	return provenance, nil
 }
@@ -63,13 +63,13 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog Catalo
 	for i, column := range t.columns {
 		attribute := t.attributes[i]
 		provenance := t.recipes[attribute]
-		if provenance.local {
+		if provenance.Local {
 			continue
 		}
-		if provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[attribute]) {
+		if provenance.ExplicitDefault && !(deferDefaults && t.deferredDefinitions[attribute]) {
 			clause := " DROP DEFAULT"
 			if definition, exists := t.defaults[attribute]; exists {
-				text, err := defaultSQL(ctx, catalog, definition.expression)
+				text, err := defaultSQL(ctx, catalog, definition.Expression)
 				if err != nil {
 					return err
 				}
@@ -91,8 +91,8 @@ func inheritedDefaultReplay(raw *parser.AlterTableDefault, relation *relationDes
 	if !exists {
 		return false
 	}
-	provenance := relation.Inheritance.columns[relation.Attributes[slot]]
-	return !provenance.local && len(provenance.origins) != 0 && provenance.explicitDefault
+	provenance := relation.Inheritance.Columns[relation.Attributes[slot]]
+	return !provenance.Local && len(provenance.Origins) != 0 && provenance.ExplicitDefault
 }
 
 func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
@@ -101,15 +101,15 @@ func (t *dumpRelation) prepareInheritedRecipes(view CatalogRead) error {
 		return nil
 	}
 	for _, attribute := range t.attributes {
-		provenance := graph.columns[attribute]
-		if provenance.local && len(provenance.origins) == 0 {
+		provenance := graph.Columns[attribute]
+		if provenance.Local && len(provenance.Origins) == 0 {
 			continue
 		}
 		effective, err := retainInheritedRecipes(view, t.descriptor, attribute, provenance)
 		if err != nil {
 			return err
 		}
-		needed := !provenance.local && (effective.explicitDefault || effective.explicitGeneration) || provenance.local && (!provenance.explicitDefault && effective.explicitDefault || !provenance.explicitGeneration && effective.explicitGeneration)
+		needed := !provenance.Local && (effective.ExplicitDefault || effective.ExplicitGeneration) || provenance.Local && (!provenance.ExplicitDefault && effective.ExplicitDefault || !provenance.ExplicitGeneration && effective.ExplicitGeneration)
 		if needed {
 			if t.recipes == nil {
 				t.recipes = make(map[int32]inheritedColumn)

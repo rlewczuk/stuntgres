@@ -116,7 +116,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
@@ -250,7 +250,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				return Result{}, err
 			}
 		}
-		options.persistence = persistence
+		options.Persistence = persistence
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
@@ -270,7 +270,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
+				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, err
@@ -278,7 +278,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		e.catalogChangeLocked(changes, d.address, d)
-		initial := options.start
+		initial := options.Start
 		if restart != nil {
 			initial = *restart
 		}
@@ -362,13 +362,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		d.Sequence = &options
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				if old.Sequence.identity {
-					a := old.Sequence.owned
+				if old.Sequence.Identity {
+					a := old.Sequence.Owned
 					a.SubID = 0
 					table := auth.catalog.MustRelation(a)
 					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.name, table.name)}
 				}
-				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
+				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
 				if err != nil {
 					return Result{}, err
 				}
@@ -381,17 +381,17 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		case "rename":
 			d.name = s.Target.Text
 		case "logged", "unlogged":
-			if old.Sequence.persistence == "temporary" {
+			if old.Sequence.Persistence == "temporary" {
 				ns := auth.catalog.MustNamespace(old.namespace)
 				diagnostic := sqlError("42P16", fmt.Sprintf(`cannot change logged status of table "%s" because it is temporary`, old.name)).(*sqlstate.Error)
 				diagnostic.Schema, diagnostic.Table = ns.name, old.name
 				return Result{}, diagnostic
 			}
-			options.persistence = s.Action
+			options.Persistence = s.Action
 		case "owner":
 			target := ownerTarget
-			if options.owned != (ids.ObjectAddress{}) {
-				a := options.owned
+			if options.Owned != (ids.ObjectAddress{}) {
+				a := options.Owned
 				a.SubID = 0
 				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), false)
 			}
@@ -407,15 +407,15 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err = targetAuth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, d.namespace)); err != nil {
+				if err = targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.namespace)); err != nil {
 					return Result{}, err
 				}
 			}
 			d.Owner = target
 			d.ACL = authorization.SchemaACLOwner(d.ACL, old.Owner, d.Owner)
 		case "schema":
-			if options.owned != (ids.ObjectAddress{}) {
-				a := options.owned
+			if options.Owned != (ids.ObjectAddress{}) {
+				a := options.Owned
 				a.SubID = 0
 				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), true)
 			}
@@ -448,7 +448,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		for _, option := range s.Options {
 			rewrite = rewrite || option.Name != "owned"
 		}
-		persistenceChanged := options.persistence != old.Sequence.persistence
+		persistenceChanged := options.Persistence != old.Sequence.Persistence
 		if rewrite || d.name != old.name || d.namespace != old.namespace || d.Owner != old.Owner || persistenceChanged {
 			d.SequencePlanStamp = rev
 		}
@@ -512,7 +512,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, er
 		}
-		if d.Sequence.identity {
+		if d.Sequence.Identity {
 			e.mu.Unlock()
 			return Result{}, identitySequenceDropError(auth.catalog, d)
 		}
@@ -589,7 +589,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if err = relationDropOwner(auth, ref, d); err != nil {
 			return Result{}, err
 		}
-		if d.Sequence.identity {
+		if d.Sequence.Identity {
 			return Result{}, identitySequenceDropError(auth.catalog, d)
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)

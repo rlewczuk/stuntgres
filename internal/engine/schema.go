@@ -89,7 +89,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 		if b.createOfType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
@@ -261,7 +261,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if _, domain := stmt.(*parser.CreateDomain); domain {
 		for address, descriptor := range stage.descriptors {
 			if typ, ok := descriptor.(*typeDescriptor); ok && typ.SQLType.IsDomain() && stage.base.Get(address) == nil {
-				created = e.catalog.domain.Ref(stage.base.Epoch(), address)
+				created = e.catalog.Domain.Ref(stage.base.Epoch(), address)
 				break
 			}
 		}
@@ -310,7 +310,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
 		if r, ok := stage.base.Relation(a); ok && r.RelationKind == sequenceRelation {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}
@@ -368,7 +368,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
 			return err
@@ -395,7 +395,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return d, nil
 	}
 	own := func(d *namespaceDescriptor) error {
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
 		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
@@ -651,12 +651,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 		}
 		for _, r := range dependent {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(auth.catalog.Epoch(), r.address), false); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(auth.catalog.Epoch(), r.address), false); err != nil {
 				return nil, err
 			}
 		}
 		for _, d := range schemas {
-			if err = stage.removeObjectLocked(e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), true); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address), true); err != nil {
 				return nil, err
 			}
 		}

@@ -34,7 +34,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
-	return e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	return e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 }
 func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
@@ -358,7 +358,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if err != nil || count != -1 || len(p.commands) != 0 {
 		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.commands), err)
 	}
-	if len(p.events) != 1 || p.events[0].ref != ruleUnitRef(e, src) || p.events[0].revision != src.revision {
+	if len(p.events) != 1 || p.events[0].Ref != ruleUnitRef(e, src) || p.events[0].Revision != src.revision {
 		t.Fatal("NOTHING lost rule event locking/prepared dependency authority")
 	}
 	t.Run("layered_boundary", func(t *testing.T) {
@@ -525,7 +525,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			a.SubID = old.Address.SubID
 			old.Address = a
 		}
-		old = e.catalog.domain.Ref(old.Epoch, old.Address)
+		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.epoch
 		return old
 	}

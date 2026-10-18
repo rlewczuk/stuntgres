@@ -294,7 +294,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.Relation(ref.Address)
-		if !ok || ref.Domain() != e.catalog.domain {
+		if !ok || ref.Domain() != e.catalog.Domain {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}

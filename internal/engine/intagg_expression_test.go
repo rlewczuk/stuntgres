@@ -188,7 +188,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		bad := n.ref
 		if foreign {
-			bad = New().catalog.domain.Ref(bad.Epoch, bad.Address)
+			bad = New().catalog.Domain.Ref(bad.Epoch, bad.Address)
 		} else {
 			bad.Epoch++
 		}
@@ -210,8 +210,8 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
 	aggregate := before.MustProcedure(ext.Members[0])
-	for i, helper := range aggregate.Aggregate.helpers {
-		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
+	for i, helper := range aggregate.Aggregate.Helpers {
+		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
 	next := cloneCatalog(before.state)
 	for address := range before.Descriptors() {

@@ -23,7 +23,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 	if target.Inheritance == nil {
 		return false
 	}
-	for _, parent := range target.Inheritance.parents {
+	for _, parent := range target.Inheritance.Parents {
 		if parent == ancestor {
 			return true
 		}
@@ -35,7 +35,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 			return false
 		}
 		visited[relation.address] = true
-		for _, address := range relation.Inheritance.parents {
+		for _, address := range relation.Inheritance.Parents {
 			if address == ancestor {
 				return true
 			}
@@ -225,7 +225,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	for address, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != target.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.address {
 			continue
 		}
 		eligible, err := foreignKeyIndexEligible(target, index, attributes)
@@ -261,7 +261,7 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	auth := declaration.auth
 	auth.catalog = view
 	auth.recaptureCatalog(view)
-	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.domain || receipt.target.Domain() != e.catalog.domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
 	source, _ := view.Relation(receipt.source.Address)
@@ -272,7 +272,7 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	seen := 0
 	for address, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != target.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.address {
 			continue
 		}
 		observed, exists := receipt.providers[address]

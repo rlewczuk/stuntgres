@@ -18,7 +18,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.Obje
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return d, e.catalog.Domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
@@ -178,7 +178,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("class identity", tc, class)
 		}
 		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
-		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
+		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{Parent: parent.address, Method: tc.method, Keys: []indexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
 		e.catalog.state.setDescriptor(parent.address, parent)
 		e.catalog.state.setDescriptor(index.address, index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
@@ -190,7 +190,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("real root", tc, root, err)
 		}
 		catalog := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.domain.Ref(catalog.Epoch(), index.address))
+		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.Domain.Ref(catalog.Epoch(), index.address))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}

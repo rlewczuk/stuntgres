@@ -203,13 +203,13 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if len(d.Policies) != 0 {
 				n.Policies = append([]policyDefinition(nil), d.Policies...)
 				for i := range n.Policies {
-					n.Policies[i].roles = append([]policyRole(nil), d.Policies[i].roles...)
-					for j := range n.Policies[i].roles {
-						role := &n.Policies[i].roles[j]
-						if role.public {
+					n.Policies[i].Roles = append([]policyRole(nil), d.Policies[i].Roles...)
+					for j := range n.Policies[i].Roles {
+						role := &n.Policies[i].Roles[j]
+						if role.Public {
 							continue
 						}
-						role.ref, err = remap(role.ref)
+						role.Ref, err = remap(role.Ref)
 						if err != nil {
 							return nil, err
 						}
@@ -224,16 +224,16 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	if len(state.defaultACLs) != 0 {
 		next := make(map[defaultACLKey]*defaultACLRecord, len(state.defaultACLs))
 		for key, record := range state.defaultACLs {
-			creator, err := remap(key.creator)
+			creator, err := remap(key.Creator)
 			if err != nil {
 				return nil, err
 			}
-			value, err := acl(record.acl)
+			value, err := acl(record.ACL)
 			if err != nil {
 				return nil, err
 			}
-			key.creator = creator
-			next[key] = &defaultACLRecord{acl: value}
+			key.Creator = creator
+			next[key] = &defaultACLRecord{ACL: value}
 		}
 		state.defaultACLs = next
 	}

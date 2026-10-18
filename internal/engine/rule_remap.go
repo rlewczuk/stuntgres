@@ -192,7 +192,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 	}
 	b.dependencies = slices.Clone(b.dependencies)
 	for i := range b.dependencies {
-		b.dependencies[i].ref = ref(b.dependencies[i].ref)
+		b.dependencies[i].Ref = ref(b.dependencies[i].Ref)
 	}
 	b.sequenceConstants = slices.Clone(b.sequenceConstants)
 	for i := range b.sequenceConstants {
@@ -267,7 +267,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.domain.Ref(old.Epoch, old.Address)
+			old = view.owner.Domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}

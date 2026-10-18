@@ -163,12 +163,12 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{
 		address:  address,
-		Defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}},
+		Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
 		Generations: map[int32]columnGeneration{2: {
-			kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref},
+			Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref},
 		}},
-		SQLIndex: &indexDefinition{keys: []indexKey{{derived: &derivedIndexKey{
-			definition: call, execution: call, dependencies: []ids.ObjectRef{call.ref},
+		SQLIndex: &indexDefinition{Keys: []indexKey{{Derived: &derivedIndexKey{
+			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
 	next.setDescriptor(address, consumer)
@@ -192,15 +192,15 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("relocated HMAC", raw, err)
 		}
 	}
-	assertCall(relocated.Defaults[1].expression)
-	assertCall(relocated.Generations[2].expression)
-	assertCall(relocated.Generations[2].planned)
-	assertCall(relocated.SQLIndex.keys[0].derived.definition)
-	assertCall(relocated.SQLIndex.keys[0].derived.execution)
+	assertCall(relocated.Defaults[1].Expression)
+	assertCall(relocated.Generations[2].Expression)
+	assertCall(relocated.Generations[2].Planned)
+	assertCall(relocated.SQLIndex.Keys[0].Derived.Definition)
+	assertCall(relocated.SQLIndex.Keys[0].Derived.Execution)
 	for _, dependency := range []ids.ObjectRef{
-		relocated.Defaults[1].dependencies[0],
-		relocated.Generations[2].dependencies[0],
-		relocated.SQLIndex.keys[0].derived.dependencies[0],
+		relocated.Defaults[1].Dependencies[0],
+		relocated.Generations[2].Dependencies[0],
+		relocated.SQLIndex.Keys[0].Derived.Dependencies[0],
 	} {
 		if dependency.Address != mapping[call.ref.Address] || dependency.Epoch != next.epoch {
 			t.Fatal("stale consumer dependency", dependency)
@@ -222,7 +222,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal("relocated query", err)
 	}
 	assertCall(query.(*projectNode).expressions[0])
-	if consumer.Defaults[1].dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
+	if consumer.Defaults[1].Dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
 		t.Fatal("source consumer mutated")
 	}
 	for _, name := range []string{"gen_random_bytes", "gen_random_uuid", "fips_mode"} {

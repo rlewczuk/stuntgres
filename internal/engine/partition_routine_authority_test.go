@@ -41,11 +41,11 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			owner = relation
 		}
 	}
-	if owner == nil || owner.Partition.keys[0].derived == nil {
+	if owner == nil || owner.Partition.Keys[0].Derived == nil {
 		t.Fatal("missing genuinely bound partition owner")
 	}
-	original := owner.Partition.keys[0].derived
-	refs := slices.Clone(original.dependencies)
+	original := owner.Partition.Keys[0].Derived
+	refs := slices.Clone(original.Dependencies)
 	for _, id := range []ids.OID{1811, 1374, 141} {
 		if !slices.ContainsFunc(refs, func(ref ids.ObjectRef) bool {
 			return ref.Address == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id})
@@ -97,10 +97,10 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		t.Helper()
 		t.Run(name, func(t *testing.T) {
 			copyOwner, partition, key := *owner, *owner.Partition, *original
-			partition.keys = slices.Clone(partition.keys)
+			partition.Keys = slices.Clone(partition.Keys)
 			copyOwner.Partition = &partition
-			partition.keys[0].derived = &key
-			key.dependencies = dependencies
+			partition.Keys[0].Derived = &key
+			key.Dependencies = dependencies
 			local := newEvaluation(auth)
 			if _, err := evaluatePartitionRecipe(&local, &copyOwner, 0, row); err == nil {
 				t.Fatal("invalid original lifetime was rescued")
@@ -129,7 +129,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	foreign := slices.Clone(refs)
 	other := New()
 	for i := range foreign {
-		foreign[i] = other.catalog.domain.Ref(foreign[i].Epoch, foreign[i].Address)
+		foreign[i] = other.catalog.Domain.Ref(foreign[i].Epoch, foreign[i].Address)
 	}
 	probe("foreign_equal_address", foreign)
 	otherAdmin, otherDone := roleOperation(t, other, "postgres")
@@ -140,7 +140,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retagged, _, err := retagBoundTypes(otherAuth.catalog, original.definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, _, err := retagBoundTypes(otherAuth.catalog, original.Definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
@@ -172,15 +172,15 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	// A sibling's freshly selected manifest cannot borrow the already admitted
 	// owner's cache entry, even within the same actor/statement phase.
 	sibling, siblingPartition, siblingKey := *owner, *owner.Partition, *original
-	siblingPartition.keys = slices.Clone(siblingPartition.keys)
+	siblingPartition.Keys = slices.Clone(siblingPartition.Keys)
 	sibling.Partition = &siblingPartition
-	siblingPartition.keys[0].derived = &siblingKey
-	siblingKey.dependencies = []ids.ObjectRef{}
+	siblingPartition.Keys[0].Derived = &siblingKey
+	siblingKey.Dependencies = []ids.ObjectRef{}
 	if _, err := evaluatePartitionRecipe(&evaluation, &sibling, 0, row); err == nil || len(evaluation.statementScope.partitionPrograms) != 1 {
 		t.Fatal("sibling borrowed an admitted owner's manifest")
 	}
 	multiOwner, multiPartition := *owner, *owner.Partition
-	multiPartition.keys = append(slices.Clone(multiPartition.keys), siblingPartition.keys[0])
+	multiPartition.Keys = append(slices.Clone(multiPartition.Keys), siblingPartition.Keys[0])
 	multiOwner.Partition = &multiPartition
 	multiEvaluation := newEvaluation(auth)
 	if _, err := evaluatePartitionRecipe(&multiEvaluation, &multiOwner, 0, row); err == nil {
@@ -229,7 +229,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if _, err := evaluatePartitionRecipe(&evaluation, owner, 0, row); err != nil || len(evaluation.statementScope.partitionPrograms) != 2 {
 		t.Fatal("new command phase reused prior preparation", err)
 	}
-	if !reflect.DeepEqual(original.dependencies, refs) {
+	if !reflect.DeepEqual(original.Dependencies, refs) {
 		t.Fatal("preparation mutated published original graph")
 	}
 }

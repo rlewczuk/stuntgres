@@ -77,10 +77,10 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	retained := e.CatalogRead()
 	root := rangePartitionRelation(t, e, "root")
 	leaf := rangePartitionRelation(t, e, "leaf")
-	oldKeys := slices.Clone(root.Partition.keys)
-	oldChildren := slices.Clone(root.Partition.children)
-	oldLower := slices.Clone(leaf.Membership.lower)
-	oldUpper := slices.Clone(leaf.Membership.upper)
+	oldKeys := slices.Clone(root.Partition.Keys)
+	oldChildren := slices.Clone(root.Partition.Children)
+	oldLower := slices.Clone(leaf.Membership.Lower)
+	oldUpper := slices.Clone(leaf.Membership.Upper)
 	oldChecks := slices.Clone(leaf.CheckConstraints)
 	cursor := roleExecute(t, e, op, "SELECT k,payload FROM root")
 	canceled, cancel := context.WithCancel(context.Background())
@@ -127,10 +127,10 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	currentRoot := rangePartitionRelation(t, e, "root")
 	expectedOwned := currentRoot.address
 	expectedOwned.SubID = currentRoot.Attributes[currentRoot.Index["payload"]]
-	if sequence.Sequence.owned != expectedOwned || sequence.Owner != currentRoot.Owner {
+	if sequence.Sequence.Owned != expectedOwned || sequence.Owner != currentRoot.Owner {
 		t.Fatal("self remap changed virtual column ownership identity")
 	}
-	if !reflect.DeepEqual(root.Partition.keys, oldKeys) || !reflect.DeepEqual(root.Partition.children, oldChildren) || !reflect.DeepEqual(leaf.Membership.lower, oldLower) || !reflect.DeepEqual(leaf.Membership.upper, oldUpper) || !reflect.DeepEqual(leaf.CheckConstraints, oldChecks) {
+	if !reflect.DeepEqual(root.Partition.Keys, oldKeys) || !reflect.DeepEqual(root.Partition.Children, oldChildren) || !reflect.DeepEqual(leaf.Membership.Lower, oldLower) || !reflect.DeepEqual(leaf.Membership.Upper, oldUpper) || !reflect.DeepEqual(leaf.CheckConstraints, oldChecks) {
 		t.Fatal("self remap mutated retained descriptors")
 	}
 	if !reflect.DeepEqual(tuples(cursor), [][]driver.Value{{int64(1), int64(1)}, {int64(2), int64(2)}}) {
@@ -173,7 +173,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	state := cloneCatalog(before.state)
 	candidate := *root
 	partition := *root.Partition
-	partition.children = append(slices.Clone(partition.children), partition.children[0])
+	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
 	candidate.Partition = &partition
 	state.setDescriptor(root.address, &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
@@ -284,12 +284,12 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := &relationDescriptor{
-		Partition: &partitionDefinition{keys: []partitionKeyEntry{
-			{attribute: 1, usage: usage, class: class, comparison: comparison, collation: uint32(provider.OID)},
-			{attribute: 2, usage: usage, class: class, comparison: comparison},
+		Partition: &partitionDefinition{Keys: []partitionKeyEntry{
+			{Attribute: 1, Usage: usage, Class: class, Comparison: comparison, Collation: uint32(provider.OID)},
+			{Attribute: 2, Usage: usage, Class: class, Comparison: comparison},
 		}},
 	}
-	sourceKeys := slices.Clone(source.Partition.keys)
+	sourceKeys := slices.Clone(source.Partition.Keys)
 	imported := *provider
 	imported.OID = 90001
 	// The old identity belongs to the retained live overlay, not the import.
@@ -313,7 +313,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if mapped == source || mapped.Partition == source.Partition {
 			t.Fatal("remap reused mutable source descriptor")
 		}
-		if !reflect.DeepEqual(source.Partition.keys, sourceKeys) {
+		if !reflect.DeepEqual(source.Partition.Keys, sourceKeys) {
 			t.Fatal("remap mutated source keys")
 		}
 		if next.Get(provider.Address()) != &temporary || !reflect.DeepEqual(temporary, temporaryBefore) {
@@ -323,25 +323,25 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for i, key := range mapped.Partition.keys {
-			if key.usage.Collation != wantCapability {
-				t.Fatal("remap lost imported comparison capability", typesOnly, i, key.usage.Collation, wantCapability)
+		for i, key := range mapped.Partition.Keys {
+			if key.Usage.Collation != wantCapability {
+				t.Fatal("remap lost imported comparison capability", typesOnly, i, key.Usage.Collation, wantCapability)
 			}
 			for _, witness := range []struct {
 				left, right string
 				want        int
 			}{{"a", "m", -1}, {"m", "a", 1}, {"m", "m", 0}} {
-				actual, err := key.comparison.Compare(context.Background(),
+				actual, err := key.Comparison.Compare(context.Background(),
 					sqltype.String(text, witness.left), sqltype.String(text, witness.right), sqltype.InputEnvironment{})
 				if err != nil || actual != witness.want {
 					t.Fatal("remapped comparison changed independent text ordering", typesOnly, i, witness, actual, err)
 				}
 			}
-			if i == 0 && key.collation != key.usage.Collation.ID {
-				t.Fatal("explicit raw identity disagrees with comparison capability", typesOnly, key.collation, key.usage.Collation.ID)
+			if i == 0 && key.Collation != key.Usage.Collation.ID {
+				t.Fatal("explicit raw identity disagrees with comparison capability", typesOnly, key.Collation, key.Usage.Collation.ID)
 			}
-			if i == 1 && key.collation != 0 {
-				t.Fatal("implicit key gained an explicit collation clause", key.collation)
+			if i == 1 && key.Collation != 0 {
+				t.Fatal("implicit key gained an explicit collation clause", key.Collation)
 			}
 		}
 	}

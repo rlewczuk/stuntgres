@@ -15,7 +15,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return nil, err
 	}
 	d, exists := e.privateCatalogLocked(scope.owner.catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !exists {
+	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.epoch || !exists {
 		e.mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -46,7 +46,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return capturePGCursors(ctx, ref, d, cursors)
 		case 12081, 12085:
-			catalog, registry := scope.commentCatalog, e.catalog.extensions
+			catalog, registry := scope.commentCatalog, e.catalog.Extensions
 			e.mu.Unlock()
 			return captureAvailableExtensions(ctx, registry, catalog, ref, d)
 		case 12048:
@@ -191,7 +191,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
+	if !ok || ref.Domain() != auth.engine.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner

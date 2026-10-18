@@ -53,7 +53,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
 	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
 	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
-	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), source.address)
+	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.address)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.origin.Domain() != e.catalog.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
+	if got.origin.Domain() != e.catalog.Domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
 		t.Fatal(got, column)
 	}
 	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
@@ -77,7 +77,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
+	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.Domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
@@ -120,17 +120,17 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(destination, source)
 	}
 	identity := destination.Identities[4]
-	sequence := stage.descriptors[identity.sequence].(*relationDescriptor)
-	if identity.sequence == source.Identities[3].sequence || sequence.Sequence.owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.persistence != "logged" || stage.generators[identity.sequence].called {
+	sequence := stage.descriptors[identity.Sequence].(*relationDescriptor)
+	if identity.Sequence == source.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
-	for _, ref := range destination.Generations[5].dependencies {
+	for _, ref := range destination.Generations[5].Dependencies {
 		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == source.address.ObjectID {
 			t.Fatal("generation retained source row", ref)
 		}
 	}
-	for _, dep := range destination.CheckConstraints[0].dependencies {
-		if dep.ref.Address.ObjectID == source.address.ObjectID {
+	for _, dep := range destination.CheckConstraints[0].Dependencies {
+		if dep.Ref.Address.ObjectID == source.address.ObjectID {
 			t.Fatal("CHECK retained source row", dep)
 		}
 	}

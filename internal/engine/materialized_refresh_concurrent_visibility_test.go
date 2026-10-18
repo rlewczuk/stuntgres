@@ -16,7 +16,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	d = e.catalog.state.MustRelation(d.address)
 	original := e.storage[d.address]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+	ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage[d.address]
@@ -97,7 +97,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.address].storage != e.storage[unrelated.address] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
+			ref := e.catalog.Domain.Ref(e.catalog.state.epoch, d.address)
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -133,7 +133,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			originalEpoch := e.catalog.state.epoch
 			defer func() { e.catalog.state.epoch = originalEpoch }()
-			ref := e.catalog.domain.Ref(originalEpoch, d.address)
+			ref := e.catalog.Domain.Ref(originalEpoch, d.address)
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
 			case "plain_data":

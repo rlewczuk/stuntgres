@@ -70,9 +70,9 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		for _, ref := range g.indexes {
 			stage.indexRebuilds[ref.Address] = g.descriptors[ref.Address]
 			original := g.descriptors[ref.Address]
-			if !original.SQLIndex.ready || !original.SQLIndex.valid || !original.SQLIndex.live {
+			if !original.SQLIndex.Ready || !original.SQLIndex.Valid || !original.SQLIndex.Live {
 				next, definition := *original, *original.SQLIndex
-				definition.ready, definition.valid, definition.live = true, true, true
+				definition.Ready, definition.Valid, definition.Live = true, true, true
 				next.SQLIndex = &definition
 				if next.revision == ids.DefinitionRevision(^uint64(0)) {
 					e.mu.Unlock()
@@ -156,7 +156,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		actual := 0
 		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
-			if !ok || d.SQLIndex == nil || d.SQLIndex.parent != parent {
+			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
 			}
 			// Replacement observes the existing complete index set; it does

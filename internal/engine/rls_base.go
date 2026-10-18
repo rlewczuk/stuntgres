@@ -16,7 +16,7 @@ func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySo
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	data := pin.read()
-	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.Get(ref.Address) == nil {
+	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.Domain || ref.Epoch != data.catalog.Epoch() || data.catalog.Get(ref.Address) == nil {
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
@@ -135,24 +135,24 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 		return rlsUnrestricted, err
 	}
 	for _, policy := range d.Policies {
-		if !policy.permissive || policy.command != policyAll && policy.command != command {
+		if !policy.Permissive || policy.Command != policyAll && policy.Command != command {
 			continue
 		}
-		expression := policyExpressionOf(policy.using)
+		expression := policyExpressionOf(policy.Using)
 		if proposed && command != policySelect {
-			expression = policyExpressionOf(policy.check)
-			if expression == nil && (policy.command == policyAll || policy.command == policyUpdate) {
-				expression = policyExpressionOf(policy.using)
+			expression = policyExpressionOf(policy.Check)
+			if expression == nil && (policy.Command == policyAll || policy.Command == policyUpdate) {
+				expression = policyExpressionOf(policy.Using)
 			}
 		}
 		if expression == nil {
 			continue
 		}
-		for _, role := range policy.roles {
-			if role.public {
+		for _, role := range policy.Roles {
+			if role.Public {
 				return rlsNeedsExpressions, nil
 			}
-			applies, err := auth.roles.InheritsRole(principal, role.ref)
+			applies, err := auth.roles.InheritsRole(principal, role.Ref)
 			if err != nil {
 				return rlsUnrestricted, err
 			}

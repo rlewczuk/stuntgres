@@ -91,7 +91,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		}
 		return ids.ObjectRef{}, diagnostic
 	}
-	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id}
+	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.ID}
 	p, ok := v.catalog.Procedure(address)
 	if !ok {
 		// Lookup-only inventory cannot manufacture an owning ACL descriptor or
@@ -101,7 +101,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 	if !grantRoutineKindMatches(kind, p.RoutineKind) {
 		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
 	}
-	return e.catalog.domain.Ref(v.catalog.Epoch(), address), nil
+	return e.catalog.Domain.Ref(v.catalog.Epoch(), address), nil
 }
 
 func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {

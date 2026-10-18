@@ -82,13 +82,13 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 				}
 			}
 			if d.Inheritance != nil {
-				for _, parent := range d.Inheritance.parents {
+				for _, parent := range d.Inheritance.Parents {
 					if fence.targets[parent] != 0 {
 						return CatalogConflict{}
 					}
 				}
 			}
-			if d.Membership != nil && fence.targets[d.Membership.parent] != 0 {
+			if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
 				return CatalogConflict{}
 			}
 		}

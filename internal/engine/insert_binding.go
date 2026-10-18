@@ -125,7 +125,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				if _, generated := b.relation.Generations[b.relation.Attributes[b.targets[j]]]; generated {
 					return generationWriteError(c.Name, false)
 				}
-				if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+				if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return identityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
@@ -161,7 +161,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			if _, generated := b.relation.Generations[b.relation.Attributes[b.targets[j]]]; generated {
 				return generationWriteError(c.Name, false)
 			}
-			if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+			if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return identityInsertError(c.Name)
 			}
 			var plan expr.Expr
@@ -263,12 +263,12 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 	}
 	b.defaults = make([]expr.Expr, len(b.relation.Columns))
 	for i, attribute := range b.relation.Attributes {
-		b.defaults[i] = b.relation.Defaults[attribute].expression
+		b.defaults[i] = b.relation.Defaults[attribute].Expression
 		if b.defaults[i] == nil && b.relation.Columns[i].Usage.Type.HasDomainChecks() {
 			b.defaults[i] = domainNullInputExpression(b.relation.Columns[i].Usage)
 		}
 		if identity, ok := b.relation.Identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
+			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), identity.Sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

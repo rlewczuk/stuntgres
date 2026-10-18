@@ -26,7 +26,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			var first, unblock sync.Once
 			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
 			dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
 			select {
 			case <-entered:
@@ -110,7 +110,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	var unblock sync.Once
 	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() {
+	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() {
 		if !gated.CompareAndSwap(false, true) {
 			return
 		}
@@ -131,7 +131,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ids.ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ids.ErrCatalogReplaced)
-	e.catalog.providers[ids.RelationClassID] = relationProvider{}
+	e.catalog.Providers[ids.RelationClassID] = relationProvider{}
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {

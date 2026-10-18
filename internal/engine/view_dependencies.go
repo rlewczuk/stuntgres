@@ -240,9 +240,9 @@ func dependencyObject(catalog CatalogRead, target ids.ObjectAddress, path []ids.
 		return "conversion " + name
 	}
 	d := catalog.MustRelation(base)
-	if d.SQLIndex != nil && d.SQLIndex.constraint != nil {
-		parent := catalog.MustRelation(d.SQLIndex.parent)
-		return "constraint " + dependencyIdentifier(d.SQLIndex.constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
+	if d.SQLIndex != nil && d.SQLIndex.Constraint != nil {
+		parent := catalog.MustRelation(d.SQLIndex.Parent)
+		return "constraint " + dependencyIdentifier(d.SQLIndex.Constraint.Name) + " on table " + dependencyRelationName(catalog, parent, path)
 	}
 	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
@@ -299,7 +299,7 @@ func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ids.Obj
 	}
 	for _, edge := range checks {
 		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.ordinal})
+		dependents = append(dependents, supportedDependent{oid: edge.check.OID, target: edge.target, label: label, checkOwner: edge.relation.address.ObjectID, checkOrdinal: edge.check.Ordinal})
 	}
 	for _, edge := range views {
 		dependents = append(dependents, supportedDependent{oid: edge.view.address.ObjectID, target: edge.target, view: edge.view.address, label: relationDiagnosticKind(edge.view) + " " + dependencyRelationName(catalog, edge.view, path)})
@@ -436,7 +436,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		if provider.removed(d.address) {
 			continue
 		}
-		if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)
@@ -516,7 +516,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		}
 	}
 	for _, dependency := range definition.dependencies {
-		ref := dependency.ref
+		ref := dependency.Ref
 		address := ref.Address
 		address.SubID = 0
 		if !storedViewReferenceValid(v, d, ref) {

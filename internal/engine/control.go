@@ -97,11 +97,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		namespace := e.catalog.state.MustNamespace(index.namespace)
-		if namespace.Temporary != (ids.SessionToken{}) || index.SQLIndex.ready && index.SQLIndex.valid && index.SQLIndex.live {
+		if namespace.Temporary != (ids.SessionToken{}) || index.SQLIndex.Ready && index.SQLIndex.Valid && index.SQLIndex.Live {
 			continue
 		}
-		parent, ok := e.catalog.state.Relation(index.SQLIndex.parent)
-		if ok && parent.Partition != nil && index.SQLIndex.ready && index.SQLIndex.live {
+		parent, ok := e.catalog.state.Relation(index.SQLIndex.Parent)
+		if ok && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 			continue
 		}
 		if invalid == nil || namespace.name < invalidSchema || namespace.name == invalidSchema && index.name < invalid.name {
@@ -474,7 +474,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if virtual != nil && virtual.address != r.address {
 				continue
 			}
-			if r.SQLIndex.constraint != nil && !partitionReplaySeparateConstraint(catalog, r) {
+			if r.SQLIndex.Constraint != nil && !partitionReplaySeparateConstraint(catalog, r) {
 				continue
 			}
 			var sql string
@@ -490,21 +490,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			oid := r.address.ObjectID
 			if partitionReplayUsingIndex(catalog, r) {
-				parent := catalog.MustRelation(r.SQLIndex.parent)
+				parent := catalog.MustRelation(r.SQLIndex.Parent)
 				kind := "UNIQUE"
-				if r.SQLIndex.constraint.Primary {
+				if r.SQLIndex.Constraint.Primary {
 					kind = "PRIMARY KEY"
 				}
 				sql += "ALTER TABLE " + quoteIdentifier(ns.name) + "." + quoteIdentifier(parent.name) + " ADD CONSTRAINT " + quoteIdentifier(r.name) + " " + kind + " USING INDEX " + quoteIdentifier(r.name) + ";\n"
 			}
 			event := dumpEventKey{oid: oid}
-			viewDependencies[event] = []dumpEventKey{{oid: r.SQLIndex.parent.ObjectID}}
-			for _, key := range r.SQLIndex.keys {
-				if key.derived == nil {
+			viewDependencies[event] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
+			for _, key := range r.SQLIndex.Keys {
+				if key.Derived == nil {
 					continue
 				}
-				for _, dependency := range key.derived.dependencies {
-					predecessor, err := dumpPredecessor(catalog, dependency.Address, r.SQLIndex.parent)
+				for _, dependency := range key.Derived.Dependencies {
+					predecessor, err := dumpPredecessor(catalog, dependency.Address, r.SQLIndex.Parent)
 					if err != nil {
 						e.mu.Unlock()
 						return err
@@ -595,7 +595,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, dependency := range viewOf(r).dependencies {
-				if err := addPredecessor(dependency.ref.Address); err != nil {
+				if err := addPredecessor(dependency.Ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -623,7 +623,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return fmt.Errorf("stuntgres: sequence state missing")
 			}
 			sequence := dumpSequence{owner: principal.Name, schema: ns.name, name: r.name, options: *r.Sequence, state: *g, comment: r.Comment}
-			if owned := r.Sequence.owned; owned != (ids.ObjectAddress{}) {
+			if owned := r.Sequence.Owned; owned != (ids.ObjectAddress{}) {
 				tableAddress := owned
 				tableAddress.SubID = 0
 				table, ok := e.catalog.state.Relation(tableAddress)
@@ -636,7 +636,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				for i, sub := range table.Attributes {
 					if sub == owned.SubID {
 						sequence.ownedColumn = table.Columns[i].Name
-						if r.Sequence.identity {
+						if r.Sequence.Identity {
 							sequence.divergent = identityDumpDivergent(*r.Sequence, table.Columns[i].Usage.Type.ID())
 						}
 					}
@@ -653,7 +653,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		oid := r.address.ObjectID
 		var predecessors []ids.OID
 		if r.Inheritance != nil {
-			for _, parent := range r.Inheritance.parents {
+			for _, parent := range r.Inheritance.Parents {
 				predecessor, err := dumpPredecessor(catalog, parent, r.address)
 				if err != nil {
 					e.mu.Unlock()
@@ -681,12 +681,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				return nil
 			}
-			if err := regclassReplayReferences(catalog, check.expression, add); err != nil {
+			if err := regclassReplayReferences(catalog, check.Expression, add); err != nil {
 				e.mu.Unlock()
 				return err
 			}
-			for _, dependency := range check.dependencies {
-				if err := add(dependency.ref.Address); err != nil {
+			for _, dependency := range check.Dependencies {
+				if err := add(dependency.Ref.Address); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -701,7 +701,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					deferredDefinitions = make(map[int32]bool)
 				}
 				deferredDefinitions[attribute] = true
-				deferDefaults = deferDefaults || definition.expression.ResultUsage().Type.ContainsRegclass()
+				deferDefaults = deferDefaults || definition.Expression.ResultUsage().Type.ContainsRegclass()
 			}
 			addPredecessor := func(address ids.ObjectAddress) error {
 				owner := r.address
@@ -723,11 +723,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			// Opaque literal payloads need replay ordering even when their BOOL/
 			// TEXT result is inline and intentionally has no relation DROP edge.
-			if err := regclassReplayReferences(catalog, definition.expression, addPredecessor); err != nil {
+			if err := regclassReplayReferences(catalog, definition.Expression, addPredecessor); err != nil {
 				e.mu.Unlock()
 				return err
 			}
-			for _, dependency := range definition.dependencies {
+			for _, dependency := range definition.Dependencies {
 				if err := addPredecessor(dependency.Address); err != nil {
 					e.mu.Unlock()
 					return err
@@ -738,7 +738,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if recipePlan[r.address] != nil {
 				continue
 			}
-			for _, dependency := range definition.dependencies {
+			for _, dependency := range definition.Dependencies {
 				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
 				if err != nil {
 					e.mu.Unlock()
@@ -766,8 +766,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tableIndices[oid] = len(tables)
 		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.Identities))
 		for _, identity := range r.Identities {
-			sequence := e.catalog.state.MustRelation(identity.sequence)
-			linked[identity.sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.Sequence, state: *e.sequences[identity.sequence], comment: sequence.Comment}
+			sequence := e.catalog.state.MustRelation(identity.Sequence)
+			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.Sequence, state: *e.sequences[identity.Sequence], comment: sequence.Comment}
 		}
 		var versions []rowVersion
 		var ends *deletionRoot
@@ -811,8 +811,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if check.NotValid {
 					continue
 				}
-				for _, dependency := range check.dependencies {
-					predecessor, err := dumpPredecessor(catalog, dependency.ref.Address, d.Address())
+				for _, dependency := range check.Dependencies {
+					predecessor, err := dumpPredecessor(catalog, dependency.Ref.Address, d.Address())
 					if err != nil {
 						return err
 					}
@@ -1195,8 +1195,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			original := originalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-			if original.SQLIndex != nil && original.SQLIndex.constraint != nil && original.SQLIndex.constraint.Primary {
-				parent := originalCatalog.MustRelation(original.SQLIndex.parent)
+			if original.SQLIndex != nil && original.SQLIndex.Constraint != nil && original.SQLIndex.Constraint.Primary {
+				parent := originalCatalog.MustRelation(original.SQLIndex.Parent)
 				for i := range parent.UniqueConstraints {
 					if parent.UniqueConstraints[i].Index == original.address {
 						if err := emitPhysicalPrimaryCleanup(originalCatalog, parent, &parent.UniqueConstraints[i], emit, setOwner); err != nil {
@@ -1272,14 +1272,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			localElements := 0
 			for i, c := range t.columns {
-				provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
+				provenance := inheritedColumn{Local: true, ExplicitDefault: true, ExplicitGeneration: true}
 				if t.descriptor.Inheritance != nil {
-					provenance = t.descriptor.Inheritance.columns[t.attributes[i]]
+					provenance = t.descriptor.Inheritance.Columns[t.attributes[i]]
 				}
 				if effective, exists := t.recipes[t.attributes[i]]; exists {
 					provenance = effective
 				}
-				if !provenance.local {
+				if !provenance.Local {
 					continue
 				}
 				if localElements > 0 {
@@ -1303,19 +1303,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						line.WriteString(" COLLATE " + name)
 					}
 				}
-				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.explicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
-					text, err := defaultSQL(ctx, catalog, definition.expression)
+				if definition, exists := t.defaults[t.attributes[i]]; exists && provenance.ExplicitDefault && !(deferDefaults && t.deferredDefinitions[t.attributes[i]]) {
+					text, err := defaultSQL(ctx, catalog, definition.Expression)
 					if err != nil {
 						return err
 					}
 					line.WriteString(" DEFAULT " + text)
 				}
-				if provenance.explicitDefault && t.descriptor.Inheritance != nil {
+				if provenance.ExplicitDefault && t.descriptor.Inheritance != nil {
 					if _, exists := t.defaults[t.attributes[i]]; !exists {
 						line.WriteString(" DEFAULT NULL")
 					}
 				}
-				if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists && provenance.explicitGeneration {
+				if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists && provenance.ExplicitGeneration {
 					var text string
 					if t.recipePlaceholders {
 						// The genuine owning declaration supplies the full type/typmod.
@@ -1323,19 +1323,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						text = "NULL"
 					} else {
 						var err error
-						text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
+						text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.Expression)
 						if err != nil {
 							return err
 						}
 					}
-					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.kind.sql())
+					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.sql())
 				}
 				if identity, exists := t.identities[t.attributes[i]]; exists {
 					mode := "ALWAYS"
-					if identity.mode == parser.IdentityByDefault {
+					if identity.Mode == parser.IdentityByDefault {
 						mode = "BY DEFAULT"
 					}
-					sequence := t.identitySequences[identity.sequence]
+					sequence := t.identitySequences[identity.Sequence]
 					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + quoteIdentifier(sequence.schema) + "." + quoteIdentifier(sequence.name))
 					if !identityDumpDivergent(sequence.options, c.Usage.Type.ID()) {
 						line.WriteString(" " + sequenceNumericSQL(sequence.options))
@@ -1356,7 +1356,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if constraint.NotValid {
 						continue
 					}
-					if graph.columns[constraint.Attribute].local || !dumpNotNullDeclaration(originalCatalog, t.descriptor, constraint.Attribute) {
+					if graph.Columns[constraint.Attribute].Local || !dumpNotNullDeclaration(originalCatalog, t.descriptor, constraint.Attribute) {
 						continue
 					}
 					if localElements > 0 {
@@ -1374,7 +1374,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if !dumpCheckDeclaration(originalCatalog, t.descriptor, c) {
 					continue
 				}
-				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
+				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.Expression)
 				if err != nil {
 					return err
 				}
@@ -1453,7 +1453,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if graph := t.descriptor.Inheritance; graph != nil {
 				line.WriteString(" INHERITS (")
-				for i, address := range graph.parents {
+				for i, address := range graph.Parents {
 					if i > 0 {
 						line.WriteString(", ")
 					}
@@ -1598,7 +1598,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		for i, column := range table.columns {
-			if column.DeclaredDimensions == 0 || len(graph.columns[table.attributes[i]].origins) == 0 {
+			if column.DeclaredDimensions == 0 || len(graph.Columns[table.attributes[i]].Origins) == 0 {
 				continue
 			}
 			if !rankAuthority {

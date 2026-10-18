@@ -24,12 +24,12 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 			if !ok || !present || !output.matches(old) {
 				continue
 			}
-			parent := next.MustRelation(index.SQLIndex.parent)
+			parent := next.MustRelation(index.SQLIndex.Parent)
 			mapped := output
 			mapped.index = index
 			keysChanged := false
 			if output.key.Type() != nil {
-				usage, err := indexKeyUsage(parent, index.SQLIndex.keys[0])
+				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[0])
 				if err != nil {
 					return nil, err
 				}
@@ -39,7 +39,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 				}
 			}
 			for key, value := range output.keys {
-				usage, err := indexKeyUsage(parent, index.SQLIndex.keys[key])
+				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[key])
 				if err != nil {
 					return nil, err
 				}

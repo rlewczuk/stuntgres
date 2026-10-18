@@ -8,13 +8,13 @@ import (
 )
 
 func rebindExclusionOperators(parent *relationDescriptor, definition *indexDefinition) ([]sqltype.ExclusionOperator, error) {
-	operators := make([]sqltype.ExclusionOperator, len(definition.exclusion))
-	for i, operator := range definition.exclusion {
-		usage, err := indexKeyUsage(parent, definition.keys[i])
+	operators := make([]sqltype.ExclusionOperator, len(definition.Exclusion))
+	for i, operator := range definition.Exclusion {
+		usage, err := indexKeyUsage(parent, definition.Keys[i])
 		if err != nil {
 			return nil, err
 		}
-		operators[i], err = sqltype.BindExclusionOperator(usage, definition.keys[i].class, operator.Name)
+		operators[i], err = sqltype.BindExclusionOperator(usage, definition.Keys[i].Class, operator.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +56,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 			next = &copy
 		}
 		c := &next.ExclusionConstraints[i]
-		if err := stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
+		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
 		c.OID, err = e.catalog.allocateOIDLocked()
@@ -75,13 +75,13 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 			return nil, err
 		}
 		definition := *evolved.SQLIndex
-		definition.exclusion, err = rebindExclusionOperators(parent, &definition)
+		definition.Exclusion, err = rebindExclusionOperators(parent, &definition)
 		if err != nil {
 			return nil, err
 		}
-		c.Operators = definition.exclusion
-		definition.constraint = exclusionBacking(c)
-		definition.ready, definition.valid, definition.live = true, true, true
+		c.Operators = definition.Exclusion
+		definition.Constraint = exclusionBacking(c)
+		definition.Ready, definition.Valid, definition.Live = true, true, true
 		copy.SQLIndex = &definition
 		copy.Columns = slices.Clone(evolved.Columns)
 		for j := range copy.Columns {
@@ -116,8 +116,8 @@ func rebindImportedExclusions(next *catalogState) error {
 			}
 			definition := index.SQLIndex
 			changed := false
-			for j, operator := range definition.exclusion {
-				usage, err := indexKeyUsage(parent, definition.keys[j])
+			for j, operator := range definition.Exclusion {
+				usage, err := indexKeyUsage(parent, definition.Keys[j])
 				if err != nil {
 					return err
 				}
@@ -140,7 +140,7 @@ func rebindImportedExclusions(next *catalogState) error {
 			}
 			replacement.ExclusionConstraints[i].Operators = operators
 			indexCopy, definitionCopy := *index, *definition
-			definitionCopy.exclusion = operators
+			definitionCopy.Exclusion = operators
 			indexCopy.SQLIndex = &definitionCopy
 			next.setDescriptor(index.address, &indexCopy)
 		}

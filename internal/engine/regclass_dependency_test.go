@@ -52,7 +52,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := next.CheckConstraints[0].expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
+	result, err := next.CheckConstraints[0].Expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
 	if err != nil {
 		t.Fatal("surviving CHECK slot migration", err)
 	}

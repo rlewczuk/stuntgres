@@ -20,7 +20,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
-	c.Inheritance = &tableInheritance{parents: []ids.ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.Attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.Attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	c.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{p.address}, Columns: map[int32]inheritedColumn{c.Attributes[0]: {Origins: []inheritanceOrigin{{Parent: p.address, Attribute: p.Attributes[0]}}}}, NotNull: map[int32]inheritedConstraint{}, Checks: map[string]inheritedConstraint{}}
 	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.domain.Ref(e.CatalogRead().Epoch(), c.address)
+	old := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.address)
 	if err = e.locks.Acquire(op.Context(), holder.ticket, lock.Resource{ObjectRef: old}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}

@@ -30,12 +30,12 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	for address, carrier := range e.indexRoots {
 		index, ok := data.catalog.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.method != hashMethod || index.SQLIndex.parent != a || carrier == nil || carrier.hash == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != hashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.hash == nil {
 			continue
 		}
 		// Readiness permits maintenance, not complete query coverage. A
 		// grandfathered commit may legitimately be absent from an invalid root.
-		if !index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
 			continue
 		}
 		live, ok := e.catalog.state.Relation(address)
@@ -46,7 +46,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if root.storage != store || root.generation != store.generation || root.prefix != len(source.committed) || root.ends != data.ends[a] {
 			continue
 		}
-		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.keys[0])
+		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.Keys[0])
 		if err != nil {
 			return err
 		}
@@ -124,8 +124,8 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 		return nil, nil
 	}
 	for _, capture := range source.hashIndexes {
-		key := capture.definition.keys[0]
-		if key.derived != nil || key.attribute != column.origin.Address.SubID || column.slot != capture.root.binding.slot || capture.usage != column.ResultUsage() || !capture.root.binding.provider.OrdinaryEquality() {
+		key := capture.definition.Keys[0]
+		if key.Derived != nil || key.Attribute != column.origin.Address.SubID || column.slot != capture.root.binding.slot || capture.usage != column.ResultUsage() || !capture.root.binding.provider.OrdinaryEquality() {
 			continue
 		}
 		value, err := probe.Eval(&evaluation)

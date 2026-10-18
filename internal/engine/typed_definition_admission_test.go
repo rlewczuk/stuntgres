@@ -39,14 +39,14 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reset := make(chan error, 1)
-			original := e.catalog.providers[ids.RelationClassID]
+			original := e.catalog.Providers[ids.RelationClassID]
 			called := false
-			e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
 				}
 				called = true
-				e.catalog.providers[ids.RelationClassID] = original
+				e.catalog.Providers[ids.RelationClassID] = original
 				go func() { reset <- e.Reset(context.Background()) }()
 				deadline := time.Now().Add(3 * time.Second)
 				for {

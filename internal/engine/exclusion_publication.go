@@ -18,8 +18,8 @@ func validateExclusionPair(ctx context.Context, parent, index *relationDescripto
 	if auth != nil {
 		catalog = auth.catalog
 		if auth.engine != nil {
-			ref := catalog.owner.domain.Ref(catalog.Epoch(), parent.address)
-			allowed, err = uniqueKeyDetailAllowed(*auth, ref, index.SQLIndex.keys)
+			ref := catalog.owner.Domain.Ref(catalog.Epoch(), parent.address)
+			allowed, err = uniqueKeyDetailAllowed(*auth, ref, index.SQLIndex.Keys)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func validateExclusionRoot(ctx context.Context, parent, index *relationDescripto
 func validateExclusionEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	for i, current := range entries {
 		start := 0
-		if index.SQLIndex.method == btreeMethod {
+		if index.SQLIndex.Method == btreeMethod {
 			start = max(0, i-1)
 		}
 		for _, previous := range entries[start:i] {

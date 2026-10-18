@@ -55,7 +55,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 					stage.authorizeLocked(auth, op.session)
 				}
 			}
-			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.sequence, prepared[index].usage); err != nil {
+			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].usage); err != nil {
 				return stage, err
 			}
 		}
@@ -226,7 +226,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if !generated {
 			continue
 		}
-		for _, dependency := range definition.dependencies {
+		for _, dependency := range definition.Dependencies {
 			if dependency.Address.ClassID == next.address.ClassID && dependency.Address.ObjectID == next.address.ObjectID && dependency.Address.SubID == next.Attributes[slot] {
 				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
 				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.indexForAttribute(attribute)].Name)
@@ -311,7 +311,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return &replacement, transformation, nil
 	}
 	if definition, exists := next.Defaults[attribute]; exists {
-		expression := definition.expression
+		expression := definition.Expression
 		for {
 			wrapper, ok := expression.(coercionExpression)
 			if !ok || wrapper.mode == sqltype.Explicit {
@@ -334,9 +334,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		definition.dependencies = nil
-		definition.catalogSnapshot = false
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, expression)
+		definition.Dependencies = nil
+		definition.CatalogSnapshot = false
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, expression)
 		if err != nil {
 			return fail(err)
 		}
@@ -344,7 +344,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		for id, d := range next.Defaults {
 			replacement.Defaults[id] = d
 		}
-		definition.expression = expression
+		definition.Expression = expression
 		definition.OID = 0
 		replacement.Defaults[attribute] = definition
 	}

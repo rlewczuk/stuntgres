@@ -12,7 +12,7 @@ import (
 
 func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
 	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.Domain() != auth.engine.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.RelationKind != tableRelation && d.RelationKind != partitionedRelation && d.RelationKind != materializedViewRelation {
@@ -313,7 +313,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	}
 	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &relationStorage{versions: versions, generation: previous.generation + 1}, generation: previous.generation, length: len(previous.versions), ends: previous.ends}
 	for _, descriptor := range s.base.Descriptors() {
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.parent == d.address {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.address {
 			s.materializedReplacement.indexCount++
 		}
 	}
@@ -376,7 +376,7 @@ func (s *CatalogStage) materializedReplacementCurrent(catalog *catalogState, sto
 	count := 0
 	for address, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.parent != r.original.address {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != r.original.address {
 			continue
 		}
 		if s.base.Get(address) != descriptor {

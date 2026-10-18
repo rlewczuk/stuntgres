@@ -26,7 +26,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 			second = check
 		}
 	}
-	if first.ordinal >= second.ordinal || first.OID <= second.OID {
+	if first.Ordinal >= second.Ordinal || first.OID <= second.OID {
 		t.Fatal("fixture must distinguish CHECK declaration and definition-identity ordering", first, second)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())

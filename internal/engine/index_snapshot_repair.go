@@ -8,11 +8,11 @@ import (
 )
 
 func indexHasTableOID(index *indexDefinition) bool {
-	if predicate := index.predicate; predicate != nil && (generationHasTableOID(predicate.definition) || generationHasTableOID(predicate.execution)) {
+	if predicate := index.Predicate; predicate != nil && (generationHasTableOID(predicate.Definition) || generationHasTableOID(predicate.Execution)) {
 		return true
 	}
-	for _, key := range index.keys {
-		if key.derived != nil && (generationHasTableOID(key.derived.definition) || generationHasTableOID(key.derived.execution)) {
+	for _, key := range index.Keys {
+		if key.Derived != nil && (generationHasTableOID(key.Derived.Definition) || generationHasTableOID(key.Derived.Execution)) {
 			return true
 		}
 	}
@@ -48,7 +48,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.Ob
 			continue
 		}
 		for attribute, generation := range parent.Generations {
-			if generation.kind != generationStored || !generationHasTableOID(generation.planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
+			if generation.Kind != generationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
 				continue
 			}
 			if changed == nil {
@@ -84,11 +84,11 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 			return err
 		}
 		index, ok := evaluation.catalog.Relation(snapshot.destination(address))
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.ready || !index.SQLIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			return ids.ErrCatalogReplaced
 		}
 		parent, ok := evaluation.catalog.Relation(parentAddress)
-		if !ok || parent.Partition != nil || index.SQLIndex.parent != parentAddress {
+		if !ok || parent.Partition != nil || index.SQLIndex.Parent != parentAddress {
 			return ids.ErrCatalogReplaced
 		}
 		store := storage[parentAddress]

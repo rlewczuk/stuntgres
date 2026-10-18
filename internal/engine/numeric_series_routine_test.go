@@ -41,7 +41,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != "generate_series" || string(captured.Signature) != tc.signature || captured.Result != 1700 || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != expr.Immutable || captured.revision == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.kind != functionRoutine || declaration.result != 1700 || !declaration.strict || declaration.volatility != expr.Immutable || declaration.parallel != 's' || !declaration.returnsSet || declaration.variadic != 0 || declaration.defaults != 0 || declaration.providers&seriesRoutineProvider == 0 {
+			if declaration.Kind != functionRoutine || declaration.Result != 1700 || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || !declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers&seriesRoutineProvider == 0 {
 				t.Fatal("independent released declaration flags", declaration)
 			}
 			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != expr.Immutable {
@@ -54,12 +54,12 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			original := append([]expressionDependency(nil), binder.dependencies...)
 			found := false
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					found = true
-					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.catalog.domain {
+					if dependency.Revision != captured.revision || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
-				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {
+				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 					t.Fatal("numeric series invented a SQL helper/sibling dependency", dependency)
 				}
 			}
@@ -75,7 +75,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			missing := make([]expressionDependency, 0, len(original))
 			for _, dependency := range original {
-				if dependency.ref.Address != address {
+				if dependency.Ref.Address != address {
 					missing = append(missing, dependency)
 				}
 			}
@@ -89,11 +89,11 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			for _, epoch := range []bool{false, true} {
 				stale := append([]expressionDependency(nil), original...)
 				for i := range stale {
-					if stale[i].ref.Address == address {
+					if stale[i].Ref.Address == address {
 						if epoch {
-							stale[i].ref.Epoch++
+							stale[i].Ref.Epoch++
 						} else {
-							stale[i].revision++
+							stale[i].Revision++
 						}
 					}
 				}

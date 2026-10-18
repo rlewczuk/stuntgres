@@ -39,9 +39,9 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			retained.setDescriptor(address, descriptor)
 			continue
 		}
-		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.ready || !index.SQLIndex.valid || !index.SQLIndex.live) {
-			parent, exists := next.Relation(index.SQLIndex.parent)
-			if exists && parent.Partition != nil && index.SQLIndex.ready && index.SQLIndex.live {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
+			parent, exists := next.Relation(index.SQLIndex.Parent)
+			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 				continue
 			}
 			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.name))
@@ -85,10 +85,10 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	}
 	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.ready || !index.SQLIndex.live {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			continue
 		}
-		parent, ok := next.Relation(index.SQLIndex.parent)
+		parent, ok := next.Relation(index.SQLIndex.Parent)
 		if !ok {
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
@@ -108,7 +108,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
-		if index.SQLIndex.unique || index.SQLIndex.isExclusion() {
+		if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
 			namespace := next.Get(parent.namespace)
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced

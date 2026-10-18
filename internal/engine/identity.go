@@ -13,20 +13,20 @@ import (
 )
 
 type columnIdentity struct {
-	mode     parser.IdentityMode
-	sequence ids.ObjectAddress
+	Mode     parser.IdentityMode
+	Sequence ids.ObjectAddress
 }
 
 func identityInsertError(column string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
 }
 func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) error {
-	address := sequence.Sequence.owned
+	address := sequence.Sequence.Owned
 	address.SubID = 0
 	table := read.MustRelation(address)
 	column := ""
 	for slot, attribute := range table.Attributes {
-		if attribute == sequence.Sequence.owned.SubID {
+		if attribute == sequence.Sequence.Owned.SubID {
 			column = table.Columns[slot].Name
 			break
 		}
@@ -107,7 +107,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			if err != nil {
 				return err
 			}
-			options.persistence = persistence
+			options.Persistence = persistence
 			read := e.stageRead(stage)
 			tableNamespace := read.MustNamespace(table.namespace)
 			if tableNamespace.Temporary != (ids.SessionToken{}) {
@@ -121,7 +121,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 						}
 					}
 				}
-				options.persistence = "temporary"
+				options.Persistence = "temporary"
 			}
 			namespace := table.namespace
 			used := func(name string) bool {
@@ -157,7 +157,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 		namespace = staged
 	}
 	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {
-		options.persistence = "temporary"
+		options.Persistence = "temporary"
 	}
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
@@ -168,9 +168,9 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	options.owned = table.address
-	options.owned.SubID = table.Attributes[slot]
-	options.identity = true
+	options.Owned = table.address
+	options.Owned.SubID = table.Attributes[slot]
+	options.Identity = true
 	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: sequenceRelation, Sequence: &options}
 	d.ACL = stage.creationACL(table.Owner, table.namespace, authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
@@ -179,11 +179,11 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	if table.Identities == nil {
 		table.Identities = make(map[int32]columnIdentity)
 	}
-	table.Identities[table.Attributes[slot]] = columnIdentity{mode: mode, sequence: address}
+	table.Identities[table.Attributes[slot]] = columnIdentity{Mode: mode, Sequence: address}
 	if stage.generators == nil {
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}
-	initial := options.start
+	initial := options.Start
 	if restart != nil {
 		initial = *restart
 	}

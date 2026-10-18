@@ -13,7 +13,7 @@ func remapPolicies(view CatalogRead, d *relationDescriptor, mapping map[ids.Obje
 	copy.Policies = append([]policyDefinition(nil), d.Policies...)
 	for i := range copy.Policies {
 		p := &copy.Policies[i]
-		for _, slot := range []*policyPayload{&p.using, &p.check} {
+		for _, slot := range []*policyPayload{&p.Using, &p.Check} {
 			if *slot == nil {
 				continue
 			}

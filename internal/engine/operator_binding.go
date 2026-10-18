@@ -86,7 +86,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+			for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
 				d := auth.catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
@@ -107,7 +107,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
+		for _, address := range auth.catalog.state.operatorNames.Buckets[operatorNameKey{path.at(i), spelling}] {
 			d := auth.catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
@@ -250,7 +250,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.catalog.domain.Ref(set.catalog.Epoch(), d.address)
+	ref := b.engine.catalog.Domain.Ref(set.catalog.Epoch(), d.address)
 	b.dependency(ref, d.revision)
 	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos
@@ -272,7 +272,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 	}
 	var node expr.Expr
 	var err error
-	if d.Builtin != nil && d.Builtin.providers&operatorRoutineProvider != 0 {
+	if d.Builtin != nil && d.Builtin.Providers&operatorRoutineProvider != 0 {
 		found := false
 		for key, declaration := range builtinOperatorRoutineByDeclaration {
 			if declaration != d.Builtin {

@@ -28,7 +28,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 			continue
 		}
 		d := auth.catalog.MustType(found[0])
-		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 		diagnosticPath, err := e.referencePath(auth)
 		if err != nil {
 			return nil, ref, err
@@ -148,7 +148,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	if validating {
 		chosen := next
 		chosen.DomainChecks = []domainCheckConstraint{next.DomainChecks[selected]}
-		scope.routineDependencies = chosen.DomainChecks[0].dependencies
+		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
@@ -160,7 +160,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
-				if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, relation.address), lock.AccessShare, true); err != nil {
+				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.address), lock.AccessShare, true); err != nil {
 					return Result{}, err
 				}
 			}
@@ -181,7 +181,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			return Result{}, discoveryErr
 		}
 		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, use.relation.address), lock.Share, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, use.relation.address), lock.Share, true); err != nil {
 				return Result{}, err
 			}
 		}

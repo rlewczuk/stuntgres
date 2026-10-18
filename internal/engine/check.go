@@ -23,11 +23,11 @@ type checkConstraint struct {
 	NoInherit bool
 	NotValid  bool
 	// Declaration order is independent of alphabetical enforcement order.
-	ordinal            int
-	expression         expr.Expr
-	dependencies       []expressionDependency
-	commentSnapshot    bool
-	visibilitySnapshot bool
+	Ordinal            int
+	Expression         expr.Expr
+	Dependencies       []expressionDependency
+	CommentSnapshot    bool
+	VisibilitySnapshot bool
 }
 
 func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment, inherited map[string]checkConstraint) error {
@@ -51,7 +51,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	if len(raw) == 0 {
 		return nil
 	}
-	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -63,11 +63,11 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	start := 0
 	for _, c := range d.CheckConstraints {
 		installed[c.Name] = true
-		if c.ordinal == int(^uint(0)>>1) {
+		if c.Ordinal == int(^uint(0)>>1) {
 			return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 		}
-		if c.ordinal >= start {
-			start = c.ordinal + 1
+		if c.Ordinal >= start {
+			start = c.Ordinal + 1
 		}
 	}
 	for _, c := range d.NotNullConstraints {
@@ -124,7 +124,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		if ancestor, ok := inherited[name]; ok {
 			equality := expressionBinder{checkDefinitionEquality: true}
-			if !equality.sameGroupExpression(node, ancestor.expression) {
+			if !equality.sameGroupExpression(node, ancestor.Expression) {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
 			}
 			if c.NoInherit {
@@ -139,16 +139,16 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		if installed[name] {
 			if !altering && d.Inheritance != nil {
-				if provenance, inherited := d.Inheritance.checks[name]; inherited {
+				if provenance, inherited := d.Inheritance.Checks[name]; inherited {
 					old := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
-					if old < 0 || !sameGroupExpression(d.CheckConstraints[old].expression, node) {
+					if old < 0 || !sameGroupExpression(d.CheckConstraints[old].Expression, node) {
 						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
 					}
 					if c.NoInherit {
 						return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
 					}
-					provenance.local = true
-					d.Inheritance.checks[name] = provenance
+					provenance.Local = true
+					d.Inheritance.Checks[name] = provenance
 					current[name], used[name] = true, true
 					continue
 				}
@@ -163,9 +163,9 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return diagnostic
 		}
 		current[name], used[name] = true, true
-		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, ordinal: ordinal, expression: node}
+		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -175,11 +175,11 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if descriptor, ok := auth.catalog.Descriptor(address); ok {
 				revision = descriptor.Revision()
 			}
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: revision})
+			definition.Dependencies = append(definition.Dependencies, expressionDependency{Ref: ref, Revision: revision})
 		}
 		d.CheckConstraints = append(d.CheckConstraints, definition)
 		if d.Inheritance != nil {
-			d.Inheritance.checks[name] = inheritedConstraint{local: true}
+			d.Inheritance.Checks[name] = inheritedConstraint{Local: true}
 		}
 	}
 	slices.SortFunc(d.CheckConstraints, func(a, b checkConstraint) int { return strings.Compare(a.Name, b.Name) })
@@ -188,14 +188,14 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 
 func orderedChecks(d *relationDescriptor) []checkConstraint {
 	checks := slices.Clone(d.CheckConstraints)
-	slices.SortFunc(checks, func(a, b checkConstraint) int { return cmp.Compare(a.ordinal, b.ordinal) })
+	slices.SortFunc(checks, func(a, b checkConstraint) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
 	return checks
 }
 
 func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 	for _, c := range d.CheckConstraints {
-		for _, dep := range c.dependencies {
-			a := dep.ref.Address
+		for _, dep := range c.Dependencies {
+			a := dep.Ref.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 				return true
 			}
@@ -209,22 +209,22 @@ func checkDepends(d *relationDescriptor, target ids.ObjectAddress) bool {
 // changes before its single final install. No rendering or row evaluation here.
 func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 	for _, c := range d.CheckConstraints {
-		for _, dep := range c.dependencies {
-			address := dep.ref.Address
+		for _, dep := range c.Dependencies {
+			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.address {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.ref.Address.SubID != 0 {
+			if !ok || !storedReferenceEpochValid(view, d, dep.Ref) || (provider.Kind() != ids.RelationObject && provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject) || provider.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if provider.Kind() == ids.CollationObject {
-				if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
+				if err := validateStoredCollationDependency(view, dep.Ref, c.Expression); err != nil {
 					return err
 				}
 			}
-			if relation, ok := provider.(*relationDescriptor); ok && dep.ref.Address.SubID != 0 && !relation.hasAttribute(dep.ref.Address.SubID) {
+			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.hasAttribute(dep.Ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing check provider attribute")
 			}
 		}
@@ -250,7 +250,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if _, incumbent := stage.base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
 			provider, staged := stage.descriptors[address].(*relationDescriptor)
-			if !staged || provider.address != address || ref.Domain() != stage.owner.catalog.domain || ref.Epoch != stage.base.Epoch() {
+			if !staged || provider.address != address || ref.Domain() != stage.owner.catalog.Domain || ref.Epoch != stage.base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
 			return nil
@@ -283,7 +283,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		return nil
 	}
 	for _, descriptor := range stage.likeSources {
-		ref := stage.owner.catalog.domain.Ref(stage.base.Epoch(), descriptor.Address())
+		ref := stage.owner.catalog.Domain.Ref(stage.base.Epoch(), descriptor.Address())
 		if err := add(ref, nil); err != nil {
 			return err
 		}
@@ -300,45 +300,45 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				}
 			}
 			for _, dependency := range viewOf(d).dependencies {
-				if err := add(dependency.ref, d); err != nil {
+				if err := add(dependency.Ref, d); err != nil {
 					return err
 				}
 			}
 		}
 		for _, c := range d.CheckConstraints {
-			for _, dep := range c.dependencies {
-				if err := add(dep.ref, d); err != nil {
+			for _, dep := range c.Dependencies {
+				if err := add(dep.Ref, d); err != nil {
 					return err
 				}
 			}
 		}
 		for _, definition := range d.Defaults {
-			for _, ref := range definition.dependencies {
+			for _, ref := range definition.Dependencies {
 				if err := add(ref, d); err != nil {
 					return err
 				}
 			}
 		}
 		for _, definition := range d.Generations {
-			for _, ref := range definition.dependencies {
+			for _, ref := range definition.Dependencies {
 				if err := add(ref, d); err != nil {
 					return err
 				}
 			}
 		}
 		if d.SQLIndex != nil {
-			for _, key := range d.SQLIndex.keys {
-				if key.derived == nil {
+			for _, key := range d.SQLIndex.Keys {
+				if key.Derived == nil {
 					continue
 				}
-				for _, ref := range key.derived.dependencies {
+				for _, ref := range key.Derived.Dependencies {
 					if err := add(ref, d); err != nil {
 						return err
 					}
 				}
 			}
-			if predicate := d.SQLIndex.predicate; predicate != nil {
-				for _, ref := range predicate.dependencies {
+			if predicate := d.SQLIndex.Predicate; predicate != nil {
+				for _, ref := range predicate.Dependencies {
 					if err := add(ref, d); err != nil {
 						return err
 					}
@@ -359,7 +359,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	for _, ref := range refs {
 		mode := lock.AccessShare
 		for _, descriptor := range stage.descriptors {
-			if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.parents, ref.Address) {
+			if d, ok := descriptor.(*relationDescriptor); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, ref.Address) {
 				mode = lock.ShareUpdateExclusive
 				break
 			}
@@ -376,7 +376,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				// The provider existed when the definition was analyzed and was
 				// dropped while this statement waited for it (PostgreSQL 18.6).
 				err = sqlError("42704", "referenced relation was concurrently dropped")
-			} else if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+			} else if !ok || !existed || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
@@ -397,36 +397,36 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
 	previous := ""
 	for i, c := range d.CheckConstraints {
-		if c.ordinal < 0 {
+		if c.Ordinal < 0 {
 			return fmt.Errorf("stuntgres: invalid check declaration ordinal")
 		}
 		for _, previous := range d.CheckConstraints[:i] {
-			if previous.ordinal == c.ordinal {
+			if previous.Ordinal == c.Ordinal {
 				return fmt.Errorf("stuntgres: duplicate check declaration ordinal")
 			}
 		}
-		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || previous != "" && previous >= c.Name || c.expression == nil || c.expression.ResultUsage().Type == nil || c.expression.ResultUsage().Type.ID() != sqltype.Bool {
+		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || previous != "" && previous >= c.Name || c.Expression == nil || c.Expression.ResultUsage().Type == nil || c.Expression.ResultUsage().Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid check constraint identity")
 		}
 		names[c.Name], previous = true, c.Name
 		var actual []ids.ObjectRef
 		var commentSnapshot, visibilitySnapshot bool
-		if _, err := (scalarRenderer{validation: true, owner: d, capturedChecks: c.dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
+		if _, err := (scalarRenderer{validation: true, owner: d, capturedChecks: c.Dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.Expression); err != nil {
 			return err
 		}
-		if commentSnapshot != c.commentSnapshot {
+		if commentSnapshot != c.CommentSnapshot {
 			return fmt.Errorf("stuntgres: inconsistent check comment snapshot manifest")
 		}
-		if visibilitySnapshot != c.visibilitySnapshot {
+		if visibilitySnapshot != c.VisibilitySnapshot {
 			return fmt.Errorf("stuntgres: inconsistent check visibility snapshot manifest")
 		}
-		if len(actual) != len(c.dependencies) {
+		if len(actual) != len(c.Dependencies) {
 			return fmt.Errorf("stuntgres: inconsistent check dependency manifest")
 		}
 		for _, ref := range actual {
 			found := false
-			for _, dep := range c.dependencies {
-				if dep.ref == ref {
+			for _, dep := range c.Dependencies {
+				if dep.Ref == ref {
 					found = true
 					break
 				}
@@ -435,20 +435,20 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 				return fmt.Errorf("stuntgres: missing check dependency")
 			}
 		}
-		for _, dep := range c.dependencies {
-			address := dep.ref.Address
+		for _, dep := range c.Dependencies {
+			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.address {
-				if !storedReferenceEpochValid(view, d, dep.ref) || !d.hasAttribute(dep.ref.Address.SubID) {
+				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.hasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.ref.Address.SubID != 0 {
+				if !ok || !storedReferenceEpochValid(view, d, dep.Ref) || (target.Kind() != ids.RelationObject && target.Kind() != ids.TypeObject && target.Kind() != ids.CollationObject && target.Kind() != ids.ProcedureObject && target.Kind() != ids.OperatorObject && target.Kind() != ids.NamespaceObject && target.Kind() != ids.TSDictionaryObject) || target.Kind() == ids.NamespaceObject && dep.Ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 				if target.Kind() == ids.CollationObject {
-					if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
+					if err := validateStoredCollationDependency(view, dep.Ref, c.Expression); err != nil {
 						return err
 					}
 				}
@@ -476,10 +476,10 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 		for i := range d.CheckConstraints {
 			checkEvaluation := *eval
 			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
-			checkEvaluation.routineChecks = d.CheckConstraints[i].dependencies
+			checkEvaluation.routineChecks = d.CheckConstraints[i].Dependencies
 			checkEvaluation.routineReferences = nil
 			checkEvaluation.routineConsumer = d
-			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.CheckConstraints[i].expression, true)
+			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.CheckConstraints[i].Expression, true)
 			eval.preparedDomainChecks = checkEvaluation.preparedDomainChecks
 			if err != nil {
 				return nil, err
@@ -491,7 +491,7 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 				if expressions == nil {
 					expressions = make([]expr.Expr, len(d.CheckConstraints))
 					for j := range d.CheckConstraints {
-						expressions[j] = d.CheckConstraints[j].expression
+						expressions[j] = d.CheckConstraints[j].Expression
 					}
 				}
 				expressions[i] = node
@@ -514,8 +514,8 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 	for i := range d.CheckConstraints {
 		c := &d.CheckConstraints[i]
 		eval.routineRecipe, eval.routineGraft = true, false
-		eval.routineChecks, eval.routineReferences, eval.routineConsumer = c.dependencies, nil, d
-		expression := c.expression
+		eval.routineChecks, eval.routineReferences, eval.routineConsumer = c.Dependencies, nil, d
+		expression := c.Expression
 		if expressions != nil {
 			expression = expressions[i]
 		}
@@ -591,8 +591,8 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 		changed := false
 		for _, c := range d.CheckConstraints {
 			var dependency ids.ObjectAddress
-			for _, dep := range c.dependencies {
-				a := dep.ref.Address
+			for _, dep := range c.Dependencies {
+				a := dep.Ref.Address
 				if a.ClassID == d.address.ClassID && a.ObjectID == d.address.ObjectID {
 					continue
 				}
@@ -636,7 +636,7 @@ func (provider *dropProvider) checkDependents(targets []ids.ObjectAddress, mode 
 		if a.relation.address.ObjectID > b.relation.address.ObjectID {
 			return 1
 		}
-		return cmp.Compare(a.check.ordinal, b.check.ordinal)
+		return cmp.Compare(a.check.Ordinal, b.check.Ordinal)
 	})
 	return edges, nil
 }

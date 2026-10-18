@@ -44,7 +44,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 		if ref.Epoch() != e.catalog.state.epoch || node.ref != ref || !serializableRelevant(node) {
 			continue
 		}
-		owner, visible, err := lock.PublicOwner(e.catalog.domain, ref, node.prepared)
+		owner, visible, err := lock.PublicOwner(e.catalog.Domain, ref, node.prepared)
 		if err != nil {
 			return nil, err
 		}

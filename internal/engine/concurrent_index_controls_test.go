@@ -60,7 +60,7 @@ func TestConcurrentIndexU7InvalidDumpAndSuccessOnlyRepair(t *testing.T) {
 	consumer := sessionStart(t, restored, nil)
 	concurrentUnitError(t, consumer, "INSERT INTO t VALUES(2)", "23505")
 	imported, _ := concurrentUnitIndex(t, restored, "ui", true, true)
-	if imported.SQLIndex.constraint != nil {
+	if imported.SQLIndex.Constraint != nil {
 		t.Fatal("restore fabricated backing constraint")
 	}
 	concurrentUnitRootMatchesStorage(t, restored, imported)
@@ -232,7 +232,7 @@ func TestConcurrentIndexU7OrdinaryUniqueUsesPublicParseAndExecute(t *testing.T) 
 		t.Fatal("ordinary UNIQUE public execution", result, err)
 	}
 	index, _ := concurrentUnitIndex(t, e, "ui", true, true)
-	if !index.SQLIndex.unique || !index.SQLIndex.nullsNotDistinct || index.SQLIndex.constraint != nil {
+	if !index.SQLIndex.Unique || !index.SQLIndex.NullsNotDistinct || index.SQLIndex.Constraint != nil {
 		t.Fatal("ordinary UNIQUE definition identity")
 	}
 	sessionSQL(t, s, "INSERT INTO t VALUES(NULL)")
@@ -296,7 +296,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 		}
 	}
 	e.mu.Unlock()
-	if original == nil || original.SQLIndex.ready || original.SQLIndex.valid {
+	if original == nil || original.SQLIndex.Ready || original.SQLIndex.Valid {
 		t.Fatal("real retained TEMP invalid descriptor missing")
 	}
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE imported(n INT); INSERT INTO imported VALUES(7);")); err != nil {
@@ -326,12 +326,12 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			original, _ := concurrentUnitIndex(t, e, "ui", false, false)
 			base := e.CatalogRead()
 			e.mu.Lock()
-			parent := e.catalog.state.MustRelation(original.SQLIndex.parent)
+			parent := e.catalog.state.MustRelation(original.SQLIndex.Parent)
 			store := e.storage[parent.address]
 			snapshot := *store
 			e.mu.Unlock()
 			next, definition := *original, *original.SQLIndex
-			definition.ready = true
+			definition.Ready = true
 			next.SQLIndex = &definition
 			next.revision++
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &definition, &snapshot, nil)

@@ -218,8 +218,8 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	}
 	seen := map[int32]bool{}
 	for _, d := range b.dependencies {
-		if d.ref.Address.ClassID == ids.RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
-			seen[d.ref.Address.SubID] = true
+		if d.Ref.Address.ClassID == ids.RelationClassID && d.Ref.Address.ObjectID == ref.Address.ObjectID {
+			seen[d.Ref.Address.SubID] = true
 		}
 	}
 	if !seen[1] || !seen[2] {
@@ -344,11 +344,11 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		}
 		seen := map[int32]bool{}
 		for _, d := range b.dependencies {
-			if d.ref.Domain() != e.catalog.domain || d.revision == 0 {
+			if d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
 				t.Fatal(d)
 			}
-			if d.ref.Address.ClassID == ids.RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
-				seen[d.ref.Address.SubID] = true
+			if d.Ref.Address.ClassID == ids.RelationClassID && d.Ref.Address.ObjectID == ref.Address.ObjectID {
+				seen[d.Ref.Address.SubID] = true
 			}
 		}
 		for _, column := range tc.columns {
@@ -370,7 +370,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	column.Address.SubID = 2
 	found := false
 	for _, d := range b.dependencies {
-		found = found || d.ref == column
+		found = found || d.Ref == column
 	}
 	if !found {
 		t.Fatal("held predicate must depend on v", b.dependencies)

@@ -193,11 +193,11 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		if err != nil {
 			return err
 		}
-		children, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
+		children, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
 		if err != nil {
 			return err
 		}
-		parents, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), parent.address), f.Index)
+		parents, err := s.captureForeignKeyRows(e.catalog.Domain.Ref(view.Epoch(), parent.address), f.Index)
 		if err != nil {
 			return err
 		}

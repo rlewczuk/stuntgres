@@ -94,7 +94,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						resources := len(lockState.Journals[scope.ticket])
 						valid := true
 						for _, old := range owners {
-							ref := e.catalog.domain.Ref(base.Epoch(), old.address)
+							ref := e.catalog.Domain.Ref(base.Epoch(), old.address)
 							entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 0
 						}

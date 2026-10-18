@@ -81,7 +81,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.Builtin
 			identity := routineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.signature)}
-			if declaration.identity != identity || declaration.kind != functionRoutine || declaration.result != tc.result || !declaration.strict || declaration.volatility != tc.volatility || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.defaults != 0 || declaration.variadic != 0 || declaration.providers != tc.provider {
+			if declaration.Identity != identity || declaration.Kind != functionRoutine || declaration.Result != tc.result || !declaration.Strict || declaration.Volatility != tc.volatility || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Defaults != 0 || declaration.Variadic != 0 || declaration.Providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
 			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.revision == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
@@ -91,14 +91,14 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			selected := 0
 			var missing []expressionDependency
 			for _, dependency := range original {
-				if dependency.ref.Address == address {
+				if dependency.Ref.Address == address {
 					selected++
-					if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.revision {
 						t.Fatal("original selected lifetime", dependency)
 					}
 				} else {
 					missing = append(missing, dependency)
-					if dependency.ref.Address.ClassID == ids.ProcedureClassID {
+					if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
 						t.Fatal("implicit constructor/codec/helper EXECUTE edge", dependency)
 					}
 				}
@@ -121,14 +121,14 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			for _, mode := range []string{"foreign", "epoch", "revision"} {
 				checks := append([]expressionDependency(nil), original...)
 				for i := range checks {
-					if checks[i].ref.Address == address {
+					if checks[i].Ref.Address == address {
 						switch mode {
 						case "foreign":
-							checks[i].ref = other.catalog.domain.Ref(checks[i].ref.Epoch, checks[i].ref.Address)
+							checks[i].Ref = other.catalog.Domain.Ref(checks[i].Ref.Epoch, checks[i].Ref.Address)
 						case "epoch":
-							checks[i].ref.Epoch++
+							checks[i].Ref.Epoch++
 						case "revision":
-							checks[i].revision++
+							checks[i].Revision++
 						}
 					}
 				}

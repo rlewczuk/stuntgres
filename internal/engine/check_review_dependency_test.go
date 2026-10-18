@@ -46,8 +46,8 @@ func checkReviewDependencyValid(t *testing.T, e *Engine) {
 			continue
 		}
 		for _, c := range d.CheckConstraints {
-			for _, dep := range c.dependencies {
-				if err := e.ValidateObjectRef(read, dep.ref); err != nil {
+			for _, dep := range c.Dependencies {
+				if err := e.ValidateObjectRef(read, dep.Ref); err != nil {
 					t.Fatalf("orphan CHECK %s on %s: %v", c.Name, d.name, err)
 				}
 			}

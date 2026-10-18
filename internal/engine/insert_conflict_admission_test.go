@@ -21,7 +21,7 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	f.parent.Owner = owner.Ref
 	f.index.Owner = owner.Ref
 	definition := *f.index.SQLIndex
-	definition.unique = true
+	definition.Unique = true
 	f.index.SQLIndex = &definition
 	f.store.versions = f.store.versions[:1]
 	f.store.versions[0].born = 1
@@ -48,7 +48,7 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 	if err := scope.gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
+	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.epoch, f.parent.address)
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
 	ctx := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
@@ -181,8 +181,8 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	second.name = "a_other"
 	def := *f.index.SQLIndex
 	class, _ := sqltype.DefaultIndexClass(f.parent.Columns[1].Usage.Type)
-	def.keys = []indexKey{{attribute: 20, class: class}}
-	def.predicate = nil
+	def.Keys = []indexKey{{Attribute: 20, Class: class}}
+	def.Predicate = nil
 	second.SQLIndex = &def
 	f.e.catalog.state.setDescriptor(second.address, &second)
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
@@ -212,18 +212,18 @@ func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 	ctx := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
 	explicit := &boundInsertConflict{keys: []conflictKey{{attribute: 10}, {attribute: 10}}, predicate: f.predicate}
 	targetless := &boundInsertConflict{}
-	f.index.SQLIndex.include = []int32{20}
+	f.index.SQLIndex.Include = []int32{20}
 	if err := explicit.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(explicit.selected) != 1 {
 		t.Fatal("repeated keys / INCLUDE", err)
 	}
-	f.index.SQLIndex.valid = false
+	f.index.SQLIndex.Valid = false
 	if err := targetless.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.selected) != 1 {
 		t.Fatal("ready invalid provider", err)
 	}
 	if err := explicit.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {
 		t.Fatal("explicit inferred an invalid provider")
 	}
-	f.index.SQLIndex.ready = false
+	f.index.SQLIndex.Ready = false
 	if err := targetless.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil || len(targetless.selected) != 0 {
 		t.Fatal("not-ready provider", err)
 	}
@@ -237,8 +237,8 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.address.ObjectID += ids.OID(i + 1)
 		index.name = []string{"mixed_a", "mixed_b"}[i]
 		definition := *f.index.SQLIndex
-		definition.keys = []indexKey{{derived: &derivedIndexKey{definition: expression, execution: expression, attributes: f.parent.Attributes}, class: class}, {attribute: 10, class: f.index.SQLIndex.keys[0].class, desc: i == 1}}
-		definition.include = []int32{20}
+		definition.Keys = []indexKey{{Derived: &derivedIndexKey{Definition: expression, Execution: expression, Attributes: f.parent.Attributes}, Class: class}, {Attribute: 10, Class: f.index.SQLIndex.Keys[0].Class, Desc: i == 1}}
+		definition.Include = []int32{20}
 		index.SQLIndex = &definition
 		index.Columns = []ColumnDescriptor{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}

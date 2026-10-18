@@ -26,15 +26,15 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		return nil
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid table inheritance graph") }
-	if d.RelationKind != tableRelation || len(graph.parents) == 0 || len(graph.columns) != len(d.Columns) {
+	if d.RelationKind != tableRelation || len(graph.Parents) == 0 || len(graph.Columns) != len(d.Columns) {
 		return invalid()
 	}
 	childNS, ok := v.Namespace(d.namespace)
 	if !ok {
 		return invalid()
 	}
-	seen := make(map[ids.ObjectAddress]bool, len(graph.parents))
-	for _, address := range graph.parents {
+	seen := make(map[ids.ObjectAddress]bool, len(graph.Parents))
+	for _, address := range graph.Parents {
 		parent, ok := v.Relation(address)
 		if !ok || parent.address != address || parent.RelationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.address {
 			return invalid()
@@ -46,30 +46,30 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 	}
 	for slot, attribute := range d.Attributes {
-		provenance, ok := graph.columns[attribute]
-		if !ok || !provenance.local && len(provenance.origins) == 0 {
+		provenance, ok := graph.Columns[attribute]
+		if !ok || !provenance.Local && len(provenance.Origins) == 0 {
 			return invalid()
 		}
-		origins := make(map[ids.ObjectAddress]bool, len(provenance.origins))
-		for _, origin := range provenance.origins {
-			if !seen[origin.parent] || origins[origin.parent] || origin.constraint != 0 {
+		origins := make(map[ids.ObjectAddress]bool, len(provenance.Origins))
+		for _, origin := range provenance.Origins {
+			if !seen[origin.Parent] || origins[origin.Parent] || origin.Constraint != 0 {
 				return invalid()
 			}
-			origins[origin.parent] = true
-			parent := v.MustRelation(origin.parent)
-			sourceSlot := slices.Index(parent.Attributes, origin.attribute)
+			origins[origin.Parent] = true
+			parent := v.MustRelation(origin.Parent)
+			sourceSlot := slices.Index(parent.Attributes, origin.Attribute)
 			if sourceSlot < 0 || parent.Columns[sourceSlot].Name != d.Columns[slot].Name || inheritanceColumnConflict(v, parent.Columns[sourceSlot], d.Columns[slot], false) != nil {
 				return invalid()
 			}
 		}
-		for _, parentAddress := range graph.parents {
+		for _, parentAddress := range graph.Parents {
 			parent := v.MustRelation(parentAddress)
 			if _, ok := parent.Index[d.Columns[slot].Name]; ok && !origins[parentAddress] {
 				return invalid()
 			}
 		}
 	}
-	for _, parentAddress := range graph.parents {
+	for _, parentAddress := range graph.Parents {
 		parent := v.MustRelation(parentAddress)
 		mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
 		for i, column := range parent.Columns {
@@ -88,15 +88,15 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				return invalid()
 			}
 			target := d.Attributes[mapper.targetSlots[sourceSlot]]
-			if !slices.ContainsFunc(graph.notNull[target].origins, func(origin inheritanceOrigin) bool {
-				return origin.parent == parentAddress && origin.constraint == constraint.OID && origin.attribute == constraint.Attribute
+			if !slices.ContainsFunc(graph.NotNull[target].Origins, func(origin inheritanceOrigin) bool {
+				return origin.Parent == parentAddress && origin.Constraint == constraint.OID && origin.Attribute == constraint.Attribute
 			}) {
 				return invalid()
 			}
 		}
 		for _, constraint := range parent.CheckConstraints {
-			if !constraint.NoInherit && !slices.ContainsFunc(graph.checks[constraint.Name].origins, func(origin inheritanceOrigin) bool {
-				return origin.parent == parentAddress && origin.constraint == constraint.OID
+			if !constraint.NoInherit && !slices.ContainsFunc(graph.Checks[constraint.Name].Origins, func(origin inheritanceOrigin) bool {
+				return origin.Parent == parentAddress && origin.Constraint == constraint.OID
 			}) {
 				return invalid()
 			}
@@ -108,56 +108,56 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			}
 			target := d.Attributes[mapper.targetSlots[sourceSlot]]
 			child, ok := d.Generations[target]
-			if !ok || child.kind != generation.kind {
+			if !ok || child.Kind != generation.Kind {
 				return invalid()
 			}
 		}
 	}
-	for attribute, provenance := range graph.notNull {
+	for attribute, provenance := range graph.NotNull {
 		child := slices.IndexFunc(d.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
-		if child < 0 || !provenance.local && provenance.count() == 0 {
+		if child < 0 || !provenance.Local && provenance.count() == 0 {
 			return invalid()
 		}
 		if err := validateRetiredInheritance(v, d, provenance, d.NotNullConstraints[child].OID, false); err != nil {
 			return err
 		}
 		origins := make(map[ids.ObjectAddress]bool)
-		for _, origin := range provenance.origins {
-			if !seen[origin.parent] || origins[origin.parent] || origin.constraint == 0 {
+		for _, origin := range provenance.Origins {
+			if !seen[origin.Parent] || origins[origin.Parent] || origin.Constraint == 0 {
 				return invalid()
 			}
-			origins[origin.parent] = true
-			parent := v.MustRelation(origin.parent)
+			origins[origin.Parent] = true
+			parent := v.MustRelation(origin.Parent)
 			found := slices.ContainsFunc(parent.NotNullConstraints, func(c notNullConstraint) bool {
-				return c.OID == origin.constraint && c.Attribute == origin.attribute && c.OID != d.NotNullConstraints[child].OID
+				return c.OID == origin.Constraint && c.Attribute == origin.Attribute && c.OID != d.NotNullConstraints[child].OID
 			})
 			if !found {
 				return invalid()
 			}
-			sourceSlot := slices.Index(parent.Attributes, origin.attribute)
+			sourceSlot := slices.Index(parent.Attributes, origin.Attribute)
 			targetSlot := slices.Index(d.Attributes, attribute)
 			if sourceSlot < 0 || targetSlot < 0 || parent.Columns[sourceSlot].Name != d.Columns[targetSlot].Name {
 				return invalid()
 			}
 		}
 	}
-	for name, provenance := range graph.checks {
+	for name, provenance := range graph.Checks {
 		child := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
-		if child < 0 || !provenance.local && provenance.count() == 0 || d.CheckConstraints[child].NoInherit && provenance.count() != 0 {
+		if child < 0 || !provenance.Local && provenance.count() == 0 || d.CheckConstraints[child].NoInherit && provenance.count() != 0 {
 			return invalid()
 		}
 		if err := validateRetiredInheritance(v, d, provenance, d.CheckConstraints[child].OID, true); err != nil {
 			return err
 		}
 		origins := make(map[ids.ObjectAddress]bool)
-		for _, origin := range provenance.origins {
-			if !seen[origin.parent] || origins[origin.parent] || origin.attribute != 0 || origin.constraint == 0 {
+		for _, origin := range provenance.Origins {
+			if !seen[origin.Parent] || origins[origin.Parent] || origin.Attribute != 0 || origin.Constraint == 0 {
 				return invalid()
 			}
-			origins[origin.parent] = true
-			parent := v.MustRelation(origin.parent)
+			origins[origin.Parent] = true
+			parent := v.MustRelation(origin.Parent)
 			source := slices.IndexFunc(parent.CheckConstraints, func(c checkConstraint) bool {
-				return c.OID == origin.constraint && c.Name == name && !c.NoInherit && c.OID != d.CheckConstraints[child].OID
+				return c.OID == origin.Constraint && c.Name == name && !c.NoInherit && c.OID != d.CheckConstraints[child].OID
 			})
 			if source < 0 {
 				return invalid()
@@ -166,19 +166,19 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			for i, c := range parent.Columns {
 				mapper.targetSlots[i] = d.Index[c.Name]
 			}
-			node, err := mapper.remap(parent.CheckConstraints[source].expression, d, v)
-			if err != nil || !sameInheritedExpression(node, d.CheckConstraints[child].expression, d, v) {
+			node, err := mapper.remap(parent.CheckConstraints[source].Expression, d, v)
+			if err != nil || !sameInheritedExpression(node, d.CheckConstraints[child].Expression, d, v) {
 				return invalid()
 			}
 		}
 	}
 	for _, constraint := range d.NotNullConstraints {
-		if _, ok := graph.notNull[constraint.Attribute]; !ok {
+		if _, ok := graph.NotNull[constraint.Attribute]; !ok {
 			return invalid()
 		}
 	}
 	for _, constraint := range d.CheckConstraints {
-		if _, ok := graph.checks[constraint.Name]; !ok {
+		if _, ok := graph.Checks[constraint.Name]; !ok {
 			return invalid()
 		}
 	}
@@ -195,7 +195,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		}
 		visiting[current.address] = true
 		if current.Inheritance != nil {
-			for _, address := range current.Inheritance.parents {
+			for _, address := range current.Inheritance.Parents {
 				parent, ok := v.Relation(address)
 				if !ok || !visit(parent) {
 					return false

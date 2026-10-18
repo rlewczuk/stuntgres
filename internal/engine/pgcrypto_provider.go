@@ -13,7 +13,7 @@ type pgcryptoProvider struct{ control extensionControl }
 // Control implements extensionImplementation.
 func (p *pgcryptoProvider) Control() extensionControl { return p.control.detached() }
 
-var stockPgcrypto = &pgcryptoProvider{control: extensionControl{version: "1.4", trusted: true, superuser: true, relocatable: true, comment: new("cryptographic functions")}}
+var stockPgcrypto = &pgcryptoProvider{control: extensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 
 func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(functions.PgcryptoMembers))
@@ -41,7 +41,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
-	if v.owner == nil || p != stockPgcrypto || ext.name != "pgcrypto" || ext.Version != p.control.version || len(ext.Members) != len(functions.PgcryptoMembers) {
+	if v.owner == nil || p != stockPgcrypto || ext.name != "pgcrypto" || ext.Version != p.control.Version || len(ext.Members) != len(functions.PgcryptoMembers) {
 		return invalid()
 	}
 	seen := make(map[functions.PgcryptoMember]bool, len(functions.PgcryptoMembers))
@@ -56,7 +56,7 @@ func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 		}
 		// Extension membership fixes provider semantics, not independently
 		// transferable member ownership. Each owner still has real provenance.
-		if proc.Owner.ID() == 0 || proc.Owner != v.owner.principals.Principal(proc.Owner.ID()) {
+		if proc.Owner.ID() == 0 || proc.Owner != v.owner.Principals.Principal(proc.Owner.ID()) {
 			return invalid()
 		}
 		seen[member] = true

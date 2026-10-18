@@ -75,14 +75,14 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	owned := make([]*relationDescriptor, 0)
 	for _, d := range auth.catalog.Descriptors() {
 		r, ok := d.(*relationDescriptor)
-		if ok && r.SQLIndex != nil && r.SQLIndex.parent == old.address {
+		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == old.address {
 			owned = append(owned, r)
 			continue
 		}
 		if !ok || r.RelationKind != sequenceRelation {
 			continue
 		}
-		a := r.Sequence.owned
+		a := r.Sequence.Owned
 		if old.RelationKind == tableRelation && a.ClassID == old.address.ClassID && a.ObjectID == old.address.ObjectID && old.hasAttribute(a.SubID) {
 			owned = append(owned, r)
 		}
@@ -93,7 +93,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		if r.SQLIndex != nil {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, r.address), lock.AccessExclusive, false); err != nil {
+		if err = scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, r.address), lock.AccessExclusive, false); err != nil {
 			return Result{}, err
 		}
 	}
@@ -139,7 +139,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 			group = append(group, live)
 			continue
 		}
-		if !ok || live.RelationKind != sequenceRelation || live.Sequence.owned != r.Sequence.owned || live.namespace != old.namespace || live.Owner != old.Owner {
+		if !ok || live.RelationKind != sequenceRelation || live.Sequence.Owned != r.Sequence.Owned || live.namespace != old.namespace || live.Owner != old.Owner {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		group = append(group, live)

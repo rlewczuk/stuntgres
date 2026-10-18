@@ -580,7 +580,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				if scope.view != nil {
 					t.Error("INSERT captured data before planning/revalidation")
 				}
-				if scope.lockedRef.Domain() != e.catalog.domain || scope.lockedDescriptor == nil {
+				if scope.lockedRef.Domain() != e.catalog.Domain || scope.lockedDescriptor == nil {
 					t.Error("INSERT lost locked relation identity")
 				}
 				switch mode {
@@ -688,11 +688,11 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			d := view.MustRelation(ref.Address)
 			original := d.Defaults[d.Attributes[0]]
 			c := &EvalContext{Context: context.Background()}
-			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)
+			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
 			}
-			if planned.Properties() != original.expression.Properties() || planned.ResultUsage() != original.expression.ResultUsage() || planned.SourcePosition() != original.expression.SourcePosition() {
+			if planned.Properties() != original.Expression.Properties() || planned.ResultUsage() != original.Expression.ResultUsage() || planned.SourcePosition() != original.Expression.SourcePosition() {
 				t.Fatal("analysis metadata changed")
 			}
 			value, err := planned.Eval(c)
@@ -703,7 +703,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if err != nil || truth == Unknown || (truth == True) != tc.want {
 				t.Fatal(truth, err, tc.want)
 			}
-			_, _, err = preflightCoercions(c, original.expression)
+			_, _, err = preflightCoercions(c, original.Expression)
 			var diagnostic *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}
 			if !errors.As(err, &diagnostic) || *diagnostic != want {
@@ -737,7 +737,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
 		d := e.CatalogRead().MustRelation(ref.Address)
-		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.Defaults[d.Attributes[0]].expression, true)
+		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.Defaults[d.Attributes[0]].Expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")
 	}

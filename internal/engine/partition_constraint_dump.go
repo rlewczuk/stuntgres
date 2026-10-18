@@ -77,7 +77,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
 			index.name = c.Name
-			definition.constraint = uniqueBacking(c)
+			definition.Constraint = uniqueBacking(c)
 			index.SQLIndex = &definition
 			state.setDescriptor(index.address, &index)
 		}
@@ -88,7 +88,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
 			index.name = c.Name
-			definition.constraint = exclusionBacking(c)
+			definition.Constraint = exclusionBacking(c)
 			index.SQLIndex = &definition
 			state.setDescriptor(index.address, &index)
 		}
@@ -112,7 +112,7 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 		used[c.Name] = true
 	}
 	for _, index := range partitionIndexDeclarationOrder(view, table) {
-		if index.SQLIndex.constraint != nil && index.SQLIndex.partitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
+		if index.SQLIndex.Constraint != nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
 			used[index.name] = true
 		}
 	}
@@ -133,7 +133,7 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 	var reserve func(*relationDescriptor, *relationDescriptor)
 	reserve = func(child, parentIndex *relationDescriptor) {
 		index := partitionDumpIndexBacking(r.original, parentIndex.address, child.address)
-		if index == nil || index.SQLIndex.constraint == nil {
+		if index == nil || index.SQLIndex.Constraint == nil {
 			return
 		}
 		if root := partitionReplayVirtualUniqueRoot(r.original, index); root != nil && !partitionReplayOnlyExclusion(root) {
@@ -151,10 +151,10 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 		if index.SQLIndex.isExclusion() {
 			suffix = "excl"
 		}
-		if index.SQLIndex.constraint.Primary {
+		if index.SQLIndex.Constraint.Primary {
 			suffix = "pkey"
 		} else {
-			labels := make([]string, len(index.SQLIndex.keys))
+			labels := make([]string, len(index.SQLIndex.Keys))
 			for i := range labels {
 				labels[i] = index.Columns[i].Name
 			}
@@ -164,12 +164,12 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 		used[name] = true
 		renames = append(renames, rename{index, name})
 		if event.phase == dumpTableAttachment && child.Partition != nil {
-			for _, address := range child.Partition.children {
+			for _, address := range child.Partition.Children {
 				reserve(r.original.MustRelation(address), index)
 			}
 		}
 	}
-	parent := r.original.MustRelation(table.Membership.parent)
+	parent := r.original.MustRelation(table.Membership.Parent)
 	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
 		reserve(table, index)
 	}
@@ -209,6 +209,6 @@ func (r *partitionConstraintReplay) finalRenameSQL(index *relationDescriptor) st
 }
 
 func partitionIndexDumpAttachmentSQL(view CatalogRead, index *relationDescriptor) string {
-	parent := view.MustRelation(index.SQLIndex.partitionParent)
+	parent := view.MustRelation(index.SQLIndex.PartitionParent)
 	return "ALTER INDEX " + quoteIdentifier(view.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name) + " ATTACH PARTITION " + quoteIdentifier(view.Get(index.namespace).Name()) + "." + quoteIdentifier(index.name) + ";\n"
 }

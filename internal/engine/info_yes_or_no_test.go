@@ -34,17 +34,17 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 		t.Fatal("own recipe count", len(d.DomainChecks))
 	}
 	check := d.DomainChecks[0]
-	if check.OID == 0 || check.Name != "yes_or_no_check" || check.NotValid || check.ordinal != 0 || check.expression == nil || len(check.dependencies) == 0 || !check.expression.Properties().DomainDependent || check.expression.Properties().RowDependent {
+	if check.OID == 0 || check.Name != "yes_or_no_check" || check.NotValid || check.Ordinal != 0 || check.Expression == nil || len(check.Dependencies) == 0 || !check.Expression.Properties().DomainDependent || check.Expression.Properties().RowDependent {
 		t.Fatal("real validated VALUE recipe", check)
 	}
-	for _, dependency := range check.dependencies {
-		provider, ok := view.Descriptor(dependency.ref.Address)
-		if !ok || dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
+	for _, dependency := range check.Dependencies {
+		provider, ok := view.Descriptor(dependency.Ref.Address)
+		if !ok || dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != view.Epoch() || dependency.Revision != provider.Revision() {
 			t.Fatal("captured recipe dependency", dependency)
 		}
 	}
 	valueLeaves := 0
-	walkBoundExpression(check.expression, func(node expr.Expr) {
+	walkBoundExpression(check.Expression, func(node expr.Expr) {
 		if _, ok := node.(domainValueExpression); ok {
 			valueLeaves++
 			if node.ResultUsage() != d.SQLType.DomainBase() {
@@ -55,7 +55,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	if valueLeaves == 0 {
 		t.Fatal("recipe does not consume real VALUE")
 	}
-	if err := e.catalog.providers[ids.TypeClassID].Validate(view, d); err != nil {
+	if err := e.catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {

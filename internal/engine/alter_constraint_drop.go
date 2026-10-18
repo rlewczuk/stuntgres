@@ -74,7 +74,7 @@ func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor
 		retired := [2]ids.ObjectAddress{constraint, address}
 		roots := retired[:1]
 		if address != (ids.ObjectAddress{}) {
-			if err := provider.remove(provider.owner.catalog.domain.Ref(provider.base.Epoch(), address)); err != nil {
+			if err := provider.remove(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)); err != nil {
 				return next, err
 			}
 			roots = retired[:]
