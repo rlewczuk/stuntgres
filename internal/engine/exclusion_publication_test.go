@@ -18,7 +18,7 @@ func TestExclusionPublication(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
-			parent := e.catalog.state.descriptors[roleTableRef(t, e, "public.t").Address].(*relationDescriptor)
+			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "public.t").Address)
 			store := e.storage[parent.address]
 			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -97,7 +97,7 @@ func TestExclusionPublication(t *testing.T) {
 			sessionSQL(t, s, "CREATE SCHEMA exclusion_publication")
 			sessionSQL(t, s, "CREATE TABLE exclusion_publication.t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
 			sessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
-			parent := e.catalog.state.descriptors[roleTableRef(t, e, "exclusion_publication.t").Address].(*relationDescriptor)
+			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "exclusion_publication.t").Address)
 			store := e.storage[parent.address]
 			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {

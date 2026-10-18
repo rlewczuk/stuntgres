@@ -674,7 +674,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			arm := old
 			arm.condition, arm.result = child(arm.condition), child(arm.result)
 			if arm.routine != nil && view.state != nil {
-				current, ok := view.state.descriptors[arm.routine.address].(*procedureDescriptor)
+				current, ok := view.Procedure(arm.routine.address)
 				if !ok || !sameRoutineDeclaration(current, arm.routine) {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
@@ -817,7 +817,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case selectedOperatorExpression:
 		n.provider = child(n.provider)
 		if view.state != nil {
-			if current, ok := view.state.descriptors[n.ref.Address].(*operatorDescriptor); ok {
+			if current, ok := view.Operator(n.ref.Address); ok {
 				changed = changed || current != n.operator
 				n.operator = current
 			}

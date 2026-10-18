@@ -43,7 +43,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			binder.relation = auth.catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {
@@ -59,7 +59,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.state.descriptors[address] != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
+			if auth.catalog.Get(address) != outer || outer.address != address || outer.namespace != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.name != test.name || outer.signature != "27,27" || outer.result != 16 || outer.routineKind != functionRoutine || !outer.strict || outer.volatility != Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.body) != 0 {

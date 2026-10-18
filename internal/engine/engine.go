@@ -22,7 +22,6 @@ type Engine struct {
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
 	catalog              catalogStore
-	extensions           map[string]registeredExtension
 	databaseName         string
 	databaseNameError    error
 	storage              map[ids.ObjectAddress]*relationStorage
@@ -171,7 +170,8 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e := &Engine{catalog: catalogStore{catalogOwner: catalogOwner{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e.catalog.principals, e.catalog.aclAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = lock.New(e.catalog.domain)
@@ -214,7 +214,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(parameterProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(parameterProvider{e.settingsDefinitions}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(tablespaceProvider{}); err != nil {
@@ -261,8 +261,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			}}
 		}
 		d.comment = namespaceCommentBaseline(ns.oid)
-		e.catalog.state.descriptors[d.address] = d
-		e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}] = d.address
+		e.catalog.state.setDescriptor(d.address, d)
+		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}, d.address)
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -272,15 +272,15 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if typ.NamespaceName() == "information_schema" {
 			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
 		d.owner = e.authorizationDomain.Principal(10)
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeConversionRoutines()
 	e.initializeBuiltinRoutines()
@@ -291,8 +291,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d.owner = e.authorizationDomain.Principal(10)
 		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.revision = 1
-		e.catalog.state.descriptors[d.Address()] = d
-		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.setDescriptor(d.Address(), d)
+		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)
@@ -302,8 +302,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	view := CatalogRead{owner: e, state: e.catalog.state}
-	for _, d := range e.catalog.state.descriptors {
+	view := e.catalog.read(e.catalog.state)
+	for _, d := range e.catalog.state.Descriptors() {
 		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
@@ -317,7 +317,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 func (e *Engine) CatalogRead() CatalogRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return CatalogRead{owner: e, state: e.catalog.state}
+	return e.catalog.read(e.catalog.state)
 }
 
 func sqlError(code, message string) error {
@@ -391,7 +391,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		defer e.mu.Unlock()
 		op.session.settings.mu.Lock()
 		defer op.session.settings.mu.Unlock()
-		typ, _ := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
+		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
@@ -404,7 +404,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		binding, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
-		typ, _ := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
+		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
 		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
@@ -635,7 +635,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					}
 					return b, err
 				}
-				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				source := auth.catalog.MustRelation(ref.Address)
 				if source.relationKind != tableRelation && source.relationKind != foreignRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
 					kind := "relations of this kind"
 					if source.relationKind == sequenceRelation {
@@ -655,7 +655,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				if source.relationKind == compositeRelation {
 					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
 					var ok bool
-					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
+					sourceType, ok = auth.catalog.Type(typeRef.Address)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
@@ -780,7 +780,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (ids.SessionToken{}) {
+			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
@@ -862,15 +862,6 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 }
 
 // Resolution helpers run under e.mu, using the supplied coherent view.
-func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
-	if e.catalog.domain == nil || view.owner != e || view.state == nil {
-		return fmt.Errorf("stuntgres: foreign catalog view")
-	}
-	if view.Epoch() != e.catalog.state.epoch {
-		return ErrCatalogReplaced
-	}
-	return nil
-}
 
 func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	ref, err := e.resolveRelationReference(auth, name, false)
@@ -889,7 +880,7 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
 func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	return e.resolveRelationSnapshot(auth, name, utility)

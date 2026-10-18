@@ -265,16 +265,17 @@ func TestCommitTimeReplacement(t *testing.T) {
 		}
 		xid := e.visibility[ref].assignedXID
 		e.recordCommitTimestampLocked(ref)
-		view := e.CatalogRead()
+		source := e
 		if foreign {
-			view = New().CatalogRead()
+			source = New()
 		}
+		view := source.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := e.ReplaceCatalog(ctx, view); !errors.Is(err, context.Canceled) || e.lastCommittedXID != xid {
+		if _, err := e.ReplaceCatalog(ctx, source, view); !errors.Is(err, context.Canceled) || e.lastCommittedXID != xid {
 			t.Fatal("failed replacement changed history", err)
 		}
-		if _, err := e.ReplaceCatalog(context.Background(), view); err != nil {
+		if _, err := e.ReplaceCatalog(context.Background(), source, view); err != nil {
 			t.Fatal(err)
 		}
 		if !e.trackCommitTimestamp || e.lastCommittedXID != 0 || len(e.commitTimestamps) != 0 || e.commitTimestampBase != uint64(xid)+1 || e.assignedXID != uint64(xid) {

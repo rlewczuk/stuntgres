@@ -68,7 +68,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	}
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	return e, view.state.descriptors[source.address].(*relationDescriptor), view.state.descriptors[table.address].(*relationDescriptor)
+	return e, view.MustRelation(source.address), view.MustRelation(table.address)
 }
 
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
@@ -181,29 +181,29 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, len(stage.base.state.descriptors)+1)}
-		for address, descriptor := range stage.base.state.descriptors {
-			next.descriptors[address] = descriptor
+		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, stage.base.DescriptorCount()+1)}
+		for address, descriptor := range stage.base.Descriptors() {
+			next.setDescriptor(address, descriptor)
 		}
 		late := *table
 		late.address.ObjectID += 1000
 		late.name = "late"
 		switch kind {
 		case "attach":
-			next.descriptors[late.address] = &late
+			next.setDescriptor(late.address, &late)
 		case "child":
 			late.ofType = ids.ObjectAddress{}
 			late.inheritance = &tableInheritance{parents: []ids.ObjectAddress{table.address}}
-			next.descriptors[late.address] = &late
+			next.setDescriptor(late.address, &late)
 		case "descriptor":
 			replacement := *table
 			replacement.revision++
-			next.descriptors[table.address] = &replacement
+			next.setDescriptor(table.address, &replacement)
 		case "unrelated":
 			late.ofType = ids.ObjectAddress{}
-			next.descriptors[late.address] = &late
+			next.setDescriptor(late.address, &late)
 		}
-		valid := typedObservationValid(stage, CatalogRead{owner: e, state: next})
+		valid := typedObservationValid(stage, e.catalog.read(next))
 		if valid != (kind == "unrelated") {
 			t.Fatal("incorrect dependency-set fence", kind, valid)
 		}

@@ -35,9 +35,9 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				later := roleTableRef(t, e, "public.v")
-				oldLater := e.CatalogRead().state.descriptors[later.Address]
+				oldLater := e.CatalogRead().Get(later.Address)
 				target := roleTableRef(t, e, "target_schema.v")
-				oldTarget := e.CatalogRead().state.descriptors[target.Address].(*relationDescriptor)
+				oldTarget := e.CatalogRead().MustRelation(target.Address)
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION creator")
 				roleExecute(t, e, op, "SET search_path TO first_schema,public")
 				name := "v"
@@ -58,11 +58,11 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-				if e.CatalogRead().state.descriptors[later.Address] != oldLater {
+				if e.CatalogRead().Get(later.Address) != oldLater {
 					t.Fatal("later owner relation changed")
 				}
 				if qualified {
-					current := e.CatalogRead().state.descriptors[target.Address].(*relationDescriptor)
+					current := e.CatalogRead().MustRelation(target.Address)
 					if current.owner != oldTarget.owner || current.view.rule != oldTarget.view.rule {
 						t.Fatal("qualified replacement lost identity or owner")
 					}

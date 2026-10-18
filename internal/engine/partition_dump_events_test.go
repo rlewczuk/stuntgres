@@ -13,7 +13,7 @@ import (
 
 func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	regclass := f.view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
+	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
 	for _, table := range []*relationDescriptor{f.root, f.leaf} {
 		table.columns = append(slices.Clone(table.columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.attributes = append(slices.Clone(table.attributes), 99)
@@ -41,10 +41,10 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	otherGood.sqlIndex = &otherDefinition
 	otherDefinition.parent = other.address
 	for _, d := range []*relationDescriptor{&other, &good, &leafGood, &otherGood} {
-		f.view.state.descriptors[d.address] = d
-		f.view.state.names[descriptorNameKey(d)] = d.address
+		f.view.state.setDescriptor(d.address, d)
+		f.view.state.bindName(descriptorNameKey(d), d.address)
 	}
-	boolean := f.view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}].(*typeDescriptor).typ
+	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).typ
 	f.leaf.checkConstraints = []checkConstraint{{OID: 90005, Name: "unit_late", NotValid: true, expression: literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.columns))
 	for i, column := range f.leaf.columns {

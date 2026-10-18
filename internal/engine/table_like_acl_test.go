@@ -66,7 +66,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 	}
 	captured := false
 	for _, descriptor := range stage.likeSources {
-		captured = captured || descriptor == e.CatalogRead().state.descriptors[source.Address]
+		captured = captured || descriptor == e.CatalogRead().Get(source.Address)
 	}
 	if !captured {
 		t.Fatal("source admission capture absent")

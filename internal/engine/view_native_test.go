@@ -41,7 +41,7 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 	owner, _ := e.Roles().Lookup("view_owner")
 	for _, name := range []string{"s.v", "s.w"} {
 		ref := roleTableRef(t, e, name)
-		descriptor := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+		descriptor := e.CatalogRead().MustRelation(ref.Address)
 		if descriptor.owner != owner.Ref {
 			t.Fatal("view owner remap", name, descriptor.owner)
 		}
@@ -70,8 +70,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}].(*typeDescriptor).typ
-	oldBool := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}].(*typeDescriptor).typ
+	oldInt8 := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).typ
+	oldBool := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).typ
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)
@@ -80,7 +80,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal(got)
 	}
 	ref := roleTableRef(t, e, "v")
-	definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := e.catalog.state.MustRelation(ref.Address).view
 	if definition.query.Root.Schema()[0].Usage.Type != oldInt8 || definition.query.Root.Schema()[1].Usage.Type != oldBool {
 		t.Fatal("view retained type generation")
 	}
@@ -99,7 +99,7 @@ func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	base := e.CatalogRead()
 	vref := roleTableRef(t, e, "v")
 	wref := roleTableRef(t, e, "w")
-	old := base.state.descriptors[vref.Address].(*relationDescriptor)
+	old := base.MustRelation(vref.Address)
 	replacement := *old
 	definition := *old.view
 	replacement.view = &definition

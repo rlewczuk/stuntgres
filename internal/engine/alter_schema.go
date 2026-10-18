@@ -54,7 +54,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err = auth.CheckCreate(destination); err != nil {
 		return fail(err)
 	}
-	if auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
+	if auth.catalog.MustNamespace(old.namespace).temporary != (ids.SessionToken{}) {
 		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.namespace {
@@ -72,7 +72,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, nil
 	}
 	owned := make([]*relationDescriptor, 0)
-	for _, d := range auth.catalog.state.descriptors {
+	for _, d := range auth.catalog.Descriptors() {
 		r, ok := d.(*relationDescriptor)
 		if ok && r.sqlIndex != nil && r.sqlIndex.parent == old.address {
 			owned = append(owned, r)
@@ -111,7 +111,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return fail(err)
 	}
-	if current != ref || auth.catalog.state.descriptors[ref.Address] != old {
+	if current != ref || auth.catalog.Get(ref.Address) != old {
 		return fail(ErrCatalogReplaced)
 	}
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
@@ -130,7 +130,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	group := make([]*relationDescriptor, 0, len(owned)+1)
 	group = append(group, old)
 	for _, r := range owned {
-		live, ok := auth.catalog.state.descriptors[r.address].(*relationDescriptor)
+		live, ok := auth.catalog.Relation(r.address)
 		if ok && r.sqlIndex != nil {
 			if live.sqlIndex != r.sqlIndex || live.namespace != old.namespace || live.owner != old.owner {
 				return fail(ErrCatalogReplaced)
@@ -151,11 +151,11 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	next := make([]relationDescriptor, len(group))
 	for i, r := range group {
-		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.name}]; exists {
+		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.name}); exists {
 			return fail(collision(r))
 		}
 		if r.rowType != 0 {
-			if winner, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
+			if winner, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
 				return fail(typeCollision(r))
 			}
 		}
@@ -187,13 +187,13 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		current := e.stageCatalogBaseLocked(stage)
 		if current.epoch == ref.Epoch {
 			for _, r := range group {
-				winner, exists := current.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.name}]
+				winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Address, Name: r.name})
 				if exists && winner != r.address {
 					err = collision(r)
 					break
 				}
 				if r.rowType != 0 {
-					if winner, exists := current.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}]; exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
+					if winner, exists := current.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: destination.Address, Name: r.name}); exists && winner != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(r.rowType)}) {
 						err = typeCollision(r)
 						break
 					}

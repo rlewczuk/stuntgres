@@ -32,7 +32,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return sqlError("42501", "permission denied for table pg_attribute")
 	}
 	e.mu.Lock()
-	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.catalog.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
+	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
@@ -46,7 +46,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || old.relationKind != tableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)

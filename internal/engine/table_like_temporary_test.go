@@ -16,7 +16,7 @@ func tableLikeTemporaryRelation(t *testing.T, e *Engine, namespace ids.ObjectAdd
 	if len(addresses) != 1 {
 		t.Fatal(name, addresses)
 	}
-	return view.state.descriptors[addresses[0]].(*relationDescriptor)
+	return view.MustRelation(addresses[0])
 }
 
 func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
@@ -113,7 +113,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				sessionSQL(t, owner, "INSERT INTO "+sourceName+" DEFAULT VALUES")
 				source := tableLikeTemporaryRelation(t, e, sourceNamespace, "src")
 				sourceIdentity := source.identities[1]
-				sourceSequence := e.catalog.state.descriptors[sourceIdentity.sequence].(*relationDescriptor)
+				sourceSequence := e.catalog.state.MustRelation(sourceIdentity.sequence)
 				generator := *e.sequences[sourceIdentity.sequence]
 				op, err := owner.Acquire(context.Background())
 				if err != nil {
@@ -142,7 +142,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				if destination.namespace != namespace || sequence.namespace != namespace || sequence.owner != destination.owner || identity.sequence == sourceIdentity.sequence || sequence.Revision() == sourceSequence.Revision() || !reflect.DeepEqual(*sequence.sequence, want) || fresh == nil || fresh.called || fresh.last != 7 || identity.mode != sourceIdentity.mode || len(destination.defaults) != 0 {
 					t.Fatal("fresh identity destination ownership/persistence/config/state", destination, sequence, fresh)
 				}
-				if ns := e.catalog.state.descriptors[namespace].(*namespaceDescriptor); destinationTemporary && ns.temporary != owner.token {
+				if ns := e.catalog.state.MustNamespace(namespace); destinationTemporary && ns.temporary != owner.token {
 					t.Fatal("destination temporary token drift")
 				}
 				if *e.sequences[sourceIdentity.sequence] != generator {

@@ -78,7 +78,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			var schema ids.ObjectAddress
 			if schemas != nil {
 				name := schemas[i].Text
-				schema = v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
+				schema = v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				if schema == (ids.ObjectAddress{}) {
 					return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 				}
@@ -131,7 +131,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	candidate := *v.catalog.state
 	candidate.defaultACLs = overlayDefaultACLs(v.catalog.state.defaultACLs, updates)
-	candidateCatalog := CatalogRead{e, &candidate}
+	candidateCatalog := e.catalog.read(&candidate)
 	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
 	if err := validateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err

@@ -16,7 +16,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	parent.partition.children = []ids.ObjectAddress{child.address}
 	parent.partition.defaultChild = child.address
 	partitionAttachUnitInstall(t, e, parent, child)
-	child = e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)
+	child = e.CatalogRead().MustRelation(child.address)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.name}}}, Actions: []parser.AlterTableAction{{Action: parser.AddCheck, Check: &parser.CheckConstraint{Name: parser.Identifier{Text: "local"}, NotValid: true, Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}}}

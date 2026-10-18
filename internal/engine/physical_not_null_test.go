@@ -182,7 +182,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	next.uniqueConstraints = slices.Clone(clean.uniqueConstraints)
 	next.uniqueConstraints[0].OID = constraintOID
 	next.uniqueConstraints[0].Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
-	oldIndex := base.state.descriptors[clean.uniqueConstraints[0].Index].(*relationDescriptor)
+	oldIndex := base.MustRelation(clean.uniqueConstraints[0].Index)
 	index := *oldIndex
 	index.address = next.uniqueConstraints[0].Index
 	index.revision++

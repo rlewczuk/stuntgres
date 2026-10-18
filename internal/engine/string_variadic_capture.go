@@ -93,10 +93,10 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		if origin.owner == (ids.ObjectRef{}) {
 			return true
 		}
-		if view.owner == nil || origin.owner.Domain() != view.owner.catalog.domain || origin.owner.Epoch != view.Epoch() {
+		if view.owner == nil || origin.owner.Domain() != view.owner.domain || origin.owner.Epoch != view.Epoch() {
 			return false
 		}
-		d, ok := view.state.descriptors[origin.owner.Address].(*relationDescriptor)
+		d, ok := view.Relation(origin.owner.Address)
 		if !ok {
 			return false
 		}

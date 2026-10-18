@@ -280,7 +280,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.MustRelation(table.Address).owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
@@ -314,7 +314,7 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.MustRelation(table.Address).owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
@@ -376,7 +376,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			lockPending(t, e, 1)
 			base := e.CatalogRead()
 			ref := roleTableRef(t, e, name)
-			next := *base.state.descriptors[ref.Address].(*relationDescriptor)
+			next := *base.MustRelation(ref.Address)
 			next.revision++
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
@@ -397,7 +397,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.catalog.state.descriptors[ref.Address] != &next || e.indexRoots[index.address] == oldRoot {
+			if e.catalog.state.Get(ref.Address) != &next || e.indexRoots[index.address] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

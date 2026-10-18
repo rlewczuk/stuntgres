@@ -99,8 +99,8 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 					t.Fatal("ownership table AS not retained to transaction end")
 				}
 				transactionEnd(t, b, br, true)
-				late := e.catalog.state.descriptors[catalogRef(t, e, e.CatalogRead(), "late").Address].(*relationDescriptor)
-				table := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				late := e.catalog.state.MustRelation(catalogRef(t, e, e.CatalogRead(), "late").Address)
+				table := e.catalog.state.MustRelation(ref.Address)
 				want := ref.Address
 				want.SubID = table.attributes[table.index["c"]]
 				if late.sequence.owned != want {
@@ -145,12 +145,12 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("late ownership did not finish")
 				}
-				table := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				table := e.catalog.state.MustRelation(ref.Address)
 				if _, ok := table.index["c"]; ok {
 					t.Fatal("column survived drop")
 				}
 				transactionRows(t, c, "SELECT keep FROM t", 9)
-				if _, ok := e.catalog.state.descriptors[blocker.Address]; ok {
+				if _, ok := e.catalog.state.Find(blocker.Address); ok {
 					t.Fatal("owned blocker survived drop")
 				}
 				found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: "late"})
@@ -159,7 +159,7 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 						t.Fatal("failed CREATE published late sequence")
 					}
 				} else {
-					if len(found) != 1 || e.catalog.state.descriptors[found[0]].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{}) {
+					if len(found) != 1 || e.catalog.state.MustRelation(found[0]).sequence.owned != (ids.ObjectAddress{}) {
 						t.Fatal("failed ALTER published association")
 					}
 					sequenceScalar(t, c, "SELECT nextval('late')", 17)
@@ -313,10 +313,10 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			_, err := e.Execute(op, statement(t, "SELECT keep FROM t"), 0, nil)
 			op.Done()
 			sequenceOwnerDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
-			if _, ok := e.catalog.state.descriptors[sequence.Address]; ok {
+			if _, ok := e.catalog.state.Find(sequence.Address); ok {
 				t.Fatal("original OWNED BY dependency did not cascade after victim release")
 			}
-			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.state.descriptors[table.Address].(*relationDescriptor).namespace, Name: "victim_staged"})) != 0 {
+			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.state.MustRelation(table.Address).namespace, Name: "victim_staged"})) != 0 {
 				t.Fatal("deadlock victim published previously staged sequence")
 			}
 			transactionEnd(t, b, br, false)

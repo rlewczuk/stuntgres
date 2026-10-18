@@ -45,12 +45,12 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		if _, err := targetSnapshot.Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
 		return target, nil
 	}
-	for addr, d := range state.descriptors {
+	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
 		case *databaseDescriptor, *tsTemplateDescriptor:
 			// Attachment authority is local; text search templates have no owner.
@@ -61,7 +61,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *foreignDescriptor:
 			n := *d
 			var err error
@@ -83,10 +83,10 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			}
 			if d.address.ClassID == ids.ForeignMappingClassID {
 				n.name = foreignMappingName(n.server, n.mappedRole)
-				delete(state.names, descriptorNameKey(d))
-				state.names[descriptorNameKey(&n)] = n.address
+				state.unbindName(descriptorNameKey(d))
+				state.bindName(descriptorNameKey(&n), n.address)
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *procedureDescriptor:
 			n := *d
 			var err error
@@ -98,7 +98,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *parameterDescriptor:
 			n := *d
 			var err error
@@ -122,7 +122,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *tsDictionaryDescriptor:
 			n := *d
 			var err error
@@ -130,7 +130,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *typeDescriptor:
 			n := *d
 			var err error
@@ -143,7 +143,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *collationDescriptor:
 			n := *d
 			var err error
@@ -151,7 +151,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *conversionDescriptor:
 			n := *d
 			var err error
@@ -159,7 +159,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *operatorDescriptor:
 			n := *d
 			var err error
@@ -167,7 +167,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *namespaceDescriptor:
 			n := *d
 			var err error
@@ -179,7 +179,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			if err != nil {
 				return nil, err
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		case *relationDescriptor:
 			n := *d
 			var err error
@@ -216,7 +216,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 					}
 				}
 			}
-			state.descriptors[addr] = &n
+			state.setDescriptor(addr, &n)
 		default:
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")
 		}
@@ -237,7 +237,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		state.defaultACLs = next
 	}
-	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, state}, e.roles), CatalogRead{e, state}); err != nil {
+	if err := validateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -259,7 +259,7 @@ func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization
 		if !ok {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target.Ref); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target.Ref); err != nil {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {
@@ -275,7 +275,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
-	database := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
@@ -293,7 +293,7 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.catalog.state.descriptors[currentDatabaseAddress] = &retainedDatabase
+	stage.catalog.state.setDescriptor(currentDatabaseAddress, &retainedDatabase)
 	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
 	stage.nextPrincipal = nextPrincipal
 	return stage

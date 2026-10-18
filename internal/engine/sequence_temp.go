@@ -14,7 +14,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
-		ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+		ns, ok := auth.catalog.Namespace(a)
 		return ok && !ns.temporaryToast && ns.temporary == auth.session.token
 	}
 	if table(auth.stagedTemporary) {
@@ -24,7 +24,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 		return auth.session.temporaryNamespace
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
-		for a, d := range auth.catalog.state.descriptors {
+		for a, d := range auth.catalog.Descriptors() {
 			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
 				return a
 			}
@@ -72,7 +72,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
-		db := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+		db := auth.catalog.MustDatabase(currentDatabaseAddress)
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -107,7 +107,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
 // Callers supply the coherent catalog containing any privately staged namespace.
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
-	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
+	ns := auth.catalog.MustNamespace(ref.Address)
 	temporary := ns.temporary != (ids.SessionToken{})
 	own := ownTemporaryNamespace(auth, ns)
 	switch requested {
@@ -145,19 +145,19 @@ func (e *Engine) endTemporarySession(s *Session) error {
 	}
 	for {
 		e.mu.Lock()
-		base := CatalogRead{e, e.catalog.state}
-		for _, d := range base.state.descriptors {
+		base := e.catalog.read(e.catalog.state)
+		for _, d := range base.Descriptors() {
 			if _, ok := d.(*collationDescriptor); !ok {
 				continue
 			}
-			if ns, ok := base.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary == s.token {
+			if ns, ok := base.Namespace(d.Namespace()); ok && ns.temporary == s.token {
 				e.mu.Unlock()
 				return nil
 			}
 		}
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
-		for a, d := range base.state.descriptors {
+		for a, d := range base.Descriptors() {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
 				namespaces = append(namespaces, a)
 				owned[a] = true
@@ -252,7 +252,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		return false, nil
 	}
 	for _, address := range namespaces {
-		namespace, ok := e.catalog.state.descriptors[address].(*namespaceDescriptor)
+		namespace, ok := e.catalog.state.Namespace(address)
 		if !ok || namespace.temporary != s.token {
 			return false, nil
 		}
@@ -335,7 +335,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
 	for address := range stage.removals {
-		index, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+		index, ok := stage.base.Relation(address)
 		if ok && index.sqlIndex != nil {
 			result.previous[address] = e.indexRoots[address]
 		}
@@ -359,7 +359,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		}
 		parents[address] = true
 	}
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || !parents[index.sqlIndex.parent] || !index.sqlIndex.ready {
 			continue
@@ -368,9 +368,9 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	e.mu.Unlock()
 	changes := newCatalogChanges()
-	evaluation := EvalContext{Context: context.Background(), catalog: CatalogRead{owner: e, state: next}}
+	evaluation := EvalContext{Context: context.Background(), catalog: e.catalog.read(next)}
 	for address, shape := range stage.rowShapes {
-		parent, ok := next.descriptors[address].(*relationDescriptor)
+		parent, ok := next.Relation(address)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}
@@ -381,7 +381,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	result.roots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(result.previous))
 	for address := range result.previous {
 		if _, removed := stage.removals[address]; !removed {
-			index, ok := next.descriptors[address].(*relationDescriptor)
+			index, ok := next.Relation(address)
 			if !ok || index.sqlIndex == nil {
 				return nil, ErrCatalogReplaced
 			}

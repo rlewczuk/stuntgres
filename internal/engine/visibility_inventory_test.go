@@ -158,7 +158,7 @@ func TestVisibilityInquiryReleaseNames(t *testing.T) {
 		name     string
 		encoding int32
 	}{{100, "default", -1}, {950, "C", -1}, {951, "POSIX", -1}, {962, "ucs_basic", 6}, {963, "unicode", -1}, {811, "pg_c_utf8", 6}, {6411, "pg_unicode_fast", 6}} {
-		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: entry.id}].(*collationDescriptor)
+		d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: entry.id})
 		if !ok || d.name != entry.name || d.encoding != entry.encoding {
 			t.Fatal(entry, d, ok)
 		}

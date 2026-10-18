@@ -125,7 +125,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		return nil, err
 	}
 	for _, event := range events {
-		current, ok := fresh.catalog.state.descriptors[event.ref.Address]
+		current, ok := fresh.catalog.Find(event.ref.Address)
 		if !ok || event.ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.revision {
 			e.mu.Unlock()
 			return nil, ErrCatalogReplaced

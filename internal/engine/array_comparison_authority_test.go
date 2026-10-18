@@ -21,7 +21,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	var source, destination *collationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*collationDescriptor); ok {
 			if d.name == "ac_source" {
 				source = d
@@ -36,7 +36,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	}
 	remap := remappedCollationCapabilities(view.state, map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address()})
 	ref := catalogRef(t, e, view, "ac_authority")
-	table := view.state.descriptors[ref.Address].(*relationDescriptor)
+	table := view.MustRelation(ref.Address)
 	for _, attribute := range table.attributes {
 		original := table.defaults[attribute].expression.(scalarArrayComparisonExpression)
 		input, conflict := original.predicate.InputCollation()

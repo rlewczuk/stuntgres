@@ -459,7 +459,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: invalid view source occurrence")
 		}
 		leaf := v.sources[occurrence]
-		d, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		d, ok := catalog.Relation(leaf.ref.Address)
 		if !ok {
 			return viewRenderFrom{}, ErrCatalogReplaced
 		}
@@ -476,7 +476,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			if v.presentation.output.QuoteAllIdentifiers {
 				name = v.presentation.identifier(d.name)
 				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					name = v.presentation.identifier(catalog.state.descriptors[d.namespace].Name()) + "." + name
+					name = v.presentation.identifier(catalog.Get(d.namespace).Name()) + "." + name
 				}
 			}
 			if leaf.only {
@@ -504,7 +504,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			if v.presentation.output.QuoteAllIdentifiers {
 				from.relation = v.presentation.identifier(d.name)
 				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					from.relation = v.presentation.identifier(catalog.state.descriptors[d.namespace].Name()) + "." + from.relation
+					from.relation = v.presentation.identifier(catalog.Get(d.namespace).Name()) + "." + from.relation
 				}
 			} else {
 				from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
@@ -527,7 +527,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			v.slots[root] = from.slots
 			return from, nil
 		}
-		from.relation = quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
+		from.relation = quoteIdentifier(catalog.Get(d.namespace).Name()) + "." + quoteIdentifier(d.name)
 		if v.presentation.deparse && v.presentation.pretty && !v.presentation.output.QuoteAllIdentifiers {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
 		}

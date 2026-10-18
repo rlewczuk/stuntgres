@@ -38,10 +38,10 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []BoundExpr{column(1), column(0)}}
 	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
-	e.catalog.state.descriptors[base.address] = base
-	e.catalog.state.descriptors[view.address] = view
-	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}] = base.address
-	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.name}] = view.address
+	e.catalog.state.setDescriptor(base.address, base)
+	e.catalog.state.setDescriptor(view.address, view)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}, base.address)
+	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.name}, view.address)
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -167,10 +167,10 @@ func TestViewWriteDefaults(t *testing.T) {
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	f.e.catalog.state.descriptors[indexAddress] = &relationDescriptor{
+	f.e.catalog.state.setDescriptor(indexAddress, &relationDescriptor{
 		address:  indexAddress,
 		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
-	}
+	})
 	conflict := &boundInsertConflict{}
 	evaluation := EvalContext{Context: context.Background()}
 	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {

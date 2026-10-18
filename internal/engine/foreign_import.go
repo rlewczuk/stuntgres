@@ -12,7 +12,7 @@ import (
 func foreignMappingFor(auth AuthorizationView, server *foreignDescriptor) (*foreignDescriptor, error) {
 	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: foreignMappingName(server.address, role)}
-		if d, ok := auth.catalog.state.descriptors[auth.catalog.state.names[key]].(*foreignDescriptor); ok {
+		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
 			return d, nil
 		}
 	}
@@ -26,7 +26,7 @@ func foreignHandlerFor(catalog CatalogRead, wrapper *foreignDescriptor) (*foreig
 	if wrapper.handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.name))
 	}
-	p, ok := catalog.state.descriptors[wrapper.handler].(*procedureDescriptor)
+	p, ok := catalog.Procedure(wrapper.handler)
 	if !ok || p.foreign == nil || p.foreign.wrapper == nil {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered handler`, wrapper.name))
 	}
@@ -57,7 +57,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	wrapper, ok := auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
@@ -93,7 +93,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, scope.op.session)
-	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.catalog.state.descriptors[wrapper.handler], auth.catalog.state.descriptors[ns.Address])
+	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.catalog.Get(wrapper.handler), auth.catalog.Get(ns.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if scope.replacementRead {

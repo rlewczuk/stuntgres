@@ -170,7 +170,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if authenticated == (authorization.PrincipalRef{}) {
 		authenticated = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
-	role, authErr := (e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)).Descriptor(authenticated)
+	role, authErr := (e.roleRead(e.catalog.read(e.catalog.state), e.roles)).Descriptor(authenticated)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
@@ -253,12 +253,12 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	e.mu.Lock()
 	if err == nil {
-		role, err = (e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)).Descriptor(authenticated)
+		role, err = (e.roleRead(e.catalog.read(e.catalog.state), e.roles)).Descriptor(authenticated)
 		if err == nil && !role.Login {
 			err = roleLoginError(role.Name)
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
-			err = authorization.ValidateInitialRole(e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), authenticated, resetRole)
+			err = authorization.ValidateInitialRole(e.roleRead(e.catalog.read(e.catalog.state), e.roles), authenticated, resetRole)
 		}
 		if err == nil && !private {
 			err = e.checkDatabaseConnectLocked(ctx, authenticated)

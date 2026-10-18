@@ -77,11 +77,11 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if invoker != (authorization.PrincipalRef{}) {
 		auth.state.CurrentUser = invoker
 	}
-	server, ok := auth.catalog.state.descriptors[relation.foreign.server].(*foreignDescriptor)
+	server, ok := auth.catalog.Foreign(relation.foreign.server)
 	if !ok {
 		return nil, ErrCatalogReplaced
 	}
-	wrapper, ok := auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		return nil, ErrCatalogReplaced
 	}
@@ -97,7 +97,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	request := ForeignRequest{Schema: auth.catalog.state.descriptors[relation.namespace].Name(), Table: relation.name, Role: role.Name, TableOID: uint32(relation.address.ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.options), ServerOptions: slices.Clone(server.options), TableOptions: slices.Clone(relation.foreign.options), MappingOptions: slices.Clone(mapping.options)}
+	request := ForeignRequest{Schema: auth.catalog.Get(relation.namespace).Name(), Table: relation.name, Role: role.Name, TableOID: uint32(relation.address.ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.options), ServerOptions: slices.Clone(server.options), TableOptions: slices.Clone(relation.foreign.options), MappingOptions: slices.Clone(mapping.options)}
 	for i, column := range relation.columns {
 		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.foreign.columns[relation.attributes[i]])})
 	}

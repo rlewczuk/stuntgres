@@ -65,7 +65,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	var result []domainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
-	mergedDescriptors := provider.descriptorCount() != len(provider.base.state.descriptors)
+	mergedDescriptors := provider.descriptorCount() != provider.base.DescriptorCount()
 	var visit func(ids.ObjectAddress, ids.ObjectAddress) error
 	visit = func(target, root ids.ObjectAddress) error {
 		if err := ctx.Err(); err != nil {
@@ -707,7 +707,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		if extension, ok := d.(*extensionDescriptor); ok {
 			namespaceAddress = extension.targetNamespace
 		}
-		namespace := stage.base.state.descriptors[namespaceAddress].Name()
+		namespace := stage.base.Get(namespaceAddress).Name()
 		details = append(details, label+" depends on schema "+dependencyIdentifier(namespace))
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {

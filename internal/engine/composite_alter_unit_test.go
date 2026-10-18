@@ -159,7 +159,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 	domainUnitPublish(t, e, typedRenameStage(t, e, source, table))
 	evolved := e.CatalogRead()
 	destination := New()
-	if _, err := destination.ReplaceCatalog(context.Background(), evolved); err != nil {
+	if _, err := destination.ReplaceCatalog(context.Background(), e, evolved); err != nil {
 		t.Fatal(err)
 	}
 	var evolvedArray *sqltype.Descriptor
@@ -173,7 +173,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		if !ok || !current.Concrete() || current.Element() != wrapped.typ || wrapped.typ.DomainBase().Type != row || current.ID() != array.ID() || wrapped.typ.ID() != domain.typ.ID() {
 			t.Fatal("domain-array generation lost identity or reciprocity", current)
 		}
-		owned := view.state.descriptors[holder.address].(*relationDescriptor)
+		owned := view.MustRelation(holder.address)
 		ownRow, ok := view.LookupType(owned.rowType)
 		if !ok || owned.columns[0].Usage.Type != current || ownRow.CompositeMember(0).Usage.Type != current {
 			t.Fatal("holder and own-row member borrowed stale domain-array codec")

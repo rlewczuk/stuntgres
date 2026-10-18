@@ -175,7 +175,7 @@ func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
-			d, _ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}].(*relationDescriptor)
+			d, _ = auth.catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 		} else {
 			text, failure := values[0].Text()
 			if failure != nil {
@@ -193,7 +193,7 @@ func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
-			d, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d, _ = auth.catalog.Relation(ref.Address)
 		}
 		if d != nil {
 			result, err = rowSecurityApplies(auth, d, principal)

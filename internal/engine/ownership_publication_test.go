@@ -37,11 +37,11 @@ func TestRoleOwnershipPublicationAtomicCleanup(t *testing.T) {
 	oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
 	oldACL := append([]authorization.ACLEntry(nil), ns.acl.Entries...)
 	ownershipUnitPublish(t, e, stage)
-	current := e.catalog.state.descriptors[ns.address].(*namespaceDescriptor)
+	current := e.catalog.state.MustNamespace(ns.address)
 	if e.catalog.state == oldState || e.roles != stage.roleCandidate || len(current.acl.Entries) != 0 || len(fixtureEdges(e.roles)) != len(oldEdges)-1 {
 		t.Fatal("catalog and membership did not commit together")
 	}
-	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.acl.Entries, oldACL) || oldState.descriptors[ns.address] != ns {
+	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.acl.Entries, oldACL) || oldState.Get(ns.address) != ns {
 		t.Fatal("publication mutated retained snapshots")
 	}
 }
@@ -87,7 +87,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				}
 				ownershipUnitPublish(t, e, other)
 			case "database":
-				replacement := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+				replacement := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 				replacement.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.revision++
 				other := e.BeginCatalogStage(e.CatalogRead())
@@ -231,9 +231,9 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"}]
+	address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"})
 	stage := e.ownershipStage(auth, op)
-	if err = stageOwnership(stage, auth.catalog.state.descriptors[address], target); err != nil {
+	if err = stageOwnership(stage, auth.catalog.Get(address), target); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -265,7 +265,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if grantErr != nil {
 		t.Fatal(grantErr)
 	}
-	if e.catalog.state != state || e.roles != roles || e.storage[address] != store || state.descriptors[address].(*relationDescriptor).owner == target {
+	if e.catalog.state != state || e.roles != roles || e.storage[address] != store || state.MustRelation(address).owner == target {
 		t.Fatal("stale publication erased membership or changed table")
 	}
 }

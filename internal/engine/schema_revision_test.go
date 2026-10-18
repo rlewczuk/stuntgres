@@ -50,15 +50,15 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				view := source.CatalogRead()
 				next := cloneCatalog(view.state)
 				ns := schemaRef(t, source, "imported").Address
-				n := *next.descriptors[ns].(*namespaceDescriptor)
+				n := *next.MustNamespace(ns)
 				n.revision = 100
-				next.descriptors[ns] = &n
+				next.setDescriptor(ns, &n)
 				addr := roleTableRef(t, source, "imported.t").Address
-				r := *next.descriptors[addr].(*relationDescriptor)
+				r := *next.MustRelation(addr)
 				r.revision = 200
-				next.descriptors[addr] = &r
+				next.setDescriptor(addr, &r)
 				e.catalog.nextRevision = frontier
-				if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next}); err != nil {
+				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 					t.Fatal(err)
 				}
 				before := e.CatalogRead()
@@ -89,10 +89,10 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			view := source.CatalogRead()
 			next := cloneCatalog(view.state)
 			addr := schemaRef(t, source, "terminal").Address
-			n := *next.descriptors[addr].(*namespaceDescriptor)
+			n := *next.MustNamespace(addr)
 			n.revision = revision
-			next.descriptors[addr] = &n
-			if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next}); err != nil {
+			next.setDescriptor(addr, &n)
+			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 				t.Fatal(err)
 			}
 			name := "terminal"
@@ -125,13 +125,13 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		view := source.CatalogRead()
 		next := cloneCatalog(view.state)
 		addr := schemaRef(t, source, "canceled").Address
-		n := *next.descriptors[addr].(*namespaceDescriptor)
+		n := *next.MustNamespace(addr)
 		n.revision = 1000
-		next.descriptors[addr] = &n
+		next.setDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := e.ReplaceCatalog(ctx, CatalogRead{owner: source, state: next})
+		_, err := e.ReplaceCatalog(ctx, source, source.catalog.read(next))
 		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
@@ -143,11 +143,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		view := source.CatalogRead()
 		next := cloneCatalog(view.state)
 		addr := schemaRef(t, source, "invalid").Address
-		n := *next.descriptors[addr].(*namespaceDescriptor)
+		n := *next.MustNamespace(addr)
 		n.revision = 1000
-		next.descriptors[addr] = &n
+		next.setDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
-		_, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next})
+		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next))
 		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}

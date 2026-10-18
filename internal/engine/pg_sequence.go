@@ -44,7 +44,7 @@ func capturePGSequence(ctx context.Context, base *catalogState, own *catalogChan
 		rows = append(rows, row)
 		return nil
 	}
-	for address, descriptor := range base.descriptors {
+	for address, descriptor := range base.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

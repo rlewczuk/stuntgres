@@ -25,22 +25,22 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
 	before := cloneCatalog(auth.catalog.state)
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	namespace := *before.descriptors[address].(*namespaceDescriptor)
+	namespace := *before.MustNamespace(address)
 	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.owner, Grantee: authorization.ACLGrantee{Role: namespace.owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	before.descriptors[address] = &namespace
+	before.setDescriptor(address, &namespace)
 	auth.roleRecord = roles
-	auth.recaptureCatalog(CatalogRead{e, before})
+	auth.recaptureCatalog(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
 	if err != nil || !slices.Contains(warm.namespaces, address) {
 		t.Fatal("owner did not warm public namespace", warm, err)
 	}
 	key := op.session.sequencePath.key
 	after := cloneCatalog(before)
-	database := *after.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := *after.MustDatabase(currentDatabaseAddress)
 	database.owner = successor
-	after.descriptors[currentDatabaseAddress] = &database
+	after.setDescriptor(currentDatabaseAddress, &database)
 	fresh := auth
-	fresh.catalog = CatalogRead{e, after}
+	fresh.catalog = e.catalog.read(after)
 	fresh.recaptureCatalog(fresh.catalog)
 	revoked, err := e.sequenceEnvironmentLocked(fresh)
 	if err != nil || slices.Contains(revoked.namespaces, address) {

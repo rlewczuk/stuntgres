@@ -25,9 +25,9 @@ func remappedCollationCapabilities(next *catalogState, mapping map[ids.ObjectAdd
 		if !ok {
 			return old, nil
 		}
-		d, ok := next.descriptors[to].(*collationDescriptor)
+		d, ok := next.Collation(to)
 		if !ok {
-			d, ok = next.descriptors[from].(*collationDescriptor)
+			d, ok = next.Collation(from)
 		}
 		if !ok || !old.Valid() {
 			return sqltype.CollationRef{}, fmt.Errorf("stuntgres: missing imported collation capability")

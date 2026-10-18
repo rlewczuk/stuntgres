@@ -33,7 +33,7 @@ func validateRules(view CatalogRead, d *relationDescriptor) error {
 			}
 			if action.binding.ref != (ids.ObjectRef{}) {
 				address := action.binding.ref.Address
-				provider, ok := view.state.descriptors[address].(*relationDescriptor)
+				provider, ok := view.Relation(address)
 				if !ok || !storedReferenceEpochValid(view, d, action.binding.ref) || provider == nil {
 					return fmt.Errorf("stuntgres: invalid rule action target")
 				}
@@ -42,7 +42,7 @@ func validateRules(view CatalogRead, d *relationDescriptor) error {
 		for _, address := range r.references {
 			whole := address
 			whole.SubID = 0
-			provider := view.state.descriptors[whole]
+			provider := view.Get(whole)
 			if address.ClassID == 2606 && address.SubID == 0 {
 				parent := constraintParent(view, address)
 				if parent == nil {

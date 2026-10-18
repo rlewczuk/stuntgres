@@ -30,13 +30,13 @@ type databaseProvider struct{}
 func (databaseProvider) ClassID() ids.OID { return ids.DatabaseClassID }
 func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	db, ok := d.(*databaseDescriptor)
-	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.state.names[descriptorNameKey(d)] != db.address || db.Namespace() != (ids.ObjectAddress{}) {
+	if !ok || db.address != currentDatabaseAddress || db.revision == 0 || v.NameAddress(descriptorNameKey(d)) != db.address || db.Namespace() != (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: invalid current database descriptor")
 	}
 	return nil
 }
 func (e *Engine) initializeDatabase(name string) {
-	typ, _ := (CatalogRead{e, e.catalog.state}).LookupType(sqltype.Name)
+	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Name)
 	value, err := typ.Input(context.Background(), name, -1)
 	// Opaque host keys may be invalid NAME inputs. Preserve connector creation;
 	// reject physical session admission with the original typed input error.
@@ -46,19 +46,19 @@ func (e *Engine) initializeDatabase(name string) {
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner}
-	e.catalog.state.descriptors[db.address] = db
-	e.catalog.state.names[descriptorNameKey(db)] = db.address
+	e.catalog.state.setDescriptor(db.address, db)
+	e.catalog.state.bindName(descriptorNameKey(db), db.address)
 }
 
 // Attachment identity and ACLs belong to the destination, not portable state.
 // Retain them before replacement principal validation and publication.
 func (e *Engine) retainDatabaseLocked(next *catalogState) {
-	if old := next.descriptors[currentDatabaseAddress]; old != nil {
-		delete(next.names, descriptorNameKey(old))
+	if old := next.Get(currentDatabaseAddress); old != nil {
+		next.unbindName(descriptorNameKey(old))
 	}
-	database := e.catalog.state.descriptors[currentDatabaseAddress]
-	next.descriptors[currentDatabaseAddress] = database
-	next.names[descriptorNameKey(database)] = currentDatabaseAddress
+	database := e.catalog.state.Get(currentDatabaseAddress)
+	next.setDescriptor(currentDatabaseAddress, database)
+	next.bindName(descriptorNameKey(database), currentDatabaseAddress)
 }
 func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {
@@ -124,7 +124,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	db := v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := v.catalog.MustDatabase(currentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {
@@ -153,6 +153,6 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, db.address, &next)
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.catalog.state.descriptors[db.address])
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.catalog.state.Get(db.address))
 	return Result{}, nil
 }

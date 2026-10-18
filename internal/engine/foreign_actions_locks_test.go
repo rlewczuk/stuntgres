@@ -290,7 +290,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			// Use the incumbent validated immutable owner stage, not excluded
 			// public ALTER TABLE OWNER syntax or an authorization bypass callback.
 			view := e.CatalogRead()
-			next := *view.state.descriptors[childRef.Address].(*relationDescriptor)
+			next := *view.MustRelation(childRef.Address)
 			next.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
 			next.revision++
 			stage := e.BeginCatalogStage(view)

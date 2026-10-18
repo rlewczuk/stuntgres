@@ -24,20 +24,21 @@ type indexSnapshotSource struct {
 	frontier      ids.CommitSeq
 }
 
-func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
-	return captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
+// captureIndexSnapshot captures the indexes of catalog, which e must own.
+func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
+	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || catalog.owner.catalog.state.epoch != catalog.Epoch() || frontier != catalog.owner.commitSeq {
+	if catalog.owner == nil || catalog.owner != e.catalog.owner() || catalog.state == nil || e.catalog.state.epoch != catalog.Epoch() || frontier != e.commitSeq {
 		return nil, ErrCatalogReplaced
 	}
-	authority := catalog.owner.catalog.state
+	authority := e.catalog.state
 	if private != nil {
-		authority = catalog.owner.privateCatalogLocked(private).state
+		authority = e.privateCatalogLocked(private).state
 	}
 	actualRoot := func(address ids.ObjectAddress) *logicalIndexRoot {
 		if private != nil {
@@ -45,10 +46,10 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 				return root
 			}
 		}
-		return catalog.owner.indexRoots[address]
+		return e.indexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
-	for address, descriptor := range catalog.state.descriptors {
+	for address, descriptor := range catalog.Descriptors() {
 		if parents != nil {
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.sqlIndex == nil || parents[index.sqlIndex.parent] == nil {
@@ -60,7 +61,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
 			store := storage[address]
-			if store == nil || store != catalog.owner.privateStorageLocked(private, address) {
+			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ErrCatalogReplaced
 			}
 			if snapshot.partitionRows == nil {
@@ -72,12 +73,12 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
 			continue
 		}
-		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}
-		actual, exists := authority.descriptors[address].(*relationDescriptor)
-		actualParent, parentExists := authority.descriptors[parent.address].(*relationDescriptor)
+		actual, exists := authority.Relation(address)
+		actualParent, parentExists := authority.Relation(parent.address)
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ErrCatalogReplaced
 		}
@@ -85,7 +86,7 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 			continue
 		}
 		store, root := storage[parent.address], roots[address]
-		if store == nil || root == nil || store != catalog.owner.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
+		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
 			return nil, ErrCatalogReplaced
 		}
 		if (root.hash != nil) != (index.sqlIndex.method == hashMethod) {
@@ -212,11 +213,11 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			return nil, err
 		}
 		address := snapshot.destination(sourceAddress)
-		index, ok := next.descriptors[address].(*relationDescriptor)
+		index, ok := next.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != snapshot.destination(source.parent.address) || len(index.sqlIndex.keys) != len(source.index.sqlIndex.keys) || index.sqlIndex.method != source.index.sqlIndex.method {
 			return nil, ErrCatalogReplaced
 		}
-		parent, ok := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := next.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}

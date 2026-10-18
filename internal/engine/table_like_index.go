@@ -25,7 +25,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			continue
 		}
 		var sources []*relationDescriptor
-		for _, descriptor := range auth.catalog.state.descriptors {
+		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
 			if ok && index.sqlIndex != nil && index.sqlIndex.parent == in.source.address && index.sqlIndex.live {
 				sources = append(sources, index)

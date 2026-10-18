@@ -51,13 +51,13 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal("trusted explicit schema requires neither USAGE nor CREATE", err)
 	}
-	ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	if ext.owner != actor.Ref {
 		t.Fatal("extension owner")
 	}
 	for _, a := range ext.members {
 		if a.ClassID != ids.TSTemplateClassID {
-			owner, _, _ := descriptorACL(e.catalog.state.descriptors[a])
+			owner, _, _ := descriptorACL(e.catalog.state.Get(a))
 			if owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}
@@ -114,7 +114,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, admin, grant); err != nil {
 		t.Fatal(err)
 	}
-	db := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	if authorization.ACLRights(db.acl, db.owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
 		t.Fatal("grant option missing")
 	}
@@ -123,7 +123,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, delegated); err != nil {
 		t.Fatal(err)
 	}
-	db = e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db = e.catalog.state.MustDatabase(currentDatabaseAddress)
 	found := false
 	for _, entry := range db.acl.Entries {
 		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&authorization.CreatePrivilege != 0 {
@@ -146,10 +146,10 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	replacement := NewWithSettings(nil, "different_attachment", false)
-	if _, err := e.replaceCatalog(context.Background(), replacement.CatalogRead(), admin); err != nil {
+	if _, err := e.replaceCatalog(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
 		t.Fatal(err)
 	}
-	retained := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	retained := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	if retained != db || retained.name != "ext_authority" {
 		t.Fatal("replacement overwrote destination database")
 	}

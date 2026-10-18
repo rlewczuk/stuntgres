@@ -174,7 +174,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", err
 	}
 	if u.Collation.ID != 0 {
-		r.recordStoredCollation(view, view.owner.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
+		r.recordStoredCollation(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}), u.Collation)
 	}
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
@@ -182,7 +182,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.owner.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
+	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.Usage {
@@ -503,7 +503,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
-				r.record(view.owner.catalog.domain.Ref(view.Epoch(), address))
+				r.record(view.owner.domain.Ref(view.Epoch(), address))
 			}
 		}
 		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {
@@ -675,11 +675,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case selectedOperatorExpression:
 		r.record(n.ref)
-		d, ok := view.state.descriptors[n.ref.Address].(*operatorDescriptor)
+		d, ok := view.Operator(n.ref.Address)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing default operator")
 		}
-		namespace := view.state.descriptors[d.namespace].Name()
+		namespace := view.Get(d.namespace).Name()
 		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
 		var operands []BoundExpr
 		boundExpressionChildren(n.provider, func(arg BoundExpr) {

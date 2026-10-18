@@ -33,8 +33,8 @@ func (e *Engine) capturePartitionReplayTeardown(op *Operation, s *parser.AlterTa
 	if err != nil {
 		return partitionReplayTeardown{}, err
 	}
-	p := auth.catalog.state.descriptors[parent.Address].(*relationDescriptor)
-	c := auth.catalog.state.descriptors[child.Address].(*relationDescriptor)
+	p := auth.catalog.MustRelation(parent.Address)
+	c := auth.catalog.MustRelation(child.Address)
 	if p.partition == nil || len(p.partition.children) != 1 || c.partition != nil || c.membership == nil || !c.membership.defaultBound || c.membership.parent != p.address {
 		return partitionReplayTeardown{}, nil
 	}
@@ -60,8 +60,8 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	if !ok || record.child != ref || e.importTargets == nil {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	child, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	parent, live := auth.catalog.state.descriptors[record.parent.Address].(*relationDescriptor)
+	child, ok := auth.catalog.Relation(ref.Address)
+	parent, live := auth.catalog.Relation(record.parent.Address)
 	if !ok || !live || record.parent.Epoch != auth.catalog.Epoch() || child.membership != nil || child.partition != nil || parent.partition == nil || len(parent.partition.children) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
@@ -69,7 +69,7 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	if store == nil || len(store.versions) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent.address && !index.sqlIndex.valid && index.sqlIndex.ready && index.sqlIndex.live {
 			delete(records, ref.Address)

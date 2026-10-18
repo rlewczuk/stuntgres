@@ -134,7 +134,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
 	assertTemporaryNamespacePair(t, e, b.token, namespace)
-	if _, ok := e.catalog.state.descriptors[owned]; ok || e.sequences[owned] != nil || e.storage[owned] != nil {
+	if _, ok := e.catalog.state.Find(owned); ok || e.sequences[owned] != nil || e.storage[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}
 	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.storage) {

@@ -61,12 +61,12 @@ func regtypeSpellingMode(view CatalogRead, path []ids.ObjectAddress, id ids.OID,
 	case sqltype.JSON:
 		return "json"
 	}
-	d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}]
+	d := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 	name := regclassIdentifier(d.Name())
 	if !qualified && namedObjectVisible(view, path, d) {
 		return name
 	}
-	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+	namespace := view.MustNamespace(d.Namespace())
 	schema := namespace.name
 	if qualified && namespace.temporary != (ids.SessionToken{}) {
 		schema = "pg_temp"

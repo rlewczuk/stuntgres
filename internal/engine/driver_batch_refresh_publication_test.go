@@ -33,7 +33,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
 				original := e.storage[target.Address]
-				originalDescriptor := e.catalog.state.descriptors[target.Address]
+				originalDescriptor := e.catalog.state.Get(target.Address)
 				var root []rowVersion
 				var ends *deletionRoot
 				var generation uint64
@@ -70,7 +70,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.catalog.state.descriptors[target.Address] != originalDescriptor || e.indexRoots[index.Address] != indexRoot {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.indexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.replacement
@@ -160,9 +160,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				e.storage[target.Address] = &copy
 			case "descriptor":
 				next := cloneCatalog(e.catalog.state)
-				copy := *next.descriptors[target.Address].(*relationDescriptor)
+				copy := *next.MustRelation(target.Address)
 				copy.revision++
-				next.descriptors[target.Address] = &copy
+				next.setDescriptor(target.Address, &copy)
 				e.catalog.state = next
 			case "roles":
 				copy := *e.roles

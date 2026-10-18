@@ -490,9 +490,9 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	if err != nil || err2 != nil || qualified != unqualified || qualified.Address.ObjectID == 0 {
 		t.Fatalf("qualified=%#v unqualified=%#v errors=%v,%v", qualified, unqualified, err, err2)
 	}
-	rev := e.CatalogRead().state.descriptors[qualified.Address].Revision()
+	rev := e.CatalogRead().Get(qualified.Address).Revision()
 	r := run(t, e, "INSERT INTO public.t VALUES (1)")
-	if r.Count != 1 || e.CatalogRead().state.descriptors[qualified.Address].Revision() != rev {
+	if r.Count != 1 || e.CatalogRead().Get(qualified.Address).Revision() != rev {
 		t.Fatal("INSERT changed relation definition or count")
 	}
 	got := run(t, e, "SELECT id FROM t")

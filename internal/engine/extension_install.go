@@ -32,10 +32,10 @@ func (e *Engine) registerExtension(name string, registration registeredExtension
 	if name == "" || registration.version == "" || registration.provider == nil {
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
-	if e.extensions == nil {
-		e.extensions = make(map[string]registeredExtension)
+	if e.catalog.extensions == nil {
+		e.catalog.extensions = make(map[string]registeredExtension)
 	}
-	if _, exists := e.extensions[name]; exists {
+	if _, exists := e.catalog.extensions[name]; exists {
 		return fmt.Errorf("stuntgres: duplicate extension registration %q", name)
 	}
 	// Detach caller-owned control metadata before publishing the registry.
@@ -48,7 +48,7 @@ func (e *Engine) registerExtension(name string, registration registeredExtension
 		registration.schema = &value
 	}
 	registration.requires = append([]string(nil), registration.requires...)
-	e.extensions[name] = registration
+	e.catalog.extensions[name] = registration
 	return nil
 }
 
@@ -74,7 +74,7 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	for key, original := range stage.touched {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.state.descriptors[stage.extensionNamespace], database: stage.databasePredecessor})
+	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
 	scope.catalog = changes
 	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
@@ -88,14 +88,14 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, err
 	}
 	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
-	if auth.catalog.state.names[key] != (ids.ObjectAddress{}) {
+	if auth.catalog.NameAddress(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
 			return nil, nil
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
-	registration, ok := e.extensions[s.Name.Text]
+	registration, ok := e.catalog.extensions[s.Name.Text]
 	if !ok {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
 	}
@@ -136,7 +136,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	var namespace ids.ObjectAddress
 	if schema != nil {
-		namespace = auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text}]
+		namespace = auth.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
 		if namespace == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, schema.Text))
 		}

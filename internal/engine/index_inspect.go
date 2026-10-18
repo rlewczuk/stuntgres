@@ -14,18 +14,18 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.mu.Lock()
-	catalog := CatalogRead{owner: e, state: e.catalog.state}
-	namespace, ok := catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema}]
+	catalog := e.catalog.read(e.catalog.state)
+	namespace, ok := catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema})
 	if !ok {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index schema %s does not exist", quoteIdentifier(schema))
 	}
-	address, ok := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
+	address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	if !ok {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", quoteIdentifier(schema), quoteIdentifier(name))
 	}
-	index, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	index, ok := catalog.Relation(address)
 	if !ok || index.sqlIndex == nil {
 		e.mu.Unlock()
 		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", quoteIdentifier(schema), quoteIdentifier(name))

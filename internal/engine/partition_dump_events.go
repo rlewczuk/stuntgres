@@ -14,7 +14,7 @@ func addDumpDependency(graph map[dumpEventKey][]dumpEventKey, event, predecessor
 }
 
 func partitionDumpIndexBacking(view CatalogRead, index, table ids.ObjectAddress) *relationDescriptor {
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		candidate, ok := descriptor.(*relationDescriptor)
 		if ok && candidate.sqlIndex != nil && candidate.sqlIndex.parent == table && candidate.sqlIndex.partitionParent == index {
 			return candidate
@@ -45,12 +45,12 @@ func dumpEventDependsOn(graph map[dumpEventKey][]dumpEventKey, event, target dum
 // physical backings cannot be consumed by the wrong equivalent parent index.
 func partitionDumpLateIndexTables(view CatalogRead) map[ids.ObjectAddress]bool {
 	late := make(map[ids.ObjectAddress]bool)
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.valid || index.sqlIndex.constraint != nil {
 			continue
 		}
-		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		table := view.MustRelation(index.sqlIndex.parent)
 		if table.partition == nil || late[table.address] {
 			continue
 		}
@@ -59,7 +59,7 @@ func partitionDumpLateIndexTables(view CatalogRead) map[ids.ObjectAddress]bool {
 			continue
 		}
 		for _, child := range table.partition.children {
-			candidate := view.state.descriptors[child].(*relationDescriptor)
+			candidate := view.MustRelation(child)
 			if !partitionDumpNeedsAttach(view, candidate) {
 				continue
 			}
@@ -80,10 +80,10 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	lateTables := partitionDumpLateIndexTables(view)
 	lateIndexes := make(map[ids.OID]bool)
 	for oid := range indexIndices {
-		index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		lateIndexes[oid] = index.sqlIndex.constraint == nil && lateTables[index.sqlIndex.parent] || partitionPreservedReplayBacking(view, index) || partitionPreservedReplayLocal(view, index)
 		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
-			partitionVirtualUniqueMembershipReady(view, graph, dumpEventKey{oid: oid}, view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor))
+			partitionVirtualUniqueMembershipReady(view, graph, dumpEventKey{oid: oid}, view.MustRelation(index.sqlIndex.parent))
 		}
 	}
 	membership := func(table *relationDescriptor) dumpEventKey {
@@ -101,14 +101,14 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		graph[event] = []dumpEventKey{{oid: d.address.ObjectID}, {oid: d.membership.parent.ObjectID}}
 		if d.partition != nil {
 			for _, child := range d.partition.children {
-				addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
+				addDumpDependency(graph, event, membership(view.MustRelation(child)))
 			}
 		}
 		if d.membership.defaultBound {
-			parent := view.state.descriptors[d.membership.parent].(*relationDescriptor)
+			parent := view.MustRelation(d.membership.parent)
 			for _, child := range parent.partition.children {
-				if child != d.address && !partitionExclusionDefaultBefore(view, d, view.state.descriptors[child].(*relationDescriptor)) {
-					addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
+				if child != d.address && !partitionExclusionDefaultBefore(view, d, view.MustRelation(child)) {
+					addDumpDependency(graph, event, membership(view.MustRelation(child)))
 				}
 			}
 		}
@@ -117,15 +117,15 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		if !lateIndexes[oid] {
 			continue
 		}
-		index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
-		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
+		table := view.MustRelation(index.sqlIndex.parent)
 		if table.partition == nil {
 			continue
 		}
 		for _, child := range table.partition.children {
 			backing := partitionDumpIndexBacking(view, index.address, child)
 			if index.sqlIndex.valid || partitionIndexPreservedInvalid(view, index) || backing == nil || !backing.sqlIndex.valid {
-				addDumpDependency(graph, dumpEventKey{oid: oid}, membership(view.state.descriptors[child].(*relationDescriptor)))
+				addDumpDependency(graph, dumpEventKey{oid: oid}, membership(view.MustRelation(child)))
 			}
 		}
 	}
@@ -133,13 +133,13 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	for _, event := range declarations {
 		lateDeclarations[event.oid] = lateIndexes[event.oid]
 		if _, exists := indexIndices[event.oid]; exists {
-			index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid}].(*relationDescriptor)
+			index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid})
 			if partitionReplayOnlyExclusion(index) {
 				lateDeclarations[event.oid] = true
 			}
 		}
-		if descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid}].(*relationDescriptor); ok && descriptor.membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
-			parent := view.state.descriptors[descriptor.membership.parent].(*relationDescriptor)
+		if descriptor, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: event.oid}); ok && descriptor.membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
+			parent := view.MustRelation(descriptor.membership.parent)
 			for _, index := range partitionIndexDeclarationOrder(view, parent) {
 				if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && partitionReplayOnlyExclusion(root) && partitionDumpIndexBacking(view, index.address, descriptor.address) != nil {
 					lateDeclarations[event.oid] = true
@@ -156,7 +156,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	nameReady := func(address ids.ObjectAddress) (dumpEventKey, bool, error) {
 		address.SubID = 0
 		if _, exists := replay.temporary[address]; exists {
-			index := view.state.descriptors[address].(*relationDescriptor)
+			index := view.MustRelation(address)
 			if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 				return virtualNameReady[root.address], true, nil
 			}
@@ -175,7 +175,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		if event.phase != dumpDeclaration {
 			continue
 		}
-		if _, operator := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor); operator {
+		if _, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid}); operator {
 			continue
 		}
 		if lateDeclarations[event.oid] {
@@ -274,7 +274,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 				}
 				if d.partition != nil {
 					for _, address := range d.partition.children {
-						requireTree(view.state.descriptors[address].(*relationDescriptor))
+						requireTree(view.MustRelation(address))
 					}
 				}
 			}
@@ -408,22 +408,22 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 			if t.descriptor.partition != nil {
 				if partitionReplayTopologyReady(view, t.descriptor) {
 					for _, child := range t.descriptor.partition.children {
-						addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
+						addDumpDependency(graph, event, membership(view.MustRelation(child)))
 					}
 				} else {
 					addDumpDependency(graph, event, complete)
 				}
 			}
-			parent := view.state.descriptors[t.descriptor.membership.parent].(*relationDescriptor)
+			parent := view.MustRelation(t.descriptor.membership.parent)
 			if t.descriptor.membership.defaultBound {
 				for _, child := range parent.partition.children {
-					if child != t.descriptor.address && !partitionExclusionDefaultBefore(view, t.descriptor, view.state.descriptors[child].(*relationDescriptor)) {
-						addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
+					if child != t.descriptor.address && !partitionExclusionDefaultBefore(view, t.descriptor, view.MustRelation(child)) {
+						addDumpDependency(graph, event, membership(view.MustRelation(child)))
 					}
 				}
 			}
 			for indexOID := range indexIndices {
-				index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
+				index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
 				backing := partitionDumpIndexBacking(view, index.address, t.descriptor.address)
 				before := !lateIndexes[indexOID] || !index.sqlIndex.valid && !partitionIndexPreservedInvalid(view, index) && backing != nil && backing.sqlIndex.valid
 				if partitionReplayOnlyExclusion(index) && backing == nil {
@@ -434,7 +434,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 				}
 			}
 			for _, constraint := range t.descriptor.uniqueConstraints {
-				index := view.state.descriptors[constraint.Index].(*relationDescriptor)
+				index := view.MustRelation(constraint.Index)
 				// This local provider does not exist until after the preserving
 				// reattachment. Its terminal name remains a consumer predecessor,
 				// but cannot be a prerequisite of the initial table membership.
@@ -448,24 +448,24 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		}
 		if t.descriptor.partition != nil {
 			for _, child := range t.descriptor.partition.children {
-				d := view.state.descriptors[child].(*relationDescriptor)
+				d := view.MustRelation(child)
 				addDumpDependency(graph, complete, membership(d))
 				addDumpDependency(graph, complete, dumpEventKey{oid: child.ObjectID, phase: dumpTableCompletion})
 			}
 		}
 	}
 	for indexOID := range indexIndices {
-		index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
-		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID})
+		table := view.MustRelation(index.sqlIndex.parent)
 		addDumpDependency(graph, dumpEventKey{oid: table.address.ObjectID, phase: dumpTableCompletion}, dumpEventKey{oid: indexOID})
 	}
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
-		parent := view.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
-		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent := view.MustRelation(index.sqlIndex.partitionParent)
+		table := view.MustRelation(index.sqlIndex.parent)
 		if parent.sqlIndex.constraint != nil || partitionDumpNeedsAttach(view, table) && !lateIndexes[parent.address.ObjectID] {
 			continue // Ordinary ATTACH links this captured backing itself.
 		}
@@ -488,13 +488,13 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	// Apply ONLY topology edges after membership events have their final
 	// predecessors; earlier attachment graph initialization is provisional.
 	for oid := range indexIndices {
-		index := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		index := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		if !partitionReplayOnlyExclusion(index) {
 			continue
 		}
-		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		table := view.MustRelation(index.sqlIndex.parent)
 		for _, address := range table.partition.children {
-			child := membership(view.state.descriptors[address].(*relationDescriptor))
+			child := membership(view.MustRelation(address))
 			declaration := dumpEventKey{oid: oid}
 			if partitionDumpIndexBacking(view, index.address, address) == nil {
 				addDumpDependency(graph, declaration, child)

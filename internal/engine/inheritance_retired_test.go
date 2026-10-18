@@ -13,7 +13,7 @@ import (
 // real providers; assertions exercise the issuer and catalog validator directly.
 func retiredUnitTable(t *testing.T, e *Engine, name string) *relationDescriptor {
 	t.Helper()
-	for _, d := range e.CatalogRead().state.descriptors {
+	for _, d := range e.CatalogRead().Descriptors() {
 		if r, ok := d.(*relationDescriptor); ok && r.name == name {
 			return r
 		}

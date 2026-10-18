@@ -11,7 +11,7 @@ import (
 // PostgreSQL uses different callbacks for column, dependency and other forms.
 // Keep admission and execution on the same action-specific authority contract.
 func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.AlterView) error {
-	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d := auth.catalog.MustRelation(ref.Address)
 	kind, label := viewRelation, "view"
 	ownerChecked := false
 	if s.Materialized {
@@ -72,7 +72,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	if ref != scope.lockedRef {
 		return fail(ErrCatalogReplaced)
 	}
-	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := auth.catalog.MustRelation(ref.Address)
 	if err = alterViewAuthority(auth, ref, s); err != nil {
 		return fail(err)
 	}
@@ -91,11 +91,11 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	var extension *extensionDescriptor
 	switch s.Action {
 	case "depends", "no_depends":
-		address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text}]
+		address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text})
 		if !exists {
 			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
 		}
-		extension, _ = auth.catalog.state.descriptors[address].(*extensionDescriptor)
+		extension, _ = auth.catalog.Extension(address)
 		if extension == nil {
 			return fail(ErrCatalogReplaced)
 		}
@@ -194,7 +194,7 @@ func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 	if ownerErr == nil {
 		return nil
 	}
-	ns := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+	ns := auth.catalog.MustNamespace(d.namespace)
 	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.owner)
 	if err != nil {
 		return err
@@ -235,7 +235,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
-		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d := auth.catalog.MustRelation(ref.Address)
 		if d.relationKind != kind {
 			hint := "Use DROP TABLE to remove a table."
 			switch d.relationKind {
@@ -292,7 +292,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		return Result{}, ErrCatalogReplaced
 	}
 	for _, ref := range refs {
-		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced

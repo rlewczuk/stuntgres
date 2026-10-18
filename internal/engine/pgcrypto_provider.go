@@ -43,17 +43,17 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 	}
 	seen := make(map[functions.PgcryptoMember]bool, len(functions.PgcryptoMembers))
 	for _, address := range ext.members {
-		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
+		proc, ok := v.Procedure(address)
 		if !ok {
 			return invalid()
 		}
 		member, admitted := functions.PgcryptoLookup(proc.name, string(proc.signature))
-		if !admitted || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.result != member.Result || proc.volatility != member.Volatility || proc.strict != member.Strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
+		if !admitted || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.result != member.Result || proc.volatility != member.Volatility || proc.strict != member.Strict || seen[member] || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		// Extension membership fixes provider semantics, not independently
 		// transferable member ownership. Each owner still has real provenance.
-		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 		seen[member] = true
@@ -62,10 +62,10 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 }
 
 func (p *pgcryptoProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	if v.state.descriptors[proc.address] != proc || proc.crypto != p {
+	if v.Get(proc.address) != proc || proc.crypto != p {
 		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
 	}
-	ext, ok := v.state.descriptors[proc.extension].(*extensionDescriptor)
+	ext, ok := v.Extension(proc.extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing pgcrypto installation")
 	}

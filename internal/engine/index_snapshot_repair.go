@@ -43,7 +43,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ids.Ob
 		if address == source.parent.address {
 			continue
 		}
-		parent, ok := next.descriptors[address].(*relationDescriptor)
+		parent, ok := next.Relation(address)
 		if !ok {
 			continue
 		}
@@ -83,11 +83,11 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		index, ok := evaluation.catalog.state.descriptors[snapshot.destination(address)].(*relationDescriptor)
+		index, ok := evaluation.catalog.Relation(snapshot.destination(address))
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
 			return ErrCatalogReplaced
 		}
-		parent, ok := evaluation.catalog.state.descriptors[parentAddress].(*relationDescriptor)
+		parent, ok := evaluation.catalog.Relation(parentAddress)
 		if !ok || parent.partition != nil || index.sqlIndex.parent != parentAddress {
 			return ErrCatalogReplaced
 		}
@@ -99,7 +99,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err != nil {
 			return err
 		}
-		schema := evaluation.catalog.state.descriptors[parent.namespace].Name()
+		schema := evaluation.catalog.Get(parent.namespace).Name()
 		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
 			return err
 		}

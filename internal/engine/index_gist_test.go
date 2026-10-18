@@ -122,8 +122,8 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// authority; mixing a fresh Builtins set with engine-owned values
 			// would fail equality before reaching collection validation.
 			e.catalog.state = cloneCatalog(e.catalog.state)
-			e.catalog.state.descriptors[parent.address] = parent
-			e.catalog.state.descriptors[index.address] = index
+			e.catalog.state.setDescriptor(parent.address, parent)
+			e.catalog.state.setDescriptor(index.address, index)
 			store := &relationStorage{versions: []rowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),

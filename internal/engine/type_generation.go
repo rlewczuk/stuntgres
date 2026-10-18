@@ -19,10 +19,10 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	// ALTER changes executable domain recipes, unlike mere retained-value
 	// reownership. Every changed same-ID consumer must invalidate held analysis.
 	if stage.domainAlter != nil {
-		for address, descriptor := range next.descriptors {
+		for address, descriptor := range next.Descriptors() {
 			previous := stage.descriptors[address]
 			if previous == nil {
-				previous = stage.base.state.descriptors[address]
+				previous = stage.base.Get(address)
 			}
 			if previous == nil || previous == descriptor || descriptor.Revision() != previous.Revision() {
 				continue
@@ -35,19 +35,19 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			case *typeDescriptor:
 				copy := *descriptor
 				copy.revision = revision
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 			case *relationDescriptor:
 				copy := *descriptor
 				copy.revision = revision
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 			}
 		}
 	}
 	var stores map[ids.ObjectAddress]*relationStorage
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		previous := stage.descriptors[address]
 		if previous == nil {
-			previous = stage.base.state.descriptors[address]
+			previous = stage.base.Get(address)
 		}
 		if descriptor == previous {
 			continue
@@ -88,7 +88,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 			}
 		}
-		if stage.base.state.descriptors[address] == nil {
+		if stage.base.Get(address) == nil {
 			stage.descriptors[address] = descriptor
 		} else if err := stage.replaceDescriptor(descriptor, false); err != nil {
 			return err

@@ -157,7 +157,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		run(t, e, q)
 	}
 	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
 	store := e.storage[parent.address]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)

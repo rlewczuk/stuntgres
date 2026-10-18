@@ -27,8 +27,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	branch := inheritanceLifecycleTable(e, 20008, "foreign_branch", f.address)
 	branch.namespace = peerNamespace
 	inheritanceLifecycleInstall(e, p, l, r, d, o, f, branch)
-	e.catalog.state.descriptors[ownNamespace] = &namespaceDescriptor{address: ownNamespace, temporary: own}
-	e.catalog.state.descriptors[peerNamespace] = &namespaceDescriptor{address: peerNamespace, temporary: peer}
+	e.catalog.state.setDescriptor(ownNamespace, &namespaceDescriptor{address: ownNamespace, temporary: own})
+	e.catalog.state.setDescriptor(peerNamespace, &namespaceDescriptor{address: peerNamespace, temporary: peer})
 	for range 2 {
 		var got []ids.ObjectAddress
 		if err := inheritanceQueryClosure(e.CatalogRead(), p, own, func(d *relationDescriptor) error { got = append(got, d.address); return nil }); err != nil {

@@ -15,7 +15,7 @@ import (
 func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}
-	source, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	source, ok := catalog.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_database")
 	}
@@ -58,8 +58,8 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052}].(*typeDescriptor)
+	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
+	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})
 	ownedRow, ok := catalog.LookupType(1248)
 	ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 	if d.rowType != 1248 || !ok || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10052 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
@@ -86,7 +86,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 			t.Fatal("OID", i, got, want, err)
 		}
 	}
-	database := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := catalog.MustDatabase(currentDatabaseAddress)
 	for i, want := range map[int]string{1: database.name, 4: "c", 12: "C", 13: "C"} {
 		if got, err := row[i].Text(); err != nil || got != want {
 			t.Fatal("text", i, got, want, err)
@@ -139,18 +139,18 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	private := cloneCatalog(catalog.state)
-	for address := range private.descriptors {
+	for address := range private.Descriptors() {
 		if address.ClassID == ids.RelationClassID {
-			delete(private.descriptors, address)
+			private.removeDescriptor(address)
 		}
 	}
-	isolated := CatalogRead{owner: e, state: private}
+	isolated := e.catalog.read(private)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got == nil || err != nil || got.count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
 	invalidDB.owner = foreign.authorizationDomain.Principal(10)
-	private.descriptors[currentDatabaseAddress] = &invalidDB
+	private.setDescriptor(currentDatabaseAddress, &invalidDB)
 	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
@@ -166,7 +166,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	base := e.CatalogRead()
 	old := pgDatabaseUnitCapture(t, e, base)
 	d, ref := pgDatabaseUnitSource(t, e, base)
-	original := base.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	original := base.MustDatabase(currentDatabaseAddress)
 	successor, ok := e.Roles().Lookup("pg_read_all_data")
 	if !ok {
 		t.Fatal("missing predefined principal")

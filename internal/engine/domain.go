@@ -62,7 +62,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
-	stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+	stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
 	if err = auth.CanUse(ref); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	namespace := auth.catalog.state.descriptors[ns.Address].Name()
+	namespace := auth.catalog.Get(ns.Address).Name()
 	declaration := dependencyIdentifier(namespace) + "." + dependencyIdentifier(name)
 	hasChecks := false
 	for _, constraint := range s.Constraints {
@@ -130,7 +130,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
-		target := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
+		target := auth.catalog.MustType(found[0])
 		if !target.typ.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
@@ -160,14 +160,14 @@ func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ids.Obj
 		return name
 	}
 	for _, ns := range path {
-		if address, ok := catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+		if address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
 			if address == d.Address() {
 				return name
 			}
 			break
 		}
 	}
-	return dependencyIdentifier(catalog.state.descriptors[d.Namespace()].Name()) + "." + name
+	return dependencyIdentifier(catalog.Get(d.Namespace()).Name()) + "." + name
 }
 
 func validateTypeProviders(view CatalogRead, d Descriptor) error {

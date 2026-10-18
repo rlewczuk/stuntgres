@@ -22,7 +22,7 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 				before := source.CatalogRead()
 				ref := catalogRef(t, source, before, "t")
-				descriptor := before.state.descriptors[ref.Address]
+				descriptor := before.Get(ref.Address)
 				var dump bytes.Buffer
 				if err := source.Dump(ctx, &dump); err != nil {
 					t.Fatal(err)
@@ -32,15 +32,15 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				if self {
 					target, peer = source, s
 				}
-				if _, err := target.ReplaceCatalog(ctx, before); err != nil {
+				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 					t.Fatal(err)
 				}
-				if !self && source.CatalogRead().state.descriptors[ref.Address] != descriptor {
+				if !self && source.CatalogRead().Get(ref.Address) != descriptor {
 					t.Fatal("foreign replacement mutated source")
 				}
 				view := target.CatalogRead()
 				imported := catalogRef(t, target, view, "t")
-				if err := validateChecks(view, view.state.descriptors[imported.Address].(*relationDescriptor), map[string]bool{}); err != nil {
+				if err := validateChecks(view, view.MustRelation(imported.Address), map[string]bool{}); err != nil {
 					t.Fatal(err)
 				}
 				transactionRows(t, peer, "SELECT a FROM t", 1)

@@ -34,7 +34,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			schemaOwner, _ := e.Roles().Lookup("move_schema_owner")
 			set := func(name string, grantee authorization.PrincipalRef, privileges authorization.Privileges) {
 				t.Helper()
-				a := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
+				a := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
 				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
@@ -52,30 +52,30 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			}
 			set("s1", actor.Ref, tc.source)
 			set("s2", actor.Ref, tc.target)
-			source := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
+			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			a := NameAddressForTempMove(t, e, source, "t")
 			q := NameAddressForTempMove(t, e, source, "q")
 			if tc.name == "nonowner_with_table_rights" {
-				table := e.catalog.state.descriptors[a].(*relationDescriptor)
+				table := e.catalog.state.MustRelation(a)
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.SelectPrivilege}}}
 				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}
-			before, sequence, storage := e.catalog.state.descriptors[a], e.catalog.state.descriptors[q], e.storage[a]
+			before, sequence, storage := e.catalog.state.Get(a), e.catalog.state.Get(q), e.storage[a]
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.actor)
 			_, err := e.Execute(op, statement(t, "ALTER TABLE s1.t SET SCHEMA "+tc.destination), 0, nil)
 			if tc.code != "" {
 				renameWantError(t, err, tc.code, tc.message)
-				if e.catalog.state.descriptors[a] != before || e.catalog.state.descriptors[q] != sequence || e.storage[a] != storage {
+				if e.catalog.state.Get(a) != before || e.catalog.state.Get(q) != sequence || e.storage[a] != storage {
 					t.Fatal("denial changed closure")
 				}
 			} else {
 				if err != nil {
 					t.Fatal(err)
 				}
-				dest := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.destination}]
-				if e.catalog.state.descriptors[a].Namespace() != dest || e.catalog.state.descriptors[q].Namespace() != dest || e.storage[a] != storage {
+				dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.destination})
+				if e.catalog.state.Get(a).Namespace() != dest || e.catalog.state.Get(q).Namespace() != dest || e.storage[a] != storage {
 					t.Fatal("successful authorized move lost closure")
 				}
 			}

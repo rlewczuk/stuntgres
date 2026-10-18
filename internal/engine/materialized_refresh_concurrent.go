@@ -36,18 +36,18 @@ func materializedConcurrentAdmission(view CatalogRead, parent *relationDescripto
 	if noData {
 		return sqlError("42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
 	}
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && materializedIndexEligible(parent, index) {
 			return nil
 		}
 	}
-	namespace := view.state.descriptors[parent.namespace].(*namespaceDescriptor)
+	namespace := view.MustNamespace(parent.namespace)
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot refresh materialized view "%s.%s" concurrently`, pgIdentifier(namespace.name), pgIdentifier(parent.name)), Hint: "Create a unique index with no WHERE clause on one or more columns of the materialized view."}
 }
 
 func materializedEligibleIndexes(view CatalogRead, parent *relationDescriptor) []*relationDescriptor {
 	var indices []*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && materializedIndexEligible(parent, index) {
 			indices = append(indices, index)
 		}
@@ -276,17 +276,17 @@ func sameMaterializedLineage(old, current *relationDescriptor, a, b *relationSto
 // A producer snapshot may outlive a compatible source publication, never a
 // defining-authority change. All storage/token observations require Engine.mu.
 func materializedSourceCurrent(snapshot *visibilityData, observed Descriptor, current *catalogState, store *relationStorage) bool {
-	if current.descriptors[observed.Address()] == observed {
+	if current.Get(observed.Address()) == observed {
 		return true
 	}
-	if snapshot == nil || snapshot.catalog.Epoch() != current.epoch || snapshot.catalog.state.descriptors[observed.Address()] != observed {
+	if snapshot == nil || snapshot.catalog.Epoch() != current.epoch || snapshot.catalog.Get(observed.Address()) != observed {
 		return false
 	}
 	old, ok := observed.(*relationDescriptor)
 	if !ok {
 		return false
 	}
-	live, _ := current.descriptors[observed.Address()].(*relationDescriptor)
+	live, _ := current.Relation(observed.Address())
 	return sameMaterializedLineage(old, live, snapshot.generationAt(observed.Address()), store)
 }
 
@@ -300,7 +300,7 @@ func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool 
 	if f.ref.Domain() != e.catalog.domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
 		return false
 	}
-	current, _ := e.catalog.state.descriptors[f.ref.Address].(*relationDescriptor)
+	current, _ := e.catalog.state.Relation(f.ref.Address)
 	store := e.storage[f.ref.Address]
 	return current == f.relation && store == f.storage || sameMaterializedLineage(f.relation, current, f.storage, store)
 }

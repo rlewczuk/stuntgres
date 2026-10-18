@@ -58,11 +58,11 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			beforeAttributes := append([]int32(nil), predicate.attributes...)
 			next := cloneCatalog(oldCatalog)
 			next.epoch++
-			next.descriptors[index.address] = &index
+			next.setDescriptor(index.address, &index)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
-			typeDefinition := *next.descriptors[typeAddress].(*typeDescriptor)
+			typeDefinition := *next.MustType(typeAddress)
 			typeDefinition.typ = current
-			next.descriptors[typeAddress] = &typeDefinition
+			next.setDescriptor(typeAddress, &typeDefinition)
 			typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == oldUsage.Type {
 					return current
@@ -79,7 +79,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 				t.Fatal(err)
 			}
-			parent := next.descriptors[f.parent.address].(*relationDescriptor)
+			parent := next.MustRelation(f.parent.address)
 			if parent.columns[1].Usage != newUsage || stores[f.parent.address] == f.store {
 				t.Fatal("scalar reownership did not detach and retype the parent rows")
 			}
@@ -89,7 +89,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if err := f.e.reownCatalogExpressions(next, mapping, true); err != nil {
 				t.Fatal(err)
 			}
-			reowned := next.descriptors[index.address].(*relationDescriptor)
+			reowned := next.MustRelation(index.address)
 			p := reowned.sqlIndex.predicate
 			if reowned == &index || p == &predicate {
 				t.Error("changed predicate descriptor was reused")
@@ -125,7 +125,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-			if f.e.catalog.state != oldCatalog || oldCatalog.descriptors[f.parent.address] != f.parent || oldCatalog.descriptors[f.index.address] != f.index || f.e.indexRoots[f.index.address] != oldRoot || f.index.sqlIndex.predicate != oldPredicate || predicate.definition != beforeDefinition || predicate.execution != beforeExecution || !reflect.DeepEqual(predicate.dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
+			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.address) != f.parent || oldCatalog.Get(f.index.address) != f.index || f.e.indexRoots[f.index.address] != oldRoot || f.index.sqlIndex.predicate != oldPredicate || predicate.definition != beforeDefinition || predicate.execution != beforeExecution || !reflect.DeepEqual(predicate.dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.data.Load().committed[f.parent.address] {
@@ -133,7 +133,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 					t.Fatal("retained scope lost its old row generation or membership", i)
 				}
 			}
-			if next.descriptors[f.parent.address] != parent || next.descriptors[typeAddress] != &typeDefinition {
+			if next.Get(f.parent.address) != parent || next.Get(typeAddress) != &typeDefinition {
 				t.Fatal("expression pass replaced unrelated scalar descriptors")
 			}
 		})
@@ -150,12 +150,12 @@ func TestPartialIndexPredicateTypeGenerationUnchanged(t *testing.T) {
 	if err := f.e.reownCatalogExpressions(next, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	for address, descriptor := range f.e.catalog.state.descriptors {
-		if next.descriptors[address] != descriptor {
+	for address, descriptor := range f.e.catalog.state.Descriptors() {
+		if next.Get(address) != descriptor {
 			t.Fatal("unchanged descriptor was not reused", address)
 		}
 	}
-	if next.descriptors[f.index.address].(*relationDescriptor).sqlIndex.predicate != f.index.sqlIndex.predicate {
+	if next.MustRelation(f.index.address).sqlIndex.predicate != f.index.sqlIndex.predicate {
 		t.Fatal("unchanged predicate was not reused")
 	}
 }

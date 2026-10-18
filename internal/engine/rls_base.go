@@ -16,7 +16,7 @@ func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySo
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	data := pin.read()
-	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.catalog.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.state.descriptors[ref.Address] == nil {
+	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.Get(ref.Address) == nil {
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
@@ -201,7 +201,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 	principal := auth.state.CurrentUser
 	if b.viewWrite != nil {
 		for _, layer := range b.viewWrite.layers {
-			current := auth.catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+			current := auth.catalog.MustRelation(layer.ref.Address)
 			principal = current.owner
 			if current.view.invoker {
 				principal = auth.state.CurrentUser

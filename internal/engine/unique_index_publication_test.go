@@ -112,7 +112,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(ref.Address)
 	index, _ := btreeRoot(t, e, "public.ui_index")
 	if !index.sqlIndex.unique || index.sqlIndex.nullsNotDistinct != nnd || len(index.sqlIndex.keys) != count {
 		t.Fatal("invalid unique fixture")

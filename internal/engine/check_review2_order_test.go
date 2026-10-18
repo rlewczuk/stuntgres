@@ -14,7 +14,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	a := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE t(a INT,b INT,CONSTRAINT z CHECK(a>0),CONSTRAINT m CHECK(b>0),CONSTRAINT a CHECK(a<10))")
 	view := e.CatalogRead()
-	d := view.state.descriptors[catalogRef(t, e, view, "t").Address].(*relationDescriptor)
+	d := view.MustRelation(catalogRef(t, e, view, "t").Address)
 	if err := validateChecks(view, d, map[string]bool{}); err != nil {
 		t.Fatal("valid initial descriptor rejected", err)
 	}
@@ -38,7 +38,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	// enforcement storage must not renumber declaration identity to hide gaps.
 	sessionSQL(t, a, "ALTER TABLE t DROP CONSTRAINT z")
 	view = e.CatalogRead()
-	d = view.state.descriptors[catalogRef(t, e, view, "t").Address].(*relationDescriptor)
+	d = view.MustRelation(catalogRef(t, e, view, "t").Address)
 	ordered := orderedChecks(d)
 	if len(ordered) != 2 || ordered[0].Name != "m" || ordered[0].ordinal != 1 || ordered[1].Name != "a" || ordered[1].ordinal != 2 {
 		t.Fatal("DROP CONSTRAINT rewrote surviving declaration identities", ordered)
@@ -48,7 +48,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	}
 	sessionSQL(t, a, "ALTER TABLE t DROP COLUMN b")
 	view = e.CatalogRead()
-	d = view.state.descriptors[catalogRef(t, e, view, "t").Address].(*relationDescriptor)
+	d = view.MustRelation(catalogRef(t, e, view, "t").Address)
 	if len(d.checkConstraints) != 1 || d.checkConstraints[0].Name != "a" || d.checkConstraints[0].ordinal != 2 {
 		t.Fatal("DROP COLUMN rewrote surviving declaration identity", d.checkConstraints)
 	}

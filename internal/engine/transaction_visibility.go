@@ -129,8 +129,8 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			captured := data.generationAt(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if captured != current {
-				oldRelation, _ := data.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+				oldRelation, _ := data.catalog.Relation(ref.Address)
+				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
 					return nil, ErrCatalogReplaced
 				}
@@ -172,7 +172,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		if !latest && stableIsolation(s.owner.isolation) && !rewrite.rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
-				current, ok := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage[ref.Address]
 				if !ok || !sameRelationRowShape(root.relation, current) {
 					return nil, ErrCatalogReplaced

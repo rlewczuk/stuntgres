@@ -23,7 +23,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")
 	}
 	if extension, ok := object.(*extensionDescriptor); ok {
-		namespace, ok := view.state.descriptors[extension.targetNamespace].(*namespaceDescriptor)
+		namespace, ok := view.Namespace(extension.targetNamespace)
 		if !ok || namespace.temporary != (ids.SessionToken{}) {
 			return 0, fmt.Errorf("stuntgres: invalid extension dump dependency lifetime")
 		}
@@ -42,7 +42,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		return operator.address.ObjectID, nil
 	}
 	if proc, ok := object.(*procedureDescriptor); ok {
-		ext, ok := view.state.descriptors[proc.extension].(*extensionDescriptor)
+		ext, ok := view.Extension(proc.extension)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")
 		}
@@ -76,7 +76,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 	// instead have a real CREATE + attachment graph node of their own.
 	if source.relationKind == indexRelation && source.sqlIndex != nil && source.sqlIndex.constraint != nil {
 		unique := source.sqlIndex.constraint
-		parent, ok := view.state.descriptors[source.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := view.Relation(source.sqlIndex.parent)
 		if !ok || (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || parent.namespace != source.namespace || parent.owner != source.owner || unique.Index != source.address {
 			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
 		}
@@ -101,13 +101,13 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		owned := source.sequence.owned
 		ownerAddress := owned
 		ownerAddress.SubID = 0
-		table, ok := view.state.descriptors[ownerAddress].(*relationDescriptor)
+		table, ok := view.Relation(ownerAddress)
 		if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.identities[owned.SubID].sequence != address || table.namespace != source.namespace {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table
 	}
-	namespace, exists := view.state.descriptors[source.namespace].(*namespaceDescriptor)
+	namespace, exists := view.Namespace(source.namespace)
 	if !exists || namespace.temporary != (ids.SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}

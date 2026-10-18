@@ -119,25 +119,25 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
-		delete(next.names, descriptorNameKey(before.state.descriptors[address]))
-		delete(next.descriptors, address)
+		next.unbindName(descriptorNameKey(before.Get(address)))
+		next.removeDescriptor(address)
 	}
 	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.state.descriptors[address], mapping)
-		next.descriptors[destination] = descriptor
-		next.names[descriptorNameKey(descriptor)] = destination
+		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
+		next.setDescriptor(destination, descriptor)
+		next.bindName(descriptorNameKey(descriptor), destination)
 	}
-	view := CatalogRead{owner: e, state: next}
-	remapped := next.descriptors[mapping[ext.address]].(*extensionDescriptor)
+	view := e.catalog.read(next)
+	remapped := next.MustExtension(mapping[ext.address])
 	if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(view, remapped); err != nil {
 		t.Fatal("remapped extension", err)
 	}
 	for i, original := range ext.members {
-		proc := next.descriptors[mapping[original]].(*procedureDescriptor)
+		proc := next.MustProcedure(mapping[original])
 		if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal("remapped procedure", err)
 		}
-		old := before.state.descriptors[original].(*procedureDescriptor)
+		old := before.MustProcedure(original)
 		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.crypto != old.crypto || proc.signature != old.signature || proc.result != old.result || proc.strict != old.strict || proc.volatility != old.volatility {
 			t.Fatal("remapped member identity", proc)
 		}
@@ -170,16 +170,16 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			definition: call, execution: call, dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
-	next.descriptors[address] = consumer
+	next.setDescriptor(address, consumer)
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal("relocated consumer", err)
 	}
-	relocated := next.descriptors[address].(*relationDescriptor)
+	relocated := next.MustRelation(address)
 	assertCall := func(node BoundExpr) {
 		t.Helper()
 		actual := node.(installedCryptoFunctionExpression)
-		if actual.ref.Address != mapping[call.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.descriptors[actual.ref.Address] {
+		if actual.ref.Address != mapping[call.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.Get(actual.ref.Address) {
 			t.Fatal("stale relocated provider", actual.ref)
 		}
 		if err := actual.validate(view); err != nil {
@@ -221,7 +221,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal("relocated query", err)
 	}
 	assertCall(query.(*projectNode).expressions[0])
-	if consumer.defaults[1].dependencies[0] != call.ref || call.procedure != before.state.descriptors[call.ref.Address] {
+	if consumer.defaults[1].dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
 		t.Fatal("source consumer mutated")
 	}
 	for _, name := range []string{"gen_random_bytes", "gen_random_uuid", "fips_mode"} {
@@ -240,13 +240,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		actual := query.(*projectNode).expressions[0].(installedCryptoFunctionExpression)
-		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.descriptors[actual.ref.Address] || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
+		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.Get(actual.ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
 		if err := actual.validate(view); err != nil {
 			t.Fatal(name, err)
 		}
-		if original.procedure != before.state.descriptors[original.ref.Address] || original.ref.Address == actual.ref.Address {
+		if original.procedure != before.Get(original.ref.Address) || original.ref.Address == actual.ref.Address {
 			t.Fatal("source random/FIPS identity changed")
 		}
 	}

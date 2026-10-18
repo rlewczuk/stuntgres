@@ -61,7 +61,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		// With no argument list PostgreSQL filters by SQL kind before deciding
 		// uniqueness. Native currently has no user-procedure creator/runtime.
 		for i := range path.count() {
-			for _, descriptor := range v.catalog.state.descriptors {
+			for _, descriptor := range v.catalog.Descriptors() {
 				p, ok := descriptor.(*procedureDescriptor)
 				if ok && p.namespace == path.at(i) && p.name == name && p.routineKind == procedureRoutine {
 					selected = routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}
@@ -92,7 +92,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		return ids.ObjectRef{}, diagnostic
 	}
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id}
-	p, ok := v.catalog.state.descriptors[address].(*procedureDescriptor)
+	p, ok := v.catalog.Procedure(address)
 	if !ok {
 		// Lookup-only inventory cannot manufacture an owning ACL descriptor or
 		// an execution capability.
@@ -111,7 +111,7 @@ func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
 		if i != 0 {
 			display.WriteString(", ")
 		}
-		typ := v.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}].(*typeDescriptor)
+		typ := v.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.typ.IsUserDefined() {
 			display.WriteString(typeDiagnosticNameAt(v.catalog, typ, path))
 		} else {

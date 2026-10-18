@@ -15,7 +15,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead,
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -23,7 +23,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			continue
 		}
-		if err := (parameterProvider{}).Validate(catalog, d); err != nil {
+		if err := (parameterProvider{e.settingsDefinitions}).Validate(catalog, d); err != nil {
 			return nil, err
 		}
 		if err := validateACL(roles, d); err != nil {

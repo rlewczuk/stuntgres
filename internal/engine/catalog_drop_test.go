@@ -18,8 +18,8 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	base := e.CatalogRead()
 	a := roleTableRef(t, e, "a")
 	b := roleTableRef(t, e, "b")
-	row := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.state.descriptors[a.Address].(*relationDescriptor).rowType)}].(*typeDescriptor)
-	array := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	row := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.MustRelation(a.Address).rowType)})
+	array := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
 	retained := run(t, e, "SELECT * FROM a")
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Remove(a); err != nil {

@@ -72,7 +72,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion
 			auth = s.routineAuth // Rule relation ownership is not routine authority.
 		}
 		if captureErr == nil {
-			auth.recaptureCatalog(CatalogRead{owner: e, state: binding.catalog})
+			auth.recaptureCatalog(e.catalog.read(binding.catalog))
 		}
 		e.mu.Unlock()
 		if captureErr != nil {

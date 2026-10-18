@@ -254,7 +254,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		}
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
-		if current.state.descriptors[old.address] != old {
+		if current.Get(old.address) != old {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced
 		}
@@ -313,7 +313,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			continue
 		}
 		command := *raw
-		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.catalog.state.descriptors[old.namespace].Name()}, {Text: old.name}}}
+		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.catalog.Get(old.namespace).Name()}, {Text: old.name}}}
 		command.Actions = planned
 		command.Only = true
 		childAuth := auth
@@ -337,7 +337,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		return Result{}, err
 	}
 	for _, old := range state.targets {
-		if state.selected[old.address] && e.privateCatalogLocked(scope.owner.catalog).state.descriptors[old.address] != old {
+		if state.selected[old.address] && e.privateCatalogLocked(scope.owner.catalog).Get(old.address) != old {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced
 		}
@@ -513,7 +513,7 @@ func (e *Engine) inheritedAlterActions(state *inheritanceAlterState, old *relati
 
 func inheritedNotNull(view CatalogRead, parents []ids.ObjectAddress, name string) *notNullConstraint {
 	for _, address := range parents {
-		parent := view.state.descriptors[address].(*relationDescriptor)
+		parent := view.MustRelation(address)
 		if slot, exists := parent.index[name]; exists {
 			for i := range parent.notNullConstraints {
 				c := &parent.notNullConstraints[i]
@@ -557,7 +557,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 		if state.descendant {
 			var origins []inheritanceOrigin
 			for _, parentAddress := range graph.parents {
-				parent := view.state.descriptors[parentAddress].(*relationDescriptor)
+				parent := view.MustRelation(parentAddress)
 				if slot, ok := parent.index[next.columns[i].Name]; ok {
 					origins = append(origins, inheritanceOrigin{parent: parentAddress, attribute: parent.attributes[slot]})
 				}
@@ -594,7 +594,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 		if state.descendant {
 			var origins []inheritanceOrigin
 			for _, address := range graph.parents {
-				parent := view.state.descriptors[address].(*relationDescriptor)
+				parent := view.MustRelation(address)
 				for _, pc := range parent.checkConstraints {
 					if pc.Name == c.Name && !pc.NoInherit {
 						origins = append(origins, inheritanceOrigin{parent: address, constraint: pc.OID})
@@ -626,7 +626,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *relation
 			var origins []inheritanceOrigin
 			name := next.columns[next.indexForAttribute(c.Attribute)].Name
 			for _, address := range graph.parents {
-				parent := view.state.descriptors[address].(*relationDescriptor)
+				parent := view.MustRelation(address)
 				if slot, ok := parent.index[name]; ok {
 					for _, pc := range parent.notNullConstraints {
 						if pc.Attribute == parent.attributes[slot] && !pc.NoInherit {

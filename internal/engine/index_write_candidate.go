@@ -282,7 +282,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	current := e.privateCatalogLocked(s.owner.catalog)
-	currentIndex, ok := current.state.descriptors[index.address].(*relationDescriptor)
+	currentIndex, ok := current.Relation(index.address)
 	if !ok || !sameIndexKeySemantics(index, currentIndex) {
 		e.mu.Unlock()
 		return false, nil, ErrCatalogReplaced

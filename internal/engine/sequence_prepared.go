@@ -37,7 +37,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.state.descriptors[currentDatabaseAddress]}
+	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(currentDatabaseAddress)}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}
@@ -94,16 +94,16 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 		}
 		if ref.Epoch != auth.catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
-			d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d, ok := auth.catalog.Relation(ref.Address)
 			if !ok || constant.temporary != auth.session.token || d.relationKind != sequenceRelation {
 				return false, ErrCatalogReplaced
 			}
-			ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+			ns, ok := auth.catalog.Namespace(d.namespace)
 			if !ok || ns.temporary != constant.temporary {
 				return false, ErrCatalogReplaced
 			}
 		}
-		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
 			if constant.stamp != 0 {
 				changed = true

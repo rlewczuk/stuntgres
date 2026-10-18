@@ -25,11 +25,11 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					roleExecute(t, e, op, "CREATE POLICY retained ON t USING(NULL::regtype IS NULL) WITH CHECK('integer'::regtype IS NOT NULL)")
 					base := e.CatalogRead()
 					ownerRef := roleTableRef(t, e, "t")
-					old := base.state.descriptors[ownerRef.Address].(*relationDescriptor)
+					old := base.MustRelation(ownerRef.Address)
 					providerRef := roleTableRef(t, e, "provider")
-					provider := base.state.descriptors[providerRef.Address].(*relationDescriptor)
+					provider := base.MustRelation(providerRef.Address)
 					rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(provider.rowType)}
-					row := base.state.descriptors[rowAddress].(*typeDescriptor)
+					row := base.MustType(rowAddress)
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
 					storage := e.storage[old.address]
 					retained := old.policies[1]

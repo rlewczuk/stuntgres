@@ -14,7 +14,7 @@ import (
 func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
-	source, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	source, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_constraint")
 	}
@@ -23,7 +23,7 @@ func pgConstraintUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.O
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[string][]sqltype.Value {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
-	source := view.state.descriptors[address].(*relationDescriptor)
+	source := view.MustRelation(address)
 	ref := e.catalog.domain.Ref(view.Epoch(), address)
 	got, err := capturePGConstraint(context.Background(), view, ref, source)
 	if err != nil {
@@ -46,7 +46,7 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 
 func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
 	t.Helper()
-	domain := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	domain := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
 	if len(row) != 28 || len(domain.domainChecks) != 1 {
 		t.Fatal("missing real bootstrap domain CHECK", row)
 	}
@@ -127,8 +127,8 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003}].(*typeDescriptor)
-	array := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002}].(*typeDescriptor)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10003})
+	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10002})
 	if row.owningRelation != source.address || array.owningRelation != source.address || row.array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -266,7 +266,7 @@ func TestPGConstraintCapture(t *testing.T) {
 	before := pgConstraintUnitCapture(t, e, view)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: len(view.state.descriptors) + 2}} {
+	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2}} {
 		if got, err := capturePGConstraint(ctx, view, ref, source); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation published partial capture", got, err)
 		}

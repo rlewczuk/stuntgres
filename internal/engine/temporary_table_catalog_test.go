@@ -84,7 +84,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.state.descriptors[table.address] != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
+		if e.catalog.state.Get(table.address) != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -110,7 +110,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	old := e.catalog.domain.Ref(view.Epoch(), table.address)
 	advanced := cloneCatalog(view.state)
 	advanced.epoch++
-	retained := CatalogRead{e, advanced}
+	retained := e.catalog.read(advanced)
 	if !storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
 	}
@@ -129,17 +129,17 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	if storedReferenceEpochValid(retained, table, bad) {
 		t.Fatal("future incarnation accepted")
 	}
-	foreign := *advanced.descriptors[table.namespace].(*namespaceDescriptor)
+	foreign := *advanced.MustNamespace(table.namespace)
 	foreign.temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.descriptors[consumer.namespace] = &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token}
-	advanced.descriptors[table.namespace] = &foreign
+	advanced.setDescriptor(consumer.namespace, &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token})
+	advanced.setDescriptor(table.namespace, &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
 	}
-	advanced.descriptors[table.namespace] = view.state.descriptors[table.namespace]
-	delete(advanced.descriptors, table.address)
+	advanced.setDescriptor(table.namespace, view.Get(table.namespace))
+	advanced.removeDescriptor(table.address)
 	if storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("retired target resurrected")
 	}
@@ -215,7 +215,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	retained := CatalogRead{owner: e, state: next}
+	retained := e.catalog.read(next)
 	var manifest []ids.ObjectRef
 	renderer := scalarRenderer{owner: table, dependencies: &manifest, capturedManifest: []ids.ObjectRef{typeRef, ref}}
 	if text, err := renderer.sql(context.Background(), retained, literal); err != nil || text == "" {
@@ -243,9 +243,9 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("foreign-engine regclass admitted")
 	}
 	retired := cloneCatalog(next)
-	delete(retired.descriptors, sequence.address)
-	delete(retired.names, descriptorNameKey(sequence))
-	if _, err := renderer.sql(context.Background(), CatalogRead{owner: e, state: retired}, literal); err == nil {
+	retired.removeDescriptor(sequence.address)
+	retired.unbindName(descriptorNameKey(sequence))
+	if _, err := renderer.sql(context.Background(), e.catalog.read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}
 }
@@ -265,12 +265,12 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
 	lookup := func(view CatalogRead, name string, namespace ids.SessionToken) *relationDescriptor {
 		t.Helper()
-		for _, descriptor := range view.state.descriptors {
+		for _, descriptor := range view.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
 			if !ok || d.name != name {
 				continue
 			}
-			ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+			ns := view.MustNamespace(d.namespace)
 			if ns.temporary == namespace {
 				return d
 			}
@@ -294,11 +294,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	for attribute, definition := range consumer.generations {
 		dependencies[attribute] = slices.Clone(definition.dependencies)
 	}
-	if _, err := e.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	if retained.Epoch() <= before.Epoch() || retained.state.descriptors[provider.address] != provider || retained.state.descriptors[providerIndex.address] != providerIndex || retained.state.descriptors[consumer.address] != consumer || e.storage[consumer.address] != store || e.indexRoots[providerIndex.address] != indexRoot {
+	if retained.Epoch() <= before.Epoch() || retained.Get(provider.address) != provider || retained.Get(providerIndex.address) != providerIndex || retained.Get(consumer.address) != consumer || e.storage[consumer.address] != store || e.indexRoots[providerIndex.address] != indexRoot {
 		t.Fatal("replacement did not retain actual descriptors/store/root")
 	}
 	if !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
@@ -357,11 +357,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("missing actual domain array")
 	}
 	arrayRef := e.catalog.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
-	if _, err := e.ReplaceCatalog(context.Background(), domainView); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, domainView); err != nil {
 		t.Fatal(err)
 	}
 	retained = e.CatalogRead()
-	if _, live := retained.state.descriptors[domainRef.Address]; !live {
+	if _, live := retained.Find(domainRef.Address); !live {
 		t.Fatal("actual replacement did not retain domain address")
 	}
 	if storedReferenceEpochValid(retained, consumer, domainRef) || storedReferenceEpochValid(retained, consumer, arrayRef) {

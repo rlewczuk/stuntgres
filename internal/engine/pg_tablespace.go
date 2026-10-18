@@ -17,7 +17,7 @@ func (e *Engine) capturePGTablespace(ctx context.Context, catalog CatalogRead, r
 	}
 	rows := make([][]sqltype.Value, len(builtinTablespaces))
 	for i, builtin := range builtinTablespaces {
-		d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}].(*tablespaceDescriptor)
+		d, ok := catalog.Tablespace(ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid})
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: missing builtin tablespace descriptor")
 		}

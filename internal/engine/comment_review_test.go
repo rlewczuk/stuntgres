@@ -63,19 +63,19 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				schemaRole, _ := e.Roles().Lookup("schema_owner")
 				ns := schemaRef(t, e, "s")
 				ref := roleTableRef(t, e, "s.t")
-				nsDesc := e.CatalogRead().state.descriptors[ns.Address].(*namespaceDescriptor)
-				tableDesc := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+				nsDesc := e.CatalogRead().MustNamespace(ns.Address)
+				tableDesc := e.CatalogRead().MustRelation(ref.Address)
 				if nsDesc.owner != schemaRole.Ref || tableDesc.owner != tableRole.Ref || nsDesc.acl.Explicit || tableDesc.acl.Explicit {
 					t.Fatal("restore changed independent owners or synthesized grants")
 				}
 				if tableRole.Comment != "shared table owner" || schemaRole.Comment != "shared schema owner" {
 					t.Fatal("restore changed shared text", tableRole, schemaRole)
 				}
-				commentWant(t, e.CatalogRead(), ref, tc.table)
+				commentWant(t, e, e.CatalogRead(), ref, tc.table)
 				ref.Address.SubID = 1
-				commentWant(t, e.CatalogRead(), ref, tc.a)
+				commentWant(t, e, e.CatalogRead(), ref, tc.a)
 				ref.Address.SubID = 2
-				commentWant(t, e.CatalogRead(), ref, tc.b)
+				commentWant(t, e, e.CatalogRead(), ref, tc.b)
 				if got := tuples(roleExecute(t, e, op, "SELECT a FROM s.t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 					t.Fatal("lost sentinel", got)
 				}
@@ -132,10 +132,10 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 			}
 		}
 	}
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "private.t"), "old")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "private.t"), "old")
 	column := roleTableRef(t, e, "private.t")
 	column.Address.SubID = 1
-	commentWant(t, e.CatalogRead(), column, "old column")
+	commentWant(t, e, e.CatalogRead(), column, "old column")
 	if got := tuples(roleExecute(t, e, admin, "SELECT v FROM private.t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 		t.Fatal("failed comments changed sentinel", got)
 	}
@@ -162,7 +162,7 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			second := sessionStart(t, e, nil)
 			sessionSQL(t, holder, "CREATE TABLE t(a INT,b INT)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+			original := e.CatalogRead().MustRelation(ref.Address)
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			firstDone := lockAsync(e, first, context.Background(), tc.first, false)
@@ -172,12 +172,12 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			transactionEnd(t, holder, tx, false)
 			lockAwait(t, firstDone, nil)
 			lockAwait(t, secondDone, nil)
-			commentWant(t, e.CatalogRead(), ref, tc.table)
+			commentWant(t, e, e.CatalogRead(), ref, tc.table)
 			ref.Address.SubID = 1
-			commentWant(t, e.CatalogRead(), ref, tc.a)
+			commentWant(t, e, e.CatalogRead(), ref, tc.a)
 			ref.Address.SubID = 2
-			commentWant(t, e.CatalogRead(), ref, tc.b)
-			current := e.CatalogRead().state.descriptors[original.address].(*relationDescriptor)
+			commentWant(t, e, e.CatalogRead(), ref, tc.b)
+			current := e.CatalogRead().MustRelation(original.address)
 			if current.owner != original.owner || !reflect.DeepEqual(current.attributes, original.attributes) || current.address != original.address {
 				t.Fatal("serialized comments changed object authority/column identities")
 			}

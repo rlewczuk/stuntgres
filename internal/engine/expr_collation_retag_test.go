@@ -37,7 +37,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	collation := func(name string) *collationDescriptor {
-		for _, descriptor := range view.state.descriptors {
+		for _, descriptor := range view.Descriptors() {
 			if d, ok := descriptor.(*collationDescriptor); ok && d.name == name {
 				return d
 			}
@@ -53,7 +53,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("fixture lacks actual identity replacement")
 	}
 	tableRef := catalogRef(t, e, view, "expr_retag_t")
-	table := view.state.descriptors[tableRef.Address].(*relationDescriptor)
+	table := view.MustRelation(tableRef.Address)
 	original := table.defaults[table.attributes[0]].expression.(comparisonExpression)
 	oldRef, conflict := original.predicate.InputCollation()
 	if oldRef.ID != uint32(source.oid) || conflict || original.Usage.Collation.ID != 0 {
@@ -93,7 +93,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("source operand graph/render changed", actual, err)
 	}
 	viewRef := catalogRef(t, e, view, "expr_retag_v")
-	stored := view.state.descriptors[viewRef.Address].(*relationDescriptor).view.query.Root.(*projectNode).expressions[0].(comparisonExpression)
+	stored := view.MustRelation(viewRef.Address).view.query.Root.(*projectNode).expressions[0].(comparisonExpression)
 	selected, ambiguous := stored.predicate.InputCollation()
 	if !ambiguous || selected.ID != 100 || stored.Usage.Collation.ID != 0 {
 		t.Fatal("stored implicit conflict erased", selected, ambiguous)
@@ -120,7 +120,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	storedExpression := func(name string) BoundExpr {
 		ref := catalogRef(t, e, view, name)
-		return view.state.descriptors[ref.Address].(*relationDescriptor).view.query.Root.(*projectNode).expressions[0]
+		return view.MustRelation(ref.Address).view.query.Root.(*projectNode).expressions[0]
 	}
 	saved := storedExpression("expr_retag_case").(caseExpression)
 	ref, conflict := saved.arms[0].equality.InputCollation()
@@ -198,7 +198,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("membership input remap/source immutability broken")
 	}
 	projectionRef := catalogRef(t, e, view, "expr_retag_projection")
-	projection := view.state.descriptors[projectionRef.Address].(*relationDescriptor).view.query.Root.(*projectNode)
+	projection := view.MustRelation(projectionRef.Address).view.query.Root.(*projectNode)
 	demanded, err := storedProjectionDemand(projection, []int{1})
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +234,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 		t.Fatal("malformed stored slot admitted")
 	}
 	typesRef := catalogRef(t, e, view, "expr_retag_domain_types")
-	types := view.state.descriptors[typesRef.Address].(*relationDescriptor).columns
+	types := view.MustRelation(typesRef.Address).columns
 	mappedType := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == types[0].Usage.Type {
 			return types[1].Usage.Type

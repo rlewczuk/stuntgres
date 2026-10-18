@@ -37,8 +37,8 @@ func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *relationDescriptor
 func TestAlterSchemaWholeCandidate(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
-	destination := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"}]
+	source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+	destination := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	addresses := []ids.ObjectAddress{}
 	for _, name := range []string{"t", "q1", "q2"} {
 		addresses = append(addresses, NameAddressForTempMove(t, e, source, name))
@@ -52,7 +52,7 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 			if !ok || d.Namespace() != destination {
 				t.Fatal("provider saw partial namespace closure", address, d)
 			}
-			if e.catalog.state.descriptors[address].Namespace() != source {
+			if e.catalog.state.Get(address).Namespace() != source {
 				t.Fatal("candidate escaped before validation")
 			}
 		}
@@ -65,7 +65,7 @@ func TestAlterSchemaWholeCandidate(t *testing.T) {
 	frontier := e.catalog.nextRevision
 	run(t, e, "COMMENT ON TABLE s2.t IS 'new comment'")
 	ref := roleTableRef(t, e, "s2.t")
-	if e.catalog.state.descriptors[ref.Address].Revision() < frontier {
+	if e.catalog.state.Get(ref.Address).Revision() < frontier {
 		t.Fatal("move failed to advance allocator")
 	}
 }
@@ -75,13 +75,13 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
+			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			name := "q2"
 			if field == "table_revision" {
 				name = "t"
 			}
 			address := NameAddressForTempMove(t, e, source, name)
-			d := *e.catalog.state.descriptors[address].(*relationDescriptor)
+			d := *e.catalog.state.MustRelation(address)
 			if field == "sequence_stamp" {
 				d.sequencePlanStamp = ids.DefinitionRevision(^uint64(0))
 			} else {
@@ -114,7 +114,7 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	ref := roleTableRef(t, e, "s1.t")
-	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(ref.Address)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "LOCK TABLE s1.t IN ACCESS EXCLUSIVE MODE")
 	done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
@@ -125,7 +125,7 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	alterSchemaPublishDescriptor(t, e, &next)
 	transactionEnd(t, a, tx, false)
 	lockAwait(t, done, nil)
-	moved := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	moved := e.catalog.state.MustRelation(ref.Address)
 	if moved.comment != "grant-time comment" || moved.revision <= next.revision || roleTableRef(t, e, "s2.t") != ref {
 		t.Fatal("prewait descriptor used", moved)
 	}
@@ -137,7 +137,7 @@ func TestAlterSchemaActualTemporaryDestination(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE temporary_probe")
-	destination := e.catalog.state.descriptors[s.temporaryNamespace].(*namespaceDescriptor).name
+	destination := e.catalog.state.MustNamespace(s.temporaryNamespace).name
 	before, frontier := e.catalog.state, e.catalog.nextRevision
 	err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s1.t SET SCHEMA "+destination, true)
 	renameWantError(t, err, "0A000", "temporary schema creation is unsupported")
@@ -153,7 +153,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			source := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"}]
+			source := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			address := NameAddressForTempMove(t, e, source, "q2")
 			ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 			tx := transactionBegin(t, a)
@@ -165,7 +165,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			}
 			done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
 			lockPending(t, e, 1)
-			next := *e.catalog.state.descriptors[address].(*relationDescriptor)
+			next := *e.catalog.state.MustRelation(address)
 			next.name = "grant_q2"
 			next.revision++
 			next.sequencePlanStamp++
@@ -179,11 +179,11 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 				}
 			} else {
 				lockAwait(t, done, nil)
-				moved := e.catalog.state.descriptors[address].(*relationDescriptor)
+				moved := e.catalog.state.MustRelation(address)
 				if moved.name != "grant_q2" || moved.sequence != next.sequence || moved.sequencePlanStamp <= next.sequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
-				destination := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"}]
+				destination := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 				if NameAddressForTempMove(t, e, destination, "grant_q2") != address {
 					t.Fatal("dependency identity changed")
 				}

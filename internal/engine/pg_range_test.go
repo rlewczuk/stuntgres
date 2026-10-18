@@ -14,7 +14,7 @@ import (
 func pgRangeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3541}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_range")
 	}
@@ -87,8 +87,8 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal("PUBLIC read", d.acl)
 		}
-		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101}].(*typeDescriptor)
-		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100}].(*typeDescriptor)
+		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
+		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})
 		ownedRow, rowOK := catalog.LookupType(10101)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || row.typ != ownedRow || array.typ != ownedArray || row.array != 10100 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != d.owner || array.owner != d.owner {

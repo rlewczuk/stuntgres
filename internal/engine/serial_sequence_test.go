@@ -42,8 +42,8 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		relationKind: sequenceRelation, sequence: &sequenceOptions{owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
-		view.state.descriptors[descriptor.Address()] = descriptor
-		view.state.names[descriptorNameKey(descriptor)] = descriptor.Address()
+		view.state.setDescriptor(descriptor.Address(), descriptor)
+		view.state.bindName(descriptorNameKey(descriptor), descriptor.Address())
 	}
 	literal := func(s string) BoundExpr {
 		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
@@ -104,7 +104,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	options := *changed.sequence
 	options.owned = ids.ObjectAddress{}
 	changed.sequence = &options
-	f.engine.catalog.state.descriptors[changed.address] = &changed
+	f.engine.catalog.state.setDescriptor(changed.address, &changed)
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	fresh := *f.context.statementScope
-	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.catalog.state}
+	fresh.commentCatalog = f.engine.catalog.read(f.engine.catalog.state)
 	fresh.deparseAuth.catalog = fresh.commentCatalog
 	fresh.deparseAuth.pairedCatalog = fresh.deparseAuth.catalog
 	value, err = f.node.Eval(&EvalContext{Context: context.Background(), statementScope: &fresh})

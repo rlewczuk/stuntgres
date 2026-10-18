@@ -22,7 +22,7 @@ func TestCommentLocks(t *testing.T) {
 			lockPending(t, e, 1)
 			cancel()
 			lockAwait(t, waiting, context.Canceled)
-			commentWant(t, e.CatalogRead(), ref, "old")
+			commentWant(t, e, e.CatalogRead(), ref, "old")
 			lockPending(t, e, 0)
 			waiting = lockAsync(e, b, context.Background(), q, false)
 			lockPending(t, e, 1)
@@ -30,10 +30,10 @@ func TestCommentLocks(t *testing.T) {
 			lockAwait(t, waiting, nil)
 			lockEmpty(t, e)
 			if q == "COMMENT ON TABLE t IS 'new'" {
-				commentWant(t, e.CatalogRead(), ref, "new")
+				commentWant(t, e, e.CatalogRead(), ref, "new")
 			} else {
 				ref.Address.SubID = 1
-				commentWant(t, e.CatalogRead(), ref, "new")
+				commentWant(t, e, e.CatalogRead(), ref, "new")
 			}
 			sessionSQL(t, b, "INSERT INTO t VALUES(7)")
 		})
@@ -53,7 +53,7 @@ func TestCommentLocks(t *testing.T) {
 		lockAwait(t, waiting, ErrCatalogReplaced)
 		transactionEnd(t, a, tx, false)
 		sessionSQL(t, b, "CREATE TABLE t(v INT)")
-		commentWant(t, e.CatalogRead(), catalogRef(t, e, e.CatalogRead(), "t"), "")
+		commentWant(t, e, e.CatalogRead(), catalogRef(t, e, e.CatalogRead(), "t"), "")
 		lockEmpty(t, e)
 	})
 	t.Run("drop recreation fence", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestCommentLocks(t *testing.T) {
 		lockAwait(t, waiting, ErrCatalogReplaced)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
 		ref.Address.SubID = 1
-		commentWant(t, e.CatalogRead(), ref, "")
+		commentWant(t, e, e.CatalogRead(), ref, "")
 		lockEmpty(t, e)
 	})
 }

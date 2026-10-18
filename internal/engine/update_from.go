@@ -16,7 +16,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 	if b.targetAlias != "" {
 		name = b.targetAlias
 	}
-	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.state.descriptors[b.relation.namespace].Name(), lateralForbidden: true}
+	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.Get(b.relation.namespace).Name(), lateralForbidden: true}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.columns}
 }
 
@@ -29,7 +29,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if !relation.relationKind.stored() {
 		return nil
 	}
-	namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor)
+	namespace, ok := catalog.Namespace(relation.namespace)
 	if !ok {
 		return ErrCatalogReplaced
 	}
@@ -43,7 +43,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 // any already-required target refs, preserving a single statement frontier.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
 	catalog := auth.catalog
-	if auth.engine != e || catalog.owner != e || catalog.state == nil {
+	if auth.engine != e || catalog.owner != e.catalog.owner() || catalog.state == nil {
 		return nil, ErrCatalogReplaced
 	}
 	// Authorize every executable view occurrence before admitting any physical
@@ -52,7 +52,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	var active []ids.ObjectRef
 	var authorize func(ids.ObjectRef, authorization.PrincipalRef, queryRowMark) error
 	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
-		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
@@ -98,7 +98,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		}
 	}
 	for _, ref := range refs {
-		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			return nil, ErrCatalogReplaced
 		}
@@ -109,7 +109,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	var visited map[ids.ObjectRef]bool
 	var collect func(ids.ObjectRef, bool) error
 	collect = func(ref ids.ObjectRef, only bool) error {
-		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation, ok := catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
@@ -136,7 +136,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		}
 		if relation.partition != nil && !only {
 			for _, address := range relation.partition.children {
-				child, ok := catalog.state.descriptors[address].(*relationDescriptor)
+				child, ok := catalog.Relation(address)
 				if !ok {
 					return ErrCatalogReplaced
 				}

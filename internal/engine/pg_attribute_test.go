@@ -15,7 +15,7 @@ import (
 func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1249}
-	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := catalog.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_attribute")
 	}
@@ -74,7 +74,7 @@ func TestPGAttributeShape(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270}].(*typeDescriptor)
+	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
 	if array.owningRelation != d.address || array.typ.Element().ID() != 75 {
 		t.Fatal("array ownership", array)
 	}
@@ -133,8 +133,8 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified.columns = append([]ColumnDescriptor(nil), d.columns...)
 	modified.columns[24].Usage.Typmod = 0
 	privateState := cloneCatalog(catalog.state)
-	privateState.descriptors[d.address] = &modified
-	if got, err := e.capturePGAttribute(context.Background(), CatalogRead{owner: e, state: privateState}, e.Roles(), ref, &modified); got != nil || err == nil {
+	privateState.setDescriptor(d.address, &modified)
+	if got, err := e.capturePGAttribute(context.Background(), e.catalog.read(privateState), e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
 	if e.catalog.state != before || !maps.Equal(descriptors, e.catalog.state.descriptors) {
@@ -175,7 +175,7 @@ func TestPGAttributePublication(t *testing.T) {
 	}
 	nextStage := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(nextStage)
-	next := *current.state.descriptors[table.address].(*relationDescriptor)
+	next := *current.MustRelation(table.address)
 	next.columns = append([]ColumnDescriptor(nil), next.columns...)
 	next.columns[0].Nullable = false
 	if err := nextStage.Replace(&next); err != nil {

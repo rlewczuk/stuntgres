@@ -42,7 +42,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		for i, descriptor := range out.relation.columns {
 			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 		}
-		target := queryQualifier{name: out.relation.name, original: out.relation.name, ref: out.ref, columns: columns, schema: auth.catalog.state.descriptors[out.relation.namespace].Name(), lateralForbidden: true}
+		target := queryQualifier{name: out.relation.name, original: out.relation.name, ref: out.ref, columns: columns, schema: auth.catalog.Get(out.relation.namespace).Name(), lateralForbidden: true}
 		binder.queryHidden = append(binder.queryHidden, target)
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources

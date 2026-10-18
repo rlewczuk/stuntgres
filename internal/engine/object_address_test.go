@@ -14,7 +14,7 @@ func TestObjectAddressAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	roles := e.roles.root.Read(authorization.PrincipalRef{})
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		identity, err := identifyAddress(view, roles, nil, address)
 		if err != nil || !identity.found || identity.identity == "" || identity.kind == "" {
 			t.Fatal("descriptor authority", address, descriptor.Name(), identity, err)
@@ -62,8 +62,8 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, CatalogRead, *relationDes
 	view.state = cloneCatalog(view.state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	d := &relationDescriptor{address: ids.ObjectAddress{1259, 48001, 0}, namespace: ids.ObjectAddress{2615, 2200, 0}, name: "address_unit", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, attributes: []int32{1, 3}, attributeHighWater: 3, droppedAttributes: map[int32]attributeMetadata{2: {name: "........pg.dropped.2........", number: 2, dropped: true}}}
-	view.state.descriptors[d.address] = d
-	view.state.names[descriptorNameKey(d)] = d.address
+	view.state.setDescriptor(d.address, d)
+	view.state.bindName(descriptorNameKey(d), d.address)
 	return e, view, d
 }
 func TestObjectAddressIdentity(t *testing.T) {
@@ -105,7 +105,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	typ := &typeDescriptor{typ: domain, namespace: d.namespace, domainChecks: []domainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
-	view.state.descriptors[typ.Address()] = typ
+	view.state.setDescriptor(typ.Address(), typ)
 	identity, err := identifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0})
 	if err != nil || !identity.found || identity.kind != "domain constraint" || !reflect.DeepEqual(identity.args, []string{"domain_ck"}) {
 		t.Fatal(identity, err)
@@ -192,7 +192,7 @@ func TestObjectAddressSnapshot(t *testing.T) {
 	fresh.state = cloneCatalog(old.state)
 	renamed := *d
 	renamed.name = "address_renamed"
-	fresh.state.descriptors[d.address] = &renamed
+	fresh.state.setDescriptor(d.address, &renamed)
 	before, err := identifyAddress(old, roles, nil, d.address)
 	if err != nil {
 		t.Fatal(err)

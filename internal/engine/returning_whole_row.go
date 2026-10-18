@@ -53,7 +53,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 		return nil, false, nil
 	}
 	view := b.bindingCatalog()
-	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 	if !ok || descriptor.owningRelation != relation.address || descriptor.typ.CompositeLen() != len(relation.columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}

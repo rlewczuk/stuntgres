@@ -29,11 +29,11 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 		t.Fatal("affected p/index/n remint and order", parent, next)
 	}
 	private := e.stageRead(stage)
-	backing := private.state.descriptors[rebuilt.Index].(*relationDescriptor)
+	backing := private.MustRelation(rebuilt.Index)
 	if backing.sqlIndex.constraint == nil || !backing.sqlIndex.constraint.Primary || backing.sqlIndex.constraint.OID != rebuilt.OID || backing.sqlIndex.constraint.Index != backing.address || backing.columns[0].Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(backing)
 	}
-	if _, exists := private.state.descriptors[index.address]; exists {
+	if _, exists := private.Find(index.address); exists {
 		t.Fatal("old backing retained in candidate")
 	}
 	if e.CatalogRead().state != base.state || !reflect.DeepEqual(parent.uniqueConstraints[0], old) || index.sqlIndex.constraint.OID != old.OID || parent.notNullConstraints[0].OID == next.notNullConstraints[0].OID || parent.columns[0].Usage.Type.ID() != sqltype.Int4 {
@@ -89,7 +89,7 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.uniqueConstraints)
 	}
 	c := clone.uniqueConstraints[0]
-	copied := e.catalog.state.descriptors[c.Index].(*relationDescriptor)
+	copied := e.catalog.state.MustRelation(c.Index)
 	if c.OID == parent.uniqueConstraints[0].OID || c.Index == source.address || copied.comment != "native descriptor comment" || copied.sqlIndex.keys[1].class != class || !copied.sqlIndex.keys[1].explicitClass || copied.sqlIndex.keys[0].attribute != 2 || copied.sqlIndex.keys[1].attribute != 3 || copied.sqlIndex.parent != clone.address || !copied.sqlIndex.constraint.Primary {
 		t.Fatal("LIKE lost real provider/comment/attachment", copied)
 	}

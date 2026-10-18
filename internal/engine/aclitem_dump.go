@@ -63,12 +63,12 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, catalog CatalogRead, 
 			}
 		})
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
-		if ns, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := catalog.Namespace(relation.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if relation.relationKind == catalogRelation {

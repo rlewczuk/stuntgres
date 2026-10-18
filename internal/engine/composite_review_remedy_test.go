@@ -55,8 +55,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer.columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
 		state := *before.state
 		state.descriptors = maps.Clone(state.descriptors)
-		state.descriptors[table.address] = &consumer
-		view := CatalogRead{owner: e, state: &state}
+		state.setDescriptor(table.address, &consumer)
+		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
 		stage.typedSource = table.ofType
@@ -146,7 +146,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		}
 	}
 	view := e.stageRead(stage)
-	current := view.state.descriptors[child.address].(*relationDescriptor)
+	current := view.MustRelation(child.address)
 	if len(current.checkConstraints) != 1 || current.checkConstraints[0].Name != "keep_check" || len(child.checkConstraints) != 2 {
 		t.Fatal("pruning authority lost")
 	}

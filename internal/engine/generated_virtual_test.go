@@ -165,7 +165,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := cloneCatalog(view.state)
 	next.epoch++
-	next.descriptors[d.address] = d
+	next.setDescriptor(d.address, d)
 	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.address: store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.address}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}

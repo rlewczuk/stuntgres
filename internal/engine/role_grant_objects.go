@@ -19,7 +19,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 	var address ids.ObjectAddress
 	if kind == "schema" {
 		if len(name.Parts) == 1 {
-			address = v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text}]
+			address = v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 			if name.Parts[0].Text == "pg_temp" {
 				address = temporaryNamespace(v)
 			}
@@ -42,7 +42,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 		if address == (ids.ObjectAddress{}) {
 			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
-		t := v.catalog.state.descriptors[address].(*typeDescriptor)
+		t := v.catalog.MustType(address)
 		if kind == "domain" && !t.typ.IsDomain() {
 			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}

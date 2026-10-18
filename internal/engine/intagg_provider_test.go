@@ -13,13 +13,13 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
-	return e, e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	return e, e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
 }
 
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.extensions["intagg"]
+	registration := e.catalog.extensions["intagg"]
 	if registration.version != "1.1" || registration.trusted || !registration.superuser || !registration.relocatable || registration.comment == nil || *registration.comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
@@ -31,7 +31,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	}
 	addresses := map[ids.ObjectAddress]bool{}
 	for i, address := range ext.members {
-		proc := view.state.descriptors[address].(*procedureDescriptor)
+		proc := view.MustProcedure(address)
 		member := intaggMembers[i]
 		if addresses[address] || proc.name != member.name || proc.signature != member.signature || proc.result != member.result || proc.strict != member.strict || proc.owner != ext.owner {
 			t.Fatal("member identity", proc)
@@ -54,8 +54,8 @@ func TestIntaggProviderManifest(t *testing.T) {
 			state := cloneCatalog(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
-			state.descriptors[address] = &bad
-			if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+			state.setDescriptor(address, &bad)
+			if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
 		}
@@ -93,10 +93,10 @@ func TestIntaggProviderManifest(t *testing.T) {
 			op, done := roleOperation(t, other, "postgres")
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
-			installed := other.catalog.state.descriptors[other.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}]].(*extensionDescriptor)
+			installed := other.catalog.state.MustExtension(other.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
 			var member *procedureDescriptor
 			for _, address := range installed.members {
-				if proc, ok := other.catalog.state.descriptors[address].(*procedureDescriptor); ok {
+				if proc, ok := other.catalog.state.Procedure(address); ok {
 					member = proc
 					break
 				}
@@ -107,8 +107,8 @@ func TestIntaggProviderManifest(t *testing.T) {
 			state := cloneCatalog(other.catalog.state)
 			bad := *member
 			bad.intagg = stockIntagg
-			state.descriptors[member.address] = &bad
-			if err := other.extensions[name].provider.validate(CatalogRead{owner: other, state: state}, installed); err == nil {
+			state.setDescriptor(member.address, &bad)
+			if err := other.catalog.extensions[name].provider.validate(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

@@ -60,7 +60,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{}); err == nil {
+		if _, err := e.ReplaceCatalog(context.Background(), nil, CatalogRead{}); err == nil {
 			t.Fatal("invalid replacement accepted")
 		}
 		lockState = e.locks.Inspect()

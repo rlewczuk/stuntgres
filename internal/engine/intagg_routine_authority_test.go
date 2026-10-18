@@ -28,7 +28,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 	// The real stored consumer supplies graft ancestry, not a fabricated recipe.
 	roleExecute(t, e, op, "CREATE VIEW intagg_authority_recipe AS SELECT int_array_enum('{1,NULL,2}'::integer[])")
 	recipeRef := roleTableRef(t, e, "intagg_authority_recipe")
-	recipe := e.CatalogRead().state.descriptors[recipeRef.Address].(*relationDescriptor)
+	recipe := e.CatalogRead().MustRelation(recipeRef.Address)
 	// Complete catalog setup before retaining statement-owner admission. Calling
 	// Engine.Execute with this operation while scope is held would reenter it.
 	scope, err := e.StartStatement(op)
@@ -104,8 +104,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if aggregate {
 				expectedName = "int_array_aggregate"
 			}
-			ext := evaluation.catalog.state.descriptors[captured.extension].(*extensionDescriptor)
-			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.state.descriptors[ref.Address] != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			ext := evaluation.catalog.MustExtension(captured.extension)
+			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -190,7 +190,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				auth.catalog.state = cloneCatalog(auth.catalog.state)
 				bad := *captured
 				mutate(&bad)
-				auth.catalog.state.descriptors[ref.Address] = &bad
+				auth.catalog.state.setDescriptor(ref.Address, &bad)
 				if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
@@ -265,16 +265,16 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					state := cloneCatalog(evaluation.catalog.state)
 					for a := range mapping {
-						delete(state.names, descriptorNameKey(state.descriptors[a]))
-						delete(state.descriptors, a)
+						state.unbindName(descriptorNameKey(state.Get(a)))
+						state.removeDescriptor(a)
 					}
 					for a, dest := range mapping {
-						d := remapExtensionDescriptor(evaluation.catalog.state.descriptors[a], mapping)
-						state.descriptors[dest] = d
-						state.names[descriptorNameKey(d)] = dest
+						d := remapExtensionDescriptor(evaluation.catalog.Get(a), mapping)
+						state.setDescriptor(dest, d)
+						state.bindName(descriptorNameKey(d), dest)
 					}
 					state.epoch++
-					view := CatalogRead{owner: e, state: state}
+					view := e.catalog.read(state)
 					remap := func(r ids.ObjectRef) ids.ObjectRef {
 						r.Epoch = state.epoch
 						if a, ok := mapping[r.Address]; ok {
@@ -291,7 +291,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("remapped selected-ref retag", err)
 					}
 					current, err := expressionRoutineDescriptor(relocated)
-					if err != nil || current != state.descriptors[mapping[ref.Address]] {
+					if err != nil || current != state.Get(mapping[ref.Address]) {
 						t.Fatal("retag resolved stale captured address", err)
 					}
 					// Use the existing private catalog-authority constructor: the paired
@@ -353,16 +353,16 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	source := roleAttributeCreate(t, e, op, "intagg_owner_source", false, parser.RoleOptions{})
 	target := roleAttributeCreate(t, e, op, "intagg_owner_target", false, parser.RoleOptions{})
 	original := e.CatalogRead()
-	member := original.state.descriptors[ext.members[0]].(*procedureDescriptor)
-	sibling := original.state.descriptors[ext.members[1]]
+	member := original.MustProcedure(ext.members[0])
+	sibling := original.Get(ext.members[1])
 	stage := e.BeginCatalogStage(original)
 	defer e.DiscardCatalogStage(stage)
 	if err := stageOwnership(stage, member, source.Ref); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	transferred := e.catalog.state.descriptors[member.address].(*procedureDescriptor)
-	if transferred.owner != source.Ref || transferred == member || e.catalog.state.descriptors[ext.address] != ext || e.catalog.state.descriptors[ext.members[1]] != sibling {
+	transferred := e.catalog.state.MustProcedure(member.address)
+	if transferred.owner != source.Ref || transferred == member || e.catalog.state.Get(ext.address) != ext || e.catalog.state.Get(ext.members[1]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
 	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {
@@ -395,7 +395,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := imported.importExtensionOwners(context.Background(), importOp, []extensionOwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
-	installed := imported.catalog.state.descriptors[imported.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	installed := imported.catalog.state.MustExtension(imported.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
 	if err := stockIntagg.validate(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}
@@ -408,11 +408,11 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
 		state := cloneCatalog(e.catalog.state)
 		for _, a := range ext.members {
-			bad := *state.descriptors[a].(*procedureDescriptor)
+			bad := *state.MustProcedure(a)
 			bad.owner = owner
-			state.descriptors[a] = &bad
+			state.setDescriptor(a, &bad)
 		}
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
@@ -422,8 +422,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal("member reassignment", result, err)
 	}
-	reassigned := e.catalog.state.descriptors[member.address].(*procedureDescriptor)
-	if reassigned.owner != target.Ref || transferred.owner != source.Ref || member.owner != ext.owner || e.catalog.state.descriptors[ext.members[1]] != sibling || original.state.descriptors[member.address] != member {
+	reassigned := e.catalog.state.MustProcedure(member.address)
+	if reassigned.owner != target.Ref || transferred.owner != source.Ref || member.owner != ext.owner || e.catalog.state.Get(ext.members[1]) != sibling || original.Get(member.address) != member {
 		t.Fatal("ownership generations mutated")
 	}
 	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {

@@ -51,7 +51,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	e := New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
-	old = e.catalog.state.descriptors[old.address].(*relationDescriptor)
+	old = e.catalog.state.MustRelation(old.address)
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	storage := e.storage[old.address]
@@ -74,11 +74,11 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	}
 	changed := *current
 	changed.name = "renamed"
-	e.catalog.state.descriptors[current.address] = &changed
+	e.catalog.state.setDescriptor(current.address, &changed)
 	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) {
 		t.Fatal("source definition retargeted")
 	}
-	e.catalog.state.descriptors[current.address] = current
+	e.catalog.state.setDescriptor(current.address, current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()

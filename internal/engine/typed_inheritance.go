@@ -21,7 +21,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 			visit(child)
 		}
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.ofType == source {
 			visit(table)
 		}
@@ -34,7 +34,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	for _, descriptor := range result {
 		rowTypes = append(rowTypes, descriptor.(*relationDescriptor).rowType)
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || !table.relationKind.stored() || result[table.address] != nil {
 			continue
@@ -87,7 +87,7 @@ func typedPropagationOrder(catalog CatalogRead, source ids.ObjectAddress) []*rel
 			selectTable(child)
 		}
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.ofType == source {
 			selectTable(table)
 		}
@@ -171,7 +171,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 		forceType := false
 		requestedDimensions := int16(0)
 		for _, origin := range provenance.origins {
-			parent := view.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := view.MustRelation(origin.parent)
 			slot := parent.indexForAttribute(origin.attribute)
 			if slot < 0 {
 				continue
@@ -212,7 +212,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 	// while old attributes retain their explicit origin identity across rename.
 	pending := make(map[string]int)
 	for _, address := range graph.parents {
-		parent := view.state.descriptors[address].(*relationDescriptor)
+		parent := view.MustRelation(address)
 		for i, member := range parent.columns {
 			origin := inheritanceOrigin{parent: address, attribute: parent.attributes[i]}
 			found := false
@@ -257,7 +257,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		provenance, exists := graph.columns[attribute]
 		if !exists {
 			for _, address := range graph.parents {
-				parent := view.state.descriptors[address].(*relationDescriptor)
+				parent := view.MustRelation(address)
 				if slot, found := parent.index[next.columns[i].Name]; found {
 					provenance.origins = append(provenance.origins, inheritanceOrigin{parent: address, attribute: parent.attributes[slot]})
 				}
@@ -266,7 +266,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		if _, retained := next.defaults[attribute]; retained && !provenance.explicitDefault {
 			supplied := false
 			for _, origin := range provenance.origins {
-				parent := view.state.descriptors[origin.parent].(*relationDescriptor)
+				parent := view.MustRelation(origin.parent)
 				_, supplied = parent.defaults[origin.attribute]
 				if supplied {
 					break
@@ -285,7 +285,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		}
 		var origins []inheritanceOrigin
 		for _, origin := range provenance.origins {
-			parent := view.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := view.MustRelation(origin.parent)
 			for _, constraint := range parent.checkConstraints {
 				if constraint.Name == name && !constraint.NoInherit {
 					origin.constraint = constraint.OID
@@ -310,7 +310,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		}
 		var origins []inheritanceOrigin
 		for _, origin := range provenance.origins {
-			parent := view.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := view.MustRelation(origin.parent)
 			for _, constraint := range parent.notNullConstraints {
 				if constraint.Attribute == origin.attribute {
 					origin.constraint = constraint.OID

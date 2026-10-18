@@ -31,7 +31,7 @@ func (p inheritedConstraint) count() int { return len(p.origins) + len(p.retired
 
 func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.retired {
-		parent, ok := view.state.descriptors[history.parent.Address].(*relationDescriptor)
+		parent, ok := view.Relation(history.parent.Address)
 		if !ok || parent.relationKind != tableRelation || !storedReferenceEpochValid(view, table, history.parent) || history.parent.Address.SubID != 0 || history.attribute <= 0 || history.attribute > 1600 || history.column == "" || history.name == "" || history.constraint == 0 || history.lifetime == 0 || history.own != own || history.check != check || !slices.Contains(table.inheritance.parents, parent.address) {
 			return fmt.Errorf("stuntgres: invalid retired inheritance origin")
 		}
@@ -71,7 +71,7 @@ func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relati
 			if event.action.Action != parser.DropColumn {
 				continue
 			}
-			parentRef := view.owner.catalog.domain.Ref(view.Epoch(), parent)
+			parentRef := view.owner.domain.Ref(view.Epoch(), parent)
 			for _, source := range event.retiredNotNull {
 				for _, own := range child.notNullConstraints {
 					if own.Attribute != attribute {
@@ -114,7 +114,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 	// Runtime certificates share the source catalog's namespace. On replacement,
 	// archive that namespace once above every already imported namespace.
 	var runtimeArchive uint64
-	for _, descriptor := range next.descriptors {
+	for _, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
 			continue
@@ -134,12 +134,12 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		return fmt.Errorf("stuntgres: retired inheritance namespace exhausted")
 	}
 	runtimeArchive++
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
 			continue
 		}
-		namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor)
+		namespace, ok := next.Namespace(table.namespace)
 		if !ok || namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
@@ -219,7 +219,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		}
 		copy := *table
 		copy.inheritance = graph
-		next.descriptors[address] = &copy
+		next.setDescriptor(address, &copy)
 	}
 	return nil
 }

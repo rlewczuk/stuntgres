@@ -51,7 +51,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	base := e.CatalogRead()
-	table := base.state.descriptors[base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_t"}]].(*relationDescriptor)
+	table := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_t"}))
 	// Explicit stable-sub-ID and associated-type ACL payloads are not public
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
@@ -62,8 +62,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}].(*typeDescriptor).array} {
-		d := base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+	for _, id := range []sqltype.ID{table.rowType, base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}).array} {
+		d := base.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		next := *d
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
 		next.aclSyntheticDefault = false
@@ -74,7 +74,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, setup)
 	base = e.CatalogRead()
-	oldTable := base.state.descriptors[table.address].(*relationDescriptor)
+	oldTable := base.MustRelation(table.address)
 	store := e.storage[table.address]
 	rows := store.versions
 	generators := make(map[ids.ObjectAddress]*sequenceGenerator)
@@ -87,7 +87,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if name == "ownership_t" {
 			class = ids.RelationClassID
 		}
-		d := base.state.descriptors[base.state.names[ids.NameKey{ClassID: class, Namespace: table.namespace, Name: name}]]
+		d := base.Get(base.NameAddress(ids.NameKey{ClassID: class, Namespace: table.namespace, Name: name}))
 		if d == nil {
 			t.Fatal("missing root", name)
 		}
@@ -97,19 +97,19 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, stage)
 	current := e.CatalogRead()
-	compositeAddress := base.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: table.namespace, Name: "ownership_c"}]
-	composite := base.state.descriptors[compositeAddress].(*typeDescriptor)
+	compositeAddress := base.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: table.namespace, Name: "ownership_c"})
+	composite := base.MustType(compositeAddress)
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.array)}
-	array := base.state.descriptors[arrayAddress].(*typeDescriptor)
-	backing := base.state.descriptors[composite.owningRelation].(*relationDescriptor)
-	movedComposite := current.state.descriptors[compositeAddress].(*typeDescriptor)
-	movedArray := current.state.descriptors[arrayAddress].(*typeDescriptor)
-	movedBacking := current.state.descriptors[composite.owningRelation].(*relationDescriptor)
+	array := base.MustType(arrayAddress)
+	backing := base.MustRelation(composite.owningRelation)
+	movedComposite := current.MustType(compositeAddress)
+	movedArray := current.MustType(arrayAddress)
+	movedBacking := current.MustRelation(composite.owningRelation)
 	if !array.typ.IsArray() || backing.rowType != composite.typ.ID() || backing.rowType == array.typ.ID() || movedComposite.owner != target || movedArray.owner != target || movedBacking.owner != target || movedBacking.rowType != backing.rowType || movedComposite.array != composite.array || movedComposite.owningRelation != composite.owningRelation || movedArray.owningRelation != array.owningRelation || composite.owner != owner || array.owner != owner || backing.owner != owner || movedComposite.typ != composite.typ || movedArray.typ != array.typ {
 		t.Fatal("composite root/array/backing reciprocity or retained codec mutated")
 	}
-	for a, old := range base.state.descriptors {
-		next := current.state.descriptors[a]
+	for a, old := range base.Descriptors() {
+		next := current.Get(a)
 		if next == old {
 			continue
 		}
@@ -123,7 +123,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 			}
 		}
 	}
-	moved := current.state.descriptors[table.address].(*relationDescriptor)
+	moved := current.MustRelation(table.address)
 	if moved.owner != target || moved.attributes[1] != oldTable.attributes[1] || moved.acl.Entries[0].Grantor != target || moved.columnACL[moved.attributes[1]].Entries[0].Grantor != target {
 		t.Fatal("table/column ACL or stable attribute", moved)
 	}
@@ -139,7 +139,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	e, _, _, target, _ := ownershipUnitRoles()
 	base := e.CatalogRead()
-	for _, d := range base.state.descriptors {
+	for _, d := range base.Descriptors() {
 		switch d.Kind() {
 		case ids.DatabaseObject:
 			if !ownershipRoot(base, d) {
@@ -167,7 +167,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := stageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if len(stage.descriptors) != 0 || e.catalog.state.descriptors[ns.address] != ns {
+	if len(stage.descriptors) != 0 || e.catalog.state.Get(ns.address) != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

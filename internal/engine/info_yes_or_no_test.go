@@ -13,7 +13,7 @@ import (
 func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDescriptor {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
-	d, ok := view.state.descriptors[address].(*typeDescriptor)
+	d, ok := view.Type(address)
 	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
@@ -96,7 +96,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 	infoYesOrNoUnitEvaluate(t, before, original)
 	originalRecipe := original.domainChecks[0]
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), before); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
@@ -109,7 +109,7 @@ func TestInfoYesOrNoBuiltinCatalog(t *testing.T) {
 		if mapped == original {
 			t.Fatal("replacement retained source catalog wrapper")
 		}
-		if _, err := target.ReplaceCatalog(context.Background(), view); err != nil {
+		if _, err := target.ReplaceCatalog(context.Background(), target, view); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -126,9 +126,9 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	original := infoYesOrNoUnitCatalog(t, source, originalView)
 	next := cloneCatalog(originalView.state)
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
-	base := *next.descriptors[baseAddress].(*typeDescriptor)
+	base := *next.MustType(baseAddress)
 	base.typ, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
-	next.descriptors[baseAddress] = &base
+	next.setDescriptor(baseAddress, &base)
 	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
@@ -136,7 +136,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	if err := source.reownCatalogExpressions(next, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	view := CatalogRead{owner: source, state: next}
+	view := source.catalog.read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
 	if mapped == original || mapped.typ == original.typ || mapped.typ.DomainBase().Type != base.typ || mapped.typ.DomainBase().Type == original.typ.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")

@@ -57,7 +57,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "affected")
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
 	oldCatalog := e.catalog.state
-	oldRelation := oldCatalog.descriptors[ref.Address].(*relationDescriptor)
+	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.typ.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
 	e.storage[ref.Address] = oldStore
@@ -139,7 +139,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	if id != 80 {
 		t.Fatal("nested import member", id)
 	}
-	view := CatalogRead{owner: New(), state: &catalogState{scalarImports: imports}}
+	view := New().catalog.read(&catalogState{scalarImports: imports})
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: source.Usage()}, value: v}
 	rebound, changed, err := retagBoundTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {

@@ -27,7 +27,7 @@ func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.catalog.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.resolveReference(catalogAuthorization(e, e.catalog.read(e.catalog.state)), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,12 +147,12 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	if err := source.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	targetRef := roleTableRef(t, target, "secret")
 	target.mu.Lock()
-	d := target.catalog.state.descriptors[targetRef.Address].(*relationDescriptor)
+	d := target.catalog.state.MustRelation(targetRef.Address)
 	target.mu.Unlock()
 	for _, ref := range descriptorReferences(d) {
 		if target.Roles().ValidatePrincipal(ref) != nil {
@@ -169,7 +169,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	roleError(t, target, b, "DROP ROLE reader", "2BP01", `role "reader" cannot be dropped because some objects depend on it`, "privileges for table secret")
 	unknown := New()
 	before := unknown.catalog.state
-	if _, err := unknown.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
+	if _, err := unknown.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("unknown owner import")
 	}
 	if unknown.catalog.state != before {
@@ -444,7 +444,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	original := e.catalog.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
+	original := e.catalog.state.MustNamespace(namespace.Address).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege},
@@ -469,7 +469,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.catalog.state.descriptors[ref.Address].(*relationDescriptor).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.MustRelation(ref.Address).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -496,10 +496,10 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
 	owner, _ := e.Roles().Lookup("namespace_owner")
 	replacement := cloneCatalog(e.catalog.state)
-	ns := *replacement.descriptors[namespace.Address].(*namespaceDescriptor)
+	ns := *replacement.MustNamespace(namespace.Address)
 	ns.owner = owner.Ref
-	replacement.descriptors[namespace.Address] = &ns
-	if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{e, replacement}); err != nil {
+	replacement.setDescriptor(namespace.Address, &ns)
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {

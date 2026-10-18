@@ -21,9 +21,9 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	view := e.CatalogRead()
 	eventRef := catalogRef(t, e, view, "event_v")
 	baseRef := catalogRef(t, e, view, "base")
-	event := view.state.descriptors[eventRef.Address].(*relationDescriptor)
+	event := view.MustRelation(eventRef.Address)
 	var provider ids.ObjectAddress
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		if address.ClassID == ids.TypeClassID && descriptor.Name() == "rule_domain" {
 			provider = address
 			break
@@ -82,7 +82,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	if err := stageRuleDependents(stage, []ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
-	current := e.stageRead(stage).state.descriptors[event.address].(*relationDescriptor)
+	current := e.stageRead(stage).MustRelation(event.address)
 	if current.view != event.view || len(current.rules) != 1 || current.rules[0].Name != "keep_r" {
 		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
 	}

@@ -68,7 +68,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(ref.Address)
 	index, root := btreeRoot(t, e, "public.ui_index")
 	if index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 || index.sqlIndex.predicate == nil {
 		t.Fatal("not real standalone partial")
@@ -320,7 +320,7 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			predicate := *definition.predicate
 			definition.predicate = &predicate
 			index.sqlIndex = &definition
-			next.descriptors[index.address] = &index
+			next.setDescriptor(index.address, &index)
 			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)

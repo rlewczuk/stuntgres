@@ -30,7 +30,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 			t.Run(map[bool]string{false: "set", true: "drop"}[drop]+"-"+map[bool]string{false: "commit", true: "cancel"}[veto], func(t *testing.T) {
 				e, admin, _, ref := generatedAuthorizationFixture(t)
 				alterGenerationPopulate(t, e, admin)
-				old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				old := e.catalog.state.MustRelation(ref.Address)
 				store := e.storage[ref.Address]
 				catalog := e.catalog.state
 				ends, generation := store.ends, store.generation
@@ -78,7 +78,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.descriptors[ref.Address] != candidate || scope.owner.catalog != nil || catalog.descriptors[ref.Address] != old || old.generations[2].kind != generationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || catalog.Get(ref.Address) != old || old.generations[2].kind != generationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.versions {
@@ -104,7 +104,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 					t.Fatal("Finish cancellation veto", err)
 				}
-				if e.catalog.state != catalog || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != store || store.ends != ends || store.generation != generation || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
+				if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.ends != ends || store.generation != generation || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
 					t.Fatal("Finish veto changed installed roots/counters/owner")
 				}
 				lockEmpty(t, e)
@@ -118,7 +118,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e, admin, actor, ref := generatedAuthorizationFixture(t)
 			alterGenerationPopulate(t, e, admin)
-			old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			old := e.catalog.state.MustRelation(ref.Address)
 			store := e.storage[ref.Address]
 			retained := e.CatalogRead()
 			rowID, versionID, frontier := e.nextRow, e.nextVersion, e.commitSeq
@@ -141,7 +141,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				} else {
 					e.mu.Unlock()
 				}
-				if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != store {
+				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store {
 					t.Error("candidate leaked before provider validation")
 				}
 				switch kind {
@@ -205,7 +205,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				if e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.nextRow != rowID || e.nextVersion != versionID {
 					t.Fatal("provider veto changed storage/counters", err)
 				}
-				current := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				current := e.catalog.state.MustRelation(ref.Address)
 				if !reflect.DeepEqual(current.generations, old.generations) || current.generations[2].OID != old.generations[2].OID {
 					t.Fatal("failed generation replaced old recipe")
 				}
@@ -213,7 +213,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					t.Fatal("canceled generation advanced commit frontier")
 				}
 			}
-			if retained.state.descriptors[ref.Address] != old || len(old.generations) != 1 || len(store.versions) != 2 {
+			if retained.Get(ref.Address) != old || len(old.generations) != 1 || len(store.versions) != 2 {
 				t.Fatal("retained snapshot changed")
 			}
 			lockEmpty(t, e)
@@ -224,12 +224,12 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 func TestAlterGeneratedExpressionDeniedEvaluation(t *testing.T) {
 	e, admin, actor, ref := generatedAuthorizationFixture(t)
 	generatedAuthorizationGrant(t, e, admin, actor, ref, 0, authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege|authorization.ReferencesPrivilege|authorization.TriggerPrivilege)
-	before := e.catalog.state.descriptors[ref.Address]
+	before := e.catalog.state.Get(ref.Address)
 	// Cooking this constant division would fail22012 if denied admission evaluated it.
 	expr := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "/"}}}, Args: []parser.Expr{alterGenerationLiteral(1), alterGenerationLiteral(0)}}
 	_, err := e.Execute(actor, alterGenerationStatement(alterGenerationAction(expr)), 0, nil)
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "must be owner of table g" || e.catalog.state.descriptors[ref.Address] != before {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "must be owner of table g" || e.catalog.state.Get(ref.Address) != before {
 		t.Fatal("denied generation cooked/published", err)
 	}
 	lockEmpty(t, e)
@@ -237,7 +237,7 @@ func TestAlterGeneratedExpressionDeniedEvaluation(t *testing.T) {
 
 func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	e, admin, _, ref := generatedAuthorizationFixture(t)
-	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(ref.Address)
 	limit := *old
 	limit.revision = ids.DefinitionRevision(^uint64(0))
 	stage := e.BeginCatalogStage(e.CatalogRead())

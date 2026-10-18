@@ -28,18 +28,18 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	if d.relationKind != tableRelation || len(graph.parents) == 0 || len(graph.columns) != len(d.columns) {
 		return invalid()
 	}
-	childNS, ok := v.state.descriptors[d.namespace].(*namespaceDescriptor)
+	childNS, ok := v.Namespace(d.namespace)
 	if !ok {
 		return invalid()
 	}
 	seen := make(map[ids.ObjectAddress]bool, len(graph.parents))
 	for _, address := range graph.parents {
-		parent, ok := v.state.descriptors[address].(*relationDescriptor)
+		parent, ok := v.Relation(address)
 		if !ok || parent.address != address || parent.relationKind != tableRelation || address.SubID != 0 || seen[address] || address == d.address {
 			return invalid()
 		}
 		seen[address] = true
-		parentNS, ok := v.state.descriptors[parent.namespace].(*namespaceDescriptor)
+		parentNS, ok := v.Namespace(parent.namespace)
 		if !ok || parentNS.temporary != (ids.SessionToken{}) && parentNS.temporary != childNS.temporary {
 			return invalid()
 		}
@@ -55,21 +55,21 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				return invalid()
 			}
 			origins[origin.parent] = true
-			parent := v.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := v.MustRelation(origin.parent)
 			sourceSlot := slices.Index(parent.attributes, origin.attribute)
 			if sourceSlot < 0 || parent.columns[sourceSlot].Name != d.columns[slot].Name || inheritanceColumnConflict(v, parent.columns[sourceSlot], d.columns[slot], false) != nil {
 				return invalid()
 			}
 		}
 		for _, parentAddress := range graph.parents {
-			parent := v.state.descriptors[parentAddress].(*relationDescriptor)
+			parent := v.MustRelation(parentAddress)
 			if _, ok := parent.index[d.columns[slot].Name]; ok && !origins[parentAddress] {
 				return invalid()
 			}
 		}
 	}
 	for _, parentAddress := range graph.parents {
-		parent := v.state.descriptors[parentAddress].(*relationDescriptor)
+		parent := v.MustRelation(parentAddress)
 		mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
 		for i, column := range parent.columns {
 			target, exists := d.index[column.Name]
@@ -126,7 +126,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				return invalid()
 			}
 			origins[origin.parent] = true
-			parent := v.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := v.MustRelation(origin.parent)
 			found := slices.ContainsFunc(parent.notNullConstraints, func(c notNullConstraint) bool {
 				return c.OID == origin.constraint && c.Attribute == origin.attribute && c.OID != d.notNullConstraints[child].OID
 			})
@@ -154,7 +154,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 				return invalid()
 			}
 			origins[origin.parent] = true
-			parent := v.state.descriptors[origin.parent].(*relationDescriptor)
+			parent := v.MustRelation(origin.parent)
 			source := slices.IndexFunc(parent.checkConstraints, func(c checkConstraint) bool {
 				return c.OID == origin.constraint && c.Name == name && !c.NoInherit && c.OID != d.checkConstraints[child].OID
 			})
@@ -195,7 +195,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 		visiting[current.address] = true
 		if current.inheritance != nil {
 			for _, address := range current.inheritance.parents {
-				parent, ok := v.state.descriptors[address].(*relationDescriptor)
+				parent, ok := v.Relation(address)
 				if !ok || !visit(parent) {
 					return false
 				}

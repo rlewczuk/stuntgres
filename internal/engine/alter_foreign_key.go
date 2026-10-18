@@ -55,7 +55,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		}
 		return err
 	}
-	child := auth.catalog.state.descriptors[childRef.Address].(*relationDescriptor)
+	child := auth.catalog.MustRelation(childRef.Address)
 	if err = auth.Check(AccessRequirement{Object: childRef, OwnerOnly: true}); err == nil {
 		err = tableKind(child, "ADD CONSTRAINT")
 	}
@@ -82,7 +82,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		captures[i].target = ref
 		captures[i].storage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if ref != childRef {
-			parent, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			parent, ok := auth.catalog.Relation(ref.Address)
 			if ok && parent.relationKind == tableRelation {
 				var attributes []int32
 				if len(action.ForeignKey.Referenced) == 0 {
@@ -153,7 +153,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			return err
 		}
 		if captures[i].index != (ids.ObjectAddress{}) {
-			if _, ok := auth.catalog.state.descriptors[captures[i].index].(*relationDescriptor); !ok {
+			if _, ok := auth.catalog.Relation(captures[i].index); !ok {
 				return ErrCatalogReplaced
 			}
 		}
@@ -180,11 +180,11 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 		if f.NotValid || !slices.Contains(added, f.OID) {
 			continue
 		}
-		parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
+		parent, ok := view.Relation(f.Target)
 		if !ok {
 			return ErrCatalogReplaced
 		}
-		index, ok := view.state.descriptors[f.Index].(*relationDescriptor)
+		index, ok := view.Relation(f.Index)
 		if !ok {
 			return ErrCatalogReplaced
 		}
@@ -208,7 +208,7 @@ func (s *StatementScope) validateAddedForeignKeys(view CatalogRead, child *relat
 }
 
 func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f foreignKeyConstraint) bool {
-	parent, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+	parent, ok := stage.base.Relation(address)
 	if !ok {
 		return false
 	}

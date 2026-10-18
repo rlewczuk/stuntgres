@@ -115,7 +115,7 @@ func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *relationD
 		}
 	}
 	view := e.CatalogRead()
-	return e, view.state.descriptors[p.address].(*relationDescriptor), view.state.descriptors[c.address].(*relationDescriptor)
+	return e, view.MustRelation(p.address), view.MustRelation(c.address)
 }
 
 func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescriptor, name string, value int64, owner authorization.PrincipalRef) *relationDescriptor {
@@ -150,7 +150,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *relationDescripto
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	return e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)
+	return e.CatalogRead().MustRelation(child.address)
 }
 
 func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *StatementScope, child *relationDescriptor) (<-chan error, func()) {
@@ -239,7 +239,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				e, _, child := inheritanceMetadataFixture(t, "postgres")
 				if sticky {
 					inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.owner)
-					child = e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)
+					child = e.CatalogRead().MustRelation(child.address)
 				}
 				if child.hasSubclasses != sticky {
 					t.Fatal("fixture has wrong authentic sticky subclass state")
@@ -250,11 +250,11 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				before := e.CatalogRead()
 				late := inheritanceMetadataChild(t, e, child, "late_grandchild", 40, child.owner)
 				grown := e.CatalogRead()
-				currentChild := grown.state.descriptors[child.address].(*relationDescriptor)
+				currentChild := grown.MustRelation(child.address)
 				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.subclassPredecessor != child || currentChild.revision != currentChild.subclassPublication)) || sticky && currentChild != child {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
-				originals := inheritanceAlterOrder(grown, grown.state.descriptors[command.scope.lockedRef.Address].(*relationDescriptor))
+				originals := inheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
 				stores := maps.Clone(e.storage)
 				rows := inheritanceAlterRowRoots(e)
 				for _, old := range originals {
@@ -278,7 +278,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				// the provider; Finish releases statement resources. Observe that
 				// incumbent consumer boundary, not the shape-controller's staging.
 				completed := e.CatalogRead()
-				if completed.Epoch() != grown.Epoch() || completed.state.descriptors[late.address] == nil {
+				if completed.Epoch() != grown.Epoch() || completed.Get(late.address) == nil {
 					t.Fatal("completed utility lost the actual reconciled descendant/lifetime")
 				}
 				if !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
@@ -289,7 +289,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					if !command.scope.holdsColumnDropGrant(ref) {
 						t.Fatal("actual reconciled target lacks AX admission", old.name)
 					}
-					current, _ := completed.state.descriptors[old.address].(*relationDescriptor)
+					current, _ := completed.Relation(old.address)
 					inheritanceMetadataAssert(t, e, action.name, old, current)
 					if e.storage[old.address] != stores[old.address] {
 						t.Fatal("completed metadata utility replaced physical storage", old.name)
@@ -300,7 +300,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				}
 				published := e.CatalogRead()
 				for _, old := range originals {
-					inheritanceMetadataAssert(t, e, action.name, old, published.state.descriptors[old.address].(*relationDescriptor))
+					inheritanceMetadataAssert(t, e, action.name, old, published.MustRelation(old.address))
 					if e.storage[old.address] != stores[old.address] {
 						t.Fatal("metadata-only publication replaced physical storage", old.name)
 					}
@@ -323,7 +323,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					e, _, child := inheritanceMetadataFixture(t, "metadata_owner")
 					if sticky {
 						inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.owner)
-						child = e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)
+						child = e.CatalogRead().MustRelation(child.address)
 					}
 					holder := inheritanceAlterAXHolder(t, e, child)
 					command := inheritanceMetadataScope(t, e, "metadata_owner", action.sql)
@@ -334,7 +334,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					}
 					inheritanceMetadataChild(t, e, child, "late_grandchild", 40, owner)
 					if fence == "subsequent_replacement" {
-						current := e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)
+						current := e.CatalogRead().MustRelation(child.address)
 						next := *current
 						next.revision++
 						next.comment = "genuine subsequent descriptor publication"
@@ -343,7 +343,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 							t.Fatal(err)
 						}
 						queryCreatePublish(t, e, stage)
-						if inheritanceMarkerPublication(child, e.CatalogRead().state.descriptors[child.address].(*relationDescriptor)) {
+						if inheritanceMarkerPublication(child, e.CatalogRead().MustRelation(child.address)) {
 							t.Fatal("actual later mutation accidentally has first-marker authority")
 						}
 					}

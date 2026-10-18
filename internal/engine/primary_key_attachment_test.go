@@ -27,7 +27,8 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			definition := *index.sqlIndex
 			constraint := *definition.constraint
 			definition.constraint, backing.sqlIndex = &constraint, &definition
-			state.descriptors[next.address], state.descriptors[backing.address] = &next, &backing
+			state.setDescriptor(next.address, &next)
+			state.setDescriptor(backing.address, &backing)
 			switch mode {
 			case "nullable":
 				next.columns[0].Nullable = true
@@ -50,7 +51,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				otherDefinition := definition
 				otherDefinition.constraint = uniqueBacking(&second)
 				other.sqlIndex = &otherDefinition
-				state.descriptors[other.address] = &other
+				state.setDescriptor(other.address, &other)
 				next.uniqueConstraints = append(next.uniqueConstraints, second)
 			}
 			err := validateUniques(view, &next, map[string]bool{})

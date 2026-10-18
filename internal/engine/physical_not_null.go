@@ -120,7 +120,7 @@ func physicalPrimarySupportValid(view CatalogRead, table *relationDescriptor, pr
 	if support == nil || primary == nil || !primary.Primary || support.constraint != primary.OID || support.index != primary.Index || len(support.keys) != len(primary.Attributes) {
 		return false
 	}
-	index, ok := view.state.descriptors[primary.Index].(*relationDescriptor)
+	index, ok := view.Relation(primary.Index)
 	if !ok || index.relationKind != indexRelation || index.namespace != table.namespace || index.owner != table.owner || index.sqlIndex == nil || index.sqlIndex.parent != table.address || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.kind != uniqueBackingKind || index.sqlIndex.constraint.OID != primary.OID || index.sqlIndex.constraint.Index != primary.Index || index.sqlIndex.constraint.Name != primary.Name || !index.sqlIndex.constraint.Primary || len(index.sqlIndex.keys) != len(support.keys) || len(index.columns) < len(support.keys) {
 		return false
 	}

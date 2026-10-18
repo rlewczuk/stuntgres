@@ -19,7 +19,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	}
 	e.mu.Lock()
 	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
-	stage := e.BeginCatalogStage(CatalogRead{e, e.catalog.state})
+	stage := e.BeginCatalogStage(e.catalog.read(e.catalog.state))
 	if err == nil {
 		err = stage.Create(d)
 	}
@@ -32,7 +32,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 
 func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
 	types := make(map[ids.ObjectAddress]Descriptor)
-	for address, descriptor := range e.CatalogRead().state.descriptors {
+	for address, descriptor := range e.CatalogRead().Descriptors() {
 		if address.ClassID == ids.TypeClassID {
 			types[address] = descriptor
 		}
@@ -212,7 +212,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				peer, _ := queryCreateStage(t, e, "copy", 1)
 				queryCreatePublish(t, e, peer)
 			case "epoch":
-				if _, err = e.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+				if _, err = replaceWithFreshCatalog(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			case "authorization", "role_revision":
@@ -238,7 +238,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					stage.roleRevision++
 				}
 			case "source_definition":
-				original := e.CatalogRead().state.descriptors[d.namespace]
+				original := e.CatalogRead().Get(d.namespace)
 				stage.querySources = []Descriptor{original}
 				next := *original.(*namespaceDescriptor)
 				next.revision++

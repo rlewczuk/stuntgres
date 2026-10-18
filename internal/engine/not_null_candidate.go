@@ -47,7 +47,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				if c.Parent != 0 {
 					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.name))
 				}
-				index, exists := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				index, exists := catalog.Relation(c.Index)
 				if !exists {
 					return nil, ErrCatalogReplaced
 				}

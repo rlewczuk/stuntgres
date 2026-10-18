@@ -16,7 +16,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, _ := catalog.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+	d, _ := catalog.Relation(s.lockedRef.Address)
 	hasView := d != nil && (d.relationKind == viewRelation || s.materializedRefresh && d.relationKind == materializedViewRelation)
 	for _, leaf := range s.querySources {
 		if leaf.relation.relationKind == viewRelation {
@@ -39,7 +39,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			return nil
 		}
 		seen[ref] = strongerQueryRowMode(prior, mode)
-		d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := catalog.Relation(ref.Address)
 		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !ok {
 			return ErrCatalogReplaced
 		}
@@ -106,7 +106,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			if ref == s.lockedRef {
 				continue
 			}
-			relation := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			relation := catalog.MustRelation(ref.Address)
 			if relation.relationKind.stored() {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
@@ -165,7 +165,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, ref := range refs {
 		e.mu.Lock()
-		d, _ := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+		d, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 		unsupported := d != nil && hierarchyRelation(d) && modes[ref] != 0
 		e.mu.Unlock()
 		if unsupported {
@@ -198,7 +198,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 			s.replacementRead = true
 		}
 		e.mu.Lock()
-		current, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address]
+		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
 		valid := ref.Domain() == e.catalog.domain && ref.Epoch == e.catalog.state.epoch && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
 			s.preparedChangedDuringAdmission = true

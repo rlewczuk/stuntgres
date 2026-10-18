@@ -11,23 +11,23 @@ import (
 func typedControlsTemporary(e *Engine, tables ...*relationDescriptor) {
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	namespace := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}, name: "pg_temp_typed_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.catalog.domain.Session(99)}
-	e.catalog.state.descriptors[namespace.address] = namespace
-	e.catalog.state.names[descriptorNameKey(namespace)] = namespace.address
+	e.catalog.state.setDescriptor(namespace.address, namespace)
+	e.catalog.state.bindName(descriptorNameKey(namespace), namespace.address)
 	for _, old := range tables {
 		table := *old
-		delete(e.catalog.state.names, descriptorNameKey(old))
+		e.catalog.state.unbindName(descriptorNameKey(old))
 		table.namespace = namespace.address
-		e.catalog.state.descriptors[table.address] = &table
-		e.catalog.state.names[descriptorNameKey(&table)] = table.address
+		e.catalog.state.setDescriptor(table.address, &table)
+		e.catalog.state.bindName(descriptorNameKey(&table), table.address)
 		rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.rowType)}
-		row := e.catalog.state.descriptors[rowAddress].(*typeDescriptor)
+		row := e.catalog.state.MustType(rowAddress)
 		for _, address := range []ids.ObjectAddress{rowAddress, {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
-			oldType := e.catalog.state.descriptors[address].(*typeDescriptor)
+			oldType := e.catalog.state.MustType(address)
 			typ := *oldType
-			delete(e.catalog.state.names, descriptorNameKey(oldType))
+			e.catalog.state.unbindName(descriptorNameKey(oldType))
 			typ.namespace = namespace.address
-			e.catalog.state.descriptors[address] = &typ
-			e.catalog.state.names[descriptorNameKey(&typ)] = address
+			e.catalog.state.setDescriptor(address, &typ)
+			e.catalog.state.bindName(descriptorNameKey(&typ), address)
 		}
 	}
 }
@@ -67,12 +67,12 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained := next.descriptors[table.address].(*relationDescriptor)
-	backing := next.descriptors[source.address].(*relationDescriptor)
+	retained := next.MustRelation(table.address)
+	backing := next.MustRelation(source.address)
 	if retained.ofType != table.ofType || retained.rowType != table.rowType || backing.rowType != source.rowType || storage[table.address] != e.storage[table.address] {
 		t.Fatal("retained TEMP providers were retargeted")
 	}
-	if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, retained); err != nil {
+	if err := validateTypedAttachment(e.catalog.read(next), retained); err != nil {
 		t.Fatal(err)
 	}
 }

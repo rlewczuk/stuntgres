@@ -12,7 +12,7 @@ import (
 // insert exported data. Disabled+forced is a distinct nondefault state.
 func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || !d.rlsEnabled && !d.rlsForced {
 			continue
@@ -20,7 +20,7 @@ func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authoriz
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns := view.MustNamespace(d.namespace)
 		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}

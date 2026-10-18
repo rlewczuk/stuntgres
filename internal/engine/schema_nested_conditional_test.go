@@ -45,7 +45,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 			owner, _ := e.Roles().Lookup("nested_owner")
 			for _, table := range []string{"t", "clone"} {
 				ref := roleTableRef(t, e, "nc."+table)
-				d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				d := e.catalog.state.MustRelation(ref.Address)
 				if d.owner != owner.Ref || len(d.columns) != 1 || d.columns[0].Name != "id" || d.columns[0].Usage.Type.DatabaseName() != "INT4" || d.columns[0].Nullable || !d.columns[0].NullabilityKnown || d.acl.Explicit || len(d.columnACL) != 0 || d.columns[0].OriginTable != uint32(ref.Address.ObjectID) || d.columns[0].OriginAttribute != 1 {
 					t.Fatal("conditional retained shape/owner/origin", table, d)
 				}
@@ -70,7 +70,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
 		schemaFail(t, e, op, "CREATE SCHEMA ncl CREATE TABLE t(id INT) CREATE TABLE IF NOT EXISTS t(id unknown_type) CREATE TABLE bad(id INT,id TEXT)", "42701")
-		if _, ok := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ncl"}]; ok {
+		if _, ok := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ncl"}); ok {
 			t.Fatal("late failure published schema")
 		}
 	})

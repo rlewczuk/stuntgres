@@ -29,7 +29,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	}
 	var next *relationDescriptor
 	for i, old := range parent.uniqueConstraints {
-		index, ok := stage.base.state.descriptors[old.Index].(*relationDescriptor)
+		index, ok := stage.base.Relation(old.Index)
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
 			// USING INDEX attachment. Do not allocate another backing identity.
@@ -181,7 +181,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	}
 	var indexes []*relationDescriptor
 	if physicalRewrite || len(transformations) != 0 || len(generations) != 0 {
-		for _, descriptor := range candidate.state.descriptors {
+		for _, descriptor := range candidate.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid {
 				continue
@@ -192,7 +192,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		}
 	}
 	for _, address := range added {
-		index, ok := candidate.state.descriptors[address].(*relationDescriptor)
+		index, ok := candidate.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address {
 			return nil, ErrCatalogReplaced
 		}
@@ -223,7 +223,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		var capture *indexBuildCapture
 		if index.sqlIndex.hasRuntimeDomainConversion() && !named {
 			var err error
-			evaluation.Input.TypeDiagnosticName, err = candidate.owner.captureTypeDiagnosticName(auth)
+			evaluation.Input.TypeDiagnosticName, err = auth.engine.captureTypeDiagnosticName(auth)
 			if err != nil {
 				return nil, err
 			}
@@ -270,7 +270,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 	for _, build := range validated {
 		descriptor, changed := changes.descriptors[build.index.address]
 		if !changed {
-			descriptor = evaluation.catalog.state.descriptors[build.index.address]
+			descriptor = evaluation.catalog.Get(build.index.address)
 		}
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || !sameIndexKeySemantics(build.index, index) {
@@ -297,7 +297,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 			continue
 		}
 		if metadataOnly {
-			if previous, ok := source.state.descriptors[address].(*relationDescriptor); ok && sameIndexKeySemantics(previous, index) {
+			if previous, ok := source.Relation(address); ok && sameIndexKeySemantics(previous, index) {
 				continue
 			}
 		}

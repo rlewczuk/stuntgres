@@ -9,7 +9,7 @@ import (
 
 func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	var definitions []*collationDescriptor
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if c, ok := d.(*collationDescriptor); ok {
 			definitions = append(definitions, c)
 		}

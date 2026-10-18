@@ -12,7 +12,7 @@ import (
 func pgRolesUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12007}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_roles")
 	}
@@ -83,12 +83,12 @@ func TestPGRolesDescriptor(t *testing.T) {
 	if d.rowType != 12002 {
 		t.Fatal("existing row identity not reused")
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001})
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12001 || row.typ.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
-	views := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000}].(*relationDescriptor)
+	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
 	if views.name != "pg_views" || views.rowType != 12030 || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
@@ -144,7 +144,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
 		attrs := append([]int32(nil), d.attributes...)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.descriptors[view.address] = &view
+		e.catalog.state.setDescriptor(view.address, &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_roles_inner", ref)
@@ -184,7 +184,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	pgRolesUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roleRead(CatalogRead{e, e.catalog.state}, emptyRoleFixture(e)), e.roleRead(CatalogRead{e, e.catalog.state}, state)} {
+	for _, roles := range []authorization.Read{e.roleRead(e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roleRead(e.catalog.read(e.catalog.state), state)} {
 		source, err := capturePGRoles(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -192,7 +192,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, state.root.Read(authorization.PrincipalRef{}).RoleCount() + 2} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGRoles(ctx, e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
+		source, err := capturePGRoles(ctx, e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -200,12 +200,12 @@ func TestPGRolesCancellation(t *testing.T) {
 	invalid := *d
 	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 	invalid.columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
 	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.descriptors[unknown.address] = &unknown
+	e.catalog.state.setDescriptor(unknown.address, &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
@@ -241,7 +241,7 @@ func TestPGRolesProjection(t *testing.T) {
 			role.ConnectionLimit = 9
 			role.HasValidUntil, role.ValidUntil, role.Password = expiry.has, expiry.stamp, password
 			putFixtureRole(state, role)
-			source, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
+			source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +299,7 @@ func TestPGRolesProjection(t *testing.T) {
 				t.Fatal("retained role changed")
 			}
 			retireFixtureRole(updated, low)
-			fresh, err := capturePGRoles(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, updated), ref, d)
+			fresh, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), updated), ref, d)
 			if err != nil || pgRolesUnitRows(t, fresh)[20000] != nil {
 				t.Fatal("high identity aliased removed role", err)
 			}

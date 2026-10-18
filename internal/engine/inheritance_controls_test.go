@@ -11,11 +11,11 @@ import (
 
 func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *relationDescriptor {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}
-	if e.catalog.state.descriptors[ns] == nil {
+	if e.catalog.state.Get(ns) == nil {
 		e.catalog.state = cloneCatalog(e.catalog.state)
 		d := &namespaceDescriptor{address: ns, name: "pg_temp_inheritance_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: e.catalog.domain.Session(99)}
-		e.catalog.state.descriptors[ns] = d
-		e.catalog.state.names[descriptorNameKey(d)] = ns
+		e.catalog.state.setDescriptor(ns, d)
+		e.catalog.state.bindName(descriptorNameKey(d), ns)
 	}
 	table := inheritanceLifecycleTable(e, id, name, parents...)
 	table.namespace = ns
@@ -66,18 +66,18 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.descriptors[temp.address] != temp || next.descriptors[tempChild.address] != tempChild || storage[temp.address] != retainedStorage {
+	if next.Get(temp.address) != temp || next.Get(tempChild.address) != tempChild || storage[temp.address] != retainedStorage {
 		t.Fatal("TEMP identities changed")
 	}
-	imported := next.descriptors[child.address].(*relationDescriptor)
+	imported := next.MustRelation(child.address)
 	mapped := imported.inheritance.parents[0]
-	if mapped == parent.address || mapped.ObjectID <= child.address.ObjectID || next.descriptors[mapped].Name() != "p" {
+	if mapped == parent.address || mapped.ObjectID <= child.address.ObjectID || next.Get(mapped).Name() != "p" {
 		t.Fatal("imported parent not remapped", mapped)
 	}
 	if child.inheritance.parents[0] != parent.address || imported == child {
 		t.Fatal("source graph mutated")
 	}
-	predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: next}, mapped, child.address)
+	predecessor, err := dumpPredecessor(e.catalog.read(next), mapped, child.address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,12 +97,12 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	changed := *parent
 	changed.notNullConstraints = []notNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
 	next := cloneCatalog(e.catalog.state)
-	next.descriptors[parent.address] = &changed
-	next.descriptors[child.address] = child
+	next.setDescriptor(parent.address, &changed)
+	next.setDescriptor(child.address, child)
 	if err := remapInheritanceConstraintOrigins(next, old); err != nil {
 		t.Fatal(err)
 	}
-	current := next.descriptors[child.address].(*relationDescriptor)
+	current := next.MustRelation(child.address)
 	if current.inheritance.notNull[1].origins[0].constraint != 30000 || child.inheritance.notNull[1].origins[0].constraint != 22000 {
 		t.Fatal("constraint origin not independently remapped")
 	}
@@ -128,14 +128,14 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped := next.descriptors[child.address].(*relationDescriptor).inheritance.parents[0]
-	if mapped.ObjectID == 22000 || next.descriptors[mapped].Name() != "p" {
+	mapped := next.MustRelation(child.address).inheritance.parents[0]
+	if mapped.ObjectID == 22000 || next.Get(mapped).Name() != "p" {
 		t.Fatal("imported object did not yield to retained definition identity", mapped)
 	}
-	if next.descriptors[temp.address] != temp || temp.notNullConstraints[0].OID != 22000 {
+	if next.Get(temp.address) != temp || temp.notNullConstraints[0].OID != 22000 {
 		t.Fatal("retained definition or descriptor changed")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined identities remain colliding", err)
 	}
 }
@@ -178,22 +178,22 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.descriptors[temp.address] != temp || next.descriptors[tempChild.address] != tempChild || storage[tempChild.address] != retainedStorage || temp.notNullConstraints[0].OID != 23000 || temp.checkConstraints[0].OID != 23002 {
+	if next.Get(temp.address) != temp || next.Get(tempChild.address) != tempChild || storage[tempChild.address] != retainedStorage || temp.notNullConstraints[0].OID != 23000 || temp.checkConstraints[0].OID != 23002 {
 		t.Fatal("retained TEMP graph, storage or definition identity changed")
 	}
-	imported := next.descriptors[child.address].(*relationDescriptor)
-	mappedParent := next.descriptors[imported.inheritance.parents[0]].(*relationDescriptor)
+	imported := next.MustRelation(child.address)
+	mappedParent := next.MustRelation(imported.inheritance.parents[0])
 	if mappedParent.address == parent.address || mappedParent.notNullConstraints[0].OID == 23000 || mappedParent.checkConstraints[0].OID == 23002 {
 		t.Fatal("imported identities did not yield to retained TEMP definitions")
 	}
 	if imported.inheritance.notNull[1].origins[0].constraint != mappedParent.notNullConstraints[0].OID || imported.inheritance.checks["ck"].origins[0].constraint != mappedParent.checkConstraints[0].OID {
 		t.Fatal("imported provenance retained old definition IDs")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*relationDescriptor{tempChild, imported} {
-		if err := validateInheritance(CatalogRead{owner: e, state: next}, table); err != nil {
+		if err := validateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.name, err)
 		}
 	}
@@ -261,29 +261,29 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imported := next.descriptors[child.address].(*relationDescriptor)
+	imported := next.MustRelation(child.address)
 	mapped := imported.inheritance.parents[0]
-	if mapped == parent.address || next.descriptors[mapped].Name() != parent.name || storage[mapped] != parentStorage || storage[imported.address] != childStorage {
+	if mapped == parent.address || next.Get(mapped).Name() != parent.name || storage[mapped] != parentStorage || storage[imported.address] != childStorage {
 		t.Fatal("imported descriptor/storage did not yield to retained exclusion", mapped)
 	}
 	if imported.inheritance.columns[1].origins[0].parent != mapped || imported.inheritance.columns[2].origins[0].parent != mapped || imported.inheritance.notNull[1].origins[0].parent != mapped || imported.inheritance.checks["ck"].origins[0].parent != mapped {
 		t.Fatal("imported inheritance origins did not follow parent mapping")
 	}
-	mappedParent := next.descriptors[mapped].(*relationDescriptor)
+	mappedParent := next.MustRelation(mapped)
 	if mappedParent.columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.columns[1].OriginTable != uint32(mapped.ObjectID) || imported.inheritance.notNull[1].origins[0].constraint != mappedParent.notNullConstraints[0].OID || imported.inheritance.checks["ck"].origins[0].constraint != mappedParent.checkConstraints[0].OID {
 		t.Fatal("imported row/constraint origins did not follow mapping")
 	}
-	if e.catalog.state != before || next.descriptors[temp.address] != temp || next.descriptors[tempChild.address] != tempChild || next.descriptors[index.address] != index || storage[temp.address] != retainedParentStorage || storage[tempChild.address] != retainedChildStorage || index.sqlIndex != originalIndex || !reflect.DeepEqual(tempChild.exclusionConstraints[0], constraint) || !backingConstraintPresent(tempChild, index) {
+	if e.catalog.state != before || next.Get(temp.address) != temp || next.Get(tempChild.address) != tempChild || next.Get(index.address) != index || storage[temp.address] != retainedParentStorage || storage[tempChild.address] != retainedChildStorage || index.sqlIndex != originalIndex || !reflect.DeepEqual(tempChild.exclusionConstraints[0], constraint) || !backingConstraintPresent(tempChild, index) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
-	if source.catalog.state.descriptors[parent.address] != parent || source.catalog.state.descriptors[child.address] != child || child.inheritance.parents[0] != parent.address || child.inheritance.columns[1].origins[0].parent != parent.address || parent.columns[0].OriginTable != uint32(parent.address.ObjectID) || child.inheritance.notNull[1].origins[0].constraint != 23000 {
+	if source.catalog.state.Get(parent.address) != parent || source.catalog.state.Get(child.address) != child || child.inheritance.parents[0] != parent.address || child.inheritance.columns[1].origins[0].parent != parent.address || parent.columns[0].OriginTable != uint32(parent.address.ObjectID) || child.inheritance.notNull[1].origins[0].constraint != 23000 {
 		t.Fatal("imported source authority mutated")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: next}); err != nil {
+	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
 		t.Fatal("combined definition identities invalid", err)
 	}
 	for _, table := range []*relationDescriptor{tempChild, imported} {
-		if err := validateInheritance(CatalogRead{owner: e, state: next}, table); err != nil {
+		if err := validateInheritance(e.catalog.read(next), table); err != nil {
 			t.Fatal(table.name, err)
 		}
 	}

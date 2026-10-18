@@ -13,7 +13,7 @@ import (
 func btreeRoot(t *testing.T, e *Engine, name string) (*relationDescriptor, *logicalIndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	index := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	index := e.catalog.state.MustRelation(ref.Address)
 	root := e.indexRoots[ref.Address]
 	if index.relationKind != indexRelation || index.sqlIndex == nil || root == nil || e.storage[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
@@ -129,7 +129,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	run(t, e, "CREATE SCHEMA moved")
 	run(t, e, "ALTER TABLE renamed SET SCHEMA moved")
 	index, _ := btreeRoot(t, e, "moved.ni")
-	if e.catalog.state.descriptors[index.namespace].Name() != "moved" {
+	if e.catalog.state.Get(index.namespace).Name() != "moved" {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")
@@ -137,7 +137,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 		t.Fatal("indexed column left orphan")
 	}
 	old := e.indexRoots[index.address]
-	if _, err := e.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	_, fresh := btreeRoot(t, e, "moved.ni")
@@ -194,7 +194,7 @@ func TestBtreeIndexForeignReplacement(t *testing.T) {
 	run(t, target, "CREATE TABLE old(n INT)")
 	run(t, target, "INSERT INTO old VALUES(99),(99),(99),(99),(99)")
 	epoch := target.CatalogRead().Epoch()
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	destination := btreeWantKeys(t, target, "idx", "1", "2", "2", "NULL")

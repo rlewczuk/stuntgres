@@ -240,7 +240,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE advisory_render_owner(v INT)")
 		catalog := e.CatalogRead()
 		ref := catalogRef(t, e, catalog, "advisory_render_owner")
-		owner := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		owner := catalog.MustRelation(ref.Address)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT pg_try_advisory_lock(1,2)").(*parser.Select).Targets[0]
 		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})

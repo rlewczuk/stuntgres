@@ -23,16 +23,18 @@ func (*parameterDescriptor) Namespace() ids.ObjectAddress       { return ids.Obj
 func (d *parameterDescriptor) Name() string                     { return d.name }
 func (*parameterDescriptor) Kind() ids.ObjectKind               { return ids.ParameterObject }
 
-type parameterProvider struct{}
+// parameterProvider validates parameter ACL identities against the engine's
+// setting definitions, which close at construction.
+type parameterProvider struct{ definitions map[string]SettingDefinition }
 
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
-func (parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
+func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
-	if !ok || d == nil || v.owner == nil || v.state == nil || v.state.descriptors[d.address] != d {
+	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.address) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
-	name, err := v.owner.canonicalGrantParameter(d.name)
-	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	name, err := canonicalGrantParameter(p.definitions, d.name)
+	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -42,8 +44,12 @@ func (parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 // targets. In particular, PostgreSQL aliases for absent providers do not invent
 // settings here. This never calls normalization or default-provider callbacks.
 func (e *Engine) canonicalGrantParameter(name string) (string, error) {
+	return canonicalGrantParameter(e.settingsDefinitions, name)
+}
+
+func canonicalGrantParameter(definitions map[string]SettingDefinition, name string) (string, error) {
 	key := settingFold(name)
-	if _, ok := e.settingsDefinitions[key]; ok {
+	if _, ok := definitions[key]; ok {
 		return key, nil
 	}
 	if customName(key) {
@@ -60,8 +66,8 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	if address := v.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: key}]; address != (ids.ObjectAddress{}) {
-		d, ok := v.catalog.state.descriptors[address].(*parameterDescriptor)
+	if address := v.catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: key}); address != (ids.ObjectAddress{}) {
+		d, ok := v.catalog.Parameter(address)
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
 		}
@@ -83,10 +89,10 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 // the owner alone. Explicit empty ACLs are not the default baseline.
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
 	if !d.acl.Explicit || authorization.MatchesDefaultBaseline(d.acl, d.owner, authorization.DefaultParameters, false) {
-		delete(candidate.descriptors, d.address)
-		delete(candidate.names, descriptorNameKey(d))
+		candidate.removeDescriptor(d.address)
+		candidate.unbindName(descriptorNameKey(d))
 		return
 	}
-	candidate.descriptors[d.address] = d
-	candidate.names[descriptorNameKey(d)] = d.address
+	candidate.setDescriptor(d.address, d)
+	candidate.bindName(descriptorNameKey(d), d.address)
 }

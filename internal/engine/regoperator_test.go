@@ -39,7 +39,7 @@ func TestRegOperatorInventory(t *testing.T) {
 			t.Fatal(err)
 		}
 		address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(oid)}
-		d, ok := view.state.descriptors[address].(*operatorDescriptor)
+		d, ok := view.Operator(address)
 		if !ok || d.name != fields[2] || d.namespace.ObjectID != 11 || d.left != ids.OID(left) || d.right != ids.OID(right) || expected[ids.OID(oid)] {
 			t.Fatalf("operator identity %v differs from independent inventory", fields)
 		}
@@ -55,7 +55,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 	actual := 0
-	for a := range view.state.descriptors {
+	for a := range view.Descriptors() {
 		if a.ClassID == ids.OperatorClassID {
 			actual++
 			if !expected[a.ObjectID] {
@@ -74,7 +74,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg Op", "earlier", "later", `Reg" Op`} {
-		ns := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+		ns := *view.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		namespaces[i] = ns.address
@@ -195,8 +195,8 @@ func TestRegOperatorDomainCompanions(t *testing.T) {
 				t.Fatal("domain reownership", changed, err)
 			}
 			for i, original := range []*typeDescriptor{direct, chain} {
-				domain := next.descriptors[original.Address()].(*typeDescriptor)
-				array := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.array)}].(*typeDescriptor)
+				domain := next.MustType(original.Address())
+				array := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(original.array)})
 				if !domain.typ.Concrete() || domain.typ.ID() != sqltype.ID(60001+i) || array.typ.Concrete() || array.typ.Element() != domain.typ || array.typ.ID() != sqltype.ID(60003+i) || domain.array != array.typ.ID() {
 					t.Fatal("reownership changed companion admission", domain, array)
 				}

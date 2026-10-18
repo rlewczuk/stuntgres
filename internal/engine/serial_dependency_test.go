@@ -22,7 +22,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	var conflict CatalogConflict
 	if !errors.As(err,&conflict) { t.Fatal("late ordinary default failed to fence DROP",err) }
 	view := e.CatalogRead()
-	d := view.state.descriptors[roleTableRef(t,e,"t").Address].(*relationDescriptor)
+	d := view.MustRelation(roleTableRef(t,e,"t").Address)
 	bad := *d
 	bad.defaults = map[int32]columnDefault{1:d.defaults[1]}
 	definition := bad.defaults[1]

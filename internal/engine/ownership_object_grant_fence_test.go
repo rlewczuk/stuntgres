@@ -40,11 +40,11 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal("fixture is not an ordinary actor", err)
 				}
 				dbRole := auth.roles.LookupRef("pg_database_owner")
-				table := auth.catalog.state.descriptors[root.Address].(*relationDescriptor)
+				table := auth.catalog.MustRelation(root.Address)
 				if table.owner != dbRole || table.owner == actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical inherited DB-owner authority")
 				}
-				if private && auth.catalog.state.descriptors[currentDatabaseAddress] == committed {
+				if private && auth.catalog.Get(currentDatabaseAddress) == committed {
 					t.Fatal("private DB authority is not distinct from committed predecessor")
 				}
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
@@ -88,7 +88,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				pending := retained.catalog.state.descriptors[root.Address].(*relationDescriptor)
+				pending := retained.catalog.MustRelation(root.Address)
 				if pending == table || retained.roleRecord == oldRoles || retained.pairedCatalog != retained.catalog || session.transactions.catalog.descriptors[root.Address] != pending {
 					t.Fatal("utility did not stage real paired ACL/role/catalog roots")
 				}
@@ -105,10 +105,10 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
-				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.state.descriptors[currentDatabaseAddress]
+				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.Get(currentDatabaseAddress)
 				if outcome == "database" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 					if private {
 						database.owner = actor.Ref
 					} else {
@@ -120,8 +120,8 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					for address, descriptor := range oldCatalog.descriptors {
-						if address != currentDatabaseAddress && e.catalog.state.descriptors[address] != descriptor {
+					for address, descriptor := range oldCatalog.Descriptors() {
+						if address != currentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed object/associated identities")
 						}
 					}
@@ -139,7 +139,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					current := catalogAuthorization(e, e.CatalogRead())
 					checkReader(current, true)
-					if e.catalog.state.descriptors[root.Address] != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.uniqueConstraints, oldKeys) {
+					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.uniqueConstraints, oldKeys) {
 						t.Fatal("healthy grant lost candidate or changed data/constraints")
 					}
 					for address, index := range before.roots {
@@ -162,7 +162,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.acl, oldACL) || !reflect.DeepEqual(table.uniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.state.descriptors[currentDatabaseAddress] != pendingDB || auth.databasePredecessor != committed {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.acl, oldACL) || !reflect.DeepEqual(table.uniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(currentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

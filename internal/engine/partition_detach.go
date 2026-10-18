@@ -56,7 +56,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		candidate, err = e.resolveRelationReference(auth, raw.Partition, true)
 	}
 	if err == nil {
-		child := auth.catalog.state.descriptors[candidate.Address].(*relationDescriptor)
+		child := auth.catalog.MustRelation(candidate.Address)
 		if child.relationKind == indexRelation || child.relationKind == compositeRelation {
 			err = partitionDetachKindError(auth.catalog, child, true)
 		}
@@ -95,7 +95,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err == nil {
 		err = scope.validateLockedRelation(e)
 	}
-	if err == nil && auth.catalog.state.descriptors[parent.address] != parent {
+	if err == nil && auth.catalog.Get(parent.address) != parent {
 		err = ErrCatalogReplaced
 	}
 	if err != nil {
@@ -103,12 +103,12 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, err
 	}
 	catalog = auth.catalog
-	child = catalog.state.descriptors[candidate.Address].(*relationDescriptor)
+	child = catalog.MustRelation(candidate.Address)
 	stage := e.BeginCatalogStage(catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.indexOutput = scope.output
 	for address := range scope.partitionRelations {
-		stage.domainBases = append(stage.domainBases, catalog.state.descriptors[address])
+		stage.domainBases = append(stage.domainBases, catalog.Get(address))
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -143,7 +143,7 @@ func partitionDetachKindError(view CatalogRead, d *relationDescriptor, opening b
 		kind = "composite types"
 	case indexRelation:
 		kind = "indexes"
-		if table, ok := view.state.descriptors[d.sqlIndex.parent].(*relationDescriptor); ok && table.partition != nil {
+		if table, ok := view.Relation(d.sqlIndex.parent); ok && table.partition != nil {
 			kind = "partitioned indexes"
 		}
 	}
@@ -200,12 +200,12 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 	if err := stage.Replace(&nextChild); err != nil {
 		return err
 	}
-	for _, descriptor := range stage.base.state.descriptors {
+	for _, descriptor := range stage.base.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != child.address || index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			continue
 		}
-		ancestor, ok := stage.base.state.descriptors[index.sqlIndex.partitionParent].(*relationDescriptor)
+		ancestor, ok := stage.base.Relation(index.sqlIndex.partitionParent)
 		if !ok || ancestor.sqlIndex == nil || ancestor.sqlIndex.parent != parent.address {
 			return fmt.Errorf("stuntgres: invalid partition index ancestry")
 		}

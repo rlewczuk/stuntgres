@@ -64,7 +64,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 		for i := range next {
 			old := next[i].relation
 			next[i].ref = ref(next[i].ref)
-			next[i].relation, _ = view.state.descriptors[next[i].ref.Address].(*relationDescriptor)
+			next[i].relation, _ = view.Relation(next[i].ref.Address)
 			next[i].storage = nil
 			if old != nil && next[i].relation != nil && !slices.Equal(old.attributes, next[i].relation.attributes) {
 				next[i].uses = slices.Clone(next[i].uses)
@@ -139,7 +139,7 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 	b.ref = ref(b.ref)
 	var current *relationDescriptor
 	if b.relation != nil {
-		current, _ = view.state.descriptors[b.ref.Address].(*relationDescriptor)
+		current, _ = view.Relation(b.ref.Address)
 		if current == nil {
 			return b, ErrCatalogReplaced
 		}
@@ -260,13 +260,13 @@ func remapRuleBindingMapped(view CatalogRead, b binding, ref func(ids.ObjectRef)
 }
 
 func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*relationDescriptor, error) {
-	if ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+	if ns, ok := view.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.catalog.domain.Ref(old.Epoch, old.Address)
+			old = view.owner.domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}
@@ -274,7 +274,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == nil {
 				return nil
 			}
-			if d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
+			if d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
 				return d.typ
 			}
 			return old
@@ -398,13 +398,13 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 }
 
 func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
-	view := CatalogRead{owner: e, state: e.catalog.state}
-	for _, descriptor := range e.catalog.state.descriptors {
+	view := e.catalog.read(e.catalog.state)
+	for _, descriptor := range e.catalog.state.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.rules) == 0 {
 			continue
 		}
-		ns, ok := e.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns, ok := e.catalog.state.Namespace(d.namespace)
 		if !ok || ns.temporary == (ids.SessionToken{}) {
 			continue
 		}
@@ -414,7 +414,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				if pgDependPinned(view, address) {
 					continue
 				}
-				provider := e.catalog.state.descriptors[address]
+				provider := e.catalog.state.Get(address)
 				if address.ClassID == 2606 {
 					parent := constraintParent(view, address)
 					if parent == nil {
@@ -425,7 +425,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				if provider == nil {
 					return ErrCatalogReplaced
 				}
-				providerNS, ok := e.catalog.state.descriptors[provider.Namespace()].(*namespaceDescriptor)
+				providerNS, ok := e.catalog.state.Namespace(provider.Namespace())
 				if !ok || providerNS.temporary != ns.temporary {
 					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
 				}

@@ -41,7 +41,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			oldP, oldQ := e.storage[p.Address], e.storage[q.Address]
 			oldPS, oldQS := e.sequences[ps.Address], e.sequences[qs.Address]
 			psValue, qsValue := *oldPS, *oldQS
-			oldPD, oldQD := e.catalog.state.descriptors[ps.Address].(*relationDescriptor), e.catalog.state.descriptors[qs.Address].(*relationDescriptor)
+			oldPD, oldQD := e.catalog.state.MustRelation(ps.Address), e.catalog.state.MustRelation(qs.Address)
 			frontier := e.commitSeq
 			scope := truncateRestartUnitStage(t, e, s, "p", "q", "p")
 			if len(scope.truncateSequences) != 2 || len(scope.catalog.generators) != 2 {
@@ -80,7 +80,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 				if e.sequences[ps.Address] != scope.catalog.generators[ps.Address] || e.sequences[qs.Address] != scope.catalog.generators[qs.Address] || e.storage[p.Address] == oldP || e.storage[q.Address] == oldQ || e.commitSeq != frontier+1 {
 					t.Fatal("table and generator set not installed at one frontier")
 				}
-			} else if e.sequences[ps.Address] != oldPS || e.sequences[qs.Address] != oldQS || e.catalog.state.descriptors[ps.Address] != oldPD || e.catalog.state.descriptors[qs.Address] != oldQD || e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || e.commitSeq != frontier {
+			} else if e.sequences[ps.Address] != oldPS || e.sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || e.commitSeq != frontier {
 				t.Fatal("veto leaked staged state")
 			}
 			lockEmpty(t, e)
@@ -92,7 +92,7 @@ func TestTruncateRestartPublication(t *testing.T) {
 	e, s, p, q, ps, qs := truncateRestartUnitFixture(t)
 	peer := sessionStart(t, e, nil)
 	oldP, oldQ, oldPS, oldQS := e.storage[p.Address], e.storage[q.Address], e.sequences[ps.Address], e.sequences[qs.Address]
-	oldD := e.catalog.state.descriptors[ps.Address]
+	oldD := e.catalog.state.Get(ps.Address)
 	tx := transactionBegin(t, s)
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
@@ -120,7 +120,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ, oldPS, oldQS := e.storage[p.Address], e.storage[q.Address], e.sequences[ps.Address], e.sequences[qs.Address]
-			oldPD, oldQD := e.catalog.state.descriptors[ps.Address], e.catalog.state.descriptors[qs.Address]
+			oldPD, oldQD := e.catalog.state.Get(ps.Address), e.catalog.state.Get(qs.Address)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			scope, _ := truncateUnitScope(t, e, s, ctx)
@@ -151,7 +151,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "Storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
-				next := *base.state.descriptors[p.Address].(*relationDescriptor)
+				next := *base.MustRelation(p.Address)
 				next.revision++
 				replacement := &relationStorage{versions: oldP.versions, ends: oldP.ends, generation: oldP.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.versions), oldP.generation, oldP.ends); err != nil {
@@ -168,7 +168,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			} else if err != (CatalogConflict{}) {
 				t.Fatal("missing final veto", err)
 			}
-			if len(oldP.versions) != 2 || len(oldQ.versions) != 1 || oldPS.last != 2 || oldQS.last != 44 || oldP.truncateLineage != nil || oldQ.truncateLineage != nil || e.storage[q.Address] != oldQ || e.sequences[qs.Address] != oldQS || e.catalog.state.descriptors[qs.Address] != oldQD {
+			if len(oldP.versions) != 2 || len(oldQ.versions) != 1 || oldPS.last != 2 || oldQS.last != 44 || oldP.truncateLineage != nil || oldQ.truncateLineage != nil || e.storage[q.Address] != oldQ || e.sequences[qs.Address] != oldQS || e.catalog.state.Get(qs.Address) != oldQD {
 				t.Fatal("veto changed a committed prefix")
 			}
 			if kind != "Storage" && e.storage[p.Address] != oldP {
@@ -177,7 +177,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			if kind != "GeneratorBinding" && e.sequences[ps.Address] != oldPS {
 				t.Fatal("generator replaced on veto")
 			}
-			if kind != "SequenceRevision" && kind != "SequenceACL" && e.catalog.state.descriptors[ps.Address] != oldPD {
+			if kind != "SequenceRevision" && kind != "SequenceACL" && e.catalog.state.Get(ps.Address) != oldPD {
 				t.Fatal("descriptor replaced on veto")
 			}
 			sessionSQL(t, s, "ROLLBACK TO preserve")
@@ -191,7 +191,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 	t.Run("RevisionExhaustion", func(t *testing.T) {
 		e, s, p, q, ps, qs := truncateRestartUnitFixture(t)
 		oldP, oldQ, oldPS, oldQS := e.storage[p.Address], e.storage[q.Address], e.sequences[ps.Address], e.sequences[qs.Address]
-		oldPD, oldQD := e.catalog.state.descriptors[ps.Address], e.catalog.state.descriptors[qs.Address]
+		oldPD, oldQD := e.catalog.state.Get(ps.Address), e.catalog.state.Get(qs.Address)
 		// First reset can reserve a fresh revision, but the second cannot.
 		// Neither partial candidate nor local source/cache event may escape.
 		e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0)) - 1
@@ -204,7 +204,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			t.Fatal(got)
 		}
 		scope.op.Done()
-		if e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || e.sequences[ps.Address] != oldPS || e.sequences[qs.Address] != oldQS || e.catalog.state.descriptors[ps.Address] != oldPD || e.catalog.state.descriptors[qs.Address] != oldQD || oldPS.last != 2 || oldQS.last != 44 || s.sequences[ps.Address].analysisStamp != 0 || s.sequences[qs.Address].analysisStamp != 0 {
+		if e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || e.sequences[ps.Address] != oldPS || e.sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || oldPS.last != 2 || oldQS.last != 44 || s.sequences[ps.Address].analysisStamp != 0 || s.sequences[qs.Address].analysisStamp != 0 {
 			t.Fatal("partial exhausted reset escaped")
 		}
 		lockEmpty(t, e)
@@ -221,7 +221,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			scope := truncateRestartUnitStage(t, e, s, "p")
 			oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
 			if change == "Incoming" {
-				owned := e.catalog.state.descriptors[ps.Address].(*relationDescriptor).sequence.owned
+				owned := e.catalog.state.MustRelation(ps.Address).sequence.owned
 				truncateUnitReplace(t, e, incoming, func(d *relationDescriptor) { options := *d.sequence; options.owned = owned; d.sequence = &options })
 			} else {
 				truncateUnitReplace(t, e, ps, func(d *relationDescriptor) {

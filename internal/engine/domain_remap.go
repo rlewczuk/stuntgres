@@ -23,7 +23,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		if active[address] {
 			return fmt.Errorf("stuntgres: cyclic domain base")
 		}
-		d, ok := next.descriptors[address].(*typeDescriptor)
+		d, ok := next.Type(address)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
@@ -38,7 +38,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if to, ok := mapping[extension]; ok {
 				extension = to
 			}
-			ns, ok := next.descriptors[d.Namespace()]
+			ns, ok := next.Find(d.Namespace())
 			if !ok {
 				return fmt.Errorf("stuntgres: missing query_int namespace")
 			}
@@ -54,7 +54,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				}
 				copy := *d
 				copy.typ, copy.namespace, copy.extension, copy.array = typ, namespace, extension, associated
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -68,7 +68,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if destination, ok := mapping[namespace]; ok {
 				namespace = destination
 			}
-			ns, ok := next.descriptors[d.Namespace()]
+			ns, ok := next.Find(d.Namespace())
 			if !ok {
 				return fmt.Errorf("stuntgres: missing enum namespace")
 			}
@@ -85,7 +85,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				copy := *d
 				copy.typ, copy.namespace = typ, namespace
 				copy.array = associated
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -93,7 +93,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		}
 		if d.typ.IsComposite() {
 			active[address] = true
-			relation, ok := next.descriptors[d.owningRelation].(*relationDescriptor)
+			relation, ok := next.Relation(d.owningRelation)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing composite backing relation")
 			}
@@ -111,7 +111,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
 			}
-			ns := next.descriptors[d.namespace]
+			ns := next.Get(d.namespace)
 			if ns == nil {
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
@@ -124,7 +124,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 					return err
 				}
 				usage := c.Usage
-				usage.Type = next.descriptors[child].(*typeDescriptor).typ
+				usage.Type = next.MustType(child).typ
 				if collation != nil {
 					mapped, err := collation(usage.Collation)
 					if err != nil {
@@ -139,7 +139,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				if rebuild && members == nil {
 					members = compositeMembers(relation)
 					for j := range i {
-						members[j].Usage.Type = next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}].(*typeDescriptor).typ
+						members[j].Usage.Type = next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(members[j].Usage.Type.ID())}).typ
 						if collation != nil {
 							mapped, err := collation(members[j].Usage.Collation)
 							if err != nil {
@@ -163,7 +163,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				}
 				copy := *d
 				copy.typ, copy.namespace, copy.owningRelation, copy.array = typ, namespace, owner, associated
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 				changed = true
 			}
 			delete(active, address)
@@ -189,7 +189,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 				copy := *d
 				copy.typ = sqltype.LookupOnly(sqltype.ID(target.ObjectID), d.Name(), associated)
 				copy.namespace, copy.owningRelation, copy.array = namespace, relation, associated
-				next.descriptors[address] = &copy
+				next.setDescriptor(address, &copy)
 				changed = true
 			}
 			visited[address] = true
@@ -208,7 +208,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		if err := visit(baseAddress); err != nil {
 			return err
 		}
-		base.Type = next.descriptors[baseAddress].(*typeDescriptor).typ
+		base.Type = next.MustType(baseAddress).typ
 		collationChanged := false
 		if collation != nil {
 			mapped, err := collation(base.Collation)
@@ -226,7 +226,7 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 		if destination, ok := mapping[namespace]; ok {
 			namespace = destination
 		}
-		ns, ok := next.descriptors[d.Namespace()]
+		ns, ok := next.Find(d.Namespace())
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain namespace")
 		}
@@ -273,14 +273,14 @@ func reownDomainTypes(next *catalogState, mapping map[ids.ObjectAddress]ids.Obje
 			if destination, ok := mapping[copy.owningRelation]; ok {
 				copy.owningRelation = destination
 			}
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			changed = true
 		}
 		delete(active, address)
 		visited[address] = true
 		return nil
 	}
-	for address, d := range next.descriptors {
+	for address, d := range next.Descriptors() {
 		if t, ok := d.(*typeDescriptor); ok && (t.typ.IsDomain() || t.typ.IsUserDefined() || t.typ.IsArray() || t.owningRelation != (ids.ObjectAddress{})) {
 			if err := visit(address); err != nil {
 				return false, err
@@ -362,12 +362,12 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}].(*typeDescriptor); ok {
+		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
 			return d.typ
 		}
 		return nil
 	}
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -375,13 +375,13 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}]; ok {
 			copy := *d
 			copy.rowType = sqltype.ID(destination.ObjectID)
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			d = &copy
 		}
 		if destination, ok := mapping[d.ofType]; ok {
 			copy := *d
 			copy.ofType = destination
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			d = &copy
 		}
 		var columns []ColumnDescriptor
@@ -409,7 +409,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ids.ObjectAddress]*
 		if columns != nil {
 			copy := *d
 			copy.columns = columns
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 		}
 	}
 	for address, relation := range storage {

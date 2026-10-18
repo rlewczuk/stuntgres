@@ -49,7 +49,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		if len(found) == 0 {
 			continue
 		}
-		d, ok := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
+		d, ok := auth.catalog.Type(found[0])
 		if !ok {
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
@@ -137,7 +137,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if ref != locked {
 			return Result{}, ErrCatalogReplaced
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 		members := old.typ.EnumMembers()
 		oldIndex, newIndex := -1, -1
 		for i, m := range members {

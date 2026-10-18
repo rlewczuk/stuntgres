@@ -34,7 +34,7 @@ func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
-	d, ok := view.state.descriptors[ref.Address].(*collationDescriptor)
+	d, ok := view.Collation(ref.Address)
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
@@ -55,7 +55,7 @@ func validateStoredCollationDependency(view CatalogRead, ref ids.ObjectRef, node
 	if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 {
 		return err
 	}
-	if _, exists := view.state.descriptors[ref.Address].(*collationDescriptor); !exists {
+	if _, exists := view.Collation(ref.Address); !exists {
 		return err
 	}
 	identity, comparison := false, false

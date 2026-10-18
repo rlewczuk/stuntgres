@@ -25,12 +25,12 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 				want = authorization.UsagePrivilege
 			}
 			before, roles := e.catalog.state, e.roles
-			original := before.descriptors[address]
+			original := before.Get(address)
 			request := &parser.ObjectGrant{Kind: kind, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: name}}}}, Privileges: []parser.GrantPrivilege{{All: true}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}, GrantOption: true}
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			next := e.catalog.state.descriptors[address]
+			next := e.catalog.state.Get(address)
 			owner, acl, _ := descriptorACL(next)
 			if next == original || e.roles.revision != roles.revision+1 || authorization.ACLRights(acl, owner, []authorization.PrincipalRef{reader}, want, true) != want {
 				t.Fatal("wrong immutable class publication", acl)
@@ -53,7 +53,7 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	e, op, reader, _ := objectGrantUnitFixture(t)
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
-	original := e.catalog.state.descriptors[address].(*typeDescriptor)
+	original := e.catalog.state.MustType(address)
 	if original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || original.acl.Explicit {
 		t.Fatal("builtin type has no genuine bootstrap/default authority")
 	}
@@ -61,13 +61,13 @@ func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.descriptors[address].(*typeDescriptor)
+	next := e.catalog.state.MustType(address)
 	if authorization.ACLRights(next.acl, next.owner, []authorization.PrincipalRef{reader}, authorization.UsagePrivilege, false) != 0 || original.acl.Explicit {
 		t.Fatal("builtin PUBLIC revoke changed old root or retained PUBLIC rights")
 	}
 	broken := *next
 	broken.owner = authorization.PrincipalRef{}
-	if err := validateACL(e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), &broken); err == nil {
+	if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles), &broken); err == nil {
 		t.Fatal("builtin zero owner bypassed validation")
 	}
 	request.Relations[0].Parts[0].Text = "_int4"

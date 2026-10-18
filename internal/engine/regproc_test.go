@@ -34,7 +34,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 				}
 			}
 		}
-		if p, exists := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.id}]; exists {
+		if p, exists := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: fact.id}); exists {
 			procedure, ok := p.(*procedureDescriptor)
 			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure) != nil {
 				t.Fatal("invalid genuine catalog declaration", p, fact)

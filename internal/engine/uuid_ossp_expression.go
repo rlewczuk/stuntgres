@@ -36,7 +36,7 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 }
 
 func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {
-	if !n.validShape() || v.state.descriptors[n.ref.Address] != n.procedure {
+	if !n.validShape() || v.Get(n.ref.Address) != n.procedure {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}
 	return stockUUIDOssp.validateProcedure(v, n.procedure)

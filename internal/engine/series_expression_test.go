@@ -178,7 +178,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 		peer := seriesUnit(t, d, 10, 11)
 		peer.Pos = parser.Position{Offset: 20, Character: 21}
-		root, _, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{wrapper, peer}, 1)
+		root, _, err := regexpSetUnitLower(e, &singletonNode{}, []BoundExpr{wrapper, peer}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -272,22 +272,23 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 }
 
-func seriesUnitProject(t *testing.T, view CatalogRead, expr seriesExpression) *projectNode {
+func seriesUnitProject(t *testing.T, engine *Engine, expr seriesExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{expr}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{expr}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return &projectNode{querySchema: querySchema{{Name: "v", Usage: expr.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
 }
 func TestSeriesLowering(t *testing.T) {
-	view := New().CatalogRead()
+	engine := New()
+	view := engine.CatalogRead()
 	d, _ := view.LookupType(sqltype.Int4)
 	t.Run("bounded-demand", func(t *testing.T) {
 		wide, _ := view.LookupType(sqltype.Int8)
 		e := seriesUnit(t, wide, 1, math.MaxInt64)
 		opens := 0
-		q := seriesUnitProject(t, view, e)
+		q := seriesUnitProject(t, engine, e)
 		functionSetUnitArgument(t, q.child.(*setProjectNode).calls, 0, 0,
 			queryProbe(wide.Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return sqltype.Integer(wide, 1) }))
 		q.child = &limitNode{querySchema: q.child.Schema(), child: q.child, count: seriesUnit(t, wide, 3, 3).args[0]}
@@ -312,7 +313,7 @@ func TestSeriesLowering(t *testing.T) {
 	outer := seriesUnit(t, d, 1, 3)
 	outer.Pos = parser.Position{Character: 5, Offset: 4}
 	outer.args[1] = inner
-	q := seriesUnitProject(t, view, outer)
+	q := seriesUnitProject(t, engine, outer)
 	r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 	if err != nil || count != 6 {
 		t.Fatal(count, err)
@@ -379,7 +380,8 @@ func TestSeriesCancellation(t *testing.T) {
 
 func TestSeriesFinalization(t *testing.T) {
 	t.Run("later-invocation", func(t *testing.T) {
-		view := New().CatalogRead()
+		engine := New()
+		view := engine.CatalogRead()
 		d, _ := view.LookupType(sqltype.Int4)
 		e := seriesUnit(t, d, 1, 2)
 		calls := 0
@@ -392,7 +394,7 @@ func TestSeriesFinalization(t *testing.T) {
 			return sqltype.Integer(d, 1)
 		})
 		input := &valuesNode{rows: [][]BoundExpr{{}, {}}}
-		root, outputs, err := regexpSetUnitLower(view, input, []BoundExpr{e}, 1)
+		root, outputs, err := regexpSetUnitLower(engine, input, []BoundExpr{e}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -405,10 +407,11 @@ func TestSeriesFinalization(t *testing.T) {
 	})
 	for _, phase := range []string{"error", "cancel"} {
 		t.Run(phase, func(t *testing.T) {
-			view := New().CatalogRead()
+			engine := New()
+			view := engine.CatalogRead()
 			d, _ := view.LookupType(sqltype.Int4)
 			e := seriesUnit(t, d, 1, 3)
-			q := seriesUnitProject(t, view, e)
+			q := seriesUnitProject(t, engine, e)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0

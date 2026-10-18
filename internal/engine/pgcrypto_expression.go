@@ -42,7 +42,7 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")
 		}
 	}
-	proc, ok := v.state.descriptors[n.ref.Address].(*procedureDescriptor)
+	proc, ok := v.Procedure(n.ref.Address)
 	if !ok || proc != n.procedure || proc.crypto != stockPgcrypto || proc.name != n.Plan.Name() || proc.signature != cryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}

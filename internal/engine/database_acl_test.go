@@ -14,7 +14,7 @@ import (
 func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
-	db := base.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := base.MustDatabase(currentDatabaseAddress)
 	if db.acl.Explicit || len(db.acl.Entries) != 0 {
 		t.Fatal("initial descriptor must retain NULL ACL", db.acl)
 	}
@@ -38,8 +38,8 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		candidate := cloneCatalog(base.state)
 		next := *db
 		next.acl = tc.acl
-		candidate.descriptors[currentDatabaseAddress] = &next
-		catalog := CatalogRead{e, candidate}
+		candidate.setDescriptor(currentDatabaseAddress, &next)
+		catalog := e.catalog.read(candidate)
 		roles := cloneRoleFixture(e.roles)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
@@ -70,7 +70,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
@@ -114,10 +114,10 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
 	candidate := cloneCatalog(base.state)
-	next := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	next := *candidate.MustDatabase(currentDatabaseAddress)
 	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
-	candidate.descriptors[currentDatabaseAddress] = &next
-	fresh := catalogAuthorization(e, CatalogRead{e, candidate})
+	candidate.setDescriptor(currentDatabaseAddress, &next)
+	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.state.CurrentUser = reader
 	if rights, err := fresh.ownTemporaryPrivileges(); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)

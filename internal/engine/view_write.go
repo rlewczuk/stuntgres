@@ -207,7 +207,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			return ErrCatalogReplaced
 		}
 		leaf := d.view.sources[sourceNode.occurrence]
-		source, ok := auth.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		source, ok := auth.catalog.Relation(leaf.ref.Address)
 		if !ok {
 			return ErrCatalogReplaced
 		}

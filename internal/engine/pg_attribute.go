@@ -84,7 +84,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.Get(source.address) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {
@@ -103,7 +103,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 		return nil, fmt.Errorf("stuntgres: invalid attribute NULL carrier")
 	}
 	count := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -115,7 +115,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue

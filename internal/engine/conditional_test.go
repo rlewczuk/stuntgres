@@ -590,7 +590,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					op.session.RequestEnd(CleanClose)
 				case "descriptor", "shape":
 					address := scope.lockedRef.Address
-					original := e.catalog.state.descriptors[address]
+					original := e.catalog.state.Get(address)
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
 					replacement.revision++
 					if mode == "shape" {
@@ -599,8 +599,8 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					} else {
 						replacement.comment = "compatible metadata revision"
 					}
-					e.catalog.state.descriptors[address] = &replacement
-					restore = func() { e.catalog.state.descriptors[address] = original }
+					e.catalog.state.setDescriptor(address, &replacement)
+					restore = func() { e.catalog.state.setDescriptor(address, original) }
 				case "epoch":
 					original := e.catalog.state.epoch
 					e.catalog.state.epoch++
@@ -683,7 +683,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+tc.expr+"),k INT DEFAULT 1)")
 			view := e.CatalogRead()
 			ref := roleTableRef(t, e, "d")
-			d := view.state.descriptors[ref.Address].(*relationDescriptor)
+			d := view.MustRelation(ref.Address)
 			original := d.defaults[d.attributes[0]]
 			c := &EvalContext{Context: context.Background()}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)
@@ -734,7 +734,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		e := New()
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
-		d := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+		d := e.CatalogRead().MustRelation(ref.Address)
 		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.defaults[d.attributes[0]].expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")

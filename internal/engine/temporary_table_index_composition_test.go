@@ -24,7 +24,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				sessionSQL(t, owner, q)
 			}
 			var provider, survivor, index *relationDescriptor
-			for _, descriptor := range e.catalog.state.descriptors {
+			for _, descriptor := range e.catalog.state.Descriptors() {
 				if d, ok := descriptor.(*relationDescriptor); ok {
 					switch d.name {
 					case "composition_owner":
@@ -49,7 +49,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				}
 				index = &maximum
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.descriptors[index.address] = index
+				e.catalog.state.setDescriptor(index.address, index)
 				t.Cleanup(func() { e.catalog.state = originalCatalog })
 			}
 			before := e.storage[survivor.address]
@@ -206,12 +206,12 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	var own, foreign *relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.name != "deparse_owner_index" || index.sqlIndex == nil {
 			continue
 		}
-		namespace := view.state.descriptors[index.namespace].(*namespaceDescriptor)
+		namespace := view.MustNamespace(index.namespace)
 		if namespace.temporary == owner.token {
 			own = index
 		}
@@ -227,14 +227,14 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	if err != nil || actual != "CREATE INDEX deparse_owner_index ON pg_temp.deparse_owner_table USING btree (v)" {
 		t.Fatal("own namespace alias", actual, err)
 	}
-	foreignNamespace := view.state.descriptors[foreign.namespace].Name()
+	foreignNamespace := view.Get(foreign.namespace).Name()
 	actual, err = indexDefinitionSQL(context.Background(), view, foreign, presentation)
 	if err != nil || actual != "CREATE INDEX deparse_owner_index ON "+foreignNamespace+".deparse_owner_table USING btree (v)" {
 		t.Fatal("foreign owner acquired own namespace alias", actual, err)
 	}
 	presentation.dump = true
 	actual, err = indexDefinitionSQL(context.Background(), view, own, presentation)
-	physicalNamespace := view.state.descriptors[own.namespace].Name()
+	physicalNamespace := view.Get(own.namespace).Name()
 	expectedPrefix := "CREATE INDEX " + quoteIdentifier("deparse_owner_index") + " ON " + quoteIdentifier(physicalNamespace) + "." + quoteIdentifier("deparse_owner_table") + " USING "
 	if err != nil || !strings.HasPrefix(actual, expectedPrefix) {
 		t.Fatal("context-free dump acquired alias", actual, expectedPrefix, err)
@@ -249,7 +249,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO retained_partial VALUES(7),(-3)")
 	before := e.CatalogRead()
 	var parent, index *relationDescriptor
-	for _, descriptor := range before.state.descriptors {
+	for _, descriptor := range before.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -294,11 +294,11 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	rows, ends, generation := store.versions, store.ends, store.generation
 	// Real foreign-engine replacement manufactures fresh builtin generations;
 	// exact TEMP trees/rows/roots must retain theirs, not be rebound to new types.
-	if _, err := e.ReplaceCatalog(context.Background(), New().CatalogRead()); err != nil {
+	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
-	if after.state == before.state || after.Epoch() <= before.Epoch() || after.state.descriptors[parent.address] != parent || after.state.descriptors[index.address] != index || index.sqlIndex.predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
+	if after.state == before.state || after.Epoch() <= before.Epoch() || after.Get(parent.address) != parent || after.Get(index.address) != index || index.sqlIndex.predicate != predicate || e.storage[parent.address] != store || e.indexRoots[index.address] != root || !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
 		t.Fatal("replacement changed actual retained catalog/index/store/vector roots")
 	}
 	for _, tree := range []struct {

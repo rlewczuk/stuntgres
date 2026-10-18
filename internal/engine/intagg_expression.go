@@ -80,8 +80,8 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 		}
 		return nil
 	}
-	actual, ok := v.state.descriptors[ref.Address].(*procedureDescriptor)
-	if !ok || actual != proc || ref.Domain() != v.owner.catalog.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intagg != stockIntagg {
+	actual, ok := v.Procedure(ref.Address)
+	if !ok || actual != proc || ref.Domain() != v.owner.domain || ref.Epoch != v.Epoch() || proc.name != name || proc.intagg != stockIntagg {
 		return fmt.Errorf("stuntgres: invalid stored intagg identity")
 	}
 	return stockIntagg.validateProcedure(v, proc)

@@ -80,7 +80,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		t.Fatal("replacement did not advance epoch")
 	}
 	for _, consumer := range consumers {
-		if view.state.descriptors[consumer.address] != consumer {
+		if view.Get(consumer.address) != consumer {
 			t.Fatal("TEMP consumer not retained exactly")
 		}
 		refs := pgDependRefs{ctx: context.Background(), catalog: view}
@@ -92,8 +92,8 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			t.Fatal("missing real captured procedure")
 		}
 		for path, ref := range consumer.view.intaggRefs {
-			proc := before.state.descriptors[ref.Address].(*procedureDescriptor)
-			if view.state.descriptors[ref.Address] != proc {
+			proc := before.MustProcedure(ref.Address)
+			if view.Get(ref.Address) != proc {
 				t.Fatal("TEMP procedure descriptor changed")
 			}
 			if _, exists := refs.addresses[ref.Address]; !exists {
@@ -121,11 +121,11 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			}
 			impostor := *proc
 			state := cloneCatalog(view.state)
-			state.descriptors[ref.Address] = &impostor
-			if storedViewReferenceValid(CatalogRead{owner: e, state: state}, consumer, ref) {
+			state.setDescriptor(ref.Address, &impostor)
+			if storedViewReferenceValid(e.catalog.read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := consumer.view.intaggRecipeProcedure(CatalogRead{owner: e, state: state}, path, proc.name); err == nil {
+			if _, err := consumer.view.intaggRecipeProcedure(e.catalog.read(state), path, proc.name); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer

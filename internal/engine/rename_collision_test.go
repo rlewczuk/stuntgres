@@ -15,7 +15,7 @@ func TestAlterRenameCollision(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE u(a INT)")
 	roleExecute(t, e, op, "INSERT INTO t VALUES(7,'keep')")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.descriptors[ref.Address]
+	old := e.catalog.state.Get(ref.Address)
 	storage := e.storage[ref.Address]
 	frontier := e.catalog.nextRevision
 	for _, tc := range []struct{ q, code, message string }{
@@ -31,14 +31,14 @@ func TestAlterRenameCollision(t *testing.T) {
 		if !errors.As(err, &got) || *got != want {
 			t.Fatal(tc, err, got)
 		}
-		if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.catalog.nextRevision != frontier {
+		if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.catalog.nextRevision != frontier {
 			t.Fatal("failed rename changed identity/storage/frontier")
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := testExecute(e, ctx, statement(t, "ALTER TABLE t RENAME TO canceled"), nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.state.descriptors[ref.Address] != old {
+	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal(err)
 	}
 }

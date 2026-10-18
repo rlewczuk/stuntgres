@@ -63,7 +63,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 	}
 	stage.roleCandidate = candidate
 	roles = stage.roleRead(publication, stage.owner.stageRead(stage))
-	for address, descriptor := range stage.base.state.descriptors {
+	for address, descriptor := range stage.base.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -217,14 +217,14 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	}
 	for address, descriptor := range stage.descriptors {
 		next, ok := descriptor.(*relationDescriptor)
-		original, existed := stage.base.state.descriptors[address].(*relationDescriptor)
+		original, existed := stage.base.Relation(address)
 		if ok && existed && len(next.policies) < len(original.policies) {
 			return true
 		}
 	}
 	// Column-owned sequences have their own real shared owner dependency.
 	// They are excluded from independent mutation roots, not from collection.
-	for _, descriptor := range stage.base.state.descriptors {
+	for _, descriptor := range stage.base.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if ok && relation.relationKind == sequenceRelation && relation.sequence != nil &&
 			relation.sequence.owned != (ids.ObjectAddress{}) && sources[relation.owner] {
@@ -234,7 +234,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	// Cleanup skips already removed relations; their selected policies are
 	// nevertheless separate collected addresses in PostgreSQL.
 	for address := range stage.removals {
-		relation, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+		relation, ok := stage.base.Relation(address)
 		if !ok {
 			continue
 		}

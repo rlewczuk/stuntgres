@@ -40,9 +40,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					input.address.ObjectID += 2
 					input.name, input.rules = "input", nil
 					next := cloneCatalog(e.catalog.state)
-					next.descriptors[input.address] = &input
+					next.setDescriptor(input.address, &input)
 					e.catalog.state = next
-					auth.catalog = CatalogRead{owner: e, state: next}
+					auth.catalog = e.catalog.read(next)
 					auth.pairedCatalog = auth.catalog
 					auth.roles = e.roleRead(auth.catalog, auth.roleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)

@@ -32,7 +32,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 		index, attributes := attachment.index, attachment.attributes
 		// A real TYPE reconstruction precedes attachment and gets a new backing
 		// identity. A previous capture of the same index may already have reminted it.
-		if stage.base.state.descriptors[index.address] != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
+		if stage.base.Get(index.address) != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			e.mu.Lock()
 			id, allocateErr := e.catalog.allocateOIDLocked()
 			var revision ids.DefinitionRevision
@@ -168,7 +168,7 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 	index, clone := prepared.index, prepared.replacement
 	current := stage.descriptors[index.address]
 	if current == nil {
-		current = stage.base.state.descriptors[index.address]
+		current = stage.base.Get(index.address)
 	}
 	if current != index {
 		return nil, ErrCatalogReplaced
@@ -179,13 +179,13 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 	if prepared.err != nil {
 		return nil, prepared.err
 	}
-	if stage.base.state.descriptors[index.address] == nil {
+	if stage.base.Get(index.address) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
 		delete(stage.names, descriptorNameKey(index))
 		stage.descriptors[index.address] = clone
 		key := descriptorNameKey(clone)
 		stage.names[key] = clone.address
-		stage.touched[key] = stage.base.state.names[key]
+		stage.touched[key] = stage.base.NameAddress(key)
 	} else if err := stage.Replace(clone); err != nil {
 		return nil, err
 	}

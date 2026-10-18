@@ -240,7 +240,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
-	schema := auth.catalog.state.descriptors[job.child.namespace].Name()
+	schema := auth.catalog.Get(job.child.namespace).Name()
 	for _, candidate := range candidates {
 		mode := noKeyUpdate
 		if deletion {
@@ -392,7 +392,7 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 	} else {
 		q.WriteString("UPDATE ONLY ")
 	}
-	q.WriteString(quoteIdentifier(view.state.descriptors[job.child.namespace].Name()))
+	q.WriteString(quoteIdentifier(view.Get(job.child.namespace).Name()))
 	q.WriteByte('.')
 	q.WriteString(quoteIdentifier(job.child.name))
 	offset := 0

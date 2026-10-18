@@ -31,7 +31,7 @@ func TestViewRecursiveLockCancellation(t *testing.T) {
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
 			transactionEnd(t, holder, tx, false)
-			if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "pending"}]; exists {
+			if _, exists := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "pending"}); exists {
 				t.Fatal("canceled view published")
 			}
 			lockEmpty(t, e)
@@ -66,7 +66,7 @@ func TestViewValidationReplacementAdmission(t *testing.T) {
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "v"}]; exists {
+	if _, exists := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "v"}); exists {
 		t.Fatal("replacement-fenced view published")
 	}
 }

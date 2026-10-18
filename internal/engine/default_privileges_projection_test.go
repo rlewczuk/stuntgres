@@ -15,8 +15,8 @@ import (
 
 func defaultUnitProjection(t *testing.T, catalog CatalogRead, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID}].(*relationDescriptor)
-	ref := catalog.owner.catalog.domain.Ref(catalog.Epoch(), source.address)
+	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
+	ref := catalog.owner.domain.Ref(catalog.Epoch(), source.address)
 	rows, err := captureTablePrivileges(context.Background(), catalog, auth, "unit_database", ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -75,9 +75,9 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		if spec.name == "proof_column_only" {
 			d.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
-		state.descriptors[d.address] = d
+		state.setDescriptor(d.address, d)
 	}
-	catalog := CatalogRead{f.e, state}
+	catalog := f.e.catalog.read(state)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
@@ -148,16 +148,16 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
 	changed := cloneCatalog(state)
-	named := *changed.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101}].(*relationDescriptor)
+	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
 	named.acl = authorization.ACLValue{Explicit: true}
-	changed.descriptors[named.address] = &named
+	changed.setDescriptor(named.address, &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)
 	renamed.Name = "renamed_reader"
 	putFixtureRole(actor, renamed)
 
 	auth.roleRecord = actor
-	auth.recaptureCatalog(CatalogRead{f.e, changed})
+	auth.recaptureCatalog(f.e.catalog.read(changed))
 	auth.state.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}
@@ -165,7 +165,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.anonymous, before) {
 		t.Fatal("fresh capture/returned row lifetime", fresh)
 	}
-	source := state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID}].(*relationDescriptor)
+	source := state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tablePrivilegesOID})
 	names := []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
 	for i, column := range source.columns {
 		typ := sqltype.Name

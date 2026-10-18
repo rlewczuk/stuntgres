@@ -83,7 +83,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if declaration.identity != identity || declaration.kind != functionRoutine || declaration.result != tc.result || !declaration.strict || declaration.volatility != tc.volatility || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.defaults != 0 || declaration.variadic != 0 || declaration.providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.state.descriptors[address] != captured {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != tc.name || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || !captured.strict || captured.volatility != tc.volatility || captured.revision == 0 || len(captured.body) != 0 || evaluation.catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -154,7 +154,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			mapped := remapped.(aclValueExpression)
 			mappedDescriptor, err := expressionRoutineDescriptor(mapped)
-			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.state.descriptors[address] || mapped.kind != call.kind || mapped.named != call.named || mapped.namespace != call.namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
+			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.kind != call.kind || mapped.named != call.named || mapped.namespace != call.namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
 				t.Fatal("retag lost selected carrier contract", mapped, err)
 			}
 			for _, manifest := range [][]expressionDependency{original, nil, {}} {
@@ -167,7 +167,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			changed.catalog.state = cloneCatalog(changed.catalog.state)
 			replacement := *captured
 			replacement.strict = false
-			changed.catalog.state.descriptors[address] = &replacement
+			changed.catalog.state.setDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {

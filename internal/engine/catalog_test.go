@@ -49,7 +49,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}
 	e.mu.Lock()
 	ref, err := e.resolveReference(catalogAuthorization(e, view), name)
-	d, _ := view.state.descriptors[ref.Address].(*relationDescriptor)
+	d, _ := view.Relation(ref.Address)
 	storage := e.storage[ref.Address]
 	e.mu.Unlock()
 	if err != nil {
@@ -78,7 +78,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 		t.Fatal("foreign reference accepted")
 	}
 	old := view
-	if _, err = e.ReplaceCatalog(context.Background(), other.CatalogRead()); err != nil {
+	if _, err = e.ReplaceCatalog(context.Background(), other, other.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().Epoch() != old.Epoch()+1 {
@@ -173,9 +173,9 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			// seam; exhaustion must not wrap, reuse or publish anything.
 			e.catalog.state = cloneCatalog(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.catalog.state.descriptors[address] = &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+				e.catalog.state.setDescriptor(address, &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")})
 			} else {
-				e.catalog.state.descriptors[address] = &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
+				e.catalog.state.setDescriptor(address, &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}})
 			}
 			before := e.catalog.state
 			e.catalog.nextOID = last
@@ -271,7 +271,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		}
 	}
 	setEpoch(ids.CatalogEpoch(^uint64(0)))
-	if _, err = e.ReplaceCatalog(context.Background(), e.CatalogRead()); err == nil || err.Error() != "stuntgres: catalog epoch exhausted" {
+	if _, err = e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err == nil || err.Error() != "stuntgres: catalog epoch exhausted" {
 		t.Fatalf("epoch exhaustion: %v", err)
 	}
 	setEpoch(view.Epoch())
@@ -358,7 +358,7 @@ func TestCatalogConcurrentReplacement(t *testing.T) {
 			go func() {
 				<-start
 				for i := 0; i < 200; i++ {
-					if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+					if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 						done <- err
 						return
 					}
@@ -372,7 +372,7 @@ func TestCatalogConcurrentReplacement(t *testing.T) {
 				}
 			}
 			if !self {
-				if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+				if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -418,7 +418,7 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 					t.Fatal("explicit statement retained replacement admission")
 				}
 				e.replacementMu.Unlock()
-				if _, err = e.ReplaceCatalog(context.Background(), replacement); err != nil {
+				if _, err = e.ReplaceCatalog(context.Background(), e, replacement); err != nil {
 					t.Fatal(err)
 				}
 				if err = scope.Finish(nil); !errors.Is(err, ErrCatalogReplaced) {
@@ -438,7 +438,7 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 			}
 			done := make(chan error, 1)
 			go func() {
-				_, err := e.ReplaceCatalog(context.Background(), replacement)
+				_, err := e.ReplaceCatalog(context.Background(), e, replacement)
 				done <- err
 			}()
 			if err = scope.Finish(nil); err != nil {
@@ -466,7 +466,7 @@ func TestForeignCatalogReplacementOwnsRowBacking(t *testing.T) {
 	} {
 		run(t, source, sql)
 	}
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -666,7 +666,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	sourceView, old := source.CatalogRead(), target.CatalogRead()
 	sourceRef, oldRef := catalogRef(t, source, sourceView, "t"), catalogRef(t, target, old, "t")
 	owner := target.catalog.domain
-	changes, err := target.ReplaceCatalog(context.Background(), sourceView)
+	changes, err := target.ReplaceCatalog(context.Background(), source, sourceView)
 	if err != nil || !changes.Replacement || target.catalog.domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatalf("replacement ownership: %#v, %v", changes, err)
 	}
@@ -715,7 +715,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	after := target.CatalogRead()
 	for _, receiver := range []*Engine{source, target} {
 		stateBefore := receiver.CatalogRead()
-		if _, err := receiver.ReplaceCatalog(context.Background(), sourceView); !errors.Is(err, ErrCatalogReplaced) {
+		if _, err := receiver.ReplaceCatalog(context.Background(), source, sourceView); !errors.Is(err, ErrCatalogReplaced) {
 			t.Fatalf("stale source replacement: %v", err)
 		}
 		if receiver.CatalogRead().state != stateBefore.state {
@@ -817,7 +817,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	preflight := &cancelAfterPreflightContext{Context: ctx, cancel: cancel}
-	changes, err := e.ReplaceCatalog(preflight, before)
+	changes, err := e.ReplaceCatalog(preflight, e, before)
 	if ctx.Err() != context.Canceled {
 		t.Fatal("preparation boundary did not cancel real context")
 	}
@@ -924,4 +924,10 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			assertUnchanged()
 		})
 	}
+}
+
+// replaceWithFreshCatalog replaces e's catalog with a new engine's.
+func replaceWithFreshCatalog(ctx context.Context, e *Engine) (ChangeSet, error) {
+	fresh := New()
+	return e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 }

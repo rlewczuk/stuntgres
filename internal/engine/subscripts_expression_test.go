@@ -281,9 +281,9 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	}
 }
 
-func subscriptsUnitProject(t *testing.T, view CatalogRead, expr subscriptsExpression) *projectNode {
+func subscriptsUnitProject(t *testing.T, engine *Engine, expr subscriptsExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(view, &singletonNode{}, []BoundExpr{expr}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{expr}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,12 +291,13 @@ func subscriptsUnitProject(t *testing.T, view CatalogRead, expr subscriptsExpres
 }
 
 func TestSubscriptsLowering(t *testing.T) {
-	view := New().CatalogRead()
+	engine := New()
+	view := engine.CatalogRead()
 	d, _ := view.LookupType(sqltype.Int4)
 	matrix := []sqltype.ArrayDimension{{Lower: -1, Length: 2}, {Lower: 3, Length: 3}}
 	e := subscriptsUnit(t, view, matrix, 1)
 	e.args[1] = seriesUnit(t, d, 1, 2)
-	q := subscriptsUnitProject(t, view, e)
+	q := subscriptsUnitProject(t, engine, e)
 	r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
 	if err != nil || count != 5 {
 		t.Fatal(count, err)
@@ -321,7 +322,7 @@ func TestSubscriptsLowering(t *testing.T) {
 	for _, limit := range []int64{0, 2} {
 		e := subscriptsUnit(t, view, matrix, 2)
 		opens := 0
-		q := subscriptsUnitProject(t, view, e)
+		q := subscriptsUnitProject(t, engine, e)
 		arg := e.args[0].(literalExpression).value
 		functionSetUnitArgument(t, q.child.(*setProjectNode).calls, 0, 0, queryProbe(arg.Type().Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return arg, nil }))
 		q.child = &limitNode{querySchema: q.child.Schema(), child: q.child, count: seriesUnit(t, d, limit, limit).args[0]}
@@ -365,7 +366,8 @@ func TestSubscriptsCancellation(t *testing.T) {
 }
 
 func TestSubscriptsFinalization(t *testing.T) {
-	view := New().CatalogRead()
+	engine := New()
+	view := engine.CatalogRead()
 	d, _ := view.LookupType(sqltype.Int4)
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 3}}, 1)
 	t.Run("later-invocation", func(t *testing.T) {
@@ -373,7 +375,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 		sentinel := errors.New("later subscripts argument")
 		value := e.args[0].(literalExpression).value
 		input := &valuesNode{rows: [][]BoundExpr{{}, {}}}
-		root, outputs, err := regexpSetUnitLower(view, input, []BoundExpr{e}, 1)
+		root, outputs, err := regexpSetUnitLower(engine, input, []BoundExpr{e}, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -392,7 +394,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 	})
 	for _, phase := range []string{"error", "cancel"} {
 		t.Run(phase, func(t *testing.T) {
-			q := subscriptsUnitProject(t, view, e)
+			q := subscriptsUnitProject(t, engine, e)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0

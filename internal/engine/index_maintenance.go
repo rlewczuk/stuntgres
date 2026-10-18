@@ -143,18 +143,18 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 		return ErrCatalogReplaced
 	}
 	for address, observed := range s.indexParents {
-		if current.descriptors[address] != observed {
+		if current.Get(address) != observed {
 			return CatalogConflict{}
 		}
 	}
 	for address, observed := range s.indexRebuilds {
-		if observed == nil || observed.sqlIndex == nil || current.descriptors[address] != observed || s.base.state.descriptors[address] != observed {
+		if observed == nil || observed.sqlIndex == nil || current.Get(address) != observed || s.base.Get(address) != observed {
 			return CatalogConflict{}
 		}
 	}
 	for parent, count := range s.indexSets {
 		actual := 0
-		for address, descriptor := range current.descriptors {
+		for address, descriptor := range current.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
 			if !ok || d.sqlIndex == nil || d.sqlIndex.parent != parent {
 				continue
@@ -162,7 +162,7 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalogState) error {
 			// Replacement observes the existing complete index set; it does
 			// not request REINDEX or replace any index descriptor.
 			replacement := s.materializedReplacement
-			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.address != parent || s.base.state.descriptors[address] != d) {
+			if s.indexRebuilds[address] == nil && (replacement == nil || replacement.original.address != parent || s.base.Get(address) != d) {
 				return CatalogConflict{}
 			}
 			actual++

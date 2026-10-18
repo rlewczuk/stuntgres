@@ -85,7 +85,7 @@ func (e identityExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		result := sqltype.Null(e.Usage.Type)
 		if len(path) > 0 {
-			result = sqltype.String(e.Usage.Type, auth.catalog.state.descriptors[path[0]].Name())
+			result = sqltype.String(e.Usage.Type, auth.catalog.Get(path[0]).Name())
 		}
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
 			s.currentSchemaResult = result

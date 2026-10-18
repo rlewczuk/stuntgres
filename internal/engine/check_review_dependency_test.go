@@ -40,7 +40,7 @@ func checkReviewDependencyStage(t *testing.T, e *Engine) *CatalogStage {
 func checkReviewDependencyValid(t *testing.T, e *Engine) {
 	t.Helper()
 	read := e.CatalogRead()
-	for _, descriptor := range read.state.descriptors {
+	for _, descriptor := range read.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -67,7 +67,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE guard(a INT CONSTRAINT guard_c CHECK(nextval('s_guard')>0))")
 	sessionSQL(t, a, "INSERT INTO guard VALUES(9)")
 	guardRef := catalogRef(t, e, e.CatalogRead(), "guard")
-	originalGuard := e.CatalogRead().state.descriptors[guardRef.Address]
+	originalGuard := e.CatalogRead().Get(guardRef.Address)
 	sessionSQL(t, a, "CREATE TABLE sentinel(a INT)")
 	sessionSQL(t, a, "INSERT INTO sentinel VALUES(7)")
 	sessionSQL(t, a, "BEGIN")
@@ -98,7 +98,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 	if present("s") != present("s_guard") {
 		t.Fatal("sequence list partially published")
 	}
-	guard := read.state.descriptors[guardRef.Address].(*relationDescriptor)
+	guard := read.MustRelation(guardRef.Address)
 	if commitErr != nil {
 		if !present("s") || guard != originalGuard {
 			t.Fatal("failed deletion changed providers or existing CHECK")
@@ -186,7 +186,7 @@ func TestCheckReviewDependencyRestrictComplete(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(3)")
 			transactionRows(t, a, "SELECT a FROM t ORDER BY a", 1, 2, 3)
 			read := e.CatalogRead()
-			table := read.state.descriptors[catalogRef(t, e, read, "t").Address].(*relationDescriptor)
+			table := read.MustRelation(catalogRef(t, e, read, "t").Address)
 			if len(table.checkConstraints) != 0 {
 				t.Fatal("CASCADE retained CHECK dependents")
 			}

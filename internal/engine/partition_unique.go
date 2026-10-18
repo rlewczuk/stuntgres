@@ -230,7 +230,7 @@ func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *rela
 }
 
 func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error {
-	if stage.base.state.descriptors[d.address] == nil {
+	if stage.base.Get(d.address) == nil {
 		stage.descriptors[d.address] = d
 		return nil
 	}
@@ -240,7 +240,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
 	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
-	if stage.base.state.descriptors[parentIndex.address] != nil {
+	if stage.base.Get(parentIndex.address) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
 	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.sqlIndex)
@@ -255,7 +255,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	}
 	mapped.constraint = nil
 	var candidates []*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.sqlIndex != nil && index.sqlIndex.parent == child.address && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) {
 			candidates = append(candidates, index)
@@ -321,7 +321,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	suffix := "idx"
 	addition := strings.Join(labels, "_")
 	used := constraintNames(view, child.namespace, child)
-	for key := range view.state.names {
+	for key := range view.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == child.namespace {
 			used[key.Name] = true
 		}
@@ -393,11 +393,11 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 }
 
 func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
-	if original, ok := stage.base.state.descriptors[table.address].(*relationDescriptor); ok {
+	if original, ok := stage.base.Relation(table.address); ok {
 		stage.domainBases = append(stage.domainBases, original)
 	}
 	for _, address := range table.partition.children {
-		child := e.stageRead(stage).state.descriptors[address].(*relationDescriptor)
+		child := e.stageRead(stage).MustRelation(address)
 		if _, err := e.stagePartitionIndexChild(op, stage, table, index, child, allowIncompleteVirtual); err != nil {
 			return err
 		}
@@ -420,21 +420,21 @@ func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage,
 func appendPartitionInlineIndexes(view CatalogRead, table *relationDescriptor, indexes []*relationDescriptor) []*relationDescriptor {
 	if table.membership != nil {
 		start := len(indexes)
-		parent := view.state.descriptors[table.membership.parent].(*relationDescriptor)
+		parent := view.MustRelation(table.membership.parent)
 		indexes = appendPartitionInlineIndexes(view, parent, indexes)
 		end := len(indexes)
 		write := start
 		for _, inherited := range indexes[start:end] {
 			for _, constraint := range table.uniqueConstraints {
 				if constraint.Parent == inherited.sqlIndex.constraint.OID {
-					indexes[write] = view.state.descriptors[constraint.Index].(*relationDescriptor)
+					indexes[write] = view.MustRelation(constraint.Index)
 					write++
 					break
 				}
 			}
 			for _, constraint := range table.exclusionConstraints {
 				if constraint.Parent == inherited.sqlIndex.constraint.OID {
-					indexes[write] = view.state.descriptors[constraint.Index].(*relationDescriptor)
+					indexes[write] = view.MustRelation(constraint.Index)
 					write++
 					break
 				}
@@ -443,14 +443,14 @@ func appendPartitionInlineIndexes(view CatalogRead, table *relationDescriptor, i
 		indexes = indexes[:write]
 	}
 	for _, constraint := range table.uniqueConstraints {
-		index := view.state.descriptors[constraint.Index].(*relationDescriptor)
+		index := view.MustRelation(constraint.Index)
 		if constraint.Parent == 0 && !usingIndexDump(index) {
 			indexes = append(indexes, index)
 		}
 	}
 	for _, constraint := range table.exclusionConstraints {
 		if constraint.Parent == 0 {
-			indexes = append(indexes, view.state.descriptors[constraint.Index].(*relationDescriptor))
+			indexes = append(indexes, view.MustRelation(constraint.Index))
 		}
 	}
 	return indexes
@@ -462,7 +462,7 @@ func appendPartitionInlineIndexes(view CatalogRead, table *relationDescriptor, i
 func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor) []*relationDescriptor {
 	indexes := appendPartitionInlineIndexes(view, table, nil)
 	inline := len(indexes)
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != table.address {
 			continue

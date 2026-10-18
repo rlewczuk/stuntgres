@@ -196,13 +196,12 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
 		return err
 	}
-	roles := view.owner.roleRead(view, view.owner.roles)
 	var failure error
 	record := func(captured *procedureDescriptor) {
 		if failure != nil || captured == nil {
 			return
 		}
-		current, err := validateRoutineDescriptor(view, roles, captured)
+		current, err := validateStoredRoutineDescriptor(view, captured)
 		if err != nil {
 			failure = err
 			return
@@ -252,7 +251,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, s
 		record(captured)
 		if captured != nil {
 			failure = walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
-				current, ok := view.state.descriptors[body.address].(*procedureDescriptor)
+				current, ok := view.Procedure(body.address)
 				if !ok || !sameRoutineDeclaration(current, body) {
 					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")
 				}
@@ -363,7 +362,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		return b, err
 	}
 	if b.relation != nil {
-		current, ok := catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		current, ok := catalog.Relation(b.ref.Address)
 		if !ok {
 			return b, ErrCatalogReplaced
 		}
@@ -730,7 +729,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	if event == "" || b.relation == nil {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	current, ok := auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+	current, ok := auth.catalog.Relation(b.ref.Address)
 	if !ok || b.ref.Epoch != auth.catalog.Epoch() {
 		return -1, ErrCatalogReplaced
 	}
@@ -814,7 +813,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		for _, address := range r.references {
 			whole := address
 			whole.SubID = 0
-			if descriptor, ok := auth.catalog.state.descriptors[whole]; ok {
+			if descriptor, ok := auth.catalog.Find(whole); ok {
 				b.dependencies = append(b.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: descriptor.Revision()})
 			}
 		}
@@ -1136,7 +1135,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	catalog := auth.catalog
 	var sources []queryLeaf
 	for i, source := range b.querySources {
-		current, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		current, ok := catalog.Relation(source.ref.Address)
 		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
 			return b, ErrCatalogReplaced
 		}

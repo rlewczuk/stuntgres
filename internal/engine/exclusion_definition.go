@@ -23,7 +23,7 @@ type exclusionConstraint struct {
 
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.exclusionConstraints {
-		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
+		index, ok := view.Relation(c.Index)
 		if !ok || parent.relationKind != tableRelation && parent.partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.name != c.Name || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || len(c.Operators) != len(index.sqlIndex.keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
@@ -102,7 +102,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	}
 	name := raw.Name.Text
 	used := constraintNames(auth.catalog, parent.namespace, parent)
-	for key := range auth.catalog.state.names {
+	for key := range auth.catalog.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == parent.namespace {
 			used[key.Name] = true
 		}
@@ -114,8 +114,8 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		}
 		name = generatedConstraintName(parent.name, strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.base.state.descriptors[parent.address]; altering {
-			if auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}] != (ids.ObjectAddress{}) {
+		if _, altering := stage.base.Find(parent.address); altering {
+			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
@@ -174,7 +174,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		index.columns[i].OriginAttribute = int16(i + 1)
 	}
 	parent.exclusionConstraints = append(parent.exclusionConstraints, c)
-	if _, existing := stage.base.state.descriptors[parent.address]; existing {
+	if _, existing := stage.base.Find(parent.address); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err
 		}

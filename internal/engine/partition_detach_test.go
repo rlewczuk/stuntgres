@@ -43,7 +43,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	}
 	partitionAttachUnitInstall(t, e, relations...)
 	get := func(d *relationDescriptor) *relationDescriptor {
-		return e.catalog.state.descriptors[d.address].(*relationDescriptor)
+		return e.catalog.state.MustRelation(d.address)
 	}
 	return partitionDetachUnit{e, get(parent), get(child), get(def), get(leaf)}
 }
@@ -64,8 +64,8 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 				t.Fatal(err)
 			}
 			view := f.e.stageRead(stage)
-			p := view.state.descriptors[f.parent.address].(*relationDescriptor)
-			c := view.state.descriptors[child.address].(*relationDescriptor)
+			p := view.MustRelation(f.parent.address)
+			c := view.MustRelation(child.address)
 			if p == f.parent || c == child || c.membership != nil || slices.Contains(p.partition.children, child.address) || c.address != child.address || c.rowType != child.rowType || c.partition != child.partition {
 				t.Fatal("immediate graph/identity/subtree changed incorrectly")
 			}
@@ -81,7 +81,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if f.e.catalog.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.partition.children) != 2 || child.membership == nil {
 				t.Fatal("private stage mutated published graph/store")
 			}
-			if kind == "nested" && view.state.descriptors[f.leaf.address] != f.leaf {
+			if kind == "nested" && view.Get(f.leaf.address) != f.leaf {
 				t.Fatal("subordinate descriptor replaced")
 			}
 			if _, err := f.e.ValidateCatalogStage(context.Background(), stage); err != nil {
@@ -122,18 +122,18 @@ func TestPartitionDetachDependencies(t *testing.T) {
 				t.Fatal(err)
 			}
 			view := f.e.stageRead(stage)
-			index := view.state.descriptors[f.child.address].(*relationDescriptor)
-			table := view.state.descriptors[f.leaf.address].(*relationDescriptor)
+			index := view.MustRelation(f.child.address)
+			table := view.MustRelation(f.leaf.address)
 			if index.sqlIndex.partitionParent != (ids.ObjectAddress{}) || index.sqlIndex.constraint != f.child.sqlIndex.constraint || index.sqlIndex.valid != f.child.sqlIndex.valid || table.uniqueConstraints[0].Parent != 0 || !table.uniqueConstraints[0].IsLocal || !table.notNullConstraints[0].partitionLocal {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
 			if table.uniqueConstraints[0].OID != childKey.OID || table.notNullConstraints[0].OID != 46602 || f.leaf.uniqueConstraints[0].Parent != rootKey.OID || f.child.sqlIndex.partitionParent != f.parent.address {
 				t.Fatal("own identity or predecessor changed")
 			}
-			if view.state.descriptors[f.parent.address] != f.parent || f.parent.sqlIndex.valid != valid {
+			if view.Get(f.parent.address) != f.parent || f.parent.sqlIndex.valid != valid {
 				t.Fatal("detach promoted or replaced former parent index")
 			}
-			if err := validatePartitionIndex(view, f.parent, view.state.descriptors[f.root.address].(*relationDescriptor)); err != nil {
+			if err := validatePartitionIndex(view, f.parent, view.MustRelation(f.root.address)); err != nil {
 				t.Fatal("invalid-complete must be admitted", err)
 			}
 			if err := validateIndexDefinition(view, index); err != nil {
@@ -185,7 +185,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 				next := cloneCatalog(f.e.catalog.state)
 				p := *f.parent
 				p.revision++
-				next.descriptors[p.address] = &p
+				next.setDescriptor(p.address, &p)
 				f.e.catalog.state = next
 			}
 			before := f.e.catalog.state
@@ -199,7 +199,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				cancel()
-				if f.e.catalog.state.descriptors[f.child.address].(*relationDescriptor).membership != nil || !maps.Equal(stores, f.e.storage) {
+				if f.e.catalog.state.MustRelation(f.child.address).membership != nil || !maps.Equal(stores, f.e.storage) {
 					t.Fatal("completed metadata publication lost store or attachment removal")
 				}
 				return
@@ -237,8 +237,8 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
-	delete(next.state.descriptors, f.child.address)
-	delete(next.state.descriptors, f.leaf.address)
+	next.state.removeDescriptor(f.child.address)
+	next.state.removeDescriptor(f.leaf.address)
 	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, next.state, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.address] != nil || f.parent.sqlIndex.valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)

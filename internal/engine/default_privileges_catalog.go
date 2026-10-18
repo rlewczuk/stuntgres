@@ -127,7 +127,7 @@ func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref aut
 		class := [...]string{"", "relations", "sequences", "functions", "types", "schemas", "large objects"}[key.class]
 		description := "default privileges on new " + class + " belonging to role " + creator.Name
 		if key.schema != (ids.ObjectAddress{}) {
-			description += " in schema " + view.state.descriptors[key.schema].Name()
+			description += " in schema " + view.Get(key.schema).Name()
 		}
 		prefix := "privileges for "
 		if kind == 'o' {
@@ -161,7 +161,7 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 func pruneNamespaceDefaults(source, next *catalogState, retired []ids.ObjectAddress) {
 	copied := false
 	for key := range next.defaultACLs {
-		if key.schema == (ids.ObjectAddress{}) || source.descriptors[key.schema] == nil || next.descriptors[key.schema] != nil && !slices.Contains(retired, key.schema) {
+		if key.schema == (ids.ObjectAddress{}) || source.Get(key.schema) == nil || next.Get(key.schema) != nil && !slices.Contains(retired, key.schema) {
 			continue
 		}
 		if !copied {

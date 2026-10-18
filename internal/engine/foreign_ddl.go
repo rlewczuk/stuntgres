@@ -43,8 +43,8 @@ func foreignLabel(class ids.OID) string {
 	}
 }
 func findForeign(catalog CatalogRead, class ids.OID, name string) (*foreignDescriptor, error) {
-	a := catalog.state.names[ids.NameKey{ClassID: class, Name: name}]
-	if d, ok := catalog.state.descriptors[a].(*foreignDescriptor); ok {
+	a := catalog.NameAddress(ids.NameKey{ClassID: class, Name: name})
+	if d, ok := catalog.Foreign(a); ok {
 		return d, nil
 	}
 	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, foreignLabel(class), name))
@@ -101,7 +101,7 @@ func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind F
 	if wrapper.validator == (ids.ObjectAddress{}) {
 		return foreignValidation{}, nil
 	}
-	p, ok := stage.base.state.descriptors[wrapper.validator].(*procedureDescriptor)
+	p, ok := stage.base.Procedure(wrapper.validator)
 	if !ok || p.foreign == nil || p.foreign.validator == nil {
 		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.name))
 	}
@@ -227,7 +227,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 		name = foreignMappingName(server.address, role)
 		stage.domainBases = append(stage.domainBases, server)
-		wrapper, _ = auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+		wrapper, _ = auth.catalog.Foreign(server.wrapper)
 	}
 	if s.Action == "drop" {
 		names := s.Names
@@ -342,7 +342,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			next.wrapper = wrapper.address
 			next.serverType = s.ServerType
 		} else {
-			wrapper, _ = auth.catalog.state.descriptors[old.wrapper].(*foreignDescriptor)
+			wrapper, _ = auth.catalog.Foreign(old.wrapper)
 		}
 		if s.VersionSet {
 			next.version = s.Version
@@ -483,7 +483,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *foreignDescript
 	if err = ownershipEligibility(auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
-	wrapper, ok := auth.catalog.state.descriptors[object.wrapper].(*foreignDescriptor)
+	wrapper, ok := auth.catalog.Foreign(object.wrapper)
 	if !ok {
 		return ErrCatalogReplaced
 	}

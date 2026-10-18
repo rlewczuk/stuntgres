@@ -76,7 +76,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	if generation == nil || generation != leaf.storage || data.catalog.Epoch() != leaf.ref.Epoch {
 		t.Fatal("fixture lost actual storage/catalog generation")
 	}
-	descriptor := data.catalog.state.descriptors[address].(*relationDescriptor)
+	descriptor := data.catalog.MustRelation(address)
 	if !descriptor.rlsEnabled || !descriptor.rlsForced {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}

@@ -226,7 +226,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		old  *relationDescriptor
 		want int64
 	}{{parent, 11}, {child, 21}} {
-		current := e.CatalogRead().state.descriptors[pair.old.address].(*relationDescriptor)
+		current := e.CatalogRead().MustRelation(pair.old.address)
 		if current.columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage[current.address].versions) != 1 {
 			t.Fatal("TYPE capture did not reach physical candidate", current)
 		}

@@ -48,7 +48,7 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 }
 
 func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.CreateTable, origins map[ids.OID]restoredNotNull) {
-	relation, ok := e.CatalogRead().state.descriptors[created.Address].(*relationDescriptor)
+	relation, ok := e.CatalogRead().Relation(created.Address)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 	if err != nil {
 		return restoredNotNull{}, err
 	}
-	relation, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
@@ -151,7 +151,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || old.relationKind != tableRelation || origin.ref != ref {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)

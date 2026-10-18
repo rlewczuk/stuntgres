@@ -183,7 +183,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing simple set-view source")
 			}
-			relation, ok := catalog.state.descriptors[root.ref.Address].(*relationDescriptor)
+			relation, ok := catalog.Relation(root.ref.Address)
 			if !ok {
 				return "", ErrCatalogReplaced
 			}
@@ -549,7 +549,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
 	}
 	if column.ruleSide != 0 {
-		d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID}].(*relationDescriptor)
+		d, ok := catalog.Relation(ids.ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID})
 		if !ok {
 			return "", ErrCatalogReplaced
 		}
@@ -587,7 +587,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing simple view source")
 		}
-		relation := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		relation := catalog.MustRelation(source.ref.Address)
 		text, err := v.slotSQL(ctx, catalog, root, column.slot)
 		if err != nil {
 			return "", err
@@ -806,11 +806,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return name, nil
 	case parser.LiteralExpr:
 		if ref, ok := v.sequenceRefs[e.Value.Pos.Offset]; ok {
-			d, exists := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d, exists := catalog.Relation(ref.Address)
 			if !exists {
 				return "'" + strconv.FormatUint(uint64(ref.Address.ObjectID), 10) + "'", nil
 			}
-			name := quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
+			name := quoteIdentifier(catalog.Get(d.namespace).Name()) + "." + quoteIdentifier(d.name)
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
 		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewDistinctOnLiteral || path.clause == viewValuesOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
@@ -931,11 +931,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
 		if ref, selected := v.operatorRefs[path]; selected {
-			d, ok := catalog.state.descriptors[ref.Address].(*operatorDescriptor)
+			d, ok := catalog.Operator(ref.Address)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing frozen selected operator")
 			}
-			ns := catalog.state.descriptors[d.namespace].Name()
+			ns := catalog.Get(d.namespace).Name()
 			e.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: d.name}}}
 		}
 		spelling := e.Name.Parts[len(e.Name.Parts)-1].Text

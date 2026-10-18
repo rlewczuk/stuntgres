@@ -39,11 +39,11 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 	if scope.catalog != nil {
 		catalog = e.privateCatalogLocked(scope.catalog)
 	}
-	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(ref.Address)
 	if !ok {
 		return
 	}
-	if ns, ok := catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == scope.op.session.token {
+	if ns, ok := catalog.Namespace(d.namespace); ok && ns.temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 }

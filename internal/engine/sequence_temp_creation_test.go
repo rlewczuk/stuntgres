@@ -30,10 +30,10 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 40)
 				peerNamespace := b.temporaryNamespace
-				peerName := e.catalog.state.descriptors[peerNamespace].(*namespaceDescriptor).name
+				peerName := e.catalog.state.MustNamespace(peerNamespace).name
 				ownName := ""
 				if !fresh {
-					ownName = e.catalog.state.descriptors[a.temporaryNamespace].(*namespaceDescriptor).name
+					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).name
 				}
 				query := "CREATE TEMP SEQUENCE created START 60 CACHE 3"
 				code, message := "42P16", "only temporary relations may be created in temporary schemas"
@@ -102,7 +102,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					memories[address] = *m
 				}
 				peerAddress := NameAddressForTempMove(t, e, peerNamespace, "seed")
-				peerDescriptor, peerMemory := catalog.descriptors[peerAddress], *b.sequences[peerAddress]
+				peerDescriptor, peerMemory := catalog.Get(peerAddress), *b.sequences[peerAddress]
 				last, peerLast := a.lastSequence, b.lastSequence
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
@@ -124,13 +124,13 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal("valid own temporary creation", err)
 					}
-					ns := e.catalog.state.descriptors[a.temporaryNamespace].(*namespaceDescriptor)
+					ns := e.catalog.state.MustNamespace(a.temporaryNamespace)
 					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.address != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
 					assertTemporaryNamespacePair(t, e, a.token, ns.address)
 					address := NameAddressForTempMove(t, e, ns.address, "created")
-					d := e.catalog.state.descriptors[address].(*relationDescriptor)
+					d := e.catalog.state.MustRelation(address)
 					want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: 9223372036854775807, start: 60, cache: 3, persistence: "temporary"}
 					g := e.sequences[address]
 					if d.namespace != ns.address || d.owner != e.Roles().LookupRef("postgres") || d.relationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.sequencePlanStamp != d.revision {
@@ -158,7 +158,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				for address, d := range e.catalog.state.descriptors {
+				for address, d := range e.catalog.state.Descriptors() {
 					if ownedNamespace != (ids.ObjectAddress{}) && d.Namespace() == ownedNamespace {
 						t.Fatal("physical end leaked owned temporary child", address)
 					}
@@ -166,7 +166,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				if ownedNamespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.token, ownedNamespace)
 				}
-				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) || e.catalog.state.descriptors[peerAddress] != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences[peerAddress] != peerMemory {
+				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) || e.catalog.state.Get(peerAddress) != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences[peerAddress] != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 41)
@@ -185,7 +185,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE USER creator")
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
-				ns := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"}]
+				ns := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "denied"})
 				if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}

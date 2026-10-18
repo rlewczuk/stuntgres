@@ -126,7 +126,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if s.uniqueBinding == nil || s.uniqueBinding.catalog != catalog.state {
 		return false, true, nil
 	}
-	parent, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent, ok := catalog.Relation(ref.Address)
 	if !ok || !sameRelationRowShape(s.uniqueBinding.parent, parent) {
 		return false, false, ErrCatalogReplaced
 	}

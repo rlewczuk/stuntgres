@@ -16,7 +16,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE blocking_render_owner(v INT)")
 	catalog := e.CatalogRead()
 	ref := catalogRef(t, e, catalog, "blocking_render_owner")
-	owner := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	owner := catalog.MustRelation(ref.Address)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"pg_blocking_pids", "pg_safe_snapshot_blocking_pids"} {
 		raw := datetimeMakeRaw(name, datetimeMakeInteger(0))

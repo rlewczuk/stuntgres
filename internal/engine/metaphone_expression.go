@@ -29,7 +29,7 @@ func (n installedMetaphoneFunctionExpression) validate(v CatalogRead) error {
 			return fmt.Errorf("stuntgres: missing stored Metaphone argument")
 		}
 	}
-	proc, ok := v.state.descriptors[n.ref.Address].(*procedureDescriptor)
+	proc, ok := v.Procedure(n.ref.Address)
 	if !ok || proc != n.procedure || proc.fuzzy != stockFuzzystrmatch || proc.name != n.Function || proc.signature != procedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.result != 25 {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone identity")
 	}

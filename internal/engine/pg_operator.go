@@ -33,7 +33,7 @@ func capturePGOperator(ctx context.Context, catalog CatalogRead, ref ids.ObjectR
 		}
 	}
 	var definitions []*operatorDescriptor
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		d, ok := descriptor.(*operatorDescriptor)
 		if !ok {
 			continue

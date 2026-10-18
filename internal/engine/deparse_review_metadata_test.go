@@ -272,7 +272,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
-	view := e.CatalogRead().state.descriptors[roleTableRef(t, e, "v").Address].(*relationDescriptor).view
+	view := e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address).view
 	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 0, node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
@@ -312,7 +312,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 						e := New()
 						run(t, e, "CREATE TABLE t(n "+declaration+",CONSTRAINT c CHECK("+left+" "+op+" "+right+"))")
 						view := e.CatalogRead()
-						d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+						d := view.MustRelation(roleTableRef(t, e, "t").Address)
 						node := d.checkConstraints[0].expression
 						for _, pretty := range []bool{false, true} {
 							a, b := "n", constant.compact
@@ -347,7 +347,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(n "+tc.declaration+",CONSTRAINT c CHECK("+tc.input+"))")
 			view := e.CatalogRead()
-			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			d := view.MustRelation(roleTableRef(t, e, "t").Address)
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {
@@ -377,7 +377,7 @@ func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(a INT,b INT,flag BOOL,CONSTRAINT c CHECK("+tc.input+"))")
 			view := e.CatalogRead()
-			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			d := view.MustRelation(roleTableRef(t, e, "t").Address)
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {
@@ -413,7 +413,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
 			view := e.CatalogRead()
-			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			d := view.MustRelation(roleTableRef(t, e, "t").Address)
 			node := d.checkConstraints[0].expression.(comparisonExpression).left
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact

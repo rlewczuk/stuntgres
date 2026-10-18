@@ -222,7 +222,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	beforeGrowth := e.CatalogRead()
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
-	currentChild := grown.state.descriptors[c.address].(*relationDescriptor)
+	currentChild := grown.MustRelation(c.address)
 	if currentChild == c || !currentChild.hasSubclasses || currentChild.subclassPredecessor != c || currentChild.revision != currentChild.subclassPublication || !inheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
@@ -233,7 +233,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal("additive first-grandchild growth was treated as replacement", err)
 	}
-	if state.stage == nil || state.stage.base.state != grown.state || state.stage.base.state.descriptors[g.address] != g || len(state.targets) != 3 {
+	if state.stage == nil || state.stage.base.state != grown.state || state.stage.base.Get(g.address) != g || len(state.targets) != 3 {
 		t.Fatal("sole stage did not capture reconciled actual growth")
 	}
 	if e.CatalogRead().state != grown.state {
@@ -262,7 +262,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 		old   *relationDescriptor
 		value int64
 	}{{p, 10}, {c, 20}, {g, 30}} {
-		current := e.CatalogRead().state.descriptors[pair.old.address].(*relationDescriptor)
+		current := e.CatalogRead().MustRelation(pair.old.address)
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, pair.value), inheritanceQueryInt(e, 7)})
 	}
 	lockEmpty(t, e)
@@ -275,7 +275,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	result, joined := inheritanceAlterWorker(t, command, holder)
 	state := inheritanceAlterPending(t, command, c)
 	g := inheritanceAlterGrandchild(t, e, c)
-	marker := e.CatalogRead().state.descriptors[c.address].(*relationDescriptor)
+	marker := e.CatalogRead().MustRelation(c.address)
 	if !inheritanceMarkerPublication(c, marker) {
 		t.Fatal("fixture failed to publish genuine first-child marker")
 	}
@@ -300,7 +300,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)
-	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().state.descriptors[g.address] != g || len(e.CatalogRead().state.descriptors[p.address].(*relationDescriptor).columns) != 1 {
+	if e.CatalogRead().state != stable.state || !reflect.DeepEqual(stores, e.storage) || e.CatalogRead().Get(g.address) != g || len(e.CatalogRead().MustRelation(p.address).columns) != 1 {
 		t.Fatal("replacement veto leaked earlier prepared root or retargeted the graph")
 	}
 	lockEmpty(t, e)
@@ -429,7 +429,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("later DEFAULT bound a provider actually removed in phase zero", provider.name, err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().state != before.state || e.CatalogRead().state.descriptors[removed.address] != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
+			if e.CatalogRead().state != before.state || e.CatalogRead().Get(removed.address) != removed || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.sequences) {
 				t.Fatal("removed-provider binding failure partially applied actual DROP effects")
 			}
 			lockEmpty(t, e)
@@ -507,7 +507,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			assertPhase(dropTypes, []string{"a"})
 			assertPhase(prepared.steps[1].types, []string{"a", "z"})
 			assertPhase(prepared.steps[2].types, []string{"a", "z", "u"})
-			assertShape(before.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.rowType)}].(*typeDescriptor).typ, []string{"a", "b"})
+			assertShape(before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(p.rowType)}).typ, []string{"a", "b"})
 			if interim {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
@@ -612,7 +612,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.namespace, Name: "old_b"}
-			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().state.descriptors[view.address] != view {
+			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.state != before.state || e.CatalogRead().state != before.state || e.CatalogRead().Get(view.address) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {
@@ -654,14 +654,14 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if err := command.scope.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			if _, present := e.CatalogRead().state.descriptors[view.address]; present {
+			if _, present := e.CatalogRead().Find(view.address); present {
 				t.Fatal("genuine CASCADE dependency survived cached DROP")
 			}
 			for _, pair := range []struct {
 				old   *relationDescriptor
 				value int64
 			}{{p, 1}, {c, 2}} {
-				current := e.CatalogRead().state.descriptors[pair.old.address].(*relationDescriptor)
+				current := e.CatalogRead().MustRelation(pair.old.address)
 				if current.attributes[current.index["b"]] == pair.old.attributes[pair.old.index["b"]] {
 					t.Fatal("mixed DROP/ADD reused old stable attribute")
 				}

@@ -47,8 +47,8 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				queryCreatePublish(t, e, childStage)
 				child = d
-				parent = e.CatalogRead().state.descriptors[predecessor.address].(*relationDescriptor)
-				if parent == predecessor || !parent.hasSubclasses || predecessor.hasSubclasses || parent.address != predecessor.address || parent.rowType != predecessor.rowType || parent.revision == predecessor.revision || before.state.descriptors[predecessor.address] != predecessor || e.storage[parent.address] != storage {
+				parent = e.CatalogRead().MustRelation(predecessor.address)
+				if parent == predecessor || !parent.hasSubclasses || predecessor.hasSubclasses || parent.address != predecessor.address || parent.rowType != predecessor.rowType || parent.revision == predecessor.revision || before.Get(predecessor.address) != predecessor || e.storage[parent.address] != storage {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}
@@ -259,7 +259,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if captureErr == nil {
 				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage, only: view.view.sources[0].only}, op.session.token)
 			}
-			validBase := catalog.state.descriptors[parent.address] == parent && e.privateStorageLocked(scope.owner.catalog, parent.address) == parentStorage
+			validBase := catalog.Get(parent.address) == parent && e.privateStorageLocked(scope.owner.catalog, parent.address) == parentStorage
 			e.mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)

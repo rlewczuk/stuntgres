@@ -11,7 +11,7 @@ import (
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
 func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}]
+	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
 	}
@@ -27,7 +27,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 			return nil, err
 		}
 		fixed := &builtinCollations[i]
-		d, ok := view.state.descriptors[fixed.Address()].(*collationDescriptor)
+		d, ok := view.Collation(fixed.Address())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned collation")
 		}
@@ -39,7 +39,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 		if d.name != fixed.name || d.Namespace() != fixed.Namespace() {
 			if occupied == nil {
 				occupied = make(map[string]bool)
-				for _, d := range view.state.descriptors {
+				for _, d := range view.Descriptors() {
 					if d.Address().ClassID == ids.CollationClassID {
 						occupied[d.Name()] = true
 					}
@@ -69,7 +69,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 		if change.temporary == "" {
 			continue
 		}
-		ns := view.state.descriptors[change.d.Namespace()]
+		ns := view.Get(change.d.Namespace())
 		from := initialSchema + "." + quoteIdentifier(change.temporary)
 		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+quoteIdentifier(ns.Name())+";\n")
@@ -87,11 +87,11 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles au
 
 func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view CatalogRead) error {
 	var roots []ids.ObjectAddress
-	for a, d := range view.state.descriptors {
+	for a, d := range view.Descriptors() {
 		if _, ok := d.(*collationDescriptor); !ok {
 			continue
 		}
-		if ns, ok := view.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := view.Namespace(d.Namespace()); ok && ns.temporary != (ids.SessionToken{}) {
 			roots = append(roots, a)
 		}
 	}
@@ -105,14 +105,14 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view Catalo
 		return err
 	}
 	for _, edge := range edges {
-		d := view.state.descriptors[ids.ObjectAddress{ClassID: edge.address.ClassID, ObjectID: edge.address.ObjectID}]
+		d := view.Get(ids.ObjectAddress{ClassID: edge.address.ClassID, ObjectID: edge.address.ObjectID})
 		if edge.relation != nil {
 			d = edge.relation
 		}
 		if d == nil {
 			return fmt.Errorf("stuntgres: missing temporary collation dependent")
 		}
-		ns, ok := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+		ns, ok := view.Namespace(d.Namespace())
 		if !ok || ns.temporary == (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: dump cannot serialize persistent temporary collation dependency")
 		}

@@ -12,8 +12,8 @@ import (
 func TestPGAggregateIntaggOwnership(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
-	enum := view.state.descriptors[ext.members[1]].(*procedureDescriptor)
+	proc := view.MustProcedure(ext.members[0])
+	enum := view.MustProcedure(ext.members[1])
 	if len(ext.members) != 2 || proc.aggregate == nil || enum.aggregate != nil {
 		t.Fatal("callable/aggregate owner inventory")
 	}
@@ -71,16 +71,16 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
-	source := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}].(*relationDescriptor)
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.catalog.domain.Ref(view.Epoch(), source.address)
 	rows, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := cloneCatalog(view.state)
-	delete(removed.descriptors, proc.address)
-	delete(removed.names, descriptorNameKey(proc))
-	retired := CatalogRead{owner: e, state: removed}
+	removed.removeDescriptor(proc.address)
+	removed.unbindName(descriptorNameKey(proc))
+	retired := e.catalog.read(removed)
 	for _, helper := range proc.aggregate.helpers {
 		if _, ok := routineIdentityByOID(retired, helper.id); ok {
 			t.Fatal("retired helper still resolves")
@@ -95,7 +95,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 func TestPGAggregateIntaggValidation(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	proc := view.MustProcedure(ext.members[0])
 	for _, mutate := range []func(*ownedAggregate){
 		func(a *ownedAggregate) { a.helpers[0].id = 0 },
 		func(a *ownedAggregate) {
@@ -119,33 +119,33 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		mutate(&owned)
 		bad.aggregate = &owned
 		state := cloneCatalog(view.state)
-		state.descriptors[proc.address] = &bad
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		state.setDescriptor(proc.address, &bad)
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
 	}
 	for _, member := range ext.members {
-		bad := *view.state.descriptors[member].(*procedureDescriptor)
+		bad := *view.MustProcedure(member)
 		if member == proc.address {
 			bad.aggregate = nil
 		} else {
 			bad.aggregate = proc.aggregate
 		}
 		state := cloneCatalog(view.state)
-		state.descriptors[member] = &bad
-		if err := stockIntagg.validate(CatalogRead{owner: e, state: state}, ext); err == nil {
+		state.setDescriptor(member, &bad)
+		if err := stockIntagg.validate(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
 	collision := cloneCatalog(view.state)
 	helper := proc.aggregate.helpers[0]
-	namespace := *view.state.descriptors[proc.namespace].(*namespaceDescriptor)
+	namespace := *view.MustNamespace(proc.namespace)
 	namespace.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.id}
-	collision.descriptors[namespace.address] = &namespace
-	if err := stockIntagg.validate(CatalogRead{owner: e, state: collision}, ext); err == nil {
+	collision.setDescriptor(namespace.address, &namespace)
+	if err := stockIntagg.validate(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: e, state: collision}); err == nil {
+	if err := validateDefinitionOIDs(e.catalog.read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
 	}
 }
@@ -153,7 +153,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 func TestPGAggregateIntaggRemap(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	proc := view.MustProcedure(ext.members[0])
 	original := *proc.aggregate
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		proc.address:   {ClassID: ids.ProcedureClassID, ObjectID: 900000},
@@ -220,7 +220,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	if e.catalog.state != before.state {
 		t.Fatal("failed provider published partial installation")
 	}
-	for _, d := range e.catalog.state.descriptors {
+	for _, d := range e.catalog.state.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.intagg != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
@@ -229,7 +229,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 
 func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	source, ext := intaggUnitInstalled(t)
-	proc := source.catalog.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	proc := source.catalog.state.MustProcedure(ext.members[0])
 	original := *proc.aggregate
 	target := New()
 	target.catalog.state = cloneCatalog(target.catalog.state)
@@ -238,8 +238,8 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
 		temporary: target.catalog.domain.Session(99),
 	}
-	target.catalog.state.descriptors[namespace.address] = namespace
-	target.catalog.state.names[descriptorNameKey(namespace)] = namespace.address
+	target.catalog.state.setDescriptor(namespace.address, namespace)
+	target.catalog.state.bindName(descriptorNameKey(namespace), namespace.address)
 	target.catalog.nextOID = 30000
 	next := cloneCatalog(source.catalog.state)
 	target.mu.Lock()
@@ -248,19 +248,19 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imported := next.descriptors[proc.address].(*procedureDescriptor)
-	if next.descriptors[namespace.address] != namespace || imported == proc || imported.aggregate == proc.aggregate || imported.aggregate.helpers[0].id == original.helpers[0].id || imported.aggregate.definition.functions[0] != imported.aggregate.helpers[0].id {
+	imported := next.MustProcedure(proc.address)
+	if next.Get(namespace.address) != namespace || imported == proc || imported.aggregate == proc.aggregate || imported.aggregate.helpers[0].id == original.helpers[0].id || imported.aggregate.definition.functions[0] != imported.aggregate.helpers[0].id {
 		t.Fatal("helper collision did not preserve TEMP/remap owner metadata")
 	}
 	if imported.aggregate.helpers[1].id != original.helpers[1].id || imported.aggregate.helpers[0].namespace != proc.namespace.ObjectID || *proc.aggregate != original {
 		t.Fatal("unrelated helper/source changed")
 	}
 	for _, helper := range imported.aggregate.helpers {
-		if next.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}] != nil {
+		if next.Get(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}) != nil {
 			t.Fatal("mapping-only helper became a descriptor")
 		}
 	}
-	if err := validateDefinitionOIDs(CatalogRead{owner: target, state: next}); err != nil {
+	if err := validateDefinitionOIDs(target.catalog.read(next)); err != nil {
 		t.Fatal(err)
 	}
 }

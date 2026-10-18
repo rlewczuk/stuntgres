@@ -27,7 +27,7 @@ func truncateUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 func truncateUnitReplace(t *testing.T, e *Engine, ref ids.ObjectRef, change func(*relationDescriptor)) {
 	t.Helper()
 	base := e.CatalogRead()
-	original := base.state.descriptors[ref.Address].(*relationDescriptor)
+	original := base.MustRelation(ref.Address)
 	next := *original
 	next.revision++
 	change(&next)
@@ -41,7 +41,7 @@ func truncateUnitFK(t *testing.T, e *Engine, parent, child ids.ObjectRef) {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	next := *base.state.descriptors[child.Address].(*relationDescriptor)
+	next := *base.MustRelation(child.Address)
 	next.revision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.mu.Lock()
@@ -128,7 +128,7 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "inheritance" {
 				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
-				inheritance = e.catalog.state.descriptors[c.Address].(*relationDescriptor).inheritance
+				inheritance = e.catalog.state.MustRelation(c.Address).inheritance
 				truncateUnitReplace(t, e, c, func(d *relationDescriptor) { d.inheritance = nil })
 			} else {
 				sessionSQL(t, s, "CREATE TABLE c(id INT)")
@@ -161,8 +161,8 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
 	catalog := e.CatalogRead()
-	ownAddress := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"}]
-	peerAddress := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"}]
+	ownAddress := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"})
+	peerAddress := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"})
 	persistent := roleTableRef(t, e, "persistent_child")
 	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
@@ -256,7 +256,7 @@ func TestTruncateAdmission(t *testing.T) {
 			case "nontruncate-storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
-				next := *base.state.descriptors[p.Address].(*relationDescriptor)
+				next := *base.MustRelation(p.Address)
 				next.revision++
 				replacement := &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, old, replacement, len(old.versions), old.generation, old.ends); err != nil {
@@ -288,7 +288,7 @@ func TestTruncateAdmission(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
 			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
-			inheritance := e.catalog.state.descriptors[child.Address].(*relationDescriptor).inheritance
+			inheritance := e.catalog.state.MustRelation(child.Address).inheritance
 			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.inheritance = nil })
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)

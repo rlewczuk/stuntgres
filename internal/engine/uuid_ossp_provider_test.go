@@ -34,8 +34,8 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}]
-	return e, e.catalog.state.descriptors[address].(*extensionDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"})
+	return e, e.catalog.state.MustExtension(address)
 }
 
 func TestUUIDOsspProviderIdentity(t *testing.T) {
@@ -45,7 +45,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		t.Fatal(ext)
 	}
 	address := ext.members[0]
-	proc := view.state.descriptors[address].(*procedureDescriptor)
+	proc := view.MustProcedure(address)
 	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
 		t.Fatal(proc)
 	}
@@ -90,10 +90,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	} {
 		bad := *proc
 		mutate(&bad)
-		view.state.descriptors[address] = &bad
+		view.state.setDescriptor(address, &bad)
 		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.validate(view, ext)
-		view.state.descriptors[address] = proc
+		view.state.setDescriptor(address, proc)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
 		}
@@ -113,30 +113,30 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	// Existing providers must reject a mixed uuid-ossp authority marker too.
 	cryptoEngine, cryptoExt := pgcryptoUnitInstalled(t)
 	cryptoView := cryptoEngine.CatalogRead()
-	original := cryptoView.state.descriptors[cryptoExt.members[0]].(*procedureDescriptor)
+	original := cryptoView.MustProcedure(cryptoExt.members[0])
 	bad := *original
 	bad.uuidOssp = stockUUIDOssp
-	cryptoView.state.descriptors[bad.address] = &bad
+	cryptoView.state.setDescriptor(bad.address, &bad)
 	failure := stockPgcrypto.validate(cryptoView, cryptoExt)
-	cryptoView.state.descriptors[bad.address] = original
+	cryptoView.state.setDescriptor(bad.address, original)
 	if failure == nil {
 		t.Fatal("mixed existing provider accepted")
 	}
 	intaggEngine, intaggExt := intaggUnitInstalled(t)
 	intaggView := intaggEngine.CatalogRead()
 	for _, address := range intaggExt.members {
-		original := intaggView.state.descriptors[address].(*procedureDescriptor)
+		original := intaggView.MustProcedure(address)
 		bad := *original
 		bad.uuidOssp = stockUUIDOssp
-		intaggView.state.descriptors[address] = &bad
+		intaggView.state.setDescriptor(address, &bad)
 		manifestFailure := stockIntagg.validate(intaggView, intaggExt)
 		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
-		intaggView.state.descriptors[address] = original
+		intaggView.state.setDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}
 	}
-	builtin := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
 	mixed.uuidOssp = stockUUIDOssp
 	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
@@ -148,8 +148,8 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	before := e.catalog.state
 	member := ext.members[0]
-	procedure := before.descriptors[member]
-	descriptors, names := len(before.descriptors), len(before.names)
+	procedure := before.Get(member)
+	descriptors, names := before.DescriptorCount(), before.NameCount()
 	key := descriptorNameKey(procedure)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
@@ -158,7 +158,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.catalog.state != before || len(e.catalog.state.descriptors) != descriptors || len(e.catalog.state.names) != names || e.catalog.state.descriptors[member] != procedure || e.catalog.state.descriptors[ext.address] != ext || e.catalog.state.names[key] != member {
+	if err == nil || e.catalog.state != before || e.catalog.state.DescriptorCount() != descriptors || e.catalog.state.NameCount() != names || e.catalog.state.Get(member) != procedure || e.catalog.state.Get(ext.address) != ext || e.catalog.state.NameAddress(key) != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

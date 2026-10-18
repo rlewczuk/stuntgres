@@ -18,7 +18,7 @@ func TestViewDistinctOnFrameOwnedSourceRendering(t *testing.T) {
 			run(t, e, q)
 		}
 		ref := roleTableRef(t, e, "v")
-		definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
+		definition := e.catalog.state.MustRelation(ref.Address).view
 		for _, added := range []bool{false, true} {
 			if added {
 				run(t, e, "ALTER TABLE only_key ADD COLUMN later INT")

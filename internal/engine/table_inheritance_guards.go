@@ -30,7 +30,7 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 	}
 	visited[relation.address] = true
 	for _, source := range relation.view.sources {
-		live, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		live, ok := catalog.Relation(source.ref.Address)
 		if !ok {
 			return ErrCatalogReplaced
 		}
@@ -45,13 +45,13 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 // edges. Scan the overlay directly rather than allocating a second catalog.
 func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
 	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range stage.base.state.descriptors {
+		for address, descriptor := range stage.base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}
 		}
 		for address, descriptor := range stage.descriptors {
-			if _, exists := stage.base.state.descriptors[address]; !exists {
+			if _, exists := stage.base.Find(address); !exists {
 				if !yield(address, descriptor) {
 					return
 				}

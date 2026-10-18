@@ -60,26 +60,26 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	if len(builtinConversions) != 128 || len(builtinCollations) != 7 {
 		t.Fatal("fixed inventory cardinality")
 	}
-	for _, d := range view.state.descriptors {
+	for _, d := range view.Descriptors() {
 		if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 			if err := e.catalog.providers[d.Address().ClassID].Validate(view, d); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	bad := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950}].(*collationDescriptor)
+	bad := *view.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 950})
 	bad.encoding = 8
 	if err := (collationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("invalid fixed collation accepted")
 	}
-	conversion := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4402}].(*conversionDescriptor)
+	conversion := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4402})
 	conversion.name = "made_up"
 	if err := (conversionProvider{}).Validate(view, &conversion); err == nil {
 		t.Fatal("invalid conversion accepted")
 	}
 	sessionSQL(t, s, "CREATE TABLE t(id OID CHECK(pg_type_is_visible(id) IS NOT NULL))")
 	view = e.CatalogRead()
-	relation := view.state.descriptors[catalogRef(t, e, view, "t").Address].(*relationDescriptor)
+	relation := view.MustRelation(catalogRef(t, e, view, "t").Address)
 	if !relation.checkConstraints[0].visibilitySnapshot {
 		t.Fatal("missing CHECK capture manifest")
 	}
@@ -191,7 +191,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	reader, _ := e.Roles().Lookup("visibility_reader")
 	ns := schemaRef(t, e, "visible")
 	view := e.CatalogRead()
-	address := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "t"}]
+	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "t"})
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)
 	for _, rights := range []authorization.Privileges{authorization.UsagePrivilege, 0, authorization.UsagePrivilege} {
 		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

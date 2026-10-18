@@ -150,8 +150,17 @@ type catalogState struct {
 	aclItemImport func(sqltype.Value) (sqltype.Value, error)
 }
 type CatalogRead struct {
-	owner *Engine
+	owner *catalogOwner
 	state *catalogState
+}
+
+// Domain returns the provenance domain of the view's owner, or nil for a
+// zero view.
+func (r CatalogRead) Domain() *ids.Domain {
+	if r.owner == nil {
+		return nil
+	}
+	return r.owner.domain
 }
 
 func (r CatalogRead) Epoch() ids.CatalogEpoch {
@@ -164,14 +173,14 @@ func (r CatalogRead) Descriptor(a ids.ObjectAddress) (Descriptor, bool) {
 	if r.state == nil {
 		return nil, false
 	}
-	d, ok := r.state.descriptors[a]
+	d, ok := r.Find(a)
 	return d, ok
 }
 func (r CatalogRead) Lookup(k ids.NameKey) []ids.ObjectAddress {
 	if r.state == nil {
 		return nil
 	}
-	a, ok := r.state.names[k]
+	a, ok := r.LookupName(k)
 	if !ok {
 		return nil
 	}
@@ -187,10 +196,10 @@ type namespaceProvider struct{}
 func (namespaceProvider) ClassID() ids.OID { return ids.NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	ns, ok := d.(*namespaceDescriptor)
-	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (ids.SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
+	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.address) != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.temporary != (ids.SessionToken{}) && (ns.temporary.Domain() != domainOf(v.owner) || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
+	if ns.temporary != (ids.SessionToken{}) && (ns.temporary.Domain() != v.Domain() || ns.temporary.ID() == 0 || privateSessionOf(ns.temporary) != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()
@@ -234,7 +243,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if address.ClassID != ids.ExtensionClassID || address.ObjectID == 0 || address.SubID != 0 || i > 0 && r.autoExtensions[i-1].ObjectID >= address.ObjectID {
 			return fmt.Errorf("stuntgres: invalid materialized extension dependency")
 		}
-		extension, ok := v.state.descriptors[address].(*extensionDescriptor)
+		extension, ok := v.Extension(address)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing materialized extension provider")
 		}
@@ -245,7 +254,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation || r.relationKind == foreignRelation {
 		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
-			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
+			row, ok := v.Type(types[0])
 			if len(types) != 1 || !ok || row.owningRelation != r.address || row.typ.ID() != r.rowType {
 				return CatalogConflict{}
 			}
@@ -255,7 +264,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.foreign == nil {
 			return fmt.Errorf("stuntgres: missing foreign relation definition")
 		}
-		server, ok := v.state.descriptors[r.foreign.server].(*foreignDescriptor)
+		server, ok := v.Foreign(r.foreign.server)
 		if !ok || server.address.ClassID != ids.ForeignServerClassID {
 			return fmt.Errorf("stuntgres: missing foreign server identity")
 		}
@@ -345,7 +354,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if owned := r.sequence.owned; owned != (ids.ObjectAddress{}) {
 			tableAddress := owned
 			tableAddress.SubID = 0
-			table, ok := v.state.descriptors[tableAddress].(*relationDescriptor)
+			table, ok := v.Relation(tableAddress)
 			if !ok || table.relationKind != tableRelation && table.relationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.owner != r.owner || table.namespace != r.namespace {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
@@ -411,7 +420,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if _, exists := r.defaults[attribute]; exists {
 			return fmt.Errorf("stuntgres: identity column has default")
 		}
-		sequence, exists := v.state.descriptors[identity.sequence].(*relationDescriptor)
+		sequence, exists := v.Relation(identity.sequence)
 		owned := r.address
 		owned.SubID = attribute
 		if !exists || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned || sequence.owner != r.owner || sequence.namespace != r.namespace {
@@ -596,7 +605,7 @@ type PreparedCatalogPublication struct {
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress), touched: make(map[ids.NameKey]ids.ObjectAddress)}
-	if base.owner != e || base.state == nil {
+	if base.owner != e.catalog.owner() || base.state == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	return s
@@ -606,7 +615,7 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
 	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roleRecord.revision
-	s.databaseAuthority = auth.catalog.state.descriptors[currentDatabaseAddress]
+	s.databaseAuthority = auth.catalog.Get(currentDatabaseAddress)
 	s.databasePredecessor = auth.databasePredecessor
 }
 
@@ -618,7 +627,7 @@ func (s *CatalogStage) lookupName(k ids.NameKey) ids.ObjectAddress {
 			return address
 		}
 	}
-	address := s.base.state.names[k]
+	address := s.base.NameAddress(k)
 	if _, removed := s.removals[address]; removed {
 		return ids.ObjectAddress{}
 	}
@@ -640,7 +649,7 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	if a.ObjectID == 0 || a.SubID != 0 {
 		return fmt.Errorf("stuntgres: invalid catalog object address")
 	}
-	if _, ok := s.base.state.descriptors[a]; ok {
+	if _, ok := s.base.Find(a); ok {
 		return CatalogConflict{}
 	}
 	if _, ok := s.descriptors[a]; ok {
@@ -652,7 +661,7 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	if s.lookupName(k) != (ids.ObjectAddress{}) {
 		return CatalogConflict{}
 	}
-	s.touched[k] = s.base.state.names[k]
+	s.touched[k] = s.base.NameAddress(k)
 	s.descriptors[a] = d
 	s.names[k] = a
 	return nil
@@ -693,8 +702,8 @@ func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 		s.oldNames = make(map[ids.NameKey]bool)
 	}
 	s.oldNames[oldKey] = true
-	s.touched[oldKey] = s.base.state.names[oldKey]
-	s.touched[newKey] = s.base.state.names[newKey]
+	s.touched[oldKey] = s.base.NameAddress(oldKey)
+	s.touched[newKey] = s.base.NameAddress(newKey)
 	s.descriptors[d.Address()] = d
 	s.names[newKey] = d.Address()
 	if relation, ok := d.(*relationDescriptor); ok && synchronize {
@@ -710,11 +719,11 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *
 	}
 	e := s.owner
 	e.mu.Lock()
-	if err := e.validateObjectRefLocked(s.base, ref); err != nil {
+	if err := e.catalog.validateObjectRefLocked(s.base, ref); err != nil {
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := s.base.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := s.base.Relation(ref.Address)
 	validRevision := ok && d != nil && old.revision != ids.DefinitionRevision(^uint64(0)) && d.revision == old.revision+1
 	if s.terminalCleanup && ok && old.revision == ids.DefinitionRevision(^uint64(0)) {
 		validRevision = d != nil && d != old && d.revision == old.revision
@@ -787,10 +796,10 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: whole object required")
 	}
-	if err := provider.owner.validateObjectRefLocked(provider.base, ref); err != nil {
+	if err := provider.owner.catalog.validateObjectRefLocked(provider.base, ref); err != nil {
 		return err
 	}
-	d := provider.base.state.descriptors[ref.Address]
+	d := provider.base.Get(ref.Address)
 	switch d.(type) {
 	case *relationDescriptor:
 		if ref.Address.ClassID != ids.RelationClassID {
@@ -833,7 +842,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	case *parameterDescriptor:
-		if err := (parameterProvider{}).Validate(provider.base, d); err != nil {
+		if err := (parameterProvider{provider.owner.settingsDefinitions}).Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *tablespaceDescriptor:
@@ -884,18 +893,18 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	return nil
 }
 func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
-	ds := make(map[ids.ObjectAddress]Descriptor, len(s.base.state.descriptors)+len(s.descriptors))
-	ns := make(map[ids.NameKey]ids.ObjectAddress, len(s.base.state.names)+len(s.names))
+	ds := make(map[ids.ObjectAddress]Descriptor, s.base.DescriptorCount()+len(s.descriptors))
+	ns := make(map[ids.NameKey]ids.ObjectAddress, s.base.NameCount()+len(s.names))
 	operators := operatorIndexEdit{index: s.base.state.operatorNames}
-	for k, v := range s.base.state.descriptors {
+	for k, v := range s.base.Descriptors() {
 		ds[k] = v
 	}
-	for k, v := range s.base.state.names {
+	for k, v := range s.base.Names() {
 		ns[k] = v
 	}
 	for a, removal := range s.removals {
 		d := removal.descriptor
-		operators.replace(s.base.state.descriptors[a], s.descriptors[a])
+		operators.replace(s.base.Get(a), s.descriptors[a])
 		delete(ds, a)
 		delete(ns, descriptorNameKey(d))
 	}
@@ -904,7 +913,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	}
 	for k, v := range s.descriptors {
 		if _, removed := s.removals[k]; !removed {
-			operators.replace(s.base.state.descriptors[k], v)
+			operators.replace(s.base.Get(k), v)
 		}
 		ds[k] = v
 	}
@@ -920,7 +929,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 			}
 		}
 	}
-	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.index, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs), dumpPriorities: priorities}}
+	return e.catalog.read(&catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.index, defaultACLs: overlayDefaultACLs(s.base.state.defaultACLs, s.defaultACLs), dumpPriorities: priorities})
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -945,7 +954,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		if !ok || !typ.typ.IsComposite() && !typ.typ.IsDomain() {
 			continue
 		}
-		old, _ := s.base.state.descriptors[address].(*typeDescriptor)
+		old, _ := s.base.Type(address)
 		if old == nil || old.typ != typ.typ {
 			if err := e.reownStagedTypeGenerationsLocked(s); err != nil {
 				e.mu.Unlock()
@@ -1066,33 +1075,33 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, CatalogConflict{}
 		}
-		if s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, current}, currentStorage) {
+		if s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(current), currentStorage) {
 			e.mu.Unlock()
 			return ChangeSet{}, CatalogConflict{}
 		}
-		if !typedObservationValid(s, CatalogRead{owner: e, state: current}) {
+		if !typedObservationValid(s, e.catalog.read(current)) {
 			e.mu.Unlock()
 			return ChangeSet{}, CatalogConflict{}
 		}
 		for _, base := range s.domainBases {
 			observed := base
 			if s.descriptors[base.Address()] == base {
-				observed = s.base.state.descriptors[base.Address()]
+				observed = s.base.Get(base.Address())
 			}
-			if current.descriptors[base.Address()] != observed {
+			if current.Get(base.Address()) != observed {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
 			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.temporary != (ids.SessionToken{}) {
-				for address, d := range current.descriptors {
-					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.state.descriptors[address]) {
+				for address, d := range current.Descriptors() {
+					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.Get(address)) {
 						e.mu.Unlock()
 						return ChangeSet{}, CatalogConflict{}
 					}
 				}
 			}
 		}
-		if err := s.validateLikeSources(CatalogRead{owner: e, state: current}); err != nil {
+		if err := s.validateLikeSources(e.catalog.read(current)); err != nil {
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
@@ -1104,16 +1113,16 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		for _, d := range s.descriptors {
 			ns := d.Namespace()
-			if ns != (ids.ObjectAddress{}) && s.descriptors[ns] == nil && current.descriptors[ns] != s.base.state.descriptors[ns] {
+			if ns != (ids.ObjectAddress{}) && s.descriptors[ns] == nil && current.Get(ns) != s.base.Get(ns) {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
 			// A namespace move still relies on source lookup authority. Fence
 			// that original namespace as well as the destination, without
 			// republishing it or observing unrelated namespace changes.
-			if old := s.base.state.descriptors[d.Address()]; old != nil {
+			if old := s.base.Get(d.Address()); old != nil {
 				source := old.Namespace()
-				if source != ns && source != (ids.ObjectAddress{}) && s.descriptors[source] == nil && current.descriptors[source] != s.base.state.descriptors[source] {
+				if source != ns && source != (ids.ObjectAddress{}) && s.descriptors[source] == nil && current.Get(source) != s.base.Get(source) {
 					e.mu.Unlock()
 					return ChangeSet{}, CatalogConflict{}
 				}
@@ -1121,8 +1130,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		for a := range s.removals {
 			if a.ClassID == ids.NamespaceClassID {
-				for address, d := range current.descriptors {
-					if _, removed := s.removals[address]; d.Namespace() == a && (!removed || d != s.base.state.descriptors[address]) {
+				for address, d := range current.Descriptors() {
+					if _, removed := s.removals[address]; d.Namespace() == a && (!removed || d != s.base.Get(address)) {
 						e.mu.Unlock()
 						return ChangeSet{}, CatalogConflict{}
 					}
@@ -1131,8 +1140,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			// A newly attached MV was not in the validated retirement closure.
 			// Recheck its live immutable x authority at the final publication fence.
 			if a.ClassID == ids.ExtensionClassID {
-				for address, descriptor := range current.descriptors {
-					if descriptor == s.base.state.descriptors[address] {
+				for address, descriptor := range current.Descriptors() {
+					if descriptor == s.base.Get(address) {
 						continue
 					}
 					if relation, ok := descriptor.(*relationDescriptor); ok && materializedExtensionDepends(relation, a) {
@@ -1143,26 +1152,26 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		for a := range s.descriptors {
-			if current.descriptors[a] != s.base.state.descriptors[a] {
+			if current.Get(a) != s.base.Get(a) {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
 		for a := range s.removals {
-			if current.descriptors[a] != s.base.state.descriptors[a] {
+			if current.Get(a) != s.base.Get(a) {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
 		for k, observed := range s.touched {
-			if current.names[k] != observed {
+			if current.NameAddress(k) != observed {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
 		for a, removal := range s.removals {
 			observed := removal.descriptor
-			d := current.descriptors[a]
+			d := current.Get(a)
 			if removal.ref.Domain() != e.catalog.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
@@ -1187,7 +1196,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for address, candidate := range s.indexCandidates {
 			index, ok := s.descriptors[address].(*relationDescriptor)
 			if !ok {
-				index, ok = current.descriptors[address].(*relationDescriptor)
+				index, ok = current.Relation(address)
 			}
 			if !ok || index.sqlIndex == nil {
 				e.mu.Unlock()
@@ -1240,20 +1249,20 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		for a, removal := range s.removals {
 			d := removal.descriptor
-			operators.replace(current.descriptors[a], s.descriptors[a])
-			delete(next.descriptors, a)
+			operators.replace(current.Get(a), s.descriptors[a])
+			next.removeDescriptor(a)
 			delete(next.dumpPriorities, a)
-			delete(next.names, descriptorNameKey(d))
+			next.unbindName(descriptorNameKey(d))
 			delete(storage, a)
 		}
 		for k := range s.oldNames {
-			delete(next.names, k)
+			next.unbindName(k)
 		}
 		for a, d := range s.descriptors {
 			if _, removed := s.removals[a]; !removed {
-				operators.replace(current.descriptors[a], d)
+				operators.replace(current.Get(a), d)
 			}
-			next.descriptors[a] = d
+			next.setDescriptor(a, d)
 			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind.stored() && storage[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
 					storage[a] = initial
@@ -1269,7 +1278,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			storage[replacement.original.address] = replacement.storage
 		}
 		for k, a := range s.names {
-			next.names[k] = a
+			next.bindName(k, a)
 		}
 		next.operatorNames = operators.index
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
@@ -1303,7 +1312,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			a := index.sqlIndex.parent
 			parent, staged := s.descriptors[a].(*relationDescriptor)
-			if !staged || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) || current.descriptors[a] != nil {
+			if !staged || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation) || current.Get(a) != nil {
 				continue
 			}
 			if !candidateStores {
@@ -1346,49 +1355,49 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				break
 			}
 		}
-		for _, descriptor := range next.descriptors {
+		for _, descriptor := range next.Descriptors() {
 			if relation, ok := descriptor.(*relationDescriptor); ok && relation.inheritance != nil {
-				if err := validateInheritance(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validateInheritance(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if domainChanged || s.descriptors[descriptor.Address()] != nil {
 				if relation, ok := descriptor.(*relationDescriptor); ok {
-					if err := validateTypedAttachment(CatalogRead{owner: e, state: next}, relation); err != nil {
+					if err := validateTypedAttachment(e.catalog.read(next), relation); err != nil {
 						return ChangeSet{}, err
 					}
 				}
-				if err := validateTypeProviders(CatalogRead{owner: e, state: next}, descriptor); err != nil {
+				if err := validateTypeProviders(e.catalog.read(next), descriptor); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
-				if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.rules) != 0 {
-				if err := validateRules(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validateRules(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
-				if err := validateViewDefinition(CatalogRead{owner: e, state: next}, view); err != nil {
+				if err := validateViewDefinition(e.catalog.read(next), view); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.checkConstraints) != 0 {
-				if err := validateCheckProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validateCheckProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.defaults) != 0 {
-				if err := validateDefaultProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validateDefaultProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.generations) != 0 {
-				if err := validateGenerationProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+				if err := validateGenerationProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
@@ -1440,10 +1449,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && !e.domainIndexRootsCurrent(s) {
 			err = CatalogConflict{}
 		}
-		if err == nil && s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, e.catalog.state}, e.storage) {
+		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage) {
 			err = CatalogConflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && e.catalog.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {
@@ -1456,11 +1465,11 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = validateDefaultACLs(s.roleRead(e.roles, CatalogRead{e, next}), CatalogRead{e, next})
+			err = validateDefaultACLs(s.roleRead(e.roles, e.catalog.read(next)), e.catalog.read(next))
 		}
 		if err == nil {
 			for _, d := range s.descriptors {
-				if err = validateACL(s.roleRead(e.roles, CatalogRead{e, next}), d); err != nil {
+				if err = validateACL(s.roleRead(e.roles, e.catalog.read(next)), d); err != nil {
 					break
 				}
 			}
@@ -1483,7 +1492,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.catalog.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.catalog.state}, roles: e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), state: s.authSession.authorization.state}
+			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles), state: s.authSession.authorization.state}
 			err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
@@ -1592,49 +1601,24 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 func (e *Engine) ValidateObjectRef(view CatalogRead, ref ids.ObjectRef) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.validateObjectRefLocked(view, ref)
+	return e.catalog.validateObjectRefLocked(view, ref)
 }
 
-// validateObjectRefLocked preserves live epoch and provenance checks without
-// reacquiring synchronization when called from catalog mutation preflight.
-func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
-	if e.catalog.domain == nil || view.owner != e || view.state == nil {
-		return fmt.Errorf("stuntgres: foreign catalog view")
-	}
-	if ref.Domain() == nil || ref.Domain() != e.catalog.domain {
-		return fmt.Errorf("stuntgres: foreign catalog reference")
-	}
-	if view.state.epoch != e.catalog.state.epoch || ref.Epoch != e.catalog.state.epoch {
-		return ErrCatalogReplaced
-	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
-	if !ok {
-		return fmt.Errorf("stuntgres: catalog object is missing")
-	}
-	if ref.Address.SubID < 0 {
-		return fmt.Errorf("stuntgres: invalid catalog subobject")
-	}
-	if ref.Address.SubID > 0 {
-		r, ok := d.(*relationDescriptor)
-		if !ok || !r.hasAttribute(ref.Address.SubID) {
-			return fmt.Errorf("stuntgres: invalid catalog subobject")
-		}
-	}
-	return nil
-}
-func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (ChangeSet, error) {
-	return e.replaceCatalog(ctx, replacement, nil)
+// ReplaceCatalog installs replacement, a catalog view that source owns, with
+// source's committed rows, sequences and roles. source may be e.
+func (e *Engine) ReplaceCatalog(ctx context.Context, source *Engine, replacement CatalogRead) (ChangeSet, error) {
+	return e.replaceCatalog(ctx, source, replacement, nil)
 }
 
 // Restore retains its genuine private operation through owner-cell validation.
-func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, restoreOp *Operation) (ChangeSet, error) {
+func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement CatalogRead, restoreOp *Operation) (ChangeSet, error) {
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {
 			e.locks.Fence(installed)
 		}
 	}()
-	if replacement.state == nil || replacement.owner == nil {
+	if replacement.state == nil || replacement.owner == nil || source == nil || replacement.owner != source.catalog.owner() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid replacement catalog")
 	}
 	if err := ctx.Err(); err != nil {
@@ -1655,7 +1639,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := validateDefinitionOIDs(replacement); err != nil {
 		return ChangeSet{}, err
 	}
-	for _, d := range replacement.state.descriptors {
+	for _, d := range replacement.Descriptors() {
 		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
@@ -1665,9 +1649,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		}
 	}
 	var next *catalogState
-	relationAddresses := make([]ids.ObjectAddress, 0, len(replacement.state.descriptors))
+	relationAddresses := make([]ids.ObjectAddress, 0, replacement.DescriptorCount())
 	hasHierarchy := false
-	for a, d := range replacement.state.descriptors {
+	for a, d := range replacement.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && hierarchyRelation(relation) {
 			hasHierarchy = true
 		}
@@ -1696,10 +1680,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			storage[a] = &relationStorage{versions: versions}
 		}
 		var err error
-		indexes, err = captureIndexSnapshot(ctx, replacement, source, owner.indexRoots, frontier)
+		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.indexRoots, frontier)
 		return err
 	}
-	if replacement.owner == e {
+	if replacement.owner == e.catalog.owner() {
 		e.replacementMu.Lock()
 		defer e.replacementMu.Unlock()
 		e.mu.Lock()
@@ -1728,12 +1712,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
+		if err := validateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.catalog.nextRevision
-		for _, d := range next.descriptors {
-			if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
+		for _, d := range next.Descriptors() {
+			if err := validateACL(e.roleRead(e.catalog.read(next), e.roles), d); err != nil {
 				return ChangeSet{}, err
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1760,8 +1744,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if hasHierarchy {
-			candidate := CatalogRead{e, next}
-			for _, descriptor := range next.descriptors {
+			candidate := e.catalog.read(next)
+			for _, descriptor := range next.Descriptors() {
 				if relation, ok := descriptor.(*relationDescriptor); ok && hierarchyRelation(relation) {
 					if err := validatePartitionDescriptor(candidate, relation); err != nil {
 						return ChangeSet{}, err
@@ -1792,18 +1776,18 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
-	replacement.owner.mu.Lock()
-	if replacement.Epoch() != replacement.owner.catalog.state.epoch {
-		replacement.owner.mu.Unlock()
+	source.mu.Lock()
+	if replacement.Epoch() != source.catalog.state.epoch {
+		source.mu.Unlock()
 		return ChangeSet{}, ErrCatalogReplaced
 	}
-	err = copyRows(replacement.owner)
+	err = copyRows(source)
 	if err == nil {
-		sequences, err = copySequenceState(replacement.owner, replacement)
+		sequences, err = copySequenceState(source, replacement)
 	}
-	sourceRoles := replacement.owner.roleRead(replacement, replacement.owner.roles)
-	foreignNamespaces := replacement.owner.foreignNamespaces
-	replacement.owner.mu.Unlock()
+	sourceRoles := source.roleRead(replacement, source.roles)
+	foreignNamespaces := source.foreignNamespaces
+	source.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
 	}
@@ -1836,21 +1820,21 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if e.commitSeq == ids.CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
-	replacement.state.aclItemImport = e.aclItemImporter(replacement.owner, sourceRoles, targetRoles, replacement.owner.importTargets)
+	replacement.state.aclItemImport = e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets)
 	defer func() { replacement.state.aclItemImport = nil }()
-	next, err = e.remapPreparedCatalog(replacement.state, sourceRoles, targetRoles, replacement.owner.importTargets)
+	next, err = e.remapPreparedCatalog(replacement.state, sourceRoles, targetRoles, source.importTargets)
 	if err != nil {
 		return ChangeSet{}, err
 	}
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
+	if err := validateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.catalog.nextRevision
-	for _, d := range next.descriptors {
-		if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
+	for _, d := range next.Descriptors() {
+		if err := validateACL(e.roleRead(e.catalog.read(next), e.roles), d); err != nil {
 			return ChangeSet{}, err
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1901,19 +1885,19 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 }
 
 func cloneCatalog(s *catalogState) *catalogState {
-	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[ids.NameKey]ids.ObjectAddress, len(s.names))}
+	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, s.DescriptorCount()), names: make(map[ids.NameKey]ids.ObjectAddress, s.NameCount())}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
-	for k, v := range s.descriptors {
-		n.descriptors[k] = v
+	for k, v := range s.Descriptors() {
+		n.setDescriptor(k, v)
 	}
-	for k, v := range s.names {
-		n.names[k] = v
+	for k, v := range s.Names() {
+		n.bindName(k, v)
 	}
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {
-			if _, exists := n.descriptors[address]; exists {
+			if _, exists := n.Find(address); exists {
 				n.dumpPriorities[address] = priority
 			}
 		}

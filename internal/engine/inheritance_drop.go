@@ -27,7 +27,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 	// an inheritance edge actually requires fencing the closure.
 	participates := false
 	for _, root := range roots {
-		if table, ok := catalog.state.descriptors[root].(*relationDescriptor); ok && root.SubID == 0 && inheritanceParticipant(catalog, table) {
+		if table, ok := catalog.Relation(root); ok && root.SubID == 0 && inheritanceParticipant(catalog, table) {
 			participates = true
 			break
 		}
@@ -45,7 +45,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 				return
 			}
 			seen[address] = true
-			table, ok := catalog.state.descriptors[address].(*relationDescriptor)
+			table, ok := catalog.Relation(address)
 			if !ok || table.relationKind != tableRelation || address.SubID != 0 {
 				return
 			}
@@ -71,7 +71,7 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 			if locked[address] {
 				continue
 			}
-			if err := scope.acquireSequence(catalog.owner.catalog.domain.Ref(catalog.Epoch(), address), accessExclusive, true); err != nil {
+			if err := scope.acquireSequence(catalog.owner.domain.Ref(catalog.Epoch(), address), accessExclusive, true); err != nil {
 				return catalog, err
 			}
 			locked[address] = true
@@ -84,8 +84,8 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		// staged objects must not be replaced by the global generation.
 		private := false
 		for _, address := range tables {
-			table := catalog.state.descriptors[address].(*relationDescriptor)
-			if catalog.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
+			table := catalog.MustRelation(address)
+			if catalog.MustNamespace(table.namespace).temporary != (ids.SessionToken{}) {
 				private = true
 				break
 			}
@@ -93,17 +93,17 @@ func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roo
 		if private {
 			return catalog, nil
 		}
-		current := catalog.owner.CatalogRead()
+		current := scope.op.session.Engine().CatalogRead()
 		if current.Epoch() != catalog.Epoch() {
 			return catalog, ErrCatalogReplaced
 		}
 		for address := range locked {
-			if current.state.descriptors[address] != catalog.state.descriptors[address] {
+			if current.Get(address) != catalog.Get(address) {
 				return catalog, CatalogConflict{}
 			}
 		}
 		for address, descriptor := range removals {
-			if current.state.descriptors[address] != descriptor {
+			if current.Get(address) != descriptor {
 				return catalog, CatalogConflict{}
 			}
 		}

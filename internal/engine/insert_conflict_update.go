@@ -211,7 +211,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 		return rowVersion{}, nil, "", false, ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	parent, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent, ok := catalog.Relation(ref.Address)
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
 		return rowVersion{}, nil, "", false, ErrCatalogReplaced
@@ -225,7 +225,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return rowVersion{}, nil, "", false, err
 	}
-	namespace, ok := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
+	namespace, ok := catalog.Namespace(parent.namespace)
 	if !ok {
 		return rowVersion{}, nil, "", false, ErrCatalogReplaced
 	}

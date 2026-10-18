@@ -19,5 +19,5 @@ func TestSerialCoherentCreateCandidate(t *testing.T) {
 	sequenceScalar(t,s,`SELECT id FROM t`,1)
 	sequenceScalar(t,s,`SELECT currval('t_id_seq')`,2)
 	sessionSQL(t,s,`DROP TABLE t RESTRICT`)
-	if e.catalog.state.descriptors[sequence] != nil { t.Fatal("AUTO/NORMAL/CHECK cycle blocked owned cleanup") }
+	if e.catalog.state.Get(sequence) != nil { t.Fatal("AUTO/NORMAL/CHECK cycle blocked owned cleanup") }
 }

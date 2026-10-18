@@ -77,7 +77,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, err := copySequenceState(source, replacement)
-	indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -89,8 +89,8 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
-		for _, descriptor := range next.descriptors {
-			if err = validateACL(e.roleRead(CatalogRead{e, next}, e.roles), descriptor); err != nil {
+		for _, descriptor := range next.Descriptors() {
+			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles), descriptor); err != nil {
 				break
 			}
 			if revision := descriptor.Revision(); revision >= nextRevision {

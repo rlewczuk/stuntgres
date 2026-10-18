@@ -7,11 +7,11 @@ import (
 )
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogChanges) bool {
-	d, ok := e.privateCatalogLocked(catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := e.privateCatalogLocked(catalog).Relation(ref.Address)
 	if !ok || d.relationKind != tableRelation {
 		return false
 	}
-	ns, ok := e.privateCatalogLocked(catalog).state.descriptors[d.namespace].(*namespaceDescriptor)
+	ns, ok := e.privateCatalogLocked(catalog).Namespace(d.namespace)
 	return ok && ns.temporary == (ids.SessionToken{}) && d.namespace.ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
 }
 

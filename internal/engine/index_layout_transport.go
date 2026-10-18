@@ -95,7 +95,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			e.mu.Unlock()
 			return nil, false, ErrCatalogReplaced
 		}
-		target, ok := evaluation.catalog.state.descriptors[address].(*relationDescriptor)
+		target, ok := evaluation.catalog.Relation(address)
 		if !ok || !sameIndexKeySemantics(target, lineage.target) {
 			e.mu.Unlock()
 			return nil, false, ErrCatalogReplaced
@@ -117,7 +117,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			}
 			root = private
 		} else {
-			source, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+			source, ok := e.catalog.state.Relation(address)
 			current := e.storage[parent.address]
 			for edge := &lineage; edge != nil; edge = edge.previous {
 				if ok && sameIndexKeySemantics(source, edge.source) {
@@ -265,13 +265,13 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 // Preserve exact committed descriptor predecessors while empty roots are built
 // unlocked; the normal catalog preflight owns the publication veto.
 func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *catalogChanges, address ids.ObjectAddress) {
-	for _, descriptor := range catalog.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != address {
 			continue
 		}
 		if _, captured := changes.originals[index.address]; !captured {
-			changes.originals[index.address] = e.catalog.state.descriptors[index.address]
+			changes.originals[index.address] = e.catalog.state.Get(index.address)
 		}
 	}
 }
@@ -280,11 +280,11 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
 func transportEmptyIndexStorage(ctx context.Context, catalog *catalogState, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
-	parent, ok := catalog.descriptors[address].(*relationDescriptor)
+	parent, ok := catalog.Relation(address)
 	if !ok || store == nil || len(store.versions) != 0 {
 		return ErrCatalogReplaced
 	}
-	for _, descriptor := range catalog.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != address {
 			continue

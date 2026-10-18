@@ -36,7 +36,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
-	current, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if !ok || !sameRelationRowShape(admission.relation, current) || e.privateStorageLocked(s.owner.catalog, ref.Address) != admission.storage {
 		return ErrCatalogReplaced
 	}
@@ -90,7 +90,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if !held {
 		return errors.New("stuntgres: internal action admission requires its relation grant")
 	}
-	current, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	current, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if !ok || !sameRelationRowShape(current, job.child) || storage == nil {
 		return ErrCatalogReplaced

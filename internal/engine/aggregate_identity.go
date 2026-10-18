@@ -20,10 +20,10 @@ func intaggDefinition(function, transition, final ids.OID) aggregateDefinition {
 // A helper's dependencies are dependencies on this real aggregate descriptor,
 // never invented ObjectRefs for metadata-only identities.
 func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
-	if p, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
+	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return p
 	}
-	for _, d := range view.state.descriptors {
+	for _, d := range view.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
 			for _, helper := range p.aggregate.helpers {
 				if helper.id == id {
@@ -58,7 +58,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 		if _, builtin := routineByOID[helper.id]; builtin {
 			return invalid()
 		}
-		for address, d := range view.state.descriptors {
+		for address, d := range view.Descriptors() {
 			if address.ObjectID == helper.id {
 				return invalid()
 			}
@@ -70,7 +70,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 				}
 			}
 		}
-		if view.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.namespace, Name: helper.name, Signature: string(helper.signature)}] != (ids.ObjectAddress{}) {
+		if view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: proc.namespace, Name: helper.name, Signature: string(helper.signature)}) != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}

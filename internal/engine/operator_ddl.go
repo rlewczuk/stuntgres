@@ -130,8 +130,8 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, left: left, right: right, name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.namespace = path.at(i)
-		a := auth.catalog.state.names[descriptorNameKey(&key)]
-		if d, ok := auth.catalog.state.descriptors[a].(*operatorDescriptor); ok {
+		a := auth.catalog.NameAddress(descriptorNameKey(&key))
+		if d, ok := auth.catalog.Operator(a); ok {
 			return d, nil
 		}
 	}
@@ -223,7 +223,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		return 0, err
 	}
 	result := releasedOperatorEstimatorResult(identity.id)
-	if d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.id}].(*procedureDescriptor); ok {
+	if d, ok := auth.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.id}); ok {
 		if d.routineKind != functionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
@@ -456,7 +456,7 @@ func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *operatorDescr
 	return comm, neg, nil
 }
 func stageOperatorDescriptor(stage *CatalogStage, d *operatorDescriptor) error {
-	if _, exists := stage.base.state.descriptors[d.address]; exists {
+	if _, exists := stage.base.Find(d.address); exists {
 		return stage.Replace(d)
 	}
 	if old := stage.descriptors[d.address]; old != nil {
@@ -499,7 +499,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, name: symbol, left: left, right: right}
 	for i := range path.count() {
 		key.namespace = path.at(i)
-		if found, ok := view.state.descriptors[view.state.names[descriptorNameKey(&key)]].(*operatorDescriptor); ok {
+		if found, ok := view.Operator(view.NameAddress(descriptorNameKey(&key))); ok {
 			peer = found
 			break
 		}
@@ -570,7 +570,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operato
 		return nil
 	}
 	view := e.stageRead(stage)
-	peer = view.state.descriptors[peer.address].(*operatorDescriptor)
+	peer = view.MustOperator(peer.address)
 	if peer.address == d.address {
 		if negator {
 			return sqlError("42P13", "operator cannot be its own negator")
@@ -586,7 +586,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operato
 		attribute = "negator"
 	}
 	if link != 0 && link != d.address.ObjectID {
-		third, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: link}].(*operatorDescriptor)
+		third, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: link})
 		if !ok {
 			return fmt.Errorf("stuntgres: missing reciprocal operator")
 		}
@@ -692,7 +692,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err = validateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
-	old, _ := auth.catalog.state.descriptors[auth.catalog.state.names[descriptorNameKey(&next)]].(*operatorDescriptor)
+	old, _ := auth.catalog.Operator(auth.catalog.NameAddress(descriptorNameKey(&next)))
 	if old != nil {
 		if old.function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
@@ -760,8 +760,8 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		if err = e.conversionCheckCreate(op, auth, ns); err != nil {
 			return err
 		}
-		source := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
-		target := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor)
+		source := auth.catalog.MustNamespace(d.namespace)
+		target := auth.catalog.MustNamespace(ns.Address)
 		if source.temporary != (ids.SessionToken{}) || target.temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}

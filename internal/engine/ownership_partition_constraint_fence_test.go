@@ -26,18 +26,18 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	for _, ref := range []ids.ObjectRef{root, leaf} {
-		if err := stageOwnership(setup, setup.base.state.descriptors[ref.Address], dbOwner); err != nil {
+		if err := stageOwnership(setup, setup.base.Get(ref.Address), dbOwner); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.base.state.descriptors[currentDatabaseAddress], actor); err != nil {
+		if err := stageOwnership(setup, setup.base.Get(currentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
-	committed := e.catalog.state.descriptors[currentDatabaseAddress]
+	committed := e.catalog.state.Get(currentDatabaseAddress)
 	var changes *catalogChanges
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
@@ -81,11 +81,11 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("fixture is not an ordinary actor", err)
 				}
 				dbRole := auth.roles.LookupRef("pg_database_owner")
-				table := auth.catalog.state.descriptors[root.Address].(*relationDescriptor)
+				table := auth.catalog.MustRelation(root.Address)
 				if table.owner != dbRole || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture did not capture canonical paired DB authority")
 				}
-				if private && auth.catalog.state.descriptors[currentDatabaseAddress] == committed {
+				if private && auth.catalog.Get(currentDatabaseAddress) == committed {
 					t.Fatal("private authority is not distinct from committed predecessor")
 				}
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
@@ -98,12 +98,12 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				for i := range rows {
 					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
 				}
-				if len(rows) != 1 || len(table.uniqueConstraints) != 1 || len(e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
+				if len(rows) != 1 || len(table.uniqueConstraints) != 1 || len(e.catalog.state.MustRelation(leaf).uniqueConstraints) != 2 {
 					t.Fatal("fixture lacks actual rows or recursive/local keys")
 				}
 				rootKey := table.uniqueConstraints[0]
 				selected := map[ids.ObjectAddress]bool{rootKey.Index: true}
-				for _, key := range e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints {
+				for _, key := range e.catalog.state.MustRelation(leaf).uniqueConstraints {
 					if key.Parent == rootKey.OID {
 						selected[key.Index] = true
 					}
@@ -113,7 +113,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				}
 				replaceDatabase := func() {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					database := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 					if private {
 						database.owner = actor.Ref
 					} else {
@@ -128,8 +128,8 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.epoch != epoch {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
-					for address, descriptor := range before.catalog.descriptors {
-						if address != currentDatabaseAddress && e.catalog.state.descriptors[address] != descriptor {
+					for address, descriptor := range before.catalog.Descriptors() {
+						if address != currentDatabaseAddress && e.catalog.state.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed target or associated identities")
 						}
 					}
@@ -171,19 +171,19 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if err != nil {
 						t.Fatal("unchanged committed predecessor rejected selected authority", err)
 					}
-					if len(e.catalog.state.descriptors[root.Address].(*relationDescriptor).uniqueConstraints) != 0 || len(e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
+					if len(e.catalog.state.MustRelation(root.Address).uniqueConstraints) != 0 || len(e.catalog.state.MustRelation(leaf).uniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
-					for address, descriptor := range before.catalog.descriptors {
+					for address, descriptor := range before.catalog.Descriptors() {
 						index, ok := descriptor.(*relationDescriptor)
 						if !ok || index.sqlIndex == nil {
 							continue
 						}
 						if selected[address] {
-							if e.catalog.state.descriptors[address] != nil {
+							if e.catalog.state.Get(address) != nil {
 								t.Fatal("healthy drop retained actual selected backing index")
 							}
-						} else if e.catalog.state.descriptors[address] != descriptor {
+						} else if e.catalog.state.Get(address) != descriptor {
 							t.Fatal("healthy drop changed independent index identity")
 						}
 					}
@@ -194,7 +194,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || len(table.uniqueConstraints) != 1 || auth.databasePredecessor != committed || auth.catalog.state.descriptors[root.Address] != table || len(auth.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || len(table.uniqueConstraints) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).uniqueConstraints) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

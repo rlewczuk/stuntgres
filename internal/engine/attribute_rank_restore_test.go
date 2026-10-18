@@ -113,7 +113,7 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
 		t.Fatal(err)
 	}
-	current := e.CatalogRead().state.descriptors[old.address].(*relationDescriptor)
+	current := e.CatalogRead().MustRelation(old.address)
 	if current.columns[0].DeclaredDimensions != 3 || old.columns[0].DeclaredDimensions != 2 || current.revision != old.revision+1 || current.columns[0].Usage != old.columns[0].Usage || current.columns[0].Name != old.columns[0].Name || len(current.droppedAttributes) != 1 {
 		t.Fatal("rank repair changed authority or old root", old, current)
 	}

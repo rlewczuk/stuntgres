@@ -27,7 +27,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 				lockPending(t, e, 1)
 				switch kind {
 				case "revision":
-					old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+					old := e.catalog.state.MustRelation(ref.Address)
 					next := *old
 					next.revision++
 					next.comment = "retained"
@@ -64,7 +64,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					transactionEnd(t, a, tx, false)
 					if kind == "revision" {
 						lockAwait(t, done, nil)
-						d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+						d := e.catalog.state.MustRelation(ref.Address)
 						if d.comment != "retained" {
 							t.Fatal("lost grant-time revision")
 						}
@@ -97,7 +97,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT DEFAULT 11)")
 			run(t, e, "INSERT INTO t DEFAULT VALUES")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			old := e.catalog.state.MustRelation(ref.Address)
 			storage := e.storage[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -141,7 +141,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			if err == nil {
 				t.Fatal("stale DROP published")
 			}
-			current := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			current := e.catalog.state.MustRelation(ref.Address)
 			if current.defaults[current.attributes[0]].expression != old.defaults[old.attributes[0]].expression || e.storage[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}

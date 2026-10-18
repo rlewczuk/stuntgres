@@ -1,6 +1,10 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"iter"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // Membership only: descriptors, signatures and authorization always come from
 // the same captured catalog root, never from this derived index.
@@ -87,7 +91,7 @@ func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 
 // Wholesale identity reconstruction only; ordinary catalog changes use deltas.
 // Call before any repair binder can capture the reconstructed descriptor maps.
-func rebuildOperatorNames(descriptors map[ids.ObjectAddress]Descriptor) *operatorNameIndex {
+func rebuildOperatorNames(descriptors iter.Seq2[ids.ObjectAddress, Descriptor]) *operatorNameIndex {
 	index := &operatorNameIndex{buckets: make(map[operatorNameKey][]ids.ObjectAddress)}
 	for address, descriptor := range descriptors {
 		if operator, ok := descriptor.(*operatorDescriptor); ok {

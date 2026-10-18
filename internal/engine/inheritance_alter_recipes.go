@@ -13,7 +13,7 @@ func retainInheritedRecipes(view CatalogRead, child *relationDescriptor, attribu
 	childGeneration, generated := child.generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
 	for _, origin := range provenance.origins {
-		parent, ok := view.state.descriptors[origin.parent].(*relationDescriptor)
+		parent, ok := view.Relation(origin.parent)
 		if !ok {
 			return provenance, ErrCatalogReplaced
 		}

@@ -57,11 +57,11 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		if tc.count != 0 && &candidate.versions[0].values[0] != &rows[0][0] {
 			t.Fatal("refresh copied finalized buffers")
 		}
-		if e.storage[d.address] != store || e.catalog.state.descriptors[d.address] != old {
+		if e.storage[d.address] != store || e.catalog.state.Get(d.address) != old {
 			t.Fatal("staging leaked")
 		}
 		queryCreatePublish(t, e, stage)
-		d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
+		d = e.catalog.state.MustRelation(d.address)
 		if d == old || d.view != old.view || d.address != old.address || d.rowType != old.rowType || d.view.rule != old.view.rule || d.owner != old.owner || d.revision != old.revision+1 || !reflect.DeepEqual(d.acl, old.acl) || !reflect.DeepEqual(d.columnACL, old.columnACL) || !reflect.DeepEqual(d.columns, old.columns) || !reflect.DeepEqual(d.attributes, old.attributes) {
 			t.Fatal("refresh lost immutable identity/metadata")
 		}
@@ -86,7 +86,7 @@ func TestMaterializedRefreshSnapshots(t *testing.T) {
 	old := e.storage[d.address]
 	values := old.versions[0].values
 	for _, populated := range []bool{true, false} {
-		current := e.catalog.state.descriptors[d.address].(*relationDescriptor)
+		current := e.catalog.state.MustRelation(d.address)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := e.stageMaterializedRows(context.Background(), stage, current, e.storage[d.address], nil, populated, ids.TxRef{}); err != nil {
 			t.Fatal(err)
@@ -115,7 +115,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			}
 			err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, true, ids.TxRef{})
 			if phase == "wrong_width" || phase == "wrong_type" {
-				if err == nil || e.storage[d.address] != store || e.catalog.state.descriptors[d.address] != d {
+				if err == nil || e.storage[d.address] != store || e.catalog.state.Get(d.address) != d {
 					t.Fatal("invalid row accepted", err)
 				}
 				return
@@ -142,7 +142,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "descriptor":
 				copy := *d
 				copy.revision++
-				e.catalog.state.descriptors[d.address] = &copy
+				e.catalog.state.setDescriptor(d.address, &copy)
 			case "epoch":
 				e.catalog.state.epoch++
 			case "cancel":
@@ -198,7 +198,7 @@ func TestMaterializedRefreshPublicationCounters(t *testing.T) {
 			if err := e.stageMaterializedRows(context.Background(), stage, d, store, refreshUnitRows(t, d, 1), true, ids.TxRef{}); err == nil {
 				t.Fatal("overflow accepted")
 			}
-			if e.nextRow != beforeRow || e.nextVersion != beforeVersion || e.storage[d.address] != store || e.catalog.state.descriptors[d.address] != d {
+			if e.nextRow != beforeRow || e.nextVersion != beforeVersion || e.storage[d.address] != store || e.catalog.state.Get(d.address) != d {
 				t.Fatal("overflow changed live state")
 			}
 		})
@@ -236,7 +236,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			if err == nil {
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
 			}
-			if err == nil || e.catalog.state.descriptors[d.address] != d || e.storage[d.address] != old || len(old.versions) != 3 {
+			if err == nil || e.catalog.state.Get(d.address) != d || e.storage[d.address] != old || len(old.versions) != 3 {
 				t.Fatal("provider fence installed a candidate", err)
 			}
 			if phase == "reject" && !errors.Is(err, sentinel) {

@@ -453,7 +453,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		beforeErr = ErrCatalogReplaced
 	}
 	if beforeErr == nil {
-		d, ok := before.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := before.catalog.Relation(ref.Address)
 		if !ok {
 			if x.name == "lastval" {
 				beforeErr = sqlError("55000", "lastval is not yet defined in this session")
@@ -481,7 +481,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		auth.catalog = e.privateCatalogLocked(scope.catalog)
 		auth.recaptureCatalog(auth.catalog)
 	}
-	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		if x.name == "lastval" {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
@@ -491,7 +491,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err = sequenceKind(d); err != nil {
 		return sqltype.Value{}, err
 	}
-	if ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == scope.op.session.token {
+	if ns, ok := auth.catalog.Namespace(d.namespace); ok && ns.temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -507,7 +507,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 	}
 	if scope.owner.readOnly && (x.name == "nextval" || x.name == "setval") {
-		ns, _ := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns, _ := auth.catalog.Namespace(d.namespace)
 		if ns == nil || ns.temporary != scope.op.session.token {
 			return sqltype.Value{}, sqlError("25006", "cannot execute "+x.name+"() in a read-only transaction")
 		}

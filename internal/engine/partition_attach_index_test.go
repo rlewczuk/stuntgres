@@ -24,9 +24,9 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition.unique = false
 			local.sqlIndex = &localDefinition
 			current := cloneCatalog(f.e.catalog.state)
-			current.descriptors[local.address] = &local
+			current.setDescriptor(local.address, &local)
 			f.e.catalog.state = current
-			mapped, err := mapPartitionIndex(context.Background(), CatalogRead{owner: f.e, state: current}, f.root, f.leaf, f.parent.sqlIndex)
+			mapped, err := mapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.sqlIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,15 +39,15 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			backing.columns = slices.Clone(f.child.columns)
 			backing.attributes = slices.Clone(f.child.attributes)
 			next := cloneCatalog(current)
-			next.descriptors[backing.address] = &backing
-			next.names[descriptorNameKey(&backing)] = backing.address
+			next.setDescriptor(backing.address, &backing)
+			next.bindName(descriptorNameKey(&backing), backing.address)
 			// Completing the only child's backing makes the virtual parent
 			// valid in this private candidate, without changing its old head.
 			parentIndex := *f.parent
 			parentDefinition := *f.parent.sqlIndex
 			parentDefinition.valid = true
 			parentIndex.sqlIndex = &parentDefinition
-			next.descriptors[parentIndex.address] = &parentIndex
+			next.setDescriptor(parentIndex.address, &parentIndex)
 			integer := func(slot int, n int64) sqltype.Value {
 				value, err := sqltype.Integer(f.leaf.columns[slot].Usage.Type, n)
 				if err != nil {
@@ -82,7 +82,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.name {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.catalog.state.descriptors[backing.address] != nil {
+				if f.e.catalog.state.Get(backing.address) != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return

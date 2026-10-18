@@ -52,18 +52,18 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	si, oldS := btreeRoot(t, e, "si")
 	ei, oldE := btreeRoot(t, e, "ei")
 	unique, oldU := btreeRoot(t, e, "u")
-	parent := e.catalog.state.descriptors[ni.sqlIndex.parent]
+	parent := e.catalog.state.Get(ni.sqlIndex.parent)
 	store := e.storage[ni.sqlIndex.parent]
 	generation, ends := store.generation, store.ends
 	run(t, e, "REINDEX INDEX ni")
 	_, newN := btreeRoot(t, e, "ni")
-	if newN == oldN || !reflect.DeepEqual(newN.entries, oldN.entries) || e.catalog.state.descriptors[ni.address] != ni || e.indexRoots[si.address] != oldS || e.indexRoots[ei.address] != oldE || e.indexRoots[unique.address] != oldU {
+	if newN == oldN || !reflect.DeepEqual(newN.entries, oldN.entries) || e.catalog.state.Get(ni.address) != ni || e.indexRoots[si.address] != oldS || e.indexRoots[ei.address] != oldE || e.indexRoots[unique.address] != oldU {
 		t.Fatal("selected rebuild is not fresh, identity-preserving and sibling-isolated")
 	}
 	btreeWantKeys(t, e, "ni", "1", "2", "2", "3", "NULL")
 	run(t, e, "ALTER INDEX ni RENAME TO new_ni")
 	renamed, root := btreeRoot(t, e, "new_ni")
-	if root != newN || renamed.address != ni.address || renamed.sqlIndex != ni.sqlIndex || e.catalog.state.descriptors[ni.sqlIndex.parent] != parent {
+	if root != newN || renamed.address != ni.address || renamed.sqlIndex != ni.sqlIndex || e.catalog.state.Get(ni.sqlIndex.parent) != parent {
 		t.Fatal("simple rename rebuilt roots or changed parent/key identity")
 	}
 	run(t, e, "REINDEX TABLE t")
@@ -75,7 +75,7 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 			t.Fatal("rebuild reminted/dropped live duplicate versions")
 		}
 	}
-	if e.catalog.state.descriptors[renamed.sqlIndex.parent] != parent || e.storage[renamed.sqlIndex.parent] != store || store.generation != generation || store.ends != ends {
+	if e.catalog.state.Get(renamed.sqlIndex.parent) != parent || e.storage[renamed.sqlIndex.parent] != store || store.generation != generation || store.ends != ends {
 		t.Fatal("reindex changed table definition/storage/membership")
 	}
 	run(t, e, "UPDATE t SET n=4 WHERE n=3")
@@ -92,7 +92,7 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	survivor := derived
 	survivorStore := e.storage[renamed.sqlIndex.parent]
 	run(t, e, "DROP INDEX new_ni,si,new_ni CASCADE")
-	if e.catalog.state.descriptors[renamed.address] != nil || e.catalog.state.descriptors[si.address] != nil || e.indexRoots[renamed.address] != nil || e.indexRoots[si.address] != nil || e.indexRoots[ei.address] != survivor || e.storage[renamed.sqlIndex.parent] != survivorStore {
+	if e.catalog.state.Get(renamed.address) != nil || e.catalog.state.Get(si.address) != nil || e.indexRoots[renamed.address] != nil || e.indexRoots[si.address] != nil || e.indexRoots[ei.address] != survivor || e.storage[renamed.sqlIndex.parent] != survivorStore {
 		t.Fatal("group drop did not isolate/deduplicate removals")
 	}
 	run(t, e, "CREATE INDEX new_ni ON t(n)")
@@ -111,11 +111,11 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	old, root := btreeRoot(t, e, "u")
 	sibling, siblingRoot := btreeRoot(t, e, "sibling")
 	derived, derivedRoot := btreeRoot(t, e, "derived")
-	parent := e.catalog.state.descriptors[old.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(old.sqlIndex.parent)
 	constraint := parent.uniqueConstraints[0]
 	run(t, e, "ALTER INDEX u RENAME TO u_new")
 	next, same := btreeRoot(t, e, "u_new")
-	nextParent := e.catalog.state.descriptors[old.sqlIndex.parent].(*relationDescriptor)
+	nextParent := e.catalog.state.MustRelation(old.sqlIndex.parent)
 	if same != root || next.address != old.address || next.sqlIndex.constraint.OID != constraint.OID || next.sqlIndex.constraint.Index != constraint.Index || next.sqlIndex.constraint.Name != "u_new" || nextParent.uniqueConstraints[0].Name != "u_new" || nextParent.uniqueConstraints[0].OID != constraint.OID || e.indexRoots[sibling.address] != siblingRoot || e.indexRoots[derived.address] != derivedRoot {
 		t.Fatal("backing rename did not preserve real identities/roots")
 	}

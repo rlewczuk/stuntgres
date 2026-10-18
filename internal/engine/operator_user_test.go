@@ -38,9 +38,9 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	a := view.state.names[ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#=#", Signature: "23,23"}]
-	shellAddress := view.state.names[ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#!#", Signature: "23,23"}]
-	shell := view.state.descriptors[shellAddress].(*operatorDescriptor)
+	a := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#=#", Signature: "23,23"})
+	shellAddress := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#!#", Signature: "23,23"})
+	shell := view.MustOperator(shellAddress)
 	if shell.function != 0 || shell.result != 0 || shell.negator != a.ObjectID || shell.owner != auth.state.CurrentUser {
 		t.Fatal("invalid forward shell", shell)
 	}
@@ -49,7 +49,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	complete.Options = append(complete.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#=#")})
 	stage = operatorUnitStage(t, e, op, auth, complete)
 	collationUnitPublish(t, e, stage)
-	completed := e.CatalogRead().state.descriptors[shellAddress].(*operatorDescriptor)
+	completed := e.CatalogRead().MustOperator(shellAddress)
 	if completed.address != shell.address || completed.function != 144 || completed.result != 16 || completed.negator != a.ObjectID {
 		t.Fatal("completion lost real identity or binding", completed)
 	}
@@ -104,11 +104,11 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	seed := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 3247}].(*operatorDescriptor)
+	seed := view.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 3247})
 	if seed.name != "?" || seed.left != 3802 || seed.right != 25 || seed.result != 16 || seed.function != 4047 {
 		t.Fatal("released JSONB existence metadata changed", seed)
 	}
-	if _, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4047}]; ok {
+	if _, ok := view.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4047}); ok {
 		t.Fatal("lookup-only routine acquired a callable descriptor")
 	}
 	if err := (operatorProvider{}).Validate(view, seed); err != nil {
@@ -156,7 +156,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 			}
 			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
 		}
-		routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid}].(*procedureDescriptor)
+		routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.oid})
 		node, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
 		if err != nil {
 			t.Fatal(err)
@@ -180,7 +180,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	text, _ := view.LookupType(sqltype.Text)
 	arg := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "ABC")}
-	routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870}].(*procedureDescriptor)
+	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 870})
 	node, err := b.bindSelectedOperatorRoutine(routine, []BoundExpr{arg}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +351,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	two, _ := sqltype.Integer(integer, 2)
 	three, _ := sqltype.Integer(integer, 3)
 	args := []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: two}, literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: three}}
-	routine := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177}].(*procedureDescriptor)
+	routine := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 177})
 	provider, err := b.bindSelectedOperatorRoutine(routine, args, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
@@ -538,7 +538,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	auth.recaptureCatalog(e.CatalogRead())
-	altered := auth.catalog.state.descriptors[d.address].(*operatorDescriptor)
+	altered := auth.catalog.MustOperator(d.address)
 	if !altered.hash || altered.address != d.address || d.hash {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
@@ -575,7 +575,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 		!strings.Contains(declaration.sql, "DROP OPERATOR "+prefix+"#~!# ") {
 		t.Fatal("orphan generator must skip occupied exact signature", declaration.sql)
 	}
-	if existing := auth.catalog.state.names[ids.NameKey{ClassID: ids.OperatorClassID, Namespace: shell.namespace, Name: "#~~#", Signature: "23,23"}]; existing == (ids.ObjectAddress{}) {
+	if existing := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: shell.namespace, Name: "#~~#", Signature: "23,23"}); existing == (ids.ObjectAddress{}) {
 		t.Fatal("dump lost the occupied definition")
 	}
 }
@@ -595,10 +595,10 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	key := func(name string) ids.NameKey {
 		return ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: name, Signature: "23,23"}
 	}
-	survivorAddress := auth.catalog.state.names[key("#=#")]
-	survivor := auth.catalog.state.descriptors[survivorAddress].(*operatorDescriptor)
-	shellAddress := auth.catalog.state.names[key("#!#")]
-	otherAddress := auth.catalog.state.names[key("#~#")]
+	survivorAddress := auth.catalog.NameAddress(key("#=#"))
+	survivor := auth.catalog.MustOperator(survivorAddress)
+	shellAddress := auth.catalog.NameAddress(key("#!#"))
+	otherAddress := auth.catalog.NameAddress(key("#~#"))
 	if survivor.negator != shellAddress.ObjectID {
 		t.Fatal("missing forward-shell link", survivor)
 	}
@@ -618,20 +618,20 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view := e.CatalogRead()
 	for _, address := range []ids.ObjectAddress{shellAddress, otherAddress} {
-		if _, present := view.state.descriptors[address]; present {
+		if _, present := view.Find(address); present {
 			t.Fatal("closure failed to retire an explicit operator root", address)
 		}
 	}
 	for _, name := range []string{"#!#", "#~#"} {
-		if _, present := view.state.names[key(name)]; present {
+		if _, present := view.LookupName(key(name)); present {
 			t.Fatal("retired operator remains in exact name index", name)
 		}
 	}
-	next := view.state.descriptors[survivorAddress].(*operatorDescriptor)
+	next := view.MustOperator(survivorAddress)
 	if next.negator != 0 || next.function != survivor.function || next.revision == survivor.revision {
 		t.Fatal("surviving peer was not atomically relinked", next)
 	}
-	if survivor.negator != shellAddress.ObjectID || auth.catalog.state.descriptors[shellAddress] == nil {
+	if survivor.negator != shellAddress.ObjectID || auth.catalog.Get(shellAddress) == nil {
 		t.Fatal("DROP mutated its captured predecessor")
 	}
 }

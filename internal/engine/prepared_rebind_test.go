@@ -259,7 +259,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		if len(first.temporals) != 4 {
 			t.Fatal("missing logical and genuine temporal captures", first.temporals)
 		}
-		description := StatementDescription{Parameters: first.parameters, Results: first.query.Root.Schema(), temporals: first.temporals, catalogOwner: engine, catalogEpoch: engine.CatalogRead().Epoch()}
+		description := StatementDescription{Parameters: first.parameters, Results: first.query.Root.Schema(), temporals: first.temporals, catalogOwner: engine.catalog.owner(), catalogEpoch: engine.CatalogRead().Epoch()}
 		frozen := append([]temporalConstant(nil), first.temporals...)
 		run(t, engine, "ALTER TYPE mood RENAME VALUE 'q' TO 'end'")
 		description.refreshTemporals = true

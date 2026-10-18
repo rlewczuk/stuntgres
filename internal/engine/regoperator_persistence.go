@@ -57,7 +57,7 @@ func operatorLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	d, known := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)}].(*operatorDescriptor)
+	d, known := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)})
 	if !known || d.seeded() {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}

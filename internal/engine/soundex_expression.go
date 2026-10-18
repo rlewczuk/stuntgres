@@ -34,7 +34,7 @@ func (n installedSoundexFunctionExpression) validate(v CatalogRead) error {
 	if n.Function == "difference" {
 		result = 23
 	}
-	proc, ok := v.state.descriptors[n.ref.Address].(*procedureDescriptor)
+	proc, ok := v.Procedure(n.ref.Address)
 	if !ok || proc != n.procedure || proc.fuzzy != stockFuzzystrmatch || proc.name != n.Function || proc.signature != procedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}

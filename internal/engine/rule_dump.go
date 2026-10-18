@@ -12,11 +12,11 @@ import (
 )
 
 func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
-	d, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := view.Relation(ref.Address)
 	if !ok {
 		return "", ErrCatalogReplaced
 	}
-	ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+	ns, ok := view.Namespace(d.namespace)
 	if !ok {
 		return "", ErrCatalogReplaced
 	}
@@ -47,7 +47,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, expr BoundExpr, ac
 		}
 		a := column.origin.Address
 		a.SubID = 0
-		d, ok := view.state.descriptors[a].(*relationDescriptor)
+		d, ok := view.Relation(a)
 		if !ok {
 			return "", ErrCatalogReplaced
 		}
@@ -233,7 +233,7 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 	if err != nil {
 		return "", err
 	}
-	d := view.state.descriptors[b.ref.Address].(*relationDescriptor)
+	d := view.MustRelation(b.ref.Address)
 	var sql strings.Builder
 	if definitions := parser.StatementWith(action.syntax); len(definitions) != 0 {
 		renderer := newViewRenderer(action.presentation)
@@ -453,12 +453,12 @@ func ruleActionSQL(ctx context.Context, view CatalogRead, action ruleAction) (st
 
 func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.rules) == 0 {
 			continue
 		}
-		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns := view.MustNamespace(d.namespace)
 		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
@@ -485,12 +485,12 @@ func ruleDumpGroups(ctx context.Context, view CatalogRead, roles authorization.R
 					}
 					provider = parent
 				} else {
-					provider = view.state.descriptors[address]
+					provider = view.Get(address)
 				}
 				if provider == nil {
 					return nil, ErrCatalogReplaced
 				}
-				if namespace, ok := view.state.descriptors[provider.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+				if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
 					return nil, fmt.Errorf("stuntgres: dump cannot serialize a rule referencing a temporary relation")
 				}
 			}

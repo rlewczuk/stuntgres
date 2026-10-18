@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -91,7 +90,7 @@ func partitionWriteExtensionBoundary(statement parser.Statement, d *relationDesc
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
-	if e == nil || op == nil || op.self != op || !op.restoreDefaultReplay || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.catalog.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
+	if e == nil || op == nil || op.self != op || !op.restoreDefaultReplay || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -108,7 +107,7 @@ func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationV
 	if syntax == nil || syntax.PartitionOf == nil || op == nil || !op.restoreTableDestination {
 		return auth, nil
 	}
-	if e == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.catalog.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
+	if e == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.domain != e.catalog.domain || auth.catalog.state != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.epoch {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition parent authority")
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -165,7 +164,7 @@ func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode relationLo
 // Accept only same-authority append growth; all replacement/decrease fences stay.
 func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.ObjectRef) error {
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
@@ -188,14 +187,14 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
 	var ancestors []ids.ObjectRef
 	for d.membership != nil {
-		d, ok = catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+		d, ok = catalog.Relation(d.membership.parent)
 		if !ok {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
@@ -218,7 +217,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode rel
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
@@ -251,7 +250,7 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	d, ok := catalog.state.descriptors[parent.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(parent.Address)
 	if !ok || parent.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
@@ -295,7 +294,7 @@ func partitionAppendCompatible(old, current *relationDescriptor) bool {
 func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRead {
 	changed := false
 	for address, captured := range s.partitionRelations {
-		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		current, _ := catalog.Relation(address)
 		if current != captured && partitionAppendCompatible(captured, current) {
 			changed = true
 			break
@@ -305,11 +304,11 @@ func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRea
 		return catalog
 	}
 	state := *catalog.state
-	state.descriptors = maps.Clone(catalog.state.descriptors)
+	state.cloneDescriptors()
 	for address, captured := range s.partitionRelations {
-		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		current, _ := catalog.Relation(address)
 		if current != captured && partitionAppendCompatible(captured, current) {
-			state.descriptors[address] = captured
+			state.setDescriptor(address, captured)
 		}
 	}
 	catalog.state = &state

@@ -35,7 +35,22 @@ func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captu
 	if err := roles.ValidatePrincipal(captured.owner); err != nil {
 		return nil, err
 	}
-	current, ok := view.state.descriptors[captured.address].(*procedureDescriptor)
+	return currentRoutineDeclaration(view, captured)
+}
+
+// validateStoredRoutineDescriptor is validateRoutineDescriptor for stored SQL
+// validation, which holds no role snapshot: the owner's provenance is checked
+// against the principal domain of view's own engine, which is what the
+// engine's committed role root would check.
+func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
+	if _, ok := view.Database(currentDatabaseAddress); !ok || view.owner == nil || captured.owner.ID() == 0 || captured.owner != view.owner.principals.Principal(captured.owner.ID()) {
+		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
+	}
+	return currentRoutineDeclaration(view, captured)
+}
+
+func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
+	current, ok := view.Procedure(captured.address)
 	if !ok || !sameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
@@ -88,7 +103,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 		return err
 	}
 	if auth.engine != nil {
-		current, ok := auth.catalog.state.descriptors[recipe.address].(*relationDescriptor)
+		current, ok := auth.catalog.Relation(recipe.address)
 		if !ok || current.view != recipe.view || recipe.owner.ID() == 0 || recipe.owner != auth.engine.authorizationDomain.Principal(recipe.owner.ID()) {
 			return ErrCatalogReplaced
 		}

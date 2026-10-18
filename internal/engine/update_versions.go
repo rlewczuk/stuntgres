@@ -172,7 +172,7 @@ retry:
 			return err
 		}
 	}
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if !ok || e.privateStorageLocked(s.owner.catalog, ref.Address) == nil || len(old) != len(rows) {
 		return errors.New("stuntgres: invalid update stage")
 	}

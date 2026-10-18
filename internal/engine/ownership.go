@@ -67,7 +67,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 		if t.owningRelation == (ids.ObjectAddress{}) {
 			return true
 		}
-		r, ok := catalog.state.descriptors[t.owningRelation].(*relationDescriptor)
+		r, ok := catalog.Relation(t.owningRelation)
 		return ok && r.relationKind == compositeRelation
 	case *collationDescriptor:
 		return !t.seeded() && t.owner != (authorization.PrincipalRef{})
@@ -150,7 +150,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.array != 0 {
-			array, ok := stage.base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.array)}].(*typeDescriptor)
+			array, ok := stage.base.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.array)})
 			if !ok || !array.typ.IsArray() || array.typ.Element().ID() != old.typ.ID() {
 				return CatalogConflict{}
 			}
@@ -159,7 +159,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			}
 		}
 		if old.owningRelation != (ids.ObjectAddress{}) && !old.typ.IsArray() {
-			r, ok := stage.base.state.descriptors[old.owningRelation].(*relationDescriptor)
+			r, ok := stage.base.Relation(old.owningRelation)
 			if !ok || r.rowType != old.typ.ID() {
 				return CatalogConflict{}
 			}
@@ -184,7 +184,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 			return err
 		}
 		if old.relationKind == tableRelation || old.relationKind == partitionedRelation || old.relationKind == materializedViewRelation {
-			for _, associated := range stage.base.state.descriptors {
+			for _, associated := range stage.base.Descriptors() {
 				r, ok := associated.(*relationDescriptor)
 				if !ok {
 					continue
@@ -256,7 +256,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if ref != scope.lockedRef {
 		return fail(ErrCatalogReplaced)
 	}
-	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := auth.catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {
 		if err := alterViewAuthority(auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
 			return fail(err)
@@ -284,7 +284,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if old.sequence != nil && old.sequence.owned != (ids.ObjectAddress{}) {
 		parent := old.sequence.owned
 		parent.SubID = 0
-		return fail(sequenceLinkedError(old, auth.catalog.state.descriptors[parent].(*relationDescriptor), false))
+		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
 	}
 	if err = ownershipEligibility(auth, target, old.namespace); err != nil {
 		return fail(err)
@@ -335,9 +335,9 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	}
 	var old *typeDescriptor
 	for i := range path.count() {
-		a := auth.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text}]
+		a := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
 		if a != (ids.ObjectAddress{}) {
-			old = auth.catalog.state.descriptors[a].(*typeDescriptor)
+			old = auth.catalog.MustType(a)
 			break
 		}
 	}
@@ -350,12 +350,12 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(sqlError("42809", display+" is not a domain"))
 	}
 	if old.typ.IsArray() {
-		element := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.typ.Element().ID())}].(*typeDescriptor)
+		element := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.typ.Element().ID())})
 		elementName := typeDiagnosticNameAt(auth.catalog, element, diagnosticPath)
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."})
 	}
 	if old.owningRelation != (ids.ObjectAddress{}) {
-		r := auth.catalog.state.descriptors[old.owningRelation].(*relationDescriptor)
+		r := auth.catalog.MustRelation(old.owningRelation)
 		if r.relationKind != compositeRelation {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
 		}
@@ -413,7 +413,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	database := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := auth.catalog.MustDatabase(currentDatabaseAddress)
 	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.name {
 		return fail(sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text)))
 	}

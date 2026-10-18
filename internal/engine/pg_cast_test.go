@@ -14,7 +14,7 @@ import (
 func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
@@ -54,8 +54,8 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ids.ObjectRef{}, class)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestPGCastProjection(t *testing.T) {
 	d, ref := pgCastUnitSource(t, e)
 	before := maps.Clone(e.catalog.state.descriptors)
 	names := maps.Clone(e.catalog.state.names)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,17 +149,17 @@ func TestPGCastProjection(t *testing.T) {
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
-	for a := range state.descriptors {
+	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			delete(state.descriptors, a)
+			state.removeDescriptor(a)
 		}
 	}
-	view := CatalogRead{owner: e, state: &state}
+	view := e.catalog.read(&state)
 	projected, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
-	delete(state.descriptors, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
+	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
 	if rows, err := capturePGCast(context.Background(), view, ref, d); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}

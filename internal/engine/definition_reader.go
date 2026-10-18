@@ -2,7 +2,6 @@ package engine
 
 import (
 	"iter"
-	"maps"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -27,13 +26,13 @@ func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	if a.definition != nil {
 		return a.definition.lookup(key)
 	}
-	return a.catalog.state.names[key]
+	return a.catalog.NameAddress(key)
 }
 func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	if a.definition != nil {
 		return a.definition.descriptors()
 	}
-	return maps.All(a.catalog.state.descriptors)
+	return a.catalog.Descriptors()
 }
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return definitionTypeAt(a.catalog, a.definition, id)
@@ -55,7 +54,7 @@ func (r stageDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
 }
 func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address := range r.stage.base.state.descriptors {
+		for address := range r.stage.base.Descriptors() {
 			if descriptor, exists := r.descriptor(address); exists {
 				if !yield(address, descriptor) {
 					return
@@ -63,7 +62,7 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, Descri
 			}
 		}
 		for address, descriptor := range r.stage.descriptors {
-			if _, original := r.stage.base.state.descriptors[address]; original {
+			if _, original := r.stage.base.Find(address); original {
 				continue
 			}
 			if _, removed := r.stage.removals[address]; removed {
@@ -163,5 +162,5 @@ func definitionLookupAt(view CatalogRead, reader definitionReader, key ids.NameK
 	if reader != nil {
 		return reader.lookup(key)
 	}
-	return view.state.names[key]
+	return view.NameAddress(key)
 }

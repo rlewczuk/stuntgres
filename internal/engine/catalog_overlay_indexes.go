@@ -26,17 +26,17 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
 	var captures []catalogOverlayIndex
-	for a, d := range view.state.descriptors {
+	for a, d := range view.Descriptors() {
 		index, ok := d.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
-		parent, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := view.Relation(index.sqlIndex.parent)
 		if !ok {
 			e.mu.Unlock()
 			return CatalogConflict{}
 		}
-		old, existed := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+		old, existed := stage.base.Relation(parent.address)
 		shape, replaced := c.storage[parent.address]
 		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.address)
 		if !storageChanged && stage.descriptors[a] == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.attributes, parent.attributes)) {
@@ -54,7 +54,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.base.state.descriptors[a].(*relationDescriptor); !storageChanged && ok && previous.sqlIndex != nil && previous.sqlIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.attributes, parent.attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.base.Relation(a); !storageChanged && ok && previous.sqlIndex != nil && previous.sqlIndex.ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.attributes, parent.attributes) && sameIndexKeySemantics(previous, index) {
 			continue
 		}
 		store := e.privateStorageLocked(c, parent.address)
@@ -128,7 +128,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		if err != nil {
 			return err
 		}
-		schema := view.state.descriptors[parent.namespace].Name()
+		schema := view.Get(parent.namespace).Name()
 		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
 			return err
 		}

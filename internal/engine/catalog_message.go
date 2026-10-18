@@ -29,7 +29,7 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relat
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.domainValidations {
-		if !fence.current(CatalogRead{e, e.catalog.state}, e.storage) {
+		if !fence.current(e.catalog.read(e.catalog.state), e.storage) {
 			return CatalogConflict{}
 		}
 	}
@@ -46,7 +46,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	}
 	for _, f := range c.indexFences {
 		count := 0
-		for a, d := range e.catalog.state.descriptors {
+		for a, d := range e.catalog.state.Descriptors() {
 			r, ok := d.(*relationDescriptor)
 			if ok && r.sqlIndex != nil && r.sqlIndex.parent == f.parent {
 				if !f.indexes[a] {
@@ -61,7 +61,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	}
 	for _, f := range c.namespaceFences {
 		count := 0
-		for a, d := range e.catalog.state.descriptors {
+		for a, d := range e.catalog.state.Descriptors() {
 			if d.Namespace() == f.namespace {
 				if f.members[a] != d {
 					return CatalogConflict{}
@@ -91,16 +91,16 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 	}
 	observe := func(a ids.ObjectAddress, d Descriptor) error {
-		if current.descriptors[a] != d {
+		if current.Get(a) != d {
 			return CatalogConflict{}
 		}
 		if _, ok := c.originals[a]; !ok {
-			c.originals[a] = e.catalog.state.descriptors[a]
+			c.originals[a] = e.catalog.state.Get(a)
 		}
 		return nil
 	}
 	if s.databasePredecessor != nil {
-		if current.descriptors[currentDatabaseAddress] != s.databaseAuthority || e.catalog.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+		if current.Get(currentDatabaseAddress) != s.databaseAuthority || e.catalog.state.Get(currentDatabaseAddress) != s.databasePredecessor {
 			return ErrCatalogReplaced
 		}
 		if original, ok := c.originals[currentDatabaseAddress]; ok && original != s.databasePredecessor {
@@ -113,26 +113,26 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 	}
 	for a := range s.descriptors {
-		if err := observe(a, s.base.state.descriptors[a]); err != nil {
+		if err := observe(a, s.base.Get(a)); err != nil {
 			return err
 		}
 	}
 	for a := range s.removals {
-		if err := observe(a, s.base.state.descriptors[a]); err != nil {
+		if err := observe(a, s.base.Get(a)); err != nil {
 			return err
 		}
 	}
 	observeNamespace := func(ns ids.ObjectAddress) error {
-		if d := s.base.state.descriptors[ns]; d != nil {
+		if d := s.base.Get(ns); d != nil {
 			// TEMP creation can add its namespace to the candidate before
 			// constructing the ordinary stage. That exact creation intent is
 			// part of the stage's entry authority, not a later projection.
 			// Its committed absence/name fences already belong to c.
-			if current.descriptors[ns] == nil {
+			if current.Get(ns) == nil {
 				original, created := c.originals[ns]
 				key := ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}
 				_, named := c.names[key]
-				if created && original == nil && c.descriptors[ns] == d && named && current.names[key] == (ids.ObjectAddress{}) {
+				if created && original == nil && c.descriptors[ns] == d && named && current.NameAddress(key) == (ids.ObjectAddress{}) {
 					return nil
 				}
 			}
@@ -144,7 +144,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if err := observeNamespace(d.Namespace()); err != nil {
 			return err
 		}
-		if old := s.base.state.descriptors[d.Address()]; old != nil {
+		if old := s.base.Get(d.Address()); old != nil {
 			if err := observeNamespace(old.Namespace()); err != nil {
 				return err
 			}
@@ -170,7 +170,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 				}
 			}
 		}
-		if observed := s.base.state.descriptors[source.Address()]; observed != nil {
+		if observed := s.base.Get(source.Address()); observed != nil {
 			if err := observe(source.Address(), observed); err != nil {
 				return err
 			}
@@ -178,7 +178,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	for _, sources := range [][]Descriptor{s.likeSources, domainBases} {
 		for _, d := range sources {
-			observed := s.base.state.descriptors[d.Address()]
+			observed := s.base.Get(d.Address())
 			if observed != nil {
 				if err := observe(d.Address(), observed); err != nil {
 					return err
@@ -201,15 +201,15 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		c.indexRebuilds[a] = d
 	}
 	for k, a := range s.touched {
-		if current.names[k] != a {
+		if current.NameAddress(k) != a {
 			return CatalogConflict{}
 		}
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.names[k]
+			c.names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	for parent := range s.indexSets {
-		for address, descriptor := range current.descriptors {
+		for address, descriptor := range current.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
 			if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent {
 				if err := observe(address, index); err != nil {
@@ -218,7 +218,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			}
 		}
 		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
-		for a, d := range e.catalog.state.descriptors {
+		for a, d := range e.catalog.state.Descriptors() {
 			r, ok := d.(*relationDescriptor)
 			if ok && r.sqlIndex != nil && r.sqlIndex.parent == parent {
 				f.indexes[a] = true
@@ -229,7 +229,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	for a := range s.removals {
 		if a.ClassID == ids.NamespaceClassID {
 			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]Descriptor{}}
-			for address, d := range e.catalog.state.descriptors {
+			for address, d := range e.catalog.state.Descriptors() {
 				if d.Namespace() == a {
 					f.members[address] = d
 				}
@@ -256,7 +256,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	for a, candidate := range s.indexCandidates {
 		index, ok := s.descriptors[a].(*relationDescriptor)
 		if !ok {
-			index, ok = current.descriptors[a].(*relationDescriptor)
+			index, ok = current.Relation(a)
 		}
 		if !ok || index.sqlIndex == nil {
 			return CatalogConflict{}

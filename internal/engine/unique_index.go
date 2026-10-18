@@ -11,7 +11,7 @@ import (
 // caches this enumeration by catalog identity, never by the parent alone.
 func enforcingIndexes(view CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
 	var indexes []*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent && (index.sqlIndex.unique || index.sqlIndex.isExclusion()) {
 			indexes = append(indexes, index)

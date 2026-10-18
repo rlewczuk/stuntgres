@@ -191,10 +191,10 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := New()
-	if _, err := imported.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := imported.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	for _, descriptor := range imported.CatalogRead().state.descriptors {
+	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
 		if ok && copy.name == "t" {
 			if copy.rlsEnabled || !copy.rlsForced || len(copy.policies) != 1 || copy.policies[0].using == expression {
@@ -214,8 +214,8 @@ func TestRLSBaseControls(t *testing.T) {
 		next := *d
 		next.rlsEnabled, next.rlsForced = state.enabled, state.forced
 		catalog := cloneCatalog(base.state)
-		catalog.descriptors[d.address] = &next
-		groups, err := rowSecurityDumpGroups(context.Background(), CatalogRead{owner: e, state: catalog}, e.roleRead(CatalogRead{e, catalog}, e.roles))
+		catalog.setDescriptor(d.address, &next)
+		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
 		if err != nil {
 			t.Fatal(err)
 		}

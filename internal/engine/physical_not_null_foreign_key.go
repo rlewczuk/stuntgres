@@ -23,12 +23,12 @@ func emitPhysicalSelfForeignKeys(view CatalogRead, table *relationDescriptor, ow
 	if len(table.physicalNotNull) == 0 || len(table.foreignKeys) == 0 {
 		return nil
 	}
-	qualified := quoteIdentifier(view.state.descriptors[table.namespace].Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	for _, foreign := range table.foreignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
-		index := view.state.descriptors[foreign.Index].(*relationDescriptor)
+		index := view.MustRelation(foreign.Index)
 		if partitionReplaySeparateConstraint(view, index) != separate {
 			continue
 		}
@@ -73,7 +73,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 	if err != nil {
 		return nil, err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || created[ref.Address] != ref || len(old.physicalNotNull) == 0 || old.partition != nil || old.membership != nil {
 		return nil, nil
 	}
@@ -120,13 +120,13 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		return restoredForeignKeys{}, false, err
 	}
 	e.mu.Lock()
-	valid := partitionConstraintReplayImport(e, op, auth) && auth.roleRecord == provider.authority.roleRecord && created[provider.ref.Address] == provider.ref && provider.ref.Epoch == auth.catalog.Epoch() && auth.catalog.state.descriptors[provider.ref.Address] == provider.current
+	valid := partitionConstraintReplayImport(e, op, auth) && auth.roleRecord == provider.authority.roleRecord && created[provider.ref.Address] == provider.ref && provider.ref.Epoch == auth.catalog.Epoch() && auth.catalog.Get(provider.ref.Address) == provider.current
 	e.mu.Unlock()
 	if !valid {
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.state.descriptors[old.namespace]
+	namespace := auth.catalog.Get(old.namespace)
 	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.name != raw.Name.Parts[1].Text {
 		return reject()
 	}
@@ -159,7 +159,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		for i, key := range provider.primary.keys {
 			attributes[i] = key.attribute
 		}
-		for _, descriptor := range auth.catalog.state.descriptors {
+		for _, descriptor := range auth.catalog.Descriptors() {
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.address == provider.primary.index {
 				continue

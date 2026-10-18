@@ -38,7 +38,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		slot, found := w.queryOccurrences[key]
 		if !found {
 			leaf := definition.sources[occurrence]
-			relation, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+			relation, ok := view.Relation(leaf.ref.Address)
 			if !ok {
 				return 0, ErrCatalogReplaced
 			}
@@ -146,7 +146,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 				if layer.relation.view != key.definition {
 					continue
 				}
-				current := auth.catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+				current := auth.catalog.MustRelation(layer.ref.Address)
 				source.principal = current.owner
 				if current.view.invoker {
 					source.principal = auth.state.CurrentUser

@@ -66,7 +66,7 @@ func foreignKeyAttributes(d *relationDescriptor, columns []parser.Identifier) ([
 
 func foreignKeyIndex(view CatalogRead, parent *relationDescriptor, attributes []int32) (*relationDescriptor, error) {
 	var found *relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			continue
@@ -182,7 +182,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 			return err
 		}
 	}
-	parent, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
+	parent, ok := view.Relation(ref.Address)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing foreign-key parent")
 	}
@@ -192,8 +192,8 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if parent.relationKind != tableRelation {
 		return sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, parent.name))
 	}
-	childTemp := view.state.descriptors[child.namespace].(*namespaceDescriptor).temporary
-	parentTemp := view.state.descriptors[parent.namespace].(*namespaceDescriptor).temporary
+	childTemp := view.MustNamespace(child.namespace).temporary
+	parentTemp := view.MustNamespace(parent.namespace).temporary
 	if childTemp != (ids.SessionToken{}) && parentTemp == (ids.SessionToken{}) {
 		return sqlError("42P16", "constraints on temporary tables may reference only temporary tables")
 	}
@@ -262,7 +262,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		index, err = foreignKeyIndex(view, parent, referenced)
 	} else {
 		var ok bool
-		index, ok = view.state.descriptors[supporting].(*relationDescriptor)
+		index, ok = view.Relation(supporting)
 		if !ok {
 			return ErrCatalogReplaced
 		}
@@ -348,11 +348,11 @@ func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[
 			}
 		}
 		names[f.Name] = true
-		parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
+		parent, ok := view.Relation(f.Target)
 		if !ok || parent.relationKind != tableRelation {
 			return fmt.Errorf("stuntgres: missing foreign-key target")
 		}
-		index, ok := view.state.descriptors[f.Index].(*relationDescriptor)
+		index, ok := view.Relation(f.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing foreign-key index")
 		}
@@ -363,7 +363,7 @@ func validateForeignKeys(view CatalogRead, child *relationDescriptor, names map[
 		if !eligible {
 			return fmt.Errorf("stuntgres: foreign-key index authority mismatch")
 		}
-		if view.state.descriptors[parent.namespace].(*namespaceDescriptor).temporary != view.state.descriptors[child.namespace].(*namespaceDescriptor).temporary {
+		if view.MustNamespace(parent.namespace).temporary != view.MustNamespace(child.namespace).temporary {
 			return fmt.Errorf("stuntgres: foreign-key temporary provenance mismatch")
 		}
 		if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
@@ -399,7 +399,7 @@ func foreignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value
 
 func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, parent *relationDescriptor, f foreignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
 	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.name, f.Name)).(*sqlstate.Error)
-	d.Schema = auth.catalog.state.descriptors[child.namespace].Name()
+	d.Schema = auth.catalog.Get(child.namespace).Name()
 	d.Table, d.Constraint = child.name, f.Name
 	if partial {
 		d.Detail = "MATCH FULL does not allow mixing of null and nonnull key values."

@@ -105,7 +105,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(root.buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
 	bad := *index.sqlIndex
 	bad.keys = append([]indexKey(nil), bad.keys...)
 	bad.keys[0].class, _ = sqltype.LookupHashIndexClass("int8_ops")
@@ -197,7 +197,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 	_, old := hashRoot(t, source, "hn")
 	run(t, target, "CREATE TABLE old(n INT)")
 	run(t, target, "INSERT INTO old VALUES(9),(9),(9),(9),(9)")
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	freshIndex, fresh := hashRoot(t, target, "hn")
@@ -223,7 +223,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		t.Fatal("destination mutated source", got)
 	}
 	previous := fresh
-	if _, err := target.ReplaceCatalog(context.Background(), target.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), target, target.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	_, rebuilt := hashRoot(t, target, "hn")
@@ -241,7 +241,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 		run(t, e, q)
 	}
 	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
 	store := e.storage[parent.address]
 	value, err := parent.columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {

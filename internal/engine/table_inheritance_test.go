@@ -22,10 +22,10 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 func inheritanceUnitView(e *Engine, relations ...*relationDescriptor) CatalogRead {
 	state := cloneCatalog(e.CatalogRead().state)
 	for _, d := range relations {
-		state.descriptors[d.address] = d
-		state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+		state.setDescriptor(d.address, d)
+		state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
 	}
-	return CatalogRead{owner: e, state: state}
+	return e.catalog.read(state)
 }
 func TestInheritanceMergeStableRemap(t *testing.T) {
 	e := New()
@@ -252,7 +252,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	old := columnExpression{expressionInfo: expressionInfo{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
 	state := cloneCatalog(v.state)
 	state.epoch++
-	current := CatalogRead{owner: e, state: state}
+	current := e.catalog.read(state)
 	mapper := createLikeInput{source: d}
 	mapped, err := mapper.remap(old, d, current)
 	if err != nil || !sameInheritedExpression(mapped, old, d, current) || old.origin != oldRef {

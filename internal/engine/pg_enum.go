@@ -23,7 +23,7 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 		}
 	}
 	count := 0
-	for address, descriptor := range catalog.state.descriptors {
+	for address, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ func capturePGEnum(ctx context.Context, catalog CatalogRead, ref ids.ObjectRef, 
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*4)
 	at := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

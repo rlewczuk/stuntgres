@@ -26,7 +26,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	for _, name := range []string{"acl_provenance_domain", "acl_provenance_enum", "acl_provenance_composite"} {
 		d := domainUnitType(t, view, name)
 		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}} {
-			typ := view.state.descriptors[address].(*typeDescriptor)
+			typ := view.MustType(address)
 			acl, err := rawObjectACL(view, address)
 			if !typ.aclSyntheticDefault || !defaultDomainACL(typ) || err != nil || acl.Explicit {
 				t.Fatal("constructor lost raw absence", name, address, acl, err)
@@ -51,14 +51,14 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}} {
-		if d := view.state.descriptors[address].(*typeDescriptor); !d.aclSyntheticDefault {
+		if d := view.MustType(address); !d.aclSyntheticDefault {
 			t.Fatal("relation row/array has explicit raw ACL", address)
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.ACLItemArray} {
-		d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		d := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if d.aclSyntheticDefault || d.acl.Explicit {
 			t.Fatal("builtin raw absence does not need synthetic baseline", id)
 		}
@@ -67,7 +67,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		extensionEngine, _, base := intarrayUnitInstalled(t)
 		catalog := extensionEngine.CatalogRead()
 		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}} {
-			d := catalog.state.descriptors[address].(*typeDescriptor)
+			d := catalog.MustType(address)
 			if !d.aclSyntheticDefault || !defaultDomainACL(d) {
 				t.Fatal("extension baseline provenance", address)
 			}
@@ -114,7 +114,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}
-	imported := remapped.descriptors[d.Address()].(*typeDescriptor)
+	imported := remapped.MustType(d.Address())
 	if !imported.aclSyntheticDefault || !defaultDomainACL(imported) || imported.owner == d.owner {
 		t.Fatal("foreign principal remap lost provenance", imported)
 	}

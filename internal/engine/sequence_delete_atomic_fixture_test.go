@@ -45,10 +45,10 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
 		memory:   make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
 	}
-	for a, d := range e.catalog.state.descriptors {
+	for a, d := range e.catalog.state.Descriptors() {
 		p.descriptors[a] = d
 	}
-	for k, a := range e.catalog.state.names {
+	for k, a := range e.catalog.state.Names() {
 		p.names[k] = a
 	}
 	for a, store := range e.storage {
@@ -126,7 +126,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		for a, d := range tx.catalog.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
 				namespaces++
-				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.descriptors[a] != nil {
+				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}

@@ -12,7 +12,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 	run(t, e, `CREATE TABLE d(i INT DEFAULT 2147483648,b BOOL DEFAULT (1 < 2))`)
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	old := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("validation evaluated narrowing", err)
 	}
@@ -73,7 +73,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	run(t, e, `CREATE TABLE d(n BOOL DEFAULT (NULL IS NULL),t BOOL DEFAULT (TRUE IS TRUE),v BOOL DEFAULT (1 IS DISTINCT FROM 2),i INT DEFAULT 1)`)
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	old := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	run(t, e, `CREATE TABLE d(t TEXT DEFAULT CAST(1 AS TEXT),i INT DEFAULT CAST('oops'::text AS INT))`)
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	old := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("definition validation evaluated an explicit cast", err)
 	}
@@ -173,7 +173,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 	run(t, e, `CREATE TABLE d(t BOOL DEFAULT (TRUE OR CAST('oops'::text AS INT)=1),f BOOL DEFAULT (FALSE AND CAST('oops'::text AS INT)=1))`)
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	d := view.state.descriptors[ref.Address].(*relationDescriptor)
+	d := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal("provider evaluated a discarded conversion", err)
 	}

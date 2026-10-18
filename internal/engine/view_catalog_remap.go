@@ -8,7 +8,7 @@ import (
 )
 
 func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	collation := remappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {
@@ -32,14 +32,14 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if target, ok := mapping[address]; ok {
 			address = target
 		}
-		if d, ok := next.descriptors[address].(*typeDescriptor); ok {
+		if d, ok := next.Type(address); ok {
 			return d.typ
 		}
 		return old
 	}
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
 			if typesOnly {
 				changed := false
@@ -73,7 +73,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 					}
 				}
 			}
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			continue
 		}
 		d, ok := descriptor.(*relationDescriptor)
@@ -86,7 +86,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			if err != nil {
 				return err
 			}
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if typesOnly && next.aclItemImport == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
@@ -111,7 +111,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				copy.defaults[attribute] = definition
 			}
 			d = &copy
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if len(d.generations) != 0 {
 			copy := *d
@@ -142,7 +142,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				copy.generations[attribute] = definition
 			}
 			d = &copy
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if len(d.checkConstraints) != 0 {
 			copy := *d
@@ -174,7 +174,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 				return err
 			}
 			d = &copy
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if d.sqlIndex != nil {
 			copy := *d
@@ -245,7 +245,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			}
 			copy.sqlIndex = &definition
 			d = &copy
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if hierarchyRelation(d) {
 			var err error
@@ -253,7 +253,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			if err != nil {
 				return err
 			}
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if len(d.policies) != 0 {
 			var err error
@@ -261,7 +261,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 			if err != nil {
 				return err
 			}
-			next.descriptors[address] = d
+			next.setDescriptor(address, d)
 		}
 		if d.view == nil {
 			continue
@@ -272,7 +272,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		}
 		copy := *d
 		copy.view = definition
-		next.descriptors[address] = &copy
+		next.setDescriptor(address, &copy)
 	}
 	return nil
 }

@@ -77,7 +77,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
-	for address, descriptor := range before.state.descriptors {
+	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace {
 			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage[address] != nil || e.sequences[address] != nil || e.indexRoots[address] != nil {
 				t.Fatal("owned TEMP child or physical projection survived", address)
@@ -96,9 +96,9 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	owner := sessionStart(t, e, nil)
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_first FROM pg_catalog."C"`)
 	base := e.CatalogRead()
-	ns := base.state.descriptors[owner.temporaryNamespace].(*namespaceDescriptor)
+	ns := base.MustNamespace(owner.temporaryNamespace)
 	var children []ids.ObjectAddress
-	for a, d := range base.state.descriptors {
+	for a, d := range base.Descriptors() {
 		if d.Namespace() == ns.address {
 			children = append(children, a)
 		}
@@ -148,8 +148,8 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
-	for address, descriptor := range before.state.descriptors {
-		if descriptor.Namespace() == namespace && (after.state.descriptors[address] != nil || e.storage[address] != nil || e.sequences[address] != nil || e.indexRoots[address] != nil) {
+	for address, descriptor := range before.Descriptors() {
+		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.storage[address] != nil || e.sequences[address] != nil || e.indexRoots[address] != nil) {
 			t.Fatal("exhausted cleanup retained TEMP child", address)
 		}
 	}

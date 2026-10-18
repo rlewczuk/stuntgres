@@ -128,7 +128,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
-	current, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+	current, ok := catalog.Relation(source.ref.Address)
 	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
 		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.relationKind != source.relation.relationKind ||
 		!sameRelationRowShape(current, source.relation) {
@@ -205,6 +205,15 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 		}
 	}
 	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, queryRowMark{}, scope.queryLocks)
+}
+
+// commentEngine returns the engine whose catalog the comment snapshot was
+// captured from, or nil before capture.
+func (s *StatementScope) commentEngine() *Engine {
+	if s.commentCatalog.owner == nil {
+		return nil
+	}
+	return s.op.session.Engine()
 }
 
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across

@@ -18,7 +18,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, C
 		return nil, CatalogRead{}, ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
-	parent, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
+	parent, ok := view.Relation(ref.Address)
 	if !ok {
 		return nil, CatalogRead{}, errors.New("stuntgres: invalid unique parent")
 	}
@@ -63,7 +63,7 @@ retry:
 	b := &uniqueWriteBinding{ref: ref, parent: parent, catalog: view.state}
 	var indexes []*relationDescriptor
 	var checkedNonunique []*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live {
 			continue
@@ -244,7 +244,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 		return err
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
-	evaluation.catalog = CatalogRead{owner: s.op.session.Engine(), state: binding.catalog}
+	evaluation.catalog = s.op.session.Engine().catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -353,12 +353,12 @@ retry:
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
-	evaluation.catalog = CatalogRead{owner: e, state: binding.catalog}
+	evaluation.catalog = e.catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
 	if action != nil && action.catalog != binding.catalog {
-		view := CatalogRead{owner: e, state: binding.catalog}
+		view := e.catalog.read(binding.catalog)
 		if err := action.selectArbiters(&evaluation, parent, view); err != nil {
 			return uniqueConflict{}, err
 		}
@@ -421,8 +421,8 @@ retry:
 			s.uniqueBinding = nil
 			goto retry
 		}
-		currentParent, parentOK := current.state.descriptors[ref.Address].(*relationDescriptor)
-		currentIndex, indexOK := current.state.descriptors[index.address].(*relationDescriptor)
+		currentParent, parentOK := current.Relation(ref.Address)
+		currentIndex, indexOK := current.Relation(index.address)
 		if !parentOK || !indexOK || currentParent.revision != parent.revision || !sameRelationRowShape(parent, currentParent) || currentIndex.revision != index.revision || !sameIndexKeySemantics(index, currentIndex) {
 			e.mu.Unlock()
 			return uniqueConflict{}, ErrCatalogReplaced
@@ -431,7 +431,7 @@ retry:
 		auth, err := s.writeAuthorizationLocked(e)
 		auth.catalog = current
 		auth.recaptureCatalog(auth.catalog)
-		namespace, _ := current.state.descriptors[parent.namespace].(*namespaceDescriptor)
+		namespace, _ := current.Namespace(parent.namespace)
 		root := e.indexRoots[index.address]
 		if changes := s.owner.catalog; changes != nil {
 			if private := changes.uniqueRoots[index.address]; private != nil {

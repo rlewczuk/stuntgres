@@ -103,8 +103,8 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	}
 	candidate := cloneCatalog(auth.catalog.state)
 	for _, name := range []string{"invalid_source", "dropping_source"} {
-		ref := ids.ObjectRef{Address: candidate.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}]}
-		original := candidate.descriptors[ref.Address].(*relationDescriptor)
+		ref := ids.ObjectRef{Address: candidate.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})}
+		original := candidate.MustRelation(ref.Address)
 		copy := *original
 		definition := *original.sqlIndex
 		definition.ready, definition.valid = false, false
@@ -112,9 +112,9 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 			definition.live = false
 		}
 		copy.sqlIndex = &definition
-		candidate.descriptors[ref.Address] = &copy
+		candidate.setDescriptor(ref.Address, &copy)
 	}
-	auth.catalog = CatalogRead{owner: e, state: candidate}
+	auth.catalog = e.catalog.read(candidate)
 	auth.recaptureCatalog(auth.catalog)
 	stage := e.BeginCatalogStage(auth.catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)

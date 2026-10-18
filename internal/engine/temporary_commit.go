@@ -20,12 +20,12 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		return writes, deletes, c, nil
 	}
 	var cleared, dropped []ids.ObjectAddress
-	for a, descriptor := range base.state.descriptors {
+	for a, descriptor := range base.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.relationKind != tableRelation || table.onCommit != parser.OnCommitDelete && table.onCommit != parser.OnCommitDrop {
 			continue
 		}
-		ns := base.state.descriptors[table.namespace].(*namespaceDescriptor)
+		ns := base.MustNamespace(table.namespace)
 		if ns.temporary != op.session.token {
 			continue
 		}
@@ -52,7 +52,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		}
 		shape.replacement = &relationStorage{}
 		shape.truncated = false
-		shape.relation = base.state.descriptors[a].(*relationDescriptor)
+		shape.relation = base.MustRelation(a)
 		next.storage[a] = shape
 		e.fenceEmptyIndexStorageLocked(base.state, next, a)
 		delete(nextWrites, a)
@@ -107,9 +107,9 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			for a := range stage.descriptors {
 				original, observed := next.originals[a]
 				if !observed {
-					original = base.state.descriptors[a]
+					original = base.Get(a)
 				}
-				if e.catalog.state.descriptors[a] != original {
+				if e.catalog.state.Get(a) != original {
 					err = CatalogConflict{}
 					break
 				}
@@ -117,9 +117,9 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			for a := range stage.removals {
 				original, observed := next.originals[a]
 				if !observed {
-					original = base.state.descriptors[a]
+					original = base.Get(a)
 				}
-				if e.catalog.state.descriptors[a] != original {
+				if e.catalog.state.Get(a) != original {
 					err = CatalogConflict{}
 					break
 				}

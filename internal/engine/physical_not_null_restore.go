@@ -104,7 +104,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 	if err != nil {
 		return nil, err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || old.relationKind != tableRelation || old.partition != nil || old.membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.address) || slices.ContainsFunc(old.uniqueConstraints, func(c uniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
@@ -144,7 +144,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 	if !partitionConstraintReplayImport(e, op, auth) || constructor.ref.Epoch != auth.catalog.Epoch() {
 		return reject()
 	}
-	current, ok := auth.catalog.state.descriptors[constructor.ref.Address].(*relationDescriptor)
+	current, ok := auth.catalog.Relation(constructor.ref.Address)
 	if !ok || current == constructor.before || current.owner != constructor.before.owner || current.relationKind != tableRelation || current.partition != nil || current.membership != nil {
 		return reject()
 	}
@@ -236,7 +236,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return sqlError("42501", "permission denied for table pg_constraint")
 	}
 	e.mu.Lock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.Epoch() != pair.ref.Epoch || auth.catalog.state.descriptors[pair.ref.Address] != pair.current {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.Epoch() != pair.ref.Epoch || auth.catalog.Get(pair.ref.Address) != pair.current {
 		e.mu.Unlock()
 		return reject()
 	}

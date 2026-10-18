@@ -15,7 +15,7 @@ import (
 func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2224}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
@@ -109,8 +109,8 @@ func TestPGSequenceShape(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ids.ObjectRef{}, class)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,9 +141,9 @@ func TestPGSequenceProjection(t *testing.T) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{typ: sqltype.Int4, start: 15, increment: 7, max: 200, min: -20, cache: 9223372036854775807, cycle: true}
 	d := &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: options}
-	state.descriptors[a] = d
-	state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}] = &relationDescriptor{relationKind: tableRelation}
-	state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}] = &relationDescriptor{relationKind: viewRelation}
+	state.setDescriptor(a, d)
+	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &relationDescriptor{relationKind: tableRelation})
+	state.setDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &relationDescriptor{relationKind: viewRelation})
 	e.sequences[a] = &sequenceGenerator{last: 99, called: true, generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
@@ -163,7 +163,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	base := *e.catalog.state
 	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	base.descriptors[a] = &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}}
+	base.setDescriptor(a, &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}})
 	own := newCatalogChanges()
 	own.descriptors[a] = nil
 	for _, tc := range []struct {
@@ -195,10 +195,10 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
 	options := &sequenceOptions{typ: sqltype.Int2, start: -1, increment: -3, max: -1, min: -32768, cache: 1}
 	d := &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: options}
-	base.descriptors[a] = d
+	base.setDescriptor(a, d)
 	other := *d
 	other.address = dropped
-	base.descriptors[dropped] = &other
+	base.setDescriptor(dropped, &other)
 	old, err := capturePGSequence(context.Background(), &base, nil, ref, source)
 	if err != nil {
 		t.Fatal(err)

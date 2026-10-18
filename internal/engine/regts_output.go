@@ -20,17 +20,17 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 	if alias != sqltype.Regdictionary {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}].(*tsDictionaryDescriptor)
+	d, ok := view.TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	visible := false
 	if !qualified {
 		for _, ns := range path {
-			if namespace, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+			if namespace, ok := view.Namespace(ns); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
-			address := view.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name}]
+			address := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.name})
 			if address != (ids.ObjectAddress{}) {
 				visible = address == d.address
 				break
@@ -39,7 +39,7 @@ func regTSSpelling(view CatalogRead, path []ids.ObjectAddress, id uint32, alias 
 	}
 	name := regclassIdentifier(d.name)
 	if !visible {
-		name = regclassIdentifier(view.state.descriptors[d.namespace].Name()) + "." + name
+		name = regclassIdentifier(view.Get(d.namespace).Name()) + "." + name
 	}
 	return name
 }

@@ -14,25 +14,25 @@ func TestTableSummaryImmutablePublication(t *testing.T) {
 	run(t, e, "CREATE TABLE summary_parent(n INT)")
 	address := roleTableRef(t, e, "summary_parent").Address
 	before := e.CatalogRead()
-	predecessor := before.state.descriptors[address].(*relationDescriptor)
+	predecessor := before.MustRelation(address)
 	if predecessor.hasIndexes {
 		t.Fatal("new table has history")
 	}
 	run(t, e, "CREATE INDEX summary_index ON summary_parent(n)")
-	successor := e.CatalogRead().state.descriptors[address].(*relationDescriptor)
+	successor := e.CatalogRead().MustRelation(address)
 	if successor == predecessor || !successor.hasIndexes || predecessor.hasIndexes || successor.revision == predecessor.revision {
 		t.Fatal("history was not immutable same-identity publication")
 	}
 	run(t, e, "DROP INDEX summary_index")
-	if !e.CatalogRead().state.descriptors[address].(*relationDescriptor).hasIndexes || predecessor.hasIndexes {
+	if !e.CatalogRead().MustRelation(address).hasIndexes || predecessor.hasIndexes {
 		t.Fatal("DROP cleared history or changed predecessor")
 	}
 	run(t, e, "ALTER TABLE summary_parent RENAME COLUMN n TO renamed")
-	if !e.CatalogRead().state.descriptors[address].(*relationDescriptor).hasIndexes {
+	if !e.CatalogRead().MustRelation(address).hasIndexes {
 		t.Fatal("unrelated clone lost history")
 	}
 	run(t, e, "CREATE TABLE summary_unique(n INT UNIQUE)")
-	if !e.CatalogRead().state.descriptors[roleTableRef(t, e, "summary_unique").Address].(*relationDescriptor).hasIndexes {
+	if !e.CatalogRead().MustRelation(roleTableRef(t, e, "summary_unique").Address).hasIndexes {
 		t.Fatal("same-stage UNIQUE parent lost history")
 	}
 }
@@ -44,14 +44,14 @@ func TestTableSummaryReplacementHistory(t *testing.T) {
 	run(t, source, "DROP INDEX summary_old")
 	for _, target := range []*Engine{source, New()} {
 		before := source.CatalogRead()
-		if _, err := target.ReplaceCatalog(context.Background(), before); err != nil {
+		if _, err := target.ReplaceCatalog(context.Background(), source, before); err != nil {
 			t.Fatal(err)
 		}
-		parent := target.CatalogRead().state.descriptors[roleTableRef(t, target, "summary_former").Address].(*relationDescriptor)
+		parent := target.CatalogRead().MustRelation(roleTableRef(t, target, "summary_former").Address)
 		if !parent.hasIndexes {
 			t.Fatal("real descriptor replacement normalized history")
 		}
-		if !before.state.descriptors[roleTableRef(t, source, "summary_former").Address].(*relationDescriptor).hasIndexes {
+		if !before.MustRelation(roleTableRef(t, source, "summary_former").Address).hasIndexes {
 			t.Fatal("retained source mutated")
 		}
 	}
@@ -70,9 +70,9 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			state := cloneCatalog(base.state)
 			address := roleTableRef(t, e, "summary_active").Address
 			historyAddress := roleTableRef(t, e, "summary_history").Address
-			parent := *state.descriptors[address].(*relationDescriptor)
+			parent := *state.MustRelation(address)
 			parent.hasIndexes = false
-			state.descriptors[address] = &parent
+			state.setDescriptor(address, &parent)
 			stage := e.BeginCatalogStage(base)
 			if err := stage.Replace(&parent); err == nil {
 				t.Fatal("same-identity replacement cleared sticky history")
@@ -81,16 +81,16 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			if same {
 				target = e
 			}
-			if _, err := target.ReplaceCatalog(context.Background(), CatalogRead{owner: e, state: state}); err != nil {
+			if _, err := target.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err != nil {
 				t.Fatal(err)
 			}
 			current := target.CatalogRead()
-			active := current.state.descriptors[roleTableRef(t, target, "summary_active").Address].(*relationDescriptor)
-			history := current.state.descriptors[roleTableRef(t, target, "summary_history").Address].(*relationDescriptor)
+			active := current.MustRelation(roleTableRef(t, target, "summary_active").Address)
+			history := current.MustRelation(roleTableRef(t, target, "summary_history").Address)
 			if !active.hasIndexes || !history.hasIndexes {
 				t.Fatal("replacement failed to normalize active index or cleared history-only true")
 			}
-			if parent.hasIndexes || state.descriptors[address] != &parent || !base.state.descriptors[address].(*relationDescriptor).hasIndexes || !base.state.descriptors[historyAddress].(*relationDescriptor).hasIndexes {
+			if parent.hasIndexes || state.Get(address) != &parent || !base.MustRelation(address).hasIndexes || !base.MustRelation(historyAddress).hasIndexes {
 				t.Fatal("normalization mutated supplied descriptors or retained roots")
 			}
 		})
@@ -102,7 +102,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	run(t, e, "CREATE TABLE summary_stage(n INT)")
 	address := roleTableRef(t, e, "summary_stage").Address
 	base := e.CatalogRead()
-	parent := base.state.descriptors[address].(*relationDescriptor)
+	parent := base.MustRelation(address)
 	stage := e.BeginCatalogStage(base)
 	next := *parent
 	next.name = "summary_renamed"
@@ -151,7 +151,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 	if source.rowType != sqltype.ID(12035) || len(source.columns) != 8 {
 		t.Fatal("pg_tables rowtype/schema", source.rowType, source.columns)
 	}
@@ -185,7 +185,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		{12007, "pg_roles", false},
 		{12008, "pg_group", false},
 	} {
-		relation, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid}].(*relationDescriptor)
+		relation, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expected.oid})
 		if !ok || relation.name != expected.name || relation.relationKind != catalogRelation {
 			t.Fatalf("missing represented builtin %s (%d)", expected.name, expected.oid)
 		}
@@ -193,7 +193,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 			t.Fatalf("incorrect table/view classification for %s", expected.name)
 		}
 	}
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == catalogRelation {
 			table := representedSummaryTable(relation.address.ObjectID)
 			view := representedSummaryViewDefinition(relation.address.ObjectID) != ""
@@ -236,7 +236,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 			t.Fatal(err)
 		}
 		catalog := e.CatalogRead()
-		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
@@ -272,9 +272,9 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	run(t, e, "CREATE INDEX summary_owned_index ON summary_owned(n)")
 	base := e.CatalogRead()
 	address := roleTableRef(t, e, "summary_owned").Address
-	previous := base.state.descriptors[address].(*relationDescriptor)
+	previous := base.MustRelation(address)
 	capture := func(catalog CatalogRead) []sqltype.Value {
-		source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003}].(*relationDescriptor)
+		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
 		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
@@ -319,8 +319,8 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	if err != nil || retainedOwner != "postgres" || previous.owner == newOwner.Ref || !previous.hasIndexes {
 		t.Fatal("retained owner/history mutated", retainedOwner, err)
 	}
-	parent := current.state.descriptors[address].(*relationDescriptor)
-	index := current.state.descriptors[roleTableRef(t, e, "summary_owned_index").Address].(*relationDescriptor)
+	parent := current.MustRelation(address)
+	index := current.MustRelation(roleTableRef(t, e, "summary_owned_index").Address)
 	if !parent.hasIndexes || parent.owner != newOwner.Ref || index.owner != newOwner.Ref {
 		t.Fatal("owner replacement lost history or dependent owner")
 	}

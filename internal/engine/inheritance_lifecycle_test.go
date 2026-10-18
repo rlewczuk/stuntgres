@@ -24,8 +24,8 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 func inheritanceLifecycleInstall(e *Engine, tables ...*relationDescriptor) {
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	for _, table := range tables {
-		e.catalog.state.descriptors[table.address] = table
-		e.catalog.state.names[descriptorNameKey(table)] = table.address
+		e.catalog.state.setDescriptor(table.address, table)
+		e.catalog.state.bindName(descriptorNameKey(table), table.address)
 		e.storage[table.address] = &relationStorage{}
 	}
 }
@@ -180,7 +180,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.address]) != 1 || len(writes[child.address]) != 1 || changes.descriptors[parent.address] != parent || changes.descriptors[child.address] != &child || e.catalog.state.descriptors[child.address] != nil {
+			if len(writes[parent.address]) != 1 || len(writes[child.address]) != 1 || changes.descriptors[parent.address] != parent || changes.descriptors[child.address] != &child || e.catalog.state.Get(child.address) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
 			if len(nextWrites[parent.address]) != 0 {

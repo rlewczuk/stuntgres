@@ -104,7 +104,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	run(t, e, "ALTER TABLE src DROP COLUMN dead")
 	run(t, e, "COMMENT ON COLUMN src.a IS 'exact'")
 	before := e.CatalogRead()
-	source := before.state.descriptors[roleTableRef(t, e, "src").Address].(*relationDescriptor)
+	source := before.MustRelation(roleTableRef(t, e, "src").Address)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(head TEXT,lead BOOL,LIKE src INCLUDING ALL)")
@@ -133,7 +133,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 			t.Fatal("CHECK retained source row", dep)
 		}
 	}
-	if stage.descriptors[source.address] != nil || before.state.descriptors[source.address] != source {
+	if stage.descriptors[source.address] != nil || before.Get(source.address) != source {
 		t.Fatal("source descriptor modified")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -195,7 +195,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "src").Address].(*relationDescriptor)
+	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	next := *source
 	e.mu.Lock()
 	next.revision, err = e.catalog.revisionLocked()
@@ -234,7 +234,7 @@ func TestTableLikeInlineSourceProvenance(t *testing.T) {
 		t.Fatal("private source/provider provenance absent")
 	}
 	for _, source := range stage.likeSources {
-		if stage.base.state.descriptors[source.Address()] != nil || stage.descriptors[source.Address()] != source {
+		if stage.base.Get(source.Address()) != nil || stage.descriptors[source.Address()] != source {
 			t.Fatal("private input mistaken for incumbent", source)
 		}
 	}

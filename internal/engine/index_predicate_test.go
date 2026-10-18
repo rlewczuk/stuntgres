@@ -41,7 +41,8 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 		}
 		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{value, active}})
 	}
-	e.catalog.state.descriptors[parent.address], e.catalog.state.descriptors[index.address] = parent, index
+	e.catalog.state.setDescriptor(parent.address, parent)
+	e.catalog.state.setDescriptor(index.address, index)
 	e.storage[parent.address] = store
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.sqlIndex, store, nil)
 	if err != nil {
@@ -187,7 +188,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	def.keys = []indexKey{{class: f.index.sqlIndex.keys[0].class, derived: &derivedIndexKey{definition: key, execution: key}}}
 	idx := *f.index
 	idx.sqlIndex = &def
-	f.e.catalog.state.descriptors[idx.address] = &idx
+	f.e.catalog.state.setDescriptor(idx.address, &idx)
 	scope.stage.rows = map[ids.ObjectAddress][]rowVersion{f.parent.address: {f.store.versions[1], f.store.versions[2]}}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
@@ -438,7 +439,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				f.store.ends = &deletionRoot{}
 			case "definition":
 				copy := *f.index
-				f.e.catalog.state.descriptors[f.index.address] = &copy
+				f.e.catalog.state.setDescriptor(f.index.address, &copy)
 			case "catalog snapshot":
 				data.catalog.state = cloneCatalog(f.e.catalog.state)
 			case "missing root":
@@ -448,7 +449,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "shape":
 				copy := *f.parent
 				copy.attributes = []int32{11, 20}
-				f.e.catalog.state.descriptors[a] = &copy
+				f.e.catalog.state.setDescriptor(a, &copy)
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":
@@ -520,7 +521,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	old := f.e.indexRoots[f.index.address]
 	destination := &relationStorage{versions: append([]rowVersion(nil), f.store.versions...)}
 	f.e.nextRow, f.e.nextVersion = 100, 200
-	snapshot, err := captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq)
+	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +540,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err := target.remapCatalogExpressions(next, nil); err != nil {
 		t.Fatal(err)
 	}
-	remapped := next.descriptors[f.index.address].(*relationDescriptor).sqlIndex.predicate
+	remapped := next.MustRelation(f.index.address).sqlIndex.predicate
 	if remapped == f.index.sqlIndex.predicate {
 		t.Fatal("replacement reused source predicate")
 	}

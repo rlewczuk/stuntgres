@@ -26,7 +26,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	collision := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, name: "__stuntgres_conversion_2", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	first, second := conversionUnitDefinition(e, 90000, "a", true), conversionUnitDefinition(e, 90001, "b", true)
 	plain := conversionUnitDefinition(e, 90002, "plain", false)
-	seed := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
+	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
 	seed.name, seed.namespace, seed.revision = "seed_moved", hidden.address, 2
 	seedCollision := conversionUnitDefinition(e, 90003, "__stuntgres_conversion_seed_4519", false)
 	seedCollision.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
@@ -41,7 +41,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	namespaces := make(map[string]bool)
-	for _, descriptor := range e.CatalogRead().state.descriptors {
+	for _, descriptor := range e.CatalogRead().Descriptors() {
 		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
 			namespaces[namespace.name] = true
 		}
@@ -67,7 +67,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal("actual native duplicate-default replay", err, dump.String())
 	}
 	current := e.CatalogRead()
-	for _, descriptor := range current.state.descriptors {
+	for _, descriptor := range current.Descriptors() {
 		if namespace, ok := descriptor.(*namespaceDescriptor); ok {
 			if !namespaces[namespace.name] {
 				t.Fatal("unexpected replay namespace survived", namespace.name)
@@ -85,15 +85,15 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		{"public", "a", true}, {"public", "b", true}, {"public", "plain", false},
 		{"pg_catalog", "__stuntgres_conversion_seed_4519", false}, {"hidden", "seed_moved", true},
 	} {
-		namespace := current.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: expected.namespace}]
-		address := current.state.names[ids.NameKey{ClassID: ids.ConversionClassID, Namespace: namespace, Name: expected.name}]
-		restored, ok := current.state.descriptors[address].(*conversionDescriptor)
+		namespace := current.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: expected.namespace})
+		address := current.NameAddress(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: namespace, Name: expected.name})
+		restored, ok := current.Conversion(address)
 		if !ok || restored.source != 6 || restored.destination != 8 || restored.handler != first.handler || restored.defaultConversion != expected.def || restored.owner != e.authorizationDomain.Principal(10) {
 			t.Fatal("lossless replay conversion metadata", expected, restored)
 		}
 	}
 	count := 0
-	for _, descriptor := range current.state.descriptors {
+	for _, descriptor := range current.Descriptors() {
 		if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace().ObjectID == ids.PublicNamespaceOID && d.source == 6 && d.destination == 8 && d.defaultConversion {
 			count++
 		}
@@ -179,7 +179,7 @@ func TestConversionDumpBlockedRestoreCancellation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("admitted restore cancellation did not join")
 	}
-	if target.CatalogRead().state != before.state || target.CatalogRead().state.descriptors[keep.Address()] != keep {
+	if target.CatalogRead().state != before.state || target.CatalogRead().Get(keep.Address()) != keep {
 		t.Fatal("canceled import replaced sentinel conversion")
 	}
 }
@@ -219,7 +219,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := remapped.descriptors[d.Address()].(*conversionDescriptor).owner
+	owner := remapped.MustConversion(d.Address()).owner
 	if owner != expected[d.owner] || target.Roles().ValidatePrincipal(owner) != nil || source.Roles().ValidatePrincipal(owner) == nil || target.Roles().ValidatePrincipal(d.owner) == nil {
 		t.Fatal("actual conversion owner remap", owner, d.owner)
 	}
@@ -244,8 +244,8 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	bad := cloneCatalog(source.CatalogRead().state)
 	invalid := *d
 	invalid.handler = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90099}
-	bad.descriptors[d.Address()] = &invalid
-	if err := (conversionProvider{}).Validate(CatalogRead{source, bad}, &invalid); err == nil {
+	bad.setDescriptor(d.Address(), &invalid)
+	if err := (conversionProvider{}).Validate(source.catalog.read(bad), &invalid); err == nil {
 		t.Fatal("unavailable imported handler admitted")
 	}
 }

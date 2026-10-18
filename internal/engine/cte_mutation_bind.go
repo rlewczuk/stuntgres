@@ -22,7 +22,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.MustRelation(b.ref.Address)
 		if b.relation.relationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
@@ -72,7 +72,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.MustRelation(b.ref.Address)
 		if b.relation.relationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
@@ -130,7 +130,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.MustRelation(b.ref.Address)
 		if b.relation.relationKind == compositeRelation {
 			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}

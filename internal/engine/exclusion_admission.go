@@ -137,7 +137,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 }
 func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []rowVersion, precheck bool, purpose indexProbePurpose) (rowVersion, error) {
 	e := s.op.session.Engine()
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: CatalogRead{owner: e, state: binding.catalog}}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: e.catalog.read(binding.catalog)}
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -231,7 +231,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 	s.installExclusionProjectionLocked(e, p)
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
-	parent, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[candidate.ref.Address].(*relationDescriptor)
+	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
 	if !ok || len(parent.exclusionConstraints) == 0 {
 		return
 	}
@@ -293,7 +293,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 			root = private
 		}
 	}
-	ns, ok := view.state.descriptors[binding.parent.namespace].(*namespaceDescriptor)
+	ns, ok := view.Namespace(binding.parent.namespace)
 	if !ok {
 		return exclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
@@ -460,7 +460,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		return uniqueConflict{}, ErrCatalogReplaced
 	}
 	if action != nil && c.Deferrable {
-		schema := binding.catalog.descriptors[binding.parent.namespace].Name()
+		schema := binding.catalog.Get(binding.parent.namespace).Name()
 		return uniqueConflict{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters", Schema: schema, Table: binding.parent.name, Constraint: index.name}
 	}
 	if !c.Deferrable {

@@ -14,7 +14,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.catalog.state.descriptors[a].(*relationDescriptor), e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return e.catalog.state.MustRelation(a), e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -44,15 +44,15 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 			invalid := *d
 			invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 			invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
-			if source, err := captureAvailableExtensions(context.Background(), e.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
+			if source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
 		}
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
-		array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
+		row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
+		array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
 		ownedArray, ok := e.CatalogRead().LookupArray(row.typ)
 		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
@@ -60,7 +60,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		for _, width := range []int{0, len(d.columns) - 1, len(d.columns) + 1} {
 			invalid := *d
 			invalid.columns = make([]ColumnDescriptor, width)
-			if source, err := captureAvailableExtensions(context.Background(), e.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
+			if source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
 		}
@@ -72,7 +72,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version
 	comment := "text search dictionary that removes accents"
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
-		source, err := captureAvailableExtensions(context.Background(), e.extensions, catalog, ref, d)
+		source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, catalog, ref, d)
 		if err != nil || source == nil || source.count() != 6 || source.ref != ref {
 			t.Fatal("capture", source, err)
 		}
@@ -138,18 +138,18 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	state.names = maps.Clone(e.catalog.state.names)
-	address := state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
-	ext := *state.descriptors[address].(*extensionDescriptor)
+	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	ext := *state.MustExtension(address)
 	ext.version = "available-unknown"
-	state.descriptors[address] = &ext
-	availableUnitExpected(t, e, CatalogRead{owner: e, state: &state}, "available-unknown", false)
+	state.setDescriptor(address, &ext)
+	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
 	unavailable := ext
 	unavailable.address.ObjectID++
 	unavailable.name = "unavailable-component-fixture"
-	state.descriptors[unavailable.address] = &unavailable
-	state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.name}] = unavailable.address
-	availableUnitExpected(t, e, CatalogRead{owner: e, state: &state}, "available-unknown", false)
+	state.setDescriptor(unavailable.address, &unavailable)
+	state.bindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.name}, unavailable.address)
+	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)
 }
 
 func TestAvailableExtensionsMetadataValues(t *testing.T) {
@@ -184,13 +184,13 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	}
 	// Registration detaches actual provider metadata; no fake package is added.
 	registry := &Engine{}
-	metadata = e.extensions["unaccent"]
+	metadata = e.catalog.extensions["unaccent"]
 	metadata.comment, metadata.schema, metadata.requires = &empty, &schema, []string{"original"}
 	if err := registry.registerExtension("unaccent", metadata); err != nil {
 		t.Fatal(err)
 	}
 	empty, schema, metadata.requires[0] = "mutated", "mutated", "mutated"
-	stored := registry.extensions["unaccent"]
+	stored := registry.catalog.extensions["unaccent"]
 	if *stored.comment != "" || *stored.schema != "fixed_control_schema" || stored.requires[0] != "original" {
 		t.Fatal("caller storage retained", stored)
 	}
@@ -217,19 +217,19 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	d, ref := availableUnitSource(e, 12081)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureAvailableExtensions(ctx, e.extensions, e.CatalogRead(), ref, d); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := captureAvailableExtensions(ctx, e.catalog.extensions, e.CatalogRead(), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("pre-cancellation", source, err)
 	}
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	during := &availableCancelContext{Context: ctx, cancel: cancel}
-	if source, err := captureAvailableExtensions(during, e.extensions, e.CatalogRead(), ref, d); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
+	if source, err := captureAvailableExtensions(during, e.catalog.extensions, e.CatalogRead(), ref, d); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
 		t.Fatal("iteration cancellation", source, err)
 	}
 	op, done := roleOperation(t, e, "postgres")
 	extensionUnitPublish(t, e, op, extensionUnitStage(t, e, op))
 	done()
-	old, err := captureAvailableExtensions(context.Background(), e.extensions, e.CatalogRead(), ref, d)
+	old, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	if version, err := installedRow[2].Text(); err != nil || version != "1.1" {
 		t.Fatal("retained installed state", version, err)
 	}
-	if source, err := captureAvailableExtensions(context.Background(), e.extensions, e.CatalogRead(), ref, d); source != nil || err == nil {
+	if source, err := captureAvailableExtensions(context.Background(), e.catalog.extensions, e.CatalogRead(), ref, d); source != nil || err == nil {
 		t.Fatal("old generation admitted", source, err)
 	}
 }

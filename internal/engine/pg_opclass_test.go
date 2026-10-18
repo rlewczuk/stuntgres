@@ -14,7 +14,7 @@ import (
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
@@ -179,7 +179,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
 		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
-		e.catalog.state.descriptors[parent.address], e.catalog.state.descriptors[index.address] = parent, index
+		e.catalog.state.setDescriptor(parent.address, parent)
+		e.catalog.state.setDescriptor(index.address, index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)

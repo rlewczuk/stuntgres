@@ -36,11 +36,11 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		// These offsets belong to TEXT input, not the outer SQL statement.
 		name.Parts[i].Pos = parser.Position{}
 	}
-	ref, err := catalog.owner.resolveRelationSnapshot(scope.deparseAuth, name, true)
+	ref, err := scope.deparseAuth.engine.resolveRelationSnapshot(scope.deparseAuth, name, true)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	relation := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := catalog.MustRelation(ref.Address)
 	owner := ref.Address
 	for i, descriptor := range relation.columns {
 		if descriptor.Name == column {
@@ -57,7 +57,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		}
 		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.name))
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := c.Context.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
@@ -65,7 +65,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if !ok || sequence.relationKind != sequenceRelation || sequence.sequence == nil || sequence.sequence.owned != owner {
 			continue
 		}
-		namespace, ok := catalog.state.descriptors[sequence.namespace].(*namespaceDescriptor)
+		namespace, ok := catalog.Namespace(sequence.namespace)
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}

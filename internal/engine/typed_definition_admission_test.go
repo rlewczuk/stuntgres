@@ -87,7 +87,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 			if e.CatalogRead().Epoch() == before.epoch {
 				t.Fatal("released replacement did not win catalog epoch")
 			}
-			for _, descriptor := range e.CatalogRead().state.descriptors {
+			for _, descriptor := range e.CatalogRead().Descriptors() {
 				if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == "late" {
 					t.Fatal("canceled typed definition published")
 				}

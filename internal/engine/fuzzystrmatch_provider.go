@@ -69,8 +69,8 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.members {
-		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		proc, ok := v.Procedure(address)
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
@@ -88,7 +88,7 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 		}
 		// Membership fixes the exact provider, not separately transferable
 		// function ownership. Every member retains real typed provenance.
-		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.principals.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 	}
@@ -96,14 +96,14 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 }
 
 func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	ext, ok := v.state.descriptors[proc.extension].(*extensionDescriptor)
+	ext, ok := v.Extension(proc.extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")
 	}
 	if err := p.validate(v, ext); err != nil {
 		return err
 	}
-	if v.state.descriptors[proc.address] != proc || proc.fuzzy != p {
+	if v.Get(proc.address) != proc || proc.fuzzy != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
 	for _, address := range ext.members {

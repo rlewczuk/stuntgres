@@ -35,13 +35,13 @@ func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *
 	if err != nil {
 		return "", err
 	}
-	ns, ok := catalog.state.descriptors[ext.targetNamespace].(*namespaceDescriptor)
+	ns, ok := catalog.Namespace(ext.targetNamespace)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing extension target namespace")
 	}
 	record := extensionOwnerRecord{Name: ext.name, Schema: ns.name, Version: ext.version, Owner: owner.Name}
 	for _, a := range ext.members {
-		d := catalog.state.descriptors[a]
+		d := catalog.Get(a)
 		var member extensionMemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
@@ -236,19 +236,19 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 	}
 	seen := map[ids.ObjectAddress]bool{}
 	candidate := cloneCatalog(e.catalog.state)
-	roles := e.roleRead(CatalogRead{e, candidate}, e.roles)
+	roles := e.roleRead(e.catalog.read(candidate), e.roles)
 	ownersChanged := false
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		a := candidate.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name}]
-		ext, ok := candidate.descriptors[a].(*extensionDescriptor)
+		a := candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name})
+		ext, ok := candidate.Extension(a)
 		if !ok || seen[a] || ext.version != record.Version {
 			return fmt.Errorf("stuntgres: invalid extension owner import target")
 		}
 		seen[a] = true
-		ns, ok := candidate.descriptors[ext.targetNamespace].(*namespaceDescriptor)
+		ns, ok := candidate.Namespace(ext.targetNamespace)
 		if !ok || ns.name != record.Schema {
 			return fmt.Errorf("stuntgres: mismatching extension owner namespace")
 		}
@@ -270,14 +270,14 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 			}
 			signature := member.Signature
 			if record.Name == "intarray" && member.Kind == "procedure" && member.Name == "bqarr_out" {
-				base, ok := candidate.descriptors[ext.members[0]].(*typeDescriptor)
+				base, ok := candidate.Type(ext.members[0])
 				if !ok || !base.typ.IsQueryInt() {
 					return fmt.Errorf("stuntgres: missing intarray owner type")
 				}
 				signature = string(queryIntSignature(base.typ.ID()))
 			}
-			a := candidate.names[ids.NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: signature}]
-			d := candidate.descriptors[a]
+			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: signature})
+			d := candidate.Get(a)
 			if d == nil || extensionMembership(d) != ext.address {
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
@@ -286,29 +286,29 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}
-					array, ok := candidate.descriptors[arrayAddress].(*typeDescriptor)
+					array, ok := candidate.Type(arrayAddress)
 					if !ok || !array.typ.IsArray() || array.typ.Element() != d.typ {
 						return fmt.Errorf("stuntgres: invalid owned intarray array")
 					}
 					mapped := *array
 					mapped.owner = owner.Ref
-					candidate.descriptors[arrayAddress] = &mapped
+					candidate.setDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
 			case *procedureDescriptor:
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					ownersChanged = true
 				}
 			case *tsDictionaryDescriptor:
 				if d.owner != owner.Ref {
 					n := *d
 					n.owner = owner.Ref
-					candidate.descriptors[a] = &n
+					candidate.setDescriptor(a, &n)
 					ownersChanged = true
 				}
 			default:

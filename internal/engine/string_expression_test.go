@@ -137,7 +137,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	sessionSQL(t, session, `CREATE TABLE regclass_store(v TEXT DEFAULT btrim(' stored '),CHECK(('x'::text||'regclass_source'::regclass) IS NORMALIZED))`)
 	view := engine.CatalogRead()
 	ref := catalogRef(t, engine, view, "regclass_store")
-	relation := view.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := view.MustRelation(ref.Address)
 	if relation.defaults[relation.attributes[0]].catalogSnapshot || !relation.checkConstraints[0].commentSnapshot {
 		t.Fatal("stored CHECK lost REGCLASS snapshot demand or ordinary default gained it")
 	}
@@ -148,7 +148,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 		t.Fatal("invalid stored snapshot manifest accepted")
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")
-	source := view.state.descriptors[sourceRef.Address].(*relationDescriptor)
+	source := view.MustRelation(sourceRef.Address)
 	scope := &StatementScope{commentCatalog: view, deparsePath: []ids.ObjectAddress{source.namespace}}
 	got, err := scope.FormatRegclass(uint32(sourceRef.Address.ObjectID))
 	if err != nil || got != "regclass_source" {
@@ -169,7 +169,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
-	relation := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.catalog.state.MustRelation(ref.Address)
 	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String)
 	args := append([]BoundExpr(nil), node.Args...)
 	plan := node.Plan
@@ -200,7 +200,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
-	relation := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.catalog.state.MustRelation(ref.Address)
 	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary)
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")

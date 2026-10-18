@@ -25,7 +25,7 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 	if err != nil {
 		return 0, err
 	}
-	db := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := catalog.MustDatabase(currentDatabaseAddress)
 	// Avoid materializing a default ACL merely to inspect its ordinary rights.
 	rights := authorization.ACLRights(db.acl, db.owner, principals, authorization.DatabasePrivileges, false)
 	if !db.acl.Explicit {
@@ -37,12 +37,12 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 // checkDatabaseConnectLocked is used only at physical session publication.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
-	catalog := CatalogRead{e, e.catalog.state}
+	catalog := e.catalog.read(e.catalog.state)
 	rights, err := databaseRights(ctx, catalog, e.roleRead(catalog, e.roles), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}
-	db := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := catalog.MustDatabase(currentDatabaseAddress)
 	diagnostic := sqlError("42501", fmt.Sprintf(`permission denied for database "%s"`, db.name)).(*sqlstate.Error)
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic

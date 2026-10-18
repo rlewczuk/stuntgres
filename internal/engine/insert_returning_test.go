@@ -216,7 +216,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		// catalog authority, between candidate admission and final staging.
 		base := e.CatalogRead()
 		indexRef := catalogRef(t, e, base, "u")
-		next := *base.state.descriptors[indexRef.Address].(*relationDescriptor)
+		next := *base.MustRelation(indexRef.Address)
 		next.revision++
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
@@ -355,7 +355,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				sessionSQL(t, worker, "SET SESSION AUTHORIZATION output_waiter")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				var indexAddress ids.ObjectAddress
-				for address, descriptor := range e.catalog.state.descriptors {
+				for address, descriptor := range e.catalog.state.Descriptors() {
 					if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && index.sqlIndex.parent == ref.Address && index.sqlIndex.unique {
 						indexAddress = address
 					}

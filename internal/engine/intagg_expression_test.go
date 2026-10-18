@@ -45,7 +45,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	array, _ := e.CatalogRead().LookupArray(integer)
 	provider := call.provider.(*functions.ArrayAggregateProvider)
-	if call.procedure != e.catalog.state.descriptors[ext.members[0]] || call.ref.Address != ext.members[0] || !call.includeNulls || call.operation != aggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
+	if call.procedure != e.catalog.state.Get(ext.members[0]) || call.ref.Address != ext.members[0] || !call.includeNulls || call.operation != aggregateArrayScalar || provider.ArgumentType() != integer || provider.ResultUsage().Type != array {
 		t.Fatal("fixed scalar wrapper authority", call)
 	}
 	if !b.sameAggregateCall(call, call) {
@@ -112,7 +112,7 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 func TestIntaggEnumerationIdentity(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	n := intaggUnitEnum(t, e, "{2,2,NULL}")
-	if n.procedure != e.catalog.state.descriptors[ext.members[1]] || n.ref.Address != ext.members[1] || n.Usage.Type.ID() != sqltype.Int4 {
+	if n.procedure != e.catalog.state.Get(ext.members[1]) || n.ref.Address != ext.members[1] || n.Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixed enum identity", n)
 	}
 	builtin := n
@@ -208,29 +208,29 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	for i, address := range ext.members {
 		mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
 	}
-	aggregate := before.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	aggregate := before.MustProcedure(ext.members[0])
 	for i, helper := range aggregate.aggregate.helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.id}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900003 + i)}
 	}
 	next := cloneCatalog(before.state)
-	for address := range before.state.descriptors {
+	for address := range before.Descriptors() {
 		if _, moved := mapping[address]; !moved {
 			continue
 		}
-		delete(next.names, descriptorNameKey(before.state.descriptors[address]))
-		delete(next.descriptors, address)
+		next.unbindName(descriptorNameKey(before.Get(address)))
+		next.removeDescriptor(address)
 	}
-	for address, original := range before.state.descriptors {
+	for address, original := range before.Descriptors() {
 		destination, moved := mapping[address]
 		if !moved {
 			continue
 		}
 		descriptor := remapExtensionDescriptor(original, mapping)
-		next.descriptors[destination] = descriptor
-		next.names[descriptorNameKey(descriptor)] = destination
+		next.setDescriptor(destination, descriptor)
+		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	next.epoch++
-	view := CatalogRead{owner: e, state: next}
+	view := e.catalog.read(next)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		old.Epoch = next.epoch
 		if address, ok := mapping[old.Address]; ok {
@@ -244,7 +244,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	remapped := mapped.(*aggregateNode).calls[0]
-	if remapped.procedure != next.descriptors[mapping[call.ref.Address]] || remapped.ref != ref(call.ref) || remapped.provider == call.provider {
+	if remapped.procedure != next.Get(mapping[call.ref.Address]) || remapped.ref != ref(call.ref) || remapped.provider == call.provider {
 		t.Fatal("aggregate remap authority", remapped)
 	}
 	node, err := remapBoundExpression(enum, ref, nil)
@@ -256,17 +256,17 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(unnestExpression)
-	if n.ref != ref(enum.ref) || n.procedure != next.descriptors[n.ref.Address] {
+	if n.ref != ref(enum.ref) || n.procedure != next.Get(n.ref.Address) {
 		t.Fatal("enum remap authority", n.ref)
 	}
 	text, err := (pgRenderer{view: view}).sql(context.Background(), n, pgRenderParent{})
 	if err != nil || !strings.Contains(text, "int_array_enum") || strings.Contains(text, "unnest") {
 		t.Fatal("wrapper renderer", text, err)
 	}
-	if call.procedure != before.state.descriptors[call.ref.Address] || enum.ref.Epoch != before.Epoch() {
+	if call.procedure != before.Get(call.ref.Address) || enum.ref.Epoch != before.Epoch() {
 		t.Fatal("source authority mutated")
 	}
-	delete(next.descriptors, n.ref.Address)
+	next.removeDescriptor(n.ref.Address)
 	if err := validateIntaggIdentity(view, n.procedure, n.ref, "int_array_enum"); err == nil {
 		t.Fatal("missing destination procedure accepted")
 	}

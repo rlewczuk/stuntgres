@@ -13,17 +13,17 @@ type operatorOutputKey struct {
 }
 
 func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operatorGroups, id ids.OID, alias sqltype.ID) string {
-	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+	descriptor, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	// Temporary namespaces never participate in unqualified operator visibility.
 	operatorPath := path
 	for i, ns := range path {
-		if d, ok := view.state.descriptors[ns].(*namespaceDescriptor); ok && d.temporary != (ids.SessionToken{}) {
+		if d, ok := view.Namespace(ns); ok && d.temporary != (ids.SessionToken{}) {
 			operatorPath = append([]ids.ObjectAddress(nil), path[:i]...)
 			for _, remaining := range path[i+1:] {
-				if d, ok := view.state.descriptors[remaining].(*namespaceDescriptor); !ok || d.temporary == (ids.SessionToken{}) {
+				if d, ok := view.Namespace(remaining); !ok || d.temporary == (ids.SessionToken{}) {
 					operatorPath = append(operatorPath, remaining)
 				}
 			}
@@ -43,7 +43,7 @@ func operatorSpelling(view CatalogRead, path []ids.ObjectAddress, groups operato
 	}
 	name := descriptor.name
 	if !visible {
-		name = regclassIdentifier(view.state.descriptors[descriptor.namespace].Name()) + "." + name
+		name = regclassIdentifier(view.Get(descriptor.namespace).Name()) + "." + name
 	}
 	if alias == sqltype.Regoperator {
 		operand := func(id ids.OID) string {

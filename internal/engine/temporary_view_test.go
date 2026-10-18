@@ -55,7 +55,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.descriptors[view.address] != nil {
+	if e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(view.address) != nil {
 		t.Fatal("private namespace/view escaped validation")
 	}
 	candidate := cloneCatalogChanges(changes)
@@ -70,12 +70,12 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	rowAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(view.rowType)}
-	row, ok := catalog.state.descriptors[rowAddress].(*typeDescriptor)
+	row, ok := catalog.Type(rowAddress)
 	if !ok || row.owningRelation != view.address || row.array == 0 {
 		t.Fatal("missing real associated rowtype", row)
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}
-	if catalog.state.descriptors[arrayAddress] == nil || e.catalog.state.descriptors[rowAddress] != nil || e.catalog.state.descriptors[arrayAddress] != nil || e.storage[view.address] != nil {
+	if catalog.Get(arrayAddress) == nil || e.catalog.state.Get(rowAddress) != nil || e.catalog.state.Get(arrayAddress) != nil || e.storage[view.address] != nil {
 		t.Fatal("type/storage publication escaped private stage")
 	}
 	removal := e.BeginCatalogStage(catalog)
@@ -85,11 +85,11 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	retired := e.stageRead(removal)
 	for _, address := range []ids.ObjectAddress{view.address, rowAddress, arrayAddress} {
-		if retired.state.descriptors[address] != nil {
+		if retired.Get(address) != nil {
 			t.Fatal("drop left associated artifact", address)
 		}
 	}
-	if catalog.state.descriptors[view.address] != view || e.catalog.state != before {
+	if catalog.Get(view.address) != view || e.catalog.state != before {
 		t.Fatal("removal mutated predecessor")
 	}
 }
@@ -114,7 +114,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 	}
 	catalog := e.privateCatalogLocked(next)
 	for _, d := range []Descriptor{table, view} {
-		if catalog.state.descriptors[d.Address()] != nil {
+		if catalog.Get(d.Address()) != nil {
 			t.Fatal("ON COMMIT DROP missed view closure", d.Name())
 		}
 	}
@@ -152,7 +152,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	op.ctx = ctx
 	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.descriptors[view.address] != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage[view.address] != nil {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.Get(view.address) != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage[view.address] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)
 	}
 }
@@ -171,7 +171,7 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	next.epoch++
-	retained := CatalogRead{e, next}
+	retained := e.catalog.read(next)
 	ref := view.view.sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact retained source rejected")
@@ -189,14 +189,14 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 			t.Fatal("unrecorded/foreign/future ref accepted", bad)
 		}
 	}
-	peerNamespace := *next.descriptors[table.namespace].(*namespaceDescriptor)
+	peerNamespace := *next.MustNamespace(table.namespace)
 	peerNamespace.temporary = withSessionID(peerNamespace.temporary, peerNamespace.temporary.ID()+1)
-	next.descriptors[table.namespace] = &peerNamespace
+	next.setDescriptor(table.namespace, &peerNamespace)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")
 	}
-	next.descriptors[table.namespace] = before.state.descriptors[table.namespace]
-	delete(next.descriptors, table.address)
+	next.setDescriptor(table.namespace, before.Get(table.namespace))
+	next.removeDescriptor(table.address)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("retired source resurrected")
 	}
@@ -216,25 +216,25 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	next.epoch++
-	retained := CatalogRead{e, next}
+	retained := e.catalog.read(next)
 	ref := view.view.sources[0].ref
 	if !storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("exact captured catalog provider rejected")
 	}
-	old := next.descriptors[ref.Address].(*relationDescriptor)
+	old := next.MustRelation(ref.Address)
 	impostor := *old
-	next.descriptors[ref.Address] = &impostor
+	next.setDescriptor(ref.Address, &impostor)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("same-address/kind/layout catalog copy accepted")
 	}
-	next.descriptors[ref.Address] = old
+	next.setDescriptor(ref.Address, old)
 	fake := *view
 	fake.view = &viewDefinition{consumer: view.address, temporary: view.view.temporary}
-	next.descriptors[view.address] = &fake
+	next.setDescriptor(view.address, &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
 	}
-	next.descriptors[view.address] = view
+	next.setDescriptor(view.address, view)
 	if storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("foreign provider authority accepted")
 	}
@@ -250,7 +250,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: view.view.syntax}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
-	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.state.descriptors[view.address] != nil {
+	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.base.Get(view.address) != nil {
 		t.Fatal("utility Describe analyzed/published TEMP", description, err)
 	}
 }

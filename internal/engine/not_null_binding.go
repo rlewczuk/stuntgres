@@ -13,7 +13,7 @@ import (
 func constraintNames(read CatalogRead, namespace ids.ObjectAddress, candidate *relationDescriptor, reader ...definitionReader) map[string]bool {
 	names := make(map[string]bool)
 	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range read.state.descriptors {
+		for address, descriptor := range read.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}

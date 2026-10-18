@@ -21,7 +21,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		{12005, []string{"name", "abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Interval, sqltype.Bool}},
 		{12004, []string{"abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Interval, sqltype.Bool}},
 	} {
-		d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
 		if !d.virtualView || d.view != nil || d.relationKind != catalogRelation || d.namespace.ObjectID != 11 || len(d.columns) != len(tc.names) {
 			t.Fatal(d)
 		}
@@ -57,7 +57,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 
 func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	e := New()
-	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12005}].(*relationDescriptor)
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12005})
 	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 	boundary := time.Date(2024, 3, 10, 7, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
@@ -134,7 +134,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			{12005, "America/New_York", -18000000000},
 			{12004, "IST", 7200000000},
 		} {
-			d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid}].(*relationDescriptor)
+			d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
 			ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 			e.mu.Lock()
 			rows, err := e.openRelationSourceLocked(scope, ref, d.owner, queryRowMark{}, nil, nil)

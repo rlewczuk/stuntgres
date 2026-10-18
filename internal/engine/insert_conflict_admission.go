@@ -91,7 +91,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWri
 		}
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output}
-	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, CatalogRead{owner: s.op.session.Engine(), state: binding.catalog}); err != nil {
+	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.op.session.Engine().catalog.read(binding.catalog)); err != nil {
 		return indexWriteBatch{}, err
 	}
 	accepted := rows.prefix(0)

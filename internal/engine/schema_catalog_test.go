@@ -35,7 +35,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 		t.Fatal("drop lost concurrent dependent", err)
 	}
 	stage = e.BeginCatalogStage(before)
-	next := *before.state.descriptors[ns.Address].(*namespaceDescriptor)
+	next := *before.MustNamespace(ns.Address)
 	next.name = "next"
 	next.revision++
 	if err = stage.Replace(&next); err != nil {
@@ -51,7 +51,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 		t.Fatal("stale rename published", err)
 	}
 	stage = e.BeginCatalogStage(before)
-	next = *before.state.descriptors[ns.Address].(*namespaceDescriptor)
+	next = *before.MustNamespace(ns.Address)
 	next.name = "cancelled"
 	next.revision++
 	if err = stage.Replace(&next); err != nil {
@@ -75,7 +75,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	defer done()
 	// Real catalog fixture, never permission to expose system table creation SQL.
 	e.mu.Lock()
-	auth := catalogAuthorization(e, CatalogRead{e, e.catalog.state})
+	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
 	stage := e.BeginCatalogStage(auth.catalog)
 	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()

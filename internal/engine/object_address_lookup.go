@@ -139,7 +139,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
-	return scope.commentCatalog.owner.lookupNamespacesSnapshot(auth, name, functionLookup)
+	return auth.engine.lookupNamespacesSnapshot(auth, name, functionLookup)
 }
 func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (Descriptor, error) {
 	path, err := objectLookupPath(scope, names)
@@ -147,8 +147,8 @@ func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string
 		return nil, err
 	}
 	for i := range path.count() {
-		a := scope.commentCatalog.state.names[ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]}]
-		if d := scope.commentCatalog.state.descriptors[a]; d != nil {
+		a := scope.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]})
+		if d := scope.commentCatalog.Get(a); d != nil {
 			return d, nil
 		}
 	}
@@ -267,7 +267,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		name := names[0]
 		switch class {
 		case 2615:
-			a = view.state.names[ids.NameKey{ClassID: 2615, Name: name}]
+			a = view.NameAddress(ids.NameKey{ClassID: 2615, Name: name})
 		case 1260:
 			if role, ok := scope.commentRoles.Lookup(name); ok {
 				a.ObjectID = ids.OID(role.Ref.ID())
@@ -280,7 +280,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				a.ObjectID = 1664
 			}
 		case 1262, 3079:
-			a = view.state.names[ids.NameKey{ClassID: class, Name: name}]
+			a = view.NameAddress(ids.NameKey{ClassID: class, Name: name})
 		}
 		if a.ObjectID != 0 {
 			return a, nil
@@ -339,7 +339,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		}
 		for i := range path.count() {
 			key := ids.NameKey{ClassID: 2617, Namespace: path.at(i), Name: names[len(names)-1], Signature: fmt.Sprintf("%d,%d", argIDs[0], argIDs[1])}
-			if id := view.state.names[key]; id.ObjectID != 0 {
+			if id := view.NameAddress(key); id.ObjectID != 0 {
 				return id, nil
 			}
 		}
@@ -390,7 +390,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		return missing("42704", fmt.Sprintf("%s %q for access method %q does not exist", kind, strings.Join(names[1:], "."), names[0]))
 	case 2606:
 		if kind == "domain constraint" {
-			if domain, ok := view.state.descriptors[ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}].(*typeDescriptor); ok {
+			if domain, ok := view.Type(ids.ObjectAddress{ClassID: 1247, ObjectID: ids.OID(typeID)}); ok {
 				for _, check := range domain.domainChecks {
 					if check.Name == args[0] {
 						a.ObjectID = check.OID

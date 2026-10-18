@@ -43,7 +43,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 					return CatalogConflict{}
 				}
 			}
-			for address, descriptor := range current.state.descriptors {
+			for address, descriptor := range current.Descriptors() {
 				d, ok := descriptor.(*relationDescriptor)
 				if !ok || !truncateOwnsSequence(d, fence.targets) {
 					continue
@@ -59,8 +59,8 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 				}
 			}
 		}
-		for address, descriptor := range current.state.descriptors {
-			if descriptor == fence.base.descriptors[address] || fence.targets[address] != 0 {
+		for address, descriptor := range current.Descriptors() {
+			if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
 				continue
 			}
 			d, ok := descriptor.(*relationDescriptor)
@@ -121,7 +121,7 @@ func (s *StatementScope) stageTruncate() error {
 	stage.authorizeLocked(auth, s.op.session)
 	for _, selected := range s.truncateRelations {
 		ref := selected.ref
-		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := auth.catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if !ok || d.namespace != selected.relation.namespace || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
 			err = ErrCatalogReplaced
@@ -217,7 +217,7 @@ func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName)
 	if ref != named.ref {
 		return ErrCatalogReplaced
 	}
-	descriptor, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	descriptor, ok := auth.catalog.Relation(ref.Address)
 	if !ok || descriptor.namespace != named.namespace {
 		return ErrCatalogReplaced
 	}

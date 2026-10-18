@@ -27,7 +27,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 	}
 	var next *relationDescriptor
 	for i, old := range parent.exclusionConstraints {
-		index, ok := stage.base.state.descriptors[old.Index].(*relationDescriptor)
+		index, ok := stage.base.Relation(old.Index)
 		if !ok {
 			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.sqlIndex != nil {
 				continue // New definitions already bind the completed TYPE shape.
@@ -42,7 +42,7 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if replacement, ok := stage.descriptors[old.Index].(*relationDescriptor); ok {
 			index = replacement
 		}
-		oldParent := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+		oldParent := stage.base.MustRelation(parent.address)
 		evolved, err := evolveIndex(index, oldParent, parent, transformations)
 		if err != nil {
 			return nil, err
@@ -103,14 +103,14 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 // Imported values and definitions must capture the destination type descriptors.
 // The catalog replacement path invokes this after its existing expression remap.
 func rebindImportedExclusions(next *catalogState) error {
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		parent, ok := descriptor.(*relationDescriptor)
 		if !ok || len(parent.exclusionConstraints) == 0 {
 			continue
 		}
 		var replacement *relationDescriptor
 		for i, constraint := range parent.exclusionConstraints {
-			index, ok := next.descriptors[constraint.Index].(*relationDescriptor)
+			index, ok := next.Relation(constraint.Index)
 			if !ok || index.sqlIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion attachment")
 			}
@@ -142,10 +142,10 @@ func rebindImportedExclusions(next *catalogState) error {
 			indexCopy, definitionCopy := *index, *definition
 			definitionCopy.exclusion = operators
 			indexCopy.sqlIndex = &definitionCopy
-			next.descriptors[index.address] = &indexCopy
+			next.setDescriptor(index.address, &indexCopy)
 		}
 		if replacement != nil {
-			next.descriptors[address] = replacement
+			next.setDescriptor(address, replacement)
 		}
 	}
 	return nil

@@ -22,11 +22,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		var ref ids.ObjectRef
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
-			source = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			source = auth.catalog.MustRelation(ref.Address)
 			if source.relationKind != compositeRelation {
 				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
 			} else {
-				typ = auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)}].(*typeDescriptor)
+				typ = auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
 			}
 		}
 	}
@@ -67,8 +67,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	e.mu.Lock()
-	current := CatalogRead{owner: e, state: e.catalog.state}
-	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.descriptors[source.address] == source && e.catalog.state.descriptors[typ.Address()] == typ && typedObservationValid(stage, current)
+	current := e.catalog.read(e.catalog.state)
+	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.Get(source.address) == source && e.catalog.state.Get(typ.Address()) == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
 		return Result{}, CatalogConflict{}
@@ -118,7 +118,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}
-		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
 	}
 	if err := stage.Replace(sourceMutation.next); err != nil {
 		return Result{}, err
@@ -139,7 +139,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		var renames map[int32]string
 		var graph *tableInheritance
 		view := e.stageRead(stage)
-		table = view.state.descriptors[table.address].(*relationDescriptor)
+		table = view.MustRelation(table.address)
 		if table.ofType == typ.Address() {
 			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.address])
 		} else {

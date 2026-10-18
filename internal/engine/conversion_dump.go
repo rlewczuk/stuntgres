@@ -12,11 +12,11 @@ import (
 )
 
 func conversionSQLName(view CatalogRead, d *conversionDescriptor) string {
-	return quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + quoteIdentifier(d.name)
+	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.name)
 }
 
 func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string) (string, error) {
-	procedure, ok := view.state.descriptors[d.handler].(*procedureDescriptor)
+	procedure, ok := view.Procedure(d.handler)
 	if !ok || procedure.conversion.Name() == "" {
 		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
 	}
@@ -24,7 +24,7 @@ func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string
 	if d.defaultConversion {
 		prefix = "CREATE DEFAULT CONVERSION "
 	}
-	routine := quoteIdentifier(view.state.descriptors[procedure.Namespace()].Name()) + "." + quoteIdentifier(procedure.name)
+	routine := quoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + quoteIdentifier(procedure.name)
 	return prefix + name + " FOR '" + sqltype.EncodingName(d.source) + "' TO '" + sqltype.EncodingName(d.destination) + "' FROM " + routine + ";\n", nil
 }
 
@@ -43,13 +43,13 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 		source, destination int
 	}
 	occupiedPairs := make(map[pair]bool)
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.defaultConversion {
 			occupiedPairs[pair{d.Namespace(), d.source, d.destination}] = true
 		}
 	}
 	occupiedSchemas := make(map[string]bool)
-	for key := range view.state.names {
+	for key := range view.Names() {
 		if key.ClassID == ids.NamespaceClassID {
 			occupiedSchemas[key.Name] = true
 		}
@@ -83,7 +83,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 			return nil, nil, definitionErr
 		}
 		if helper != "" {
-			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + ";\nDROP SCHEMA " + quoteIdentifier(helper) + ";\n"
+			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + quoteIdentifier(view.Get(d.Namespace()).Name()) + ";\nDROP SCHEMA " + quoteIdentifier(helper) + ";\n"
 		}
 		if d.defaultConversion {
 			occupiedPairs[key] = true
@@ -96,7 +96,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 // All moving/renamed seeds first receive intermediate names, avoiding swaps and
 // collisions with both canonical seed names and current user-object names.
 func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
-	catalogNamespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}]
+	catalogNamespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
 	}
@@ -112,7 +112,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 			return nil, err
 		}
 		fixed := &builtinConversions[i]
-		d, ok := view.state.descriptors[fixed.Address()].(*conversionDescriptor)
+		d, ok := view.Conversion(fixed.Address())
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing pinned conversion")
 		}
@@ -127,7 +127,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		if d.name != fixed.name || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 			if occupied == nil {
 				occupied = make(map[string]bool)
-				for _, descriptor := range view.state.descriptors {
+				for _, descriptor := range view.Descriptors() {
 					if descriptor.Kind() == ids.ConversionObject {
 						occupied[descriptor.Name()] = true
 					}
@@ -159,7 +159,7 @@ func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles a
 		}
 		from := initial + "." + quoteIdentifier(change.temporary)
 		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
-			namespace := quoteIdentifier(view.state.descriptors[change.d.Namespace()].Name())
+			namespace := quoteIdentifier(view.Get(change.d.Namespace()).Name())
 			statements = append(statements, "ALTER CONVERSION "+from+" SET SCHEMA "+namespace+";\n")
 			from = namespace + "." + quoteIdentifier(change.temporary)
 		}

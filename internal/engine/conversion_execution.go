@@ -20,7 +20,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*procedur
 	if s.conversionDefaults == nil {
 		defaults := make(map[[2]int]conversionDefault)
 		for _, namespace := range s.visibilityOtherPath {
-			for _, descriptor := range s.visibilityCatalog.state.descriptors {
+			for _, descriptor := range s.visibilityCatalog.Descriptors() {
 				d, ok := descriptor.(*conversionDescriptor)
 				if !ok || !d.defaultConversion || d.Namespace() != namespace {
 					continue
@@ -28,7 +28,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*procedur
 				key := [2]int{d.source, d.destination}
 				old := defaults[key].conversion
 				if old == nil || old.Namespace() == namespace && d.oid < old.oid {
-					procedure, ok := s.visibilityCatalog.state.descriptors[d.handler].(*procedureDescriptor)
+					procedure, ok := s.visibilityCatalog.Procedure(d.handler)
 					if !ok || procedure.conversion.Name() == "" || procedure.signature != conversionSignature || procedure.result != 23 {
 						return nil, fmt.Errorf("stuntgres: invalid conversion execution capability")
 					}

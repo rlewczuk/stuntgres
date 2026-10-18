@@ -55,12 +55,12 @@ func remapPhysicalNotNullReferences(old, next *relationDescriptor, mapping map[i
 // group. Reissue only the exact captured relation/attribute and that group;
 // neither this helper nor the certificate allocates a constraint or index.
 func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || len(table.physicalNotNull) == 0 {
 			continue
 		}
-		namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor)
+		namespace, ok := next.Namespace(table.namespace)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical not-null namespace")
 		}
@@ -102,8 +102,8 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 			}
 			copy.physicalNotNull[attribute] = proof
 		}
-		next.descriptors[address] = &copy
-		if err := validatePhysicalNotNull(CatalogRead{owner: e, state: next}, &copy, physicalOrdinaryNotNull(&copy)); err != nil {
+		next.setDescriptor(address, &copy)
+		if err := validatePhysicalNotNull(e.catalog.read(next), &copy, physicalOrdinaryNotNull(&copy)); err != nil {
 			return err
 		}
 	}

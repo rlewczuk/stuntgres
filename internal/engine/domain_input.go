@@ -49,7 +49,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 		return sqltype.Value{}, ErrCatalogReplaced
 	}
 	for _, provider := range providers {
-		if current.catalog.state.descriptors[provider.Address()] != provider {
+		if current.catalog.Get(provider.Address()) != provider {
 			return sqltype.Value{}, CatalogConflict{}
 		}
 	}
@@ -112,7 +112,7 @@ func validateCapturedInputBinding(captured, current CatalogRead, dependencies []
 		if !exists {
 			continue
 		} // Anonymous expression shapes are not catalog objects.
-		if current.state.descriptors[address] != provider {
+		if current.Get(address) != provider {
 			return CatalogConflict{}
 		}
 	}

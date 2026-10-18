@@ -17,7 +17,7 @@ func (r *namespaceUnreadCopyInput) Read([]byte) (int, error) { r.calls++; return
 
 func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 	e, owner, peer, foreign, _, persistent := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().state.descriptors[foreign.namespace].(*namespaceDescriptor).name
+	name := e.CatalogRead().MustNamespace(foreign.namespace).name
 	sessionSQL(t, peer, "CREATE ROLE storage_copy_reader")
 	deny := func(actor *Session, query, code, message string) {
 		t.Helper()
@@ -103,16 +103,16 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	allowed := namespaceCapturedAuthorization(t, peer)
 	catalog := e.CatalogRead()
 	namespace := owner.temporaryNamespace
-	name := catalog.state.descriptors[namespace].(*namespaceDescriptor).name
-	base := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "storage_acl_source"}]
+	name := catalog.MustNamespace(namespace).name
+	base := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "storage_acl_source"})
 	store := e.storage[base]
 	root, ends := store.versions, store.ends
 	sessionSQL(t, owner, "REVOKE SELECT ON storage_acl_source FROM storage_view_creator")
 	denied := namespaceCapturedAuthorization(t, peer)
 	collect := func(auth AuthorizationView, viewName, code, message string) {
 		t.Helper()
-		address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName}]
-		relation := auth.catalog.state.descriptors[address].(*relationDescriptor)
+		address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
+		relation := auth.catalog.MustRelation(address)
 		leaf := queryLeaf{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), relation: relation}
 		before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 		e.mu.Lock()

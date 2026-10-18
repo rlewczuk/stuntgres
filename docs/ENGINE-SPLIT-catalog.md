@@ -163,7 +163,10 @@ startup regression. 5f completes the step; 5g is optional.
 - [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`, then
   the commit that records this status) *(full racecheck skipped at user
   request; targeted RACE=1 runs passed)*
-- [ ] 5b — Typed read API, map reads migrated, writes confined, cut 1
+- [x] 5b — Typed read API, map reads migrated, writes confined, cut 1
+  (`17a54431b`, `ddd9eb246`, `0175300e5`, `5aeaedcdc`, then the commit that
+  records this status) *(full racecheck skipped at user request; targeted
+  RACE=1 runs passed)*
 - [ ] 5c — View, rule, policy, extension-provider and expression payload seams
 - [ ] 5d — Descriptor names decided, fields exported
 - [ ] 5e — `catalog` created, types moved, `Candidate` split from
@@ -223,14 +226,76 @@ Outstanding aliases: none yet.
   is already missed there). `make deps` lists only module paths. Imports are
   unchanged.
 
+5b results:
+
+- **Read API** (`catalog_read.go`). Accessors live on `*catalogState` and
+  `CatalogRead` delegates: `Kind(a)` is the comma-ok assertion and
+  `MustKind(a)` the single-value one, which panics with a
+  `*runtime.TypeAssertionError` like the assertion it replaced, for all 14
+  descriptor kinds; `Get`/`Find`, `NameAddress`/`LookupName`,
+  `Descriptors()`/`Names()` iterators and the counts. None guards a nil
+  state. The older nil-guarded `Descriptor`, `Lookup`, `LookupType` and
+  `LookupArray` stay.
+- **Reads migrated.** Measured on `5b986e558` in production: 912 typed reads
+  (592 comma-ok, 320 single-value), 430 untyped, 206 ranges, 14 `len`, 135
+  name reads. A type-checked rewrite tool (scratchpad `cat5b`, modes
+  `count`, `reads`, `writes`, `owner`, `ownerfix`) applied 4,102 edits in
+  production and tests, re-run until no nested site was left.
+- **Writes confined** (`catalog_state_write.go`): `setDescriptor`,
+  `removeDescriptor`, `bindName`, `unbindName`, `cloneDescriptors`,
+  `resetMaps`; 560 sites rewritten (about 110 in production) plus 10
+  multi-assignments in tests split by hand. Production code selects the maps
+  only in those two files and in composite literals that construct a new
+  state (`newEngine`, `cloneCatalog`, `stageRead`,
+  `prepareRemintedStorage`). The write callers are 32 production files:
+  seeding, clones, stage and replacement candidates, remaps and Restore;
+  that list is the input to 5e's `Candidate`. `rebuildOperatorNames` takes
+  an iterator.
+- **Cut 1.** `CatalogRead.owner` is `*catalogOwner`, a record the store
+  embeds by value (so a zero `Engine` stays safe) and returns from
+  `catalogStore.owner()`. It holds `domain`, `principals`
+  (`&Engine.authorizationDomain`), `aclAuthority` (`&Engine.aclAuthority`),
+  `providers` and `extensions` (moved from `Engine`). Its address is the
+  engine's catalog identity. `catalogStore.read(state)` builds views;
+  `CatalogRead.Domain()` is nil-safe. `validateObjectRefLocked` and
+  `validateCatalogViewLocked` are store methods.
+- **Explicit parameters instead of the locator:** `Engine.Comment(view,
+  ref)`; `ReplaceCatalog(ctx, source, replacement)` checks that `source` owns
+  the view; `Engine.captureIndexSnapshot`; relation, path and type-name
+  lookups use `AuthorizationView.engine`; scope ACL and regrole output use
+  `StatementScope.commentEngine()`; `parameterProvider` carries the setting
+  definitions; `StatementDescription.catalogOwner` is `*catalogOwner`.
+- **Deviation from the plan.** The plan said the authorization domain comes
+  from `AuthorizationView`. That holds wherever a view exists. Descriptor
+  validation (provider `Validate`, stored-SQL rendering, temporary
+  provenance, extension members) has only a `CatalogRead`, so the record
+  carries `principals` and `aclAuthority` as identities, not services. The
+  two role-root reads in stored routine validation only proved that the
+  owner's principal is in the engine's domain; `validateStoredRoutineDescriptor`
+  checks that against the record directly.
+- **Tests.** Adapted mechanically (`ReplaceCatalog` source argument,
+  `Engine.Comment`, `captureIndexSnapshot` receiver, fixture helpers
+  `replaceWithFreshCatalog`, `hashPartitionUnitEngine`,
+  `regexpSetUnitEngineTypes`). New seam tests `TestCatalogReadTypedAccessors`
+  and `TestCatalogStateWritesStayOnTheirState`. None moved or deleted. Test
+  fixtures keep about 130 whole-map uses (state literals and `maps.Equal`
+  immutability checks).
+- **Verification.** `quickcheck` passed after each commit; targeted catalog,
+  comment, replacement, provider, snapshot and signature selections passed,
+  and a `RACE=1` run of catalog, publication, capture, Restore and
+  replacement selections passed. Full `racecheck` skipped at the user's
+  request. `make bench`: about 1.52 ms/op and 7,769 allocations, unchanged
+  from `5b986e558` (the <1 ms target is already missed there). `make deps`
+  lists only module paths. Package imports are unchanged.
+
 Notes for later steps:
 
+- 5c/5e: `registeredExtension` (extension implementations) now lives in the
+  owner record; 5c's provider interface should replace it there.
+- 5e: composite literals that build a `catalogState` and the test whole-map
+  uses are the remaining direct map selectors.
 - 5a was a broad rewrite in practice (670 files). Do not run it, or a
   similar store grouping such as 6a, alongside another broad rewrite.
-- 5b: `validateObjectRefLocked` and `validateCatalogViewLocked` compare
-  `view.owner != e`. With cut 1 they can become store methods that compare
-  domains. Domain pointers are unique per engine, because `ids.Domain` has
-  nonzero size.
 - The revision-frontier loop ("advance past `descriptorRevisionFrontier`,
   saturating at the maximum") is duplicated in `transaction_publication.go`,
   `sequence_temp.go` and `catalog.go` (once in `publishCatalog`, twice in

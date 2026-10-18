@@ -107,7 +107,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 			diagnostic = queryRootRowMode(d.view.query.Root)
 		}
 		for i, leaf := range d.view.sources {
-			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+			child, ok := catalog.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 				return 0, ErrCatalogReplaced
 			}
@@ -141,7 +141,7 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 			if leaf.mark.mode != 0 {
 				return true
 			}
-			if child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor); ok && visit(child) {
+			if child, ok := catalog.Relation(leaf.ref.Address); ok && visit(child) {
 				return true
 			}
 		}
@@ -292,7 +292,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 				return err
 			}
 			for i, leaf := range d.view.sources {
-				child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+				child, ok := catalog.Relation(leaf.ref.Address)
 				if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 					return ErrCatalogReplaced
 				}
@@ -354,7 +354,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 	v.state.CurrentUser = principal
 	for i, leaf := range d.view.sources {
 		mark := viewLeafRowMark(d.view, i, inherited)
-		child, ok := v.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		child, ok := v.catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(v.catalog, d, leaf.ref) {
 			return ErrCatalogReplaced
 		}

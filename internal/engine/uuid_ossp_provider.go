@@ -36,18 +36,18 @@ func (p *uuidOsspProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		return invalid()
 	}
 	address := ext.members[0]
-	proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-	if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.uuidOssp != p || proc.intagg != nil || proc.aggregate != nil || proc.foreign != nil || proc.crypto != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.name != "uuid_generate_v4" || proc.signature != "" || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner == (authorization.PrincipalRef{}) || v.state.names[descriptorNameKey(proc)] != address {
+	proc, ok := v.Procedure(address)
+	if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.uuidOssp != p || proc.intagg != nil || proc.aggregate != nil || proc.foreign != nil || proc.crypto != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || proc.name != "uuid_generate_v4" || proc.signature != "" || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner == (authorization.PrincipalRef{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 		return invalid()
 	}
 	return nil
 }
 
 func (p *uuidOsspProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	if v.state.descriptors[proc.address] != proc || proc.uuidOssp != p {
+	if v.Get(proc.address) != proc || proc.uuidOssp != p {
 		return fmt.Errorf("stuntgres: invalid uuid-ossp procedure identity")
 	}
-	ext, ok := v.state.descriptors[proc.extension].(*extensionDescriptor)
+	ext, ok := v.Extension(proc.extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing uuid-ossp installation")
 	}

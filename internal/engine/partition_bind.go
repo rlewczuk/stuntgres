@@ -58,7 +58,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			for j, c := range d.columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
-			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}}, frame: d.columns}
+			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}}, frame: d.columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace

@@ -36,7 +36,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		ext.members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	ns := auth.catalog.state.descriptors[ext.targetNamespace].Name()
+	ns := auth.catalog.Get(ext.targetNamespace).Name()
 	typ, err := sqltype.QueryInt(sqltype.ID(ext.members[0].ObjectID), "query_int", dependencyIdentifier(ns)+".query_int")
 	if err != nil {
 		return err
@@ -91,11 +91,11 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 	if ext.members[0].ClassID != ids.TypeClassID || ext.members[1].ClassID != ids.ProcedureClassID || ext.members[2].ClassID != ids.ProcedureClassID {
 		return invalid()
 	}
-	base, ok := v.state.descriptors[ext.members[0]].(*typeDescriptor)
+	base, ok := v.Type(ext.members[0])
 	if !ok || base.typ == nil || base.Address() != ext.members[0] || !base.typ.IsQueryInt() || base.Name() != "query_int" || base.extension != ext.address || base.Namespace() != ext.targetNamespace || base.revision == 0 || base.array == 0 {
 		return invalid()
 	}
-	array, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
+	array, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)})
 	if !ok || array.typ == nil || !array.typ.IsArray() || array.typ.Concrete() || array.typ.Element() != base.typ || array.Namespace() != base.Namespace() || array.owner != base.owner || array.extension != (ids.ObjectAddress{}) {
 		return invalid()
 	}
@@ -103,7 +103,7 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		return err
 	}
 	for i, address := range ext.members[1:] {
-		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
+		proc, ok := v.Procedure(address)
 		if !ok || proc.address != address || proc.queryCodec != p || proc.extension != ext.address || proc.namespace != ext.targetNamespace || proc.revision == 0 {
 			return invalid()
 		}
@@ -119,7 +119,7 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 }
 
 func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	ext, ok := v.state.descriptors[proc.extension].(*extensionDescriptor)
+	ext, ok := v.Extension(proc.extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intarray codec installation")
 	}

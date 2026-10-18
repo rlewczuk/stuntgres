@@ -83,7 +83,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
 			c.namedIndex = definition.Index
-			index, ok := auth.catalog.state.descriptors[definition.Index].(*relationDescriptor)
+			index, ok := auth.catalog.Relation(definition.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}
@@ -195,7 +195,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 	if c.constraint != (ids.ObjectAddress{}) && c.namedIndex == (ids.ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			continue

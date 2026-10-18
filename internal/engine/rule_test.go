@@ -26,10 +26,10 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := cloneCatalog(e.catalog.state)
-	next.descriptors[src.address] = src
-	next.descriptors[sink.address] = sink
+	next.setDescriptor(src.address, src)
+	next.setDescriptor(sink.address, sink)
 	e.catalog.state = next
-	return e, AuthorizationView{engine: e, catalog: CatalogRead{owner: e, state: next}}, src, sink
+	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
@@ -514,8 +514,8 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	newSrc.address.ObjectID += 10
 	newSink.address.ObjectID += 10
 	next := cloneCatalog(auth.catalog.state)
-	next.descriptors[newSrc.address] = &newSrc
-	next.descriptors[newSink.address] = &newSink
+	next.setDescriptor(newSrc.address, &newSrc)
+	next.setDescriptor(newSink.address, &newSink)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.address: newSrc.address, sink.address: newSink.address}
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		whole := old.Address
@@ -528,7 +528,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 		old.Epoch = next.epoch
 		return old
 	}
-	mapped, err := remapRules(CatalogRead{owner: e, state: next}, src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
+	mapped, err := remapRules(e.catalog.read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

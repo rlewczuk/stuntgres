@@ -96,7 +96,7 @@ func TestViewCheckStack(t *testing.T) {
 			expressions[i] = columnExpression{expressionInfo: expressionInfo{Usage: column.Usage}, origin: origin, scope: 1, frame: 1, slot: i}
 		}
 		view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(view.columns), syntax: syntax, frame: 1, expressions: expressions, child: &filterNode{querySchema: querySchema(source.columns), child: sourceNode, predicate: guard}}}, sources: []viewLeaf{{ref: ref, attributes: source.attributes}}}
-		f.e.catalog.state.descriptors[view.address] = &view
+		f.e.catalog.state.setDescriptor(view.address, &view)
 		layers = append(layers, &view)
 		refs = append(refs, f.e.catalog.domain.Ref(f.e.catalog.state.epoch, view.address))
 	}

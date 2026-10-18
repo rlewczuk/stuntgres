@@ -78,7 +78,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 					aclUnitRoles(e, "domain_alter_owner")
 					changed.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("domain_alter_owner")
 				}
-				state.descriptors[d.Address()] = &changed
+				state.setDescriptor(d.Address(), &changed)
 				e.catalog.state = state
 			case "root", "length", "generation", "ends":
 				store := *e.storage[table.address]
@@ -96,11 +96,11 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				state.epoch++
 				e.catalog.state = state
 			case "provider":
-				stage.domainBases = append(stage.domainBases, e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}])
+				stage.domainBases = append(stage.domainBases, e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}))
 				state := cloneCatalog(e.catalog.state)
-				provider := *state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}].(*typeDescriptor)
+				provider := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
 				provider.revision++
-				state.descriptors[provider.Address()] = &provider
+				state.setDescriptor(provider.Address(), &provider)
 				e.catalog.state = state
 			}
 			before := e.catalog.state

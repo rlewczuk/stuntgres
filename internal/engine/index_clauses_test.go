@@ -258,7 +258,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			columns := append([]ColumnDescriptor(nil), index.columns...)
 			parentColumns := append([]ColumnDescriptor(nil), parent.columns...)
 			e := New()
-			stage := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+			stage := e.BeginCatalogStage(e.catalog.read(catalog))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -289,7 +289,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			}
 			other := parent.address
 			other.ObjectID += 2
-			unrelated := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+			unrelated := e.BeginCatalogStage(e.catalog.read(catalog))
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
@@ -303,13 +303,13 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, index, catalog, _ := indexClausesFixture(t)
 	e := New()
-	stage := e.BeginCatalogStage(CatalogRead{owner: e, state: catalog})
+	stage := e.BeginCatalogStage(e.catalog.read(catalog))
 	transforms := []columnTransformation{{attribute: parent.attributes[0]}}
 	var err error
 	allocations := testing.AllocsPerRun(100, func() {
 		err = e.evolveStageIndexesLocked(stage, parent.address, transforms)
 	})
-	if err != nil || allocations != 0 || len(stage.descriptors) != 0 || catalog.descriptors[index.address] != index {
+	if err != nil || allocations != 0 || len(stage.descriptors) != 0 || catalog.Get(index.address) != index {
 		t.Fatal("untouched parent evolution allocated or changed descriptors", allocations, err)
 	}
 }
@@ -331,7 +331,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.storage[parent.address] = source
 	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}
 	e.commitSeq = 1
-	snapshot, err := captureIndexSnapshot(ctx, CatalogRead{owner: e, state: catalog}, map[ids.ObjectAddress]*relationStorage{parent.address: source}, map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.address: source}, map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,8 +546,8 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				t.Fatal(err)
 			}
 			compactedView := e.stageRead(layout)
-			compactedCover := compactedView.state.descriptors[cover.address].(*relationDescriptor)
-			compactedUnsigned := compactedView.state.descriptors[unsigned.address].(*relationDescriptor)
+			compactedCover := compactedView.MustRelation(cover.address)
+			compactedUnsigned := compactedView.MustRelation(unsigned.address)
 			compactedStore := &relationStorage{}
 			for _, row := range store.versions {
 				row.values = append([]sqltype.Value(nil), row.values[1:]...)
@@ -588,7 +588,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				t.Fatal(err)
 			}
 			finalView := e.stageRead(stage)
-			next := finalView.state.descriptors[cover.address].(*relationDescriptor)
+			next := finalView.MustRelation(cover.address)
 			if next == compactedCover || next.sqlIndex == compactedCover.sqlIndex || next.sqlIndex.keys[1].explicitClass || next.sqlIndex.keys[1].collation != 0 || !next.sqlIndex.keys[0].explicitClass || next.sqlIndex.keys[0].class.Name != "bpchar_ops" || next.sqlIndex.keys[0].collation != 951 || !next.sqlIndex.keys[0].desc || next.sqlIndex.keys[0].nullsFirst || !reflect.DeepEqual(next.sqlIndex.include, []int32{4}) {
 				t.Fatal("TYPE lost providers/options/INCLUDE or old-default normalization", next.sqlIndex)
 			}
@@ -627,7 +627,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if got := expressionRootTuples(t, root(&final, next, finalStore)); !reflect.DeepEqual(got, originalTuples) {
 				t.Fatal("TYPE lost derived root values", got, originalTuples)
 			}
-			nextUnsigned := finalView.state.descriptors[unsigned.address].(*relationDescriptor)
+			nextUnsigned := finalView.MustRelation(unsigned.address)
 			if got := root(&final, nextUnsigned, finalStore); got.entries[0].row != 2 || nextUnsigned.sqlIndex.keys[0].class.Name != "oid_ops" || !nextUnsigned.sqlIndex.keys[0].explicitClass {
 				t.Fatal("TYPE lost actual unsigned derived root", got)
 			}

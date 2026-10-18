@@ -25,7 +25,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	for {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
-		root, ok := catalog.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+		root, ok := catalog.Relation(s.lockedRef.Address)
 		if !ok {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
@@ -194,7 +194,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 		}
 		physicalSchema := schema
 		e.mu.Lock()
-		if ns := e.privateCatalogLocked(s.owner.catalog).state.descriptors[relation.namespace]; ns != nil {
+		if ns := e.privateCatalogLocked(s.owner.catalog).Get(relation.namespace); ns != nil {
 			physicalSchema = ns.Name()
 		}
 		e.mu.Unlock()

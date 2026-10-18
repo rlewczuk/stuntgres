@@ -37,9 +37,9 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	}
 	state := cloneCatalog(e.catalog.state)
 	for _, tc := range descriptors {
-		state.descriptors[tc.d.Address()] = tc.d
+		state.setDescriptor(tc.d.Address(), tc.d)
 	}
-	v := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, state}, roleRecord: e.roles, catalog: CatalogRead{e, state}, roles: e.roleRead(CatalogRead{e, state}, e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles, catalog: e.catalog.read(state), roles: e.roleRead(e.catalog.read(state), e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
 		ref := e.catalog.domain.Ref(state.epoch, tc.d.Address())
 		got, err := v.Effective(ref, false)
@@ -54,7 +54,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 			t.Fatal("capability became ownership", tc.d.Name())
 		}
 	}
-	typ := state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25}]
+	typ := state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25})
 	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
@@ -69,8 +69,8 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumn := *table
 	withColumn.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
-	withColumnState.descriptors[table.address] = &withColumn
-	v.catalog = CatalogRead{e, withColumnState}
+	withColumnState.setDescriptor(table.address, &withColumn)
+	v.catalog = e.catalog.read(withColumnState)
 	v.recaptureCatalog(v.catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
@@ -121,8 +121,8 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	actor := roleAttributeCreate(t, e, op, "rebuilder", true, parser.RoleOptions{})
 	roleAttributeApply(t, e, op, &parser.CreateTable{Name: predefinedObjectName("maintained"), Elements: []parser.TableElement{{Column: &parser.Column{Name: "n", TypeName: parser.TypeName{Name: "integer"}}}}})
 	roleAttributeApply(t, e, op, &parser.CreateIndex{Name: parser.Identifier{Text: "maintained_index"}, Table: predefinedObjectName("maintained"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}})
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"}]
-	index := e.catalog.state.descriptors[address].(*relationDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"})
+	index := e.catalog.state.MustRelation(address)
 	root, storage := e.indexRoots[address], e.storage[index.sqlIndex.parent]
 	if root == nil || storage == nil {
 		t.Fatal("missing real index or parent storage")
@@ -138,7 +138,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
 	next := e.indexRoots[address]
-	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.descriptors[address] != index || e.storage[index.sqlIndex.parent] != storage {
+	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.sqlIndex.parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})
@@ -195,7 +195,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 		if e.roles != roles || len(e.Roles().Memberships()) != 2 {
 			t.Fatal("control reseeded shared graph")
 		}
-		public := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+		public := e.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 		if public.owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
@@ -206,10 +206,10 @@ func TestPredefinedRoleControls(t *testing.T) {
 		}
 	}
 	target := New()
-	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	public := target.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+	public := target.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if public.owner != (target.authorizationDomain.Principal(6171)) {
 		t.Fatal("foreign public owner escaped remapping", public.owner)
 	}
@@ -248,7 +248,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 			t.Fatal("use-only capability published a grant")
 		}
 	}
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"}]
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"})
 	ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 	view, err := op.Authorization()
 	if err != nil {

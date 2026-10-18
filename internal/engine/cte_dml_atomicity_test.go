@@ -225,7 +225,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 					created = address
 				}
 			}
-			if created == (ids.ObjectAddress{}) || e.catalog.state.descriptors[created] != nil || e.storage[created] != nil || len(scope.stage.rows[created]) != 2 {
+			if created == (ids.ObjectAddress{}) || e.catalog.state.Get(created) != nil || e.storage[created] != nil || len(scope.stage.rows[created]) != 2 {
 				t.Fatal("destination published before Finish")
 			}
 			transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -235,12 +235,12 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			err = scope.Finish(nil)
 			op.Done()
 			if canceled {
-				if err != context.Canceled || e.catalog.state.descriptors[created] != nil || e.storage[created] != nil {
+				if err != context.Canceled || e.catalog.state.Get(created) != nil || e.storage[created] != nil {
 					t.Fatal("cancellation published destination", err)
 				}
 				transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
 			} else {
-				if err != nil || e.catalog.state.descriptors[created] == nil {
+				if err != nil || e.catalog.state.Get(created) == nil {
 					t.Fatal(err)
 				}
 				transactionRows(t, peer, "SELECT id FROM a")

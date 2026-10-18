@@ -126,7 +126,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	old = e.CatalogRead().state.descriptors[old.address].(*relationDescriptor)
+	old = e.CatalogRead().MustRelation(old.address)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	origin := restoredNotNull{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.notNullConstraints[0].OID}
@@ -157,7 +157,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 			altered.uniqueConstraints = []uniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}
 		candidate := cloneCatalog(before)
-		candidate.descriptors[old.address] = &altered
+		candidate.setDescriptor(old.address, &altered)
 		e.catalog.state = candidate
 		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)
@@ -191,7 +191,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, raw, origin); err != nil {
 		t.Fatal(err)
 	}
-	current := e.CatalogRead().state.descriptors[old.address].(*relationDescriptor)
+	current := e.CatalogRead().MustRelation(old.address)
 	if !current.notNullConstraints[0].NoInherit || old.notNullConstraints[0].NoInherit || current.notNullConstraints[0].OID != origin.constraint || current.columns[0].Nullable || current.revision != old.revision+1 {
 		t.Fatal("repair changed identity/local nullability or old capture", current)
 	}

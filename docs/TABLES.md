@@ -813,7 +813,7 @@ Disabling or removing the last policy does not discard the flags. Native control
 serialize protected raw rows/policies before restoring nondefault flags, under a
 narrow replay whitelist. See [authorization](AUTHORIZATION.md#row-security-metadata-and-enforcement-limits).
 
-`CatalogRead.Comment` exposes immutable local metadata at stable class/object/SubID
+`Engine.Comment` exposes immutable local metadata of a `CatalogRead` at stable class/object/SubID
 addresses; `RoleRead` exposes shared role text separately. The description catalog
 is derived, not dumped as inserted rows. Column comments retain sparse attribute
 numbers through compaction, rename, supported type changes and schema moves.

@@ -40,12 +40,12 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					srcRef := catalogRef(t, e, before, "src")
 					sinkRef := catalogRef(t, e, before, "sink")
 					inputRef := catalogRef(t, e, before, "input")
-					parentBefore := before.state.descriptors[sinkRef.Address].(*relationDescriptor)
+					parentBefore := before.MustRelation(sinkRef.Address)
 					intended, other := parentBefore.uniqueConstraints[0], parentBefore.uniqueConstraints[1]
 					if intended.OID == 0 || other.OID == 0 || intended.OID == other.OID || intended.Index == other.Index {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
-					stored := before.state.descriptors[srcRef.Address].(*relationDescriptor).rules[0]
+					stored := before.MustRelation(srcRef.Address).rules[0]
 					conflict := func(r ruleDefinition) *boundInsertConflict {
 						t.Helper()
 						b := r.actions[0].binding
@@ -103,7 +103,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						sessionSQL(t, s, "ALTER TABLE sink RENAME CONSTRAINT other_key TO sink_key")
 					}
 					current := e.CatalogRead()
-					parent := current.state.descriptors[sinkRef.Address].(*relationDescriptor)
+					parent := current.MustRelation(sinkRef.Address)
 					if parent.uniqueConstraints[0].OID != intended.OID || parent.uniqueConstraints[0].Index != intended.Index || parent.uniqueConstraints[0].Name != "renamed_key" {
 						t.Fatal("rename changed provider identity or failed to publish current metadata")
 					}
@@ -138,7 +138,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].sql)
 					}
 					reboundView := e.CatalogRead()
-					rebound := reboundView.state.descriptors[srcRef.Address].(*relationDescriptor).rules[0]
+					rebound := reboundView.MustRelation(srcRef.Address).rules[0]
 					assertSources(rebound)
 					if conflict(rebound).constraint != intendedAddress {
 						t.Fatal("reanalysis did not capture the actual class2606 renamed constraint identity")
@@ -173,8 +173,8 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					imported := e.CatalogRead()
 					importedSrc := catalogRef(t, e, imported, "src")
 					importedSink := catalogRef(t, e, imported, "sink")
-					importedParent := imported.state.descriptors[importedSink.Address].(*relationDescriptor)
-					importedRule := imported.state.descriptors[importedSrc.Address].(*relationDescriptor).rules[0]
+					importedParent := imported.MustRelation(importedSink.Address)
+					importedRule := imported.MustRelation(importedSrc.Address).rules[0]
 					importedConflict := conflict(importedRule)
 					var importedProvider uniqueConstraint
 					for _, definition := range importedParent.uniqueConstraints {

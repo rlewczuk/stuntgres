@@ -24,13 +24,13 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	root, index, catalog, types := indexClausesFixture(t)
 	e := New()
 	state := *e.catalog.state
-	state.descriptors = make(map[ids.ObjectAddress]Descriptor, len(e.catalog.state.descriptors)+4)
-	state.names = make(map[ids.NameKey]ids.ObjectAddress, len(e.catalog.state.names)+4)
-	for a, d := range e.catalog.state.descriptors {
-		state.descriptors[a] = d
+	state.descriptors = make(map[ids.ObjectAddress]Descriptor, e.catalog.state.DescriptorCount()+4)
+	state.names = make(map[ids.NameKey]ids.ObjectAddress, e.catalog.state.NameCount()+4)
+	for a, d := range e.catalog.state.Descriptors() {
+		state.setDescriptor(a, d)
 	}
-	for k, a := range e.catalog.state.names {
-		state.names[k] = a
+	for k, a := range e.catalog.state.Names() {
+		state.bindName(k, a)
 	}
 	root.name = "unit_root"
 	root.relationKind = partitionedRelation
@@ -55,11 +55,11 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	leaf.index = map[string]int{"b": 0, "a": 1, "p": 2}
 	root.partition.children = []ids.ObjectAddress{leaf.address}
 	root.partition.defaultChild = leaf.address
-	for a, d := range catalog.descriptors {
-		state.descriptors[a] = d
+	for a, d := range catalog.Descriptors() {
+		state.setDescriptor(a, d)
 	}
-	state.descriptors[leaf.address] = &leaf
-	view := CatalogRead{owner: e, state: &state}
+	state.setDescriptor(leaf.address, &leaf)
+	view := e.catalog.read(&state)
 	mapped, err := mapPartitionIndex(context.Background(), view, root, &leaf, index.sqlIndex)
 	if err != nil {
 		t.Fatal(err)
@@ -71,9 +71,9 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	child.sqlIndex = mapped
 	child.columns = slices.Clone(index.columns)
 	child.attributes = slices.Clone(index.attributes)
-	state.descriptors[child.address] = &child
+	state.setDescriptor(child.address, &child)
 	for _, d := range []*relationDescriptor{root, &leaf, index, &child} {
-		state.names[descriptorNameKey(d)] = d.address
+		state.bindName(descriptorNameKey(d), d.address)
 	}
 	e.catalog.state = &state
 	return partitionConstraintUnit{e: e, root: root, leaf: &leaf, parent: index, child: &child, view: view}
@@ -148,7 +148,7 @@ func TestPartitionConstraintsAttachmentAdmission(t *testing.T) {
 				other.address.ObjectID = 20004
 				definition.partitionParent = f.parent.address
 				other.sqlIndex = &definition
-				f.view.state.descriptors[other.address] = &other
+				f.view.state.setDescriptor(other.address, &other)
 				code = "55000"
 			case "other_parent":
 				f.child.sqlIndex.partitionParent = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}
@@ -184,7 +184,7 @@ func TestPartitionConstraintsDescriptor(t *testing.T) {
 			case "duplicate":
 				other := *f.child
 				other.address.ObjectID = 20004
-				f.view.state.descriptors[other.address] = &other
+				f.view.state.setDescriptor(other.address, &other)
 			case "mapping":
 				f.child.sqlIndex.keys[0].attribute = 11
 			case "nnd":
@@ -206,10 +206,10 @@ func TestPartitionConstraintsDescriptor(t *testing.T) {
 func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	next := *f.view.state
-	next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(f.view.state.descriptors))
-	for a, d := range f.view.state.descriptors {
+	next.descriptors = make(map[ids.ObjectAddress]Descriptor, f.view.DescriptorCount())
+	for a, d := range f.view.Descriptors() {
 		if a != f.child.address {
-			next.descriptors[a] = d
+			next.setDescriptor(a, d)
 		}
 	}
 	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{}}, &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
@@ -231,8 +231,8 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
-	child := next.state.descriptors[f.child.address].(*relationDescriptor)
-	parent := next.state.descriptors[f.parent.address].(*relationDescriptor)
+	child := next.MustRelation(f.child.address)
+	parent := next.MustRelation(f.parent.address)
 	if child.sqlIndex.partitionParent != f.parent.address || !parent.sqlIndex.valid {
 		t.Fatal("candidate attachment missing")
 	}
@@ -267,7 +267,7 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	inheritedDefinition.partitionParent = f.parent.address
 	inherited := uniqueConstraint{OID: 30002, Name: inheritedIndex.name, Attributes: local.Attributes, Index: inheritedIndex.address, Parent: rootKey.OID}
 	inheritedDefinition.constraint = uniqueBacking(&inherited)
-	f.view.state.descriptors[inheritedIndex.address] = &inheritedIndex
+	f.view.state.setDescriptor(inheritedIndex.address, &inheritedIndex)
 	// Native binding retains local declarations first. Replay creates the
 	// inherited backing first regardless of that slice or destination OIDs.
 	f.leaf.uniqueConstraints = []uniqueConstraint{local, inherited}
@@ -279,7 +279,7 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	delayed := uniqueConstraint{OID: 30003, Name: delayedIndex.name, Attributes: local.Attributes, Index: delayedIndex.address, IsLocal: true}
 	delayedDefinition.constraint = uniqueBacking(&delayed)
 	f.leaf.uniqueConstraints = append(f.leaf.uniqueConstraints, delayed)
-	f.view.state.descriptors[delayedIndex.address] = &delayedIndex
+	f.view.state.setDescriptor(delayedIndex.address, &delayedIndex)
 	remapped, remappedDefinition := *f.child, *f.child.sqlIndex
 	remapped.address.ObjectID = 60000
 	remapped.name = "unit_standalone_remapped"
@@ -289,8 +289,8 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	retained.address.ObjectID = 20007
 	retained.name = "unit_standalone_retained"
 	retained.sqlIndex = &retainedDefinition
-	f.view.state.descriptors[remapped.address] = &remapped
-	f.view.state.descriptors[retained.address] = &retained
+	f.view.state.setDescriptor(remapped.address, &remapped)
+	f.view.state.setDescriptor(retained.address, &retained)
 	f.view.state.dumpPriorities = map[ids.ObjectAddress]ids.OID{remapped.address: 20005}
 	before := slices.Clone(f.leaf.uniqueConstraints)
 	order := partitionIndexDeclarationOrder(f.view, f.leaf)
@@ -345,7 +345,7 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	if _, exists := private.state.dumpPriorities[source]; exists {
 		t.Fatal("private removal retained obsolete priority")
 	}
-	delete(next.descriptors, source)
+	next.removeDescriptor(source)
 	if _, exists := cloneCatalog(next).dumpPriorities[source]; exists {
 		t.Fatal("retired address retained replay provenance")
 	}
@@ -378,9 +378,9 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		imported := next.descriptors[child.address].(*relationDescriptor)
+		imported := next.MustRelation(child.address)
 		mapped := imported.inheritance.parents[0]
-		if next.descriptors[temp.address] != temp || next.descriptors[manual.address] == nil || mapped == parent.address {
+		if next.Get(temp.address) != temp || next.Get(manual.address) == nil || mapped == parent.address {
 			t.Fatal("retained/noncolliding identity contract changed")
 		}
 		if next.dumpPriorities[mapped] != parent.address.ObjectID || next.dumpPriorities[child.address] != 0 || next.dumpPriorities[manual.address] != 0 {
@@ -391,7 +391,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		if err != nil || !reflect.DeepEqual(dumpDeclarationIDs(order), []ids.OID{mapped.ObjectID, child.address.ObjectID, manual.address.ObjectID}) {
 			t.Fatal("repeated replacement lost original declaration order", order, err)
 		}
-		if source.catalog.state.dumpPriorities != nil || source.catalog.state.descriptors[parent.address] != parent {
+		if source.catalog.state.dumpPriorities != nil || source.catalog.state.Get(parent.address) != parent {
 			t.Fatal("replacement mutated source provenance")
 		}
 		e.catalog.state = next
@@ -422,7 +422,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	independent.address = local.Index
 	independent.name = local.Name
 	independent.sqlIndex = &definition
-	f.view.state.descriptors[independent.address] = &independent
+	f.view.state.setDescriptor(independent.address, &independent)
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	if err := f.e.stagePartitionConstraintDrop(stage, f.root.uniqueConstraints[0].OID); err != nil {
@@ -432,10 +432,10 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := f.e.stageRead(stage)
-	if candidate.state.descriptors[f.child.address] != nil || candidate.state.descriptors[f.parent.address] != nil || candidate.state.descriptors[independent.address] != &independent {
+	if candidate.Get(f.child.address) != nil || candidate.Get(f.parent.address) != nil || candidate.Get(independent.address) != &independent {
 		t.Fatal("drop closure changed independent identity")
 	}
-	leaf := candidate.state.descriptors[f.leaf.address].(*relationDescriptor)
+	leaf := candidate.MustRelation(f.leaf.address)
 	if !reflect.DeepEqual(leaf.uniqueConstraints, []uniqueConstraint{local}) || len(f.leaf.uniqueConstraints) != 2 || f.e.catalog.state != f.view.state {
 		t.Fatal("drop closure published early or removed independent key")
 	}
@@ -447,9 +447,9 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	f.root.notNullConstraints = []notNullConstraint{{OID: f.root.address.ObjectID, Name: "nn", Attribute: 10}}
 	f.leaf.notNullConstraints = []notNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, partitionLocal: true}}
 	next := *f.view.state
-	next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(f.view.state.descriptors))
-	for a, d := range f.view.state.descriptors {
-		next.descriptors[a] = d
+	next.descriptors = make(map[ids.ObjectAddress]Descriptor, f.view.DescriptorCount())
+	for a, d := range f.view.Descriptors() {
+		next.setDescriptor(a, d)
 	}
 	oldRoot, oldChild := f.root.uniqueConstraints[0].OID, f.leaf.uniqueConstraints[0].OID
 	f.e.mu.Lock()
@@ -458,10 +458,10 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := next.descriptors[f.root.address].(*relationDescriptor)
-	leaf := next.descriptors[f.leaf.address].(*relationDescriptor)
-	parent := next.descriptors[f.parent.address].(*relationDescriptor)
-	child := next.descriptors[f.child.address].(*relationDescriptor)
+	root := next.MustRelation(f.root.address)
+	leaf := next.MustRelation(f.leaf.address)
+	parent := next.MustRelation(f.parent.address)
+	child := next.MustRelation(f.child.address)
 	if root.uniqueConstraints[0].OID == oldRoot || leaf.uniqueConstraints[0].OID == oldChild || leaf.uniqueConstraints[0].Parent != root.uniqueConstraints[0].OID {
 		t.Fatal("constraint identity collision/ancestry not remapped")
 	}
@@ -499,10 +499,10 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := next.descriptors[f.root.address].(*relationDescriptor)
-	leaf := next.descriptors[f.leaf.address].(*relationDescriptor)
-	parent := next.descriptors[root.uniqueConstraints[0].Index].(*relationDescriptor)
-	child := next.descriptors[f.child.address].(*relationDescriptor)
+	root := next.MustRelation(f.root.address)
+	leaf := next.MustRelation(f.leaf.address)
+	parent := next.MustRelation(root.uniqueConstraints[0].Index)
+	child := next.MustRelation(f.child.address)
 	if parent.address == f.parent.address || parent.address.ObjectID == rootKey.OID || parent.address.ObjectID == childKey.OID {
 		t.Fatal("replacement backing stole a noncolliding owned definition identity", parent.address)
 	}
@@ -512,15 +512,15 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	if parent.sqlIndex.constraint.OID != rootKey.OID || child.sqlIndex.constraint.OID != childKey.OID || child.sqlIndex.partitionParent != parent.address {
 		t.Fatal("reminted backing and constraint identities disagree")
 	}
-	if next.descriptors[retained.address] != retained || destination.catalog.state != old || f.view.state.descriptors[f.parent.address] != f.parent || !reflect.DeepEqual(f.root.uniqueConstraints[0], rootKey) {
+	if next.Get(retained.address) != retained || destination.catalog.state != old || f.view.Get(f.parent.address) != f.parent || !reflect.DeepEqual(f.root.uniqueConstraints[0], rootKey) {
 		t.Fatal("candidate allocation changed retained TEMP or immutable source")
 	}
 }
 
 func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
-	delete(f.view.state.descriptors, f.child.address)
-	delete(f.view.state.names, descriptorNameKey(f.child))
+	f.view.state.removeDescriptor(f.child.address)
+	f.view.state.unbindName(descriptorNameKey(f.child))
 	op, done := roleOperation(t, f.e, "postgres")
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
@@ -534,7 +534,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	if !clone.sqlIndex.valid || clone.sqlIndex.partitionParent != f.parent.address || f.parent.sqlIndex.valid {
 		t.Fatal("future physical clone inherited virtual invalidity")
 	}
-	if f.e.catalog.state.descriptors[clone.address] != nil {
+	if f.e.catalog.state.Get(clone.address) != nil {
 		t.Fatal("clone published before catalog overlay")
 	}
 }
@@ -557,19 +557,19 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := f.e.stageRead(stage)
-	root := candidate.state.descriptors[f.root.address].(*relationDescriptor)
-	if !root.hasIndexes || root == f.root || f.root.hasIndexes || candidate.state.descriptors[f.parent.address].(*relationDescriptor).sqlIndex.valid {
+	root := candidate.MustRelation(f.root.address)
+	if !root.hasIndexes || root == f.root || f.root.hasIndexes || candidate.MustRelation(f.parent.address).sqlIndex.valid {
 		t.Fatal("virtual history changed validity or live predecessor")
 	}
 	replacement := *f.view.state
-	replacement.descriptors = make(map[ids.ObjectAddress]Descriptor, len(f.view.state.descriptors))
-	for a, d := range f.view.state.descriptors {
-		replacement.descriptors[a] = d
+	replacement.descriptors = make(map[ids.ObjectAddress]Descriptor, f.view.DescriptorCount())
+	for a, d := range f.view.Descriptors() {
+		replacement.setDescriptor(a, d)
 	}
-	if err := normalizeReplacementIndexHistory(context.Background(), CatalogRead{owner: f.e, state: &replacement}); err != nil {
+	if err := normalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
 		t.Fatal(err)
 	}
-	if !replacement.descriptors[f.root.address].(*relationDescriptor).hasIndexes || !replacement.descriptors[f.leaf.address].(*relationDescriptor).hasIndexes || f.root.hasIndexes || f.leaf.hasIndexes {
+	if !replacement.MustRelation(f.root.address).hasIndexes || !replacement.MustRelation(f.leaf.address).hasIndexes || f.root.hasIndexes || f.leaf.hasIndexes {
 		t.Fatal("replacement history mutates retained snapshots")
 	}
 }
@@ -629,7 +629,7 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				child = roleTableRef(t, e, "keyed_leaf_pkey")
 				parent = roleTableRef(t, e, "keyed_pkey")
 			}
-			oldChild := e.catalog.state.descriptors[child.Address]
+			oldChild := e.catalog.state.Get(child.Address)
 			oldRoot := e.indexRoots[child.Address]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT kept")
@@ -644,11 +644,11 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 			private := e.privateCatalogLocked(changes)
 			e.mu.Unlock()
 			if operation == "attach" {
-				staged := private.state.descriptors[child.Address].(*relationDescriptor)
-				if staged == oldChild || staged.sqlIndex.partitionParent != parent.Address || !private.state.descriptors[parent.Address].(*relationDescriptor).sqlIndex.valid {
+				staged := private.MustRelation(child.Address)
+				if staged == oldChild || staged.sqlIndex.partitionParent != parent.Address || !private.MustRelation(parent.Address).sqlIndex.valid {
 					t.Fatal("private attachment absent")
 				}
-			} else if private.state.descriptors[child.Address] != nil || private.state.descriptors[parent.Address] != nil {
+			} else if private.Get(child.Address) != nil || private.Get(parent.Address) != nil {
 				t.Fatal("private recursive removal absent")
 			}
 			indexMaintenanceUnchanged(t, e, before)
@@ -656,20 +656,20 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 			e.mu.Lock()
 			copyView := e.privateCatalogLocked(copied)
 			e.mu.Unlock()
-			if copyView.state.descriptors[child.Address] != private.state.descriptors[child.Address] {
+			if copyView.Get(child.Address) != private.Get(child.Address) {
 				t.Fatal("overlay copy changed immutable edge authority")
 			}
 			sessionSQL(t, s, "ROLLBACK TO kept")
-			if s.transactions.catalog != prior || e.catalog.state.descriptors[child.Address] != oldChild || e.indexRoots[child.Address] != oldRoot {
+			if s.transactions.catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.indexRoots[child.Address] != oldRoot {
 				t.Fatal("savepoint rebuilt or published prior utility roots")
 			}
 			sessionSQL(t, s, query)
 			transactionEnd(t, s, tx, true)
 			if operation == "attach" {
-				if e.catalog.state.descriptors[child.Address].(*relationDescriptor).sqlIndex.partitionParent != parent.Address || e.indexRoots[child.Address] != oldRoot {
+				if e.catalog.state.MustRelation(child.Address).sqlIndex.partitionParent != parent.Address || e.indexRoots[child.Address] != oldRoot {
 					t.Fatal("commit missed edge or rebuilt unchanged physical key")
 				}
-			} else if e.catalog.state.descriptors[child.Address] != nil || e.catalog.state.descriptors[parent.Address] != nil || e.indexRoots[child.Address] != nil {
+			} else if e.catalog.state.Get(child.Address) != nil || e.catalog.state.Get(parent.Address) != nil || e.indexRoots[child.Address] != nil {
 				t.Fatal("commit missed recursive backing removal")
 			}
 			lockEmpty(t, e)
@@ -700,7 +700,7 @@ func TestPartitionConstraintsConstraintAncestryValidation(t *testing.T) {
 				definition.partitionParent = f.parent.address
 				other.sqlIndex = &definition
 				f.parent.sqlIndex.partitionParent = other.address
-				f.view.state.descriptors[other.address] = &other
+				f.view.state.setDescriptor(other.address, &other)
 			}
 			err := validateIndexDefinition(f.view, f.child)
 			if (err == nil) != (mode == "valid") {
@@ -747,7 +747,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := f.e.stageRead(stage)
-	leaf := candidate.state.descriptors[f.leaf.address].(*relationDescriptor)
+	leaf := candidate.MustRelation(f.leaf.address)
 	if clone.address == f.child.address || clone.sqlIndex.constraint == nil || clone.sqlIndex.partitionParent != f.parent.address || len(leaf.uniqueConstraints) != 1 {
 		t.Fatal("bare child reused as a constraint backing")
 	}
@@ -755,7 +755,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	if constraint.Parent != root.OID || constraint.IsLocal || constraint.Index != clone.address || !slices.Equal(constraint.Attributes, []int32{22, 11}) {
 		t.Fatal("new constraint lost mapped immediate ancestry")
 	}
-	if candidate.state.descriptors[f.child.address] != f.child || f.child.sqlIndex.partitionParent != (ids.ObjectAddress{}) || f.child.sqlIndex.constraint != nil || len(f.leaf.uniqueConstraints) != 0 {
+	if candidate.Get(f.child.address) != f.child || f.child.sqlIndex.partitionParent != (ids.ObjectAddress{}) || f.child.sqlIndex.constraint != nil || len(f.leaf.uniqueConstraints) != 0 {
 		t.Fatal("independent bare child or predecessor mutated")
 	}
 }
@@ -765,9 +765,9 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
-	parent := base.state.descriptors[roleTableRef(t, e, "parent_idx").Address].(*relationDescriptor)
-	child := base.state.descriptors[roleTableRef(t, e, "child_idx").Address].(*relationDescriptor)
-	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.sqlIndex.parent: base.state.descriptors[parent.sqlIndex.parent].(*relationDescriptor), child.sqlIndex.parent: base.state.descriptors[child.sqlIndex.parent].(*relationDescriptor)}
+	parent := base.MustRelation(roleTableRef(t, e, "parent_idx").Address)
+	child := base.MustRelation(roleTableRef(t, e, "child_idx").Address)
+	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.sqlIndex.parent: base.MustRelation(parent.sqlIndex.parent), child.sqlIndex.parent: base.MustRelation(child.sqlIndex.parent)}
 	stage.domainBases = []Descriptor{parent, child}
 	op.session.mu.Lock()
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
@@ -918,7 +918,7 @@ func TestPartitionConstraintsRecursiveBuildFailure(t *testing.T) {
 	if len(e.indexRoots) != 0 {
 		t.Fatal("failed recursive build retained cold physical installation roots")
 	}
-	for _, d := range e.catalog.state.descriptors {
+	for _, d := range e.catalog.state.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && (relation.name == "parent_idx" || relation.name == "a_k_idx" || relation.name == "b_k_idx") {
 			t.Fatal("failed recursive build leaked definition", relation.name)
 		}
@@ -949,7 +949,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		return out
 	}
 	before := indexMaintenanceCapture(e)
-	snapshot, err := captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage, e.indexRoots, e.commitSeq)
+	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage, e.indexRoots, e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -964,16 +964,16 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	for _, flag := range []string{"physical_invalid", "virtual_not_ready", "virtual_not_live"} {
 		t.Run(flag, func(t *testing.T) {
 			next := *e.catalog.state
-			next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(e.catalog.state.descriptors))
-			for address, d := range e.catalog.state.descriptors {
-				next.descriptors[address] = d
+			next.descriptors = make(map[ids.ObjectAddress]Descriptor, e.catalog.state.DescriptorCount())
+			for address, d := range e.catalog.state.Descriptors() {
+				next.setDescriptor(address, d)
 			}
 			name := "mid_idx"
 			if flag == "physical_invalid" {
 				name = "leaf_idx"
 			}
 			address := roleTableRef(t, e, name).Address
-			copy := *next.descriptors[address].(*relationDescriptor)
+			copy := *next.MustRelation(address)
 			definition := *copy.sqlIndex
 			copy.sqlIndex = &definition
 			switch flag {
@@ -984,7 +984,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 			case "virtual_not_live":
 				definition.live = false
 			}
-			next.descriptors[address] = &copy
+			next.setDescriptor(address, &copy)
 			if _, _, _, err := e.prepareRemintedStorage(context.Background(), &next, copiedStorage(), snapshot); err == nil {
 				t.Fatal("unrepresentable publication state imported", flag)
 			}
@@ -1008,12 +1008,12 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			}
 			base := e.CatalogRead()
 			next := *base.state
-			next.descriptors = make(map[ids.ObjectAddress]Descriptor, len(base.state.descriptors))
-			for address, d := range base.state.descriptors {
-				next.descriptors[address] = d
+			next.descriptors = make(map[ids.ObjectAddress]Descriptor, base.DescriptorCount())
+			for address, d := range base.Descriptors() {
+				next.setDescriptor(address, d)
 			}
-			root := *next.descriptors[roleTableRef(t, e, "root").Address].(*relationDescriptor)
-			leaf := *next.descriptors[roleTableRef(t, e, "leaf").Address].(*relationDescriptor)
+			root := *next.MustRelation(roleTableRef(t, e, "root").Address)
+			leaf := *next.MustRelation(roleTableRef(t, e, "leaf").Address)
 			typ, _ := base.LookupType(sqltype.Int4)
 			class, _ := sqltype.DefaultIndexClass(typ)
 			comparison, err := sqltype.BindIndexOrdering(root.columns[0].Usage, class)
@@ -1023,9 +1023,10 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			root.relationKind = partitionedRelation
 			root.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: root.attributes[0], usage: root.columns[0].Usage, class: class, comparison: comparison, label: "k"}}, children: []ids.ObjectAddress{leaf.address}, defaultChild: leaf.address}
 			leaf.membership = &partitionMembership{parent: root.address, defaultBound: true}
-			next.descriptors[root.address], next.descriptors[leaf.address] = &root, &leaf
-			parent := *next.descriptors[roleTableRef(t, e, "parent_idx").Address].(*relationDescriptor)
-			child := *next.descriptors[roleTableRef(t, e, "child_idx").Address].(*relationDescriptor)
+			next.setDescriptor(root.address, &root)
+			next.setDescriptor(leaf.address, &leaf)
+			parent := *next.MustRelation(roleTableRef(t, e, "parent_idx").Address)
+			child := *next.MustRelation(roleTableRef(t, e, "child_idx").Address)
 			parentDefinition, childDefinition := *parent.sqlIndex, *child.sqlIndex
 			parentDefinition.unique, childDefinition.unique = true, true
 			parent.sqlIndex, child.sqlIndex = &parentDefinition, &childDefinition
@@ -1035,8 +1036,9 @@ func TestPartitionConstraintsStructuralEquivalence(t *testing.T) {
 			if mode == "membership_before_equivalence" {
 				leaf.membership = nil
 			}
-			next.descriptors[parent.address], next.descriptors[child.address] = &parent, &child
-			view := CatalogRead{owner: e, state: &next}
+			next.setDescriptor(parent.address, &parent)
+			next.setDescriptor(child.address, &child)
+			view := e.catalog.read(&next)
 			before := indexMaintenanceCapture(e)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -1092,9 +1094,9 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 		t.Fatal("owned provider replay not deterministic")
 	}
-	root := e.catalog.state.descriptors[roleTableRef(t, e, "owned.root").Address].(*relationDescriptor)
-	mid := e.catalog.state.descriptors[roleTableRef(t, e, "owned.mid").Address].(*relationDescriptor)
-	leaf := e.catalog.state.descriptors[roleTableRef(t, e, "owned.leaf").Address].(*relationDescriptor)
+	root := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.root").Address)
+	mid := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.mid").Address)
+	leaf := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.leaf").Address)
 	actor, exists := e.Roles().Lookup("actor")
 	if !exists || root.owner != actor.Ref {
 		t.Fatal("replay lost declared actor ownership")
@@ -1103,7 +1105,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 		t.Fatal("owner/key ancestry not restored")
 	}
 	for _, table := range []*relationDescriptor{root, mid, leaf} {
-		index := e.catalog.state.descriptors[table.uniqueConstraints[0].Index].(*relationDescriptor)
+		index := e.catalog.state.MustRelation(table.uniqueConstraints[0].Index)
 		if index.owner != table.owner {
 			t.Fatal("index owner detached from actual table owner")
 		}
@@ -1130,7 +1132,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO owned.leaf(k,payload) VALUES('b',1)")
 	roleExecute(t, e, op, "DROP TABLE owned.leaf")
 	roleExecute(t, e, op, "CREATE TABLE owned.future PARTITION OF owned.mid DEFAULT")
-	future := e.catalog.state.descriptors[roleTableRef(t, e, "owned.future").Address].(*relationDescriptor)
+	future := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.future").Address)
 	if len(future.uniqueConstraints) != 1 || future.uniqueConstraints[0].Parent != mid.uniqueConstraints[0].OID {
 		t.Fatal("future clone lost reminted immediate provider")
 	}
@@ -1162,9 +1164,9 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	stage.indexParents = make(map[ids.ObjectAddress]*relationDescriptor)
 	for _, name := range names {
-		index := base.state.descriptors[roleTableRef(t, e, name).Address].(*relationDescriptor)
+		index := base.MustRelation(roleTableRef(t, e, name).Address)
 		stage.domainBases = append(stage.domainBases, index)
-		stage.indexParents[index.sqlIndex.parent] = base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		stage.indexParents[index.sqlIndex.parent] = base.MustRelation(index.sqlIndex.parent)
 	}
 	op.session.mu.Lock()
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
@@ -1173,7 +1175,7 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 	stage.roleRevision = e.roles.revision
 	e.mu.Unlock()
 	if key {
-		root := base.state.descriptors[roleTableRef(t, e, "root_key").Address].(*relationDescriptor)
+		root := base.MustRelation(roleTableRef(t, e, "root_key").Address)
 		if err := e.stagePartitionConstraintDrop(stage, root.sqlIndex.constraint.OID); err != nil {
 			t.Fatal(err)
 		}
@@ -1182,7 +1184,7 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 		}
 	} else {
 		for _, name := range names {
-			index := base.state.descriptors[roleTableRef(t, e, name).Address].(*relationDescriptor)
+			index := base.MustRelation(roleTableRef(t, e, name).Address)
 			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
 				t.Fatal(err)
 			}

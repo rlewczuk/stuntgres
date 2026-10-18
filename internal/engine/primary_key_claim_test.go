@@ -46,7 +46,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.uniqueConstraints[0]
-	index := e.catalog.state.descriptors[constraint.Index].(*relationDescriptor)
+	index := e.catalog.state.MustRelation(constraint.Index)
 	if !constraint.Primary || !index.sqlIndex.constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}

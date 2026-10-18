@@ -13,7 +13,7 @@ import (
 func assertOperatorIndex(t *testing.T, state *catalogState) {
 	t.Helper()
 	want := make(map[operatorNameKey]map[ids.ObjectAddress]bool)
-	for address, descriptor := range state.descriptors {
+	for address, descriptor := range state.Descriptors() {
 		if operator, ok := descriptor.(*operatorDescriptor); ok {
 			key := operatorNameKey{operator.namespace, operator.name}
 			if want[key] == nil {
@@ -45,7 +45,7 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 	seen := make(map[ids.ObjectAddress]bool)
 	for name, operators := range groups {
 		for _, operator := range operators {
-			if operator.name != name || state.descriptors[operator.address] != operator || seen[operator.address] {
+			if operator.name != name || state.Get(operator.address) != operator || seen[operator.address] {
 				t.Fatal("alias groups do not expose exact current descriptors", operator)
 			}
 			seen[operator.address] = true
@@ -69,7 +69,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
 	base := &catalogState{descriptors: map[ids.ObjectAddress]Descriptor{first.address: first, other.address: other}, names: map[ids.NameKey]ids.ObjectAddress{descriptorNameKey(first): first.address, descriptorNameKey(other): other.address}}
-	base.operatorNames = rebuildOperatorNames(base.descriptors)
+	base.operatorNames = rebuildOperatorNames(base.Descriptors())
 	key := operatorNameKey{namespace, first.name}
 	// This unpublished fixture deliberately retains capacity and a sentinel
 	// outside its length: append must not overwrite a sibling's backing array.
@@ -77,7 +77,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	backing[0], backing[1] = first.address, other.address
 	base.operatorNames.buckets[key] = backing[:1]
 	e := &Engine{catalog: catalogStore{state: base}}
-	stage := e.BeginCatalogStage(CatalogRead{owner: e, state: base})
+	stage := e.BeginCatalogStage(e.catalog.read(base))
 	second := indexUnitOperator(90003, namespace, first.name)
 	second.left = 0
 	if err := stage.Create(second); err != nil {
@@ -87,7 +87,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	sibling := cloneCatalog(base)
 	third := indexUnitOperator(90004, namespace, first.name)
 	third.left, third.right = 20, 20
-	stage = e.BeginCatalogStage(CatalogRead{owner: e, state: sibling})
+	stage = e.BeginCatalogStage(e.catalog.read(sibling))
 	if err := stage.Create(third); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	}
 	// Multiple removals/inserts in one bucket must neither duplicate members
 	// nor mutate either predecessor, regardless of map iteration order.
-	stage = e.BeginCatalogStage(CatalogRead{owner: e, state: child})
+	stage = e.BeginCatalogStage(e.catalog.read(child))
 	moved := *first
 	moved.namespace.ObjectID++
 	moved.name, moved.revision = "#@#", 2
@@ -142,7 +142,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 		func(d *operatorDescriptor) { d.result, d.function = 20, 463 },
 		func(d *operatorDescriptor) { d.hash, d.merge, d.negator = true, true, 90002 },
 	} {
-		previous := base.state.descriptors[first.address].(*operatorDescriptor)
+		previous := base.MustOperator(first.address)
 		next := *previous
 		update(&next)
 		stage = e.BeginCatalogStage(base)
@@ -154,7 +154,7 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 			t.Fatal("metadata-only replacement copied membership")
 		}
 		oldGroups, newGroups := collectOperatorGroups(base), collectOperatorGroups(current)
-		if oldGroups[first.name][0] != previous || newGroups[first.name][0] != &next || base.state.descriptors[first.address] != previous {
+		if oldGroups[first.name][0] != previous || newGroups[first.name][0] != &next || base.Get(first.address) != previous {
 			t.Fatal("shared membership froze metadata or changed predecessor")
 		}
 		assertOperatorIndex(t, base.state)
@@ -222,7 +222,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	assertOperatorIndex(t, removedAdded.state)
 	assertOperatorIndex(t, restored.state)
 	assertOperatorIndex(t, inserted.state)
-	if restored.state.descriptors[added.address] != added || removedAdded.state.descriptors[added.address] != nil {
+	if restored.Get(added.address) != added || removedAdded.Get(added.address) != nil {
 		t.Fatal("savepoint/private sibling membership changed")
 	}
 	changes = newCatalogChanges()
@@ -231,7 +231,7 @@ func TestUserOperatorIndexPublicationAndOverlay(t *testing.T) {
 	private := e.privateCatalogLocked(changes)
 	cached := e.privateCatalogLocked(changes)
 	e.mu.Unlock()
-	if private.state != cached.state || private.state.descriptors[d.address] != nil {
+	if private.state != cached.state || private.Get(d.address) != nil {
 		t.Fatal("private removal/cache did not expose final root")
 	}
 	assertOperatorIndex(t, private.state)
@@ -266,8 +266,8 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 		t.Fatal("seed address index not shared")
 	}
 	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 96}
-	left := source.catalog.state.descriptors[address].(*operatorDescriptor)
-	right := target.catalog.state.descriptors[address].(*operatorDescriptor)
+	left := source.catalog.state.MustOperator(address)
+	right := target.catalog.state.MustOperator(address)
 	if left == right || left.owner == right.owner {
 		t.Fatal("engine-owned seed descriptors/principals shared")
 	}
@@ -279,7 +279,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if remapped.operatorNames != source.catalog.state.operatorNames || remapped.descriptors[address] == left || remapped.descriptors[address].(*operatorDescriptor).owner != right.owner {
+	if remapped.operatorNames != source.catalog.state.operatorNames || remapped.Get(address) == left || remapped.MustOperator(address).owner != right.owner {
 		t.Fatal("principal remap failed fresh provenance/shared membership")
 	}
 	assertOperatorIndex(t, remapped)
@@ -316,7 +316,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if projection.state.descriptors[temp.address] != nil || projection.state.descriptors[tempNamespace.address] != nil {
+	if projection.Get(temp.address) != nil || projection.Get(tempNamespace.address) != nil {
 		t.Fatal("persistent projection retained TEMP membership")
 	}
 	assertOperatorIndex(t, projection.state)
@@ -336,12 +336,12 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.descriptors[temp.address] != temp || next.descriptors[tempNamespace.address] != tempNamespace {
+	if next.Get(temp.address) != temp || next.Get(tempNamespace.address) != tempNamespace {
 		t.Fatal("replacement changed retained TEMP identities")
 	}
 	groups := collectOperatorGroups(CatalogRead{state: next})
 	imported := groups[operator.name]
-	if len(imported) != 1 || imported[0].address == operator.address || imported[0].namespace == namespace.address || next.descriptors[imported[0].namespace].Name() != namespace.name {
+	if len(imported) != 1 || imported[0].address == operator.address || imported[0].namespace == namespace.address || next.Get(imported[0].namespace).Name() != namespace.name {
 		t.Fatal("imported operator/namespace collision not remapped", imported)
 	}
 	for _, state := range []*catalogState{next, source.catalog.state, retained, projection.state} {

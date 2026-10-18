@@ -46,12 +46,12 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			}
 			var acl authorization.ACLValue
 			if tc.namespace != "" {
-				acl = e.CatalogRead().state.descriptors[schemaRef(t, e, tc.namespace).Address].(*namespaceDescriptor).acl
+				acl = e.CatalogRead().MustNamespace(schemaRef(t, e, tc.namespace).Address).acl
 			}
 			before := e.CatalogRead()
 			names := make(map[string]authorization.ACLValue)
 			owners := make(map[string]authorization.PrincipalRef)
-			for _, descriptor := range before.state.descriptors {
+			for _, descriptor := range before.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
 					names[ns.name], owners[ns.name] = ns.acl, ns.owner
 				}
@@ -71,7 +71,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				t.Fatal("Restore reused catalog epoch")
 			}
 			gotNames := make(map[string]authorization.ACLValue)
-			for _, descriptor := range after.state.descriptors {
+			for _, descriptor := range after.Descriptors() {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
 					gotNames[ns.name] = ns.acl
 					if ns.owner != owners[ns.name] {
@@ -83,11 +83,11 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				t.Fatalf("namespace/ACL map %+v want %+v", gotNames, names)
 			}
 			if tc.namespace == "" {
-				if _, exists := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]; exists {
+				if _, exists := e.CatalogRead().LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}); exists {
 					t.Fatal("Restore invented public")
 				}
 			} else {
-				d := e.CatalogRead().state.descriptors[schemaRef(t, e, tc.namespace).Address].(*namespaceDescriptor)
+				d := e.CatalogRead().MustNamespace(schemaRef(t, e, tc.namespace).Address)
 				owner, _ := e.Roles().Lookup(tc.owner)
 				if d.owner != owner.Ref || d.acl.Explicit != tc.explicit || !sameACL(d.acl, acl) {
 					t.Fatalf("owner/ACL changed: %+v want owner %v ACL %+v", d, owner.Ref, acl)
@@ -100,9 +100,9 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					if got := tuples(run(t, e, "SELECT id FROM "+tc.namespace+".t")); !reflect.DeepEqual(got, [][]driver.Value{{wantValue}}) {
 						t.Fatal(got)
 					}
-					td := e.CatalogRead().state.descriptors[roleTableRef(t, e, tc.namespace+".t").Address].(*relationDescriptor)
+					td := e.CatalogRead().MustRelation(roleTableRef(t, e, tc.namespace+".t").Address)
 					// Namespace OWNER does not restamp the independently owned table.
-					oldTable := before.state.descriptors[before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: before.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.namespace}], Name: "t"}]].(*relationDescriptor)
+					oldTable := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: before.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.namespace}), Name: "t"}))
 					if td.owner != oldTable.owner || td.acl.Explicit || len(td.acl.Entries) != 0 {
 						t.Fatal("table owner/ACL changed")
 					}
@@ -149,7 +149,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				before := e.CatalogRead()
 				owner, _ := e.Roles().Lookup("ordinary")
 				for _, name := range []string{"restored_a", "restored_b", "restored_data", "retained_public"} {
-					ns := before.state.descriptors[schemaRef(t, e, name).Address].(*namespaceDescriptor)
+					ns := before.MustNamespace(schemaRef(t, e, name).Address)
 					wantACL := authorization.ACLValue{}
 					if name == "retained_public" {
 						wantACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -161,7 +161,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 						t.Fatal("restored owner/ACL", name, ns)
 					}
 				}
-				table := before.state.descriptors[roleTableRef(t, e, "restored_data.t").Address].(*relationDescriptor)
+				table := before.MustRelation(roleTableRef(t, e, "restored_data.t").Address)
 				if table.owner != owner.Ref || table.acl.Explicit || len(table.acl.Entries) != 0 {
 					t.Fatal("restored table owner/ACL", table)
 				}
@@ -177,20 +177,20 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					t.Fatal("insert count", got)
 				}
 				after := e.CatalogRead()
-				for address, descriptor := range before.state.descriptors {
-					if after.state.descriptors[address] != descriptor {
+				for address, descriptor := range before.Descriptors() {
+					if after.Get(address) != descriptor {
 						t.Fatal("continuation changed restored descriptor", address)
 					}
 				}
 				postgres, _ := e.Roles().Lookup("postgres")
 				for _, name := range []string{"additional", "nested"} {
-					namespace := after.state.descriptors[schemaRef(t, e, name).Address].(*namespaceDescriptor)
+					namespace := after.MustNamespace(schemaRef(t, e, name).Address)
 					if namespace.owner != postgres.Ref || namespace.acl.Explicit || len(namespace.acl.Entries) != 0 {
 						t.Fatal("new namespace owner/ACL", name, namespace)
 					}
 				}
 				byObjectID := make(map[ids.OID]ids.ObjectAddress)
-				for address := range after.state.descriptors {
+				for address := range after.Descriptors() {
 					if address.ClassID != ids.NamespaceClassID && address.ClassID != ids.RelationClassID {
 						continue
 					}

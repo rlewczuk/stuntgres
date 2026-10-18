@@ -119,7 +119,7 @@ func TestBtreeIndexGrantTimeCompatibleRevision(t *testing.T) {
 	lockPending(t, e, 1)
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "t")
-	old := base.state.descriptors[ref.Address].(*relationDescriptor)
+	old := base.MustRelation(ref.Address)
 	next := *old
 	next.revision++
 	stage := e.BeginCatalogStage(base)

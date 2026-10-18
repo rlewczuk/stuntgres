@@ -63,8 +63,8 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	nonmember := *n.procedure
 	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.catalog.state)
-	foreignState.descriptors[nonmember.address] = &nonmember
-	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
+	foreignState.setDescriptor(nonmember.address, &nonmember)
+	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
@@ -99,10 +99,10 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
-		state.descriptors[n.ref.Address] = &bad
+		state.setDescriptor(n.ref.Address, &bad)
 		forged := n
 		forged.procedure = &bad
-		if err := forged.validate(CatalogRead{owner: e, state: state}); err == nil {
+		if err := forged.validate(e.catalog.read(state)); err == nil {
 			t.Fatal("forged installed call admitted", bad)
 		}
 	}
@@ -180,26 +180,26 @@ func TestMetaphoneRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
-		delete(next.names, descriptorNameKey(before.state.descriptors[address]))
-		delete(next.descriptors, address)
+		next.unbindName(descriptorNameKey(before.Get(address)))
+		next.removeDescriptor(address)
 	}
 	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.state.descriptors[address], mapping)
-		next.descriptors[destination] = descriptor
-		next.names[descriptorNameKey(descriptor)] = destination
+		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
+		next.setDescriptor(destination, descriptor)
+		next.bindName(descriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{address: address, defaults: map[int32]columnDefault{1: {expression: call, dependencies: []ids.ObjectRef{call.ref}}}, generations: map[int32]columnGeneration{2: {kind: generationStored, expression: call, planned: call, dependencies: []ids.ObjectRef{call.ref}}}}
-	next.descriptors[address] = consumer
+	next.setDescriptor(address, consumer)
 	next.epoch++
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal(err)
 	}
-	view := CatalogRead{owner: e, state: next}
-	relocated := next.descriptors[address].(*relationDescriptor)
+	view := e.catalog.read(next)
+	relocated := next.MustRelation(address)
 	for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 		n := node.(installedMetaphoneFunctionExpression)
-		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.descriptors[n.ref.Address] {
+		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) {
 			t.Fatal("stale remapped authority", n.ref)
 		}
 		if err := n.validate(view); err != nil {
@@ -211,7 +211,7 @@ func TestMetaphoneRemap(t *testing.T) {
 			t.Fatal(value, err, readErr)
 		}
 	}
-	if call.ref.Epoch != before.Epoch() || call.procedure != before.state.descriptors[call.ref.Address] || !reflect.DeepEqual(call.Args, metaphoneUnitExpression(t, e).Args) {
+	if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) || !reflect.DeepEqual(call.Args, metaphoneUnitExpression(t, e).Args) {
 		t.Fatal("source expression mutated")
 	}
 }

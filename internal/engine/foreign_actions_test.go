@@ -49,7 +49,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "c")
-	child := view.state.descriptors[ref.Address].(*relationDescriptor)
+	child := view.MustRelation(ref.Address)
 	original := child.foreignKeys[0]
 	if original.UpdateAction != parser.ForeignKeyCascade || original.DeleteAction != parser.ForeignKeySetNull || len(original.DeleteAttributes) != 1 || original.DeleteAttributes[0] != child.attributes[3] {
 		t.Fatal(original)
@@ -70,7 +70,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE c DROP COLUMN dead")
 	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
-	current := next.state.descriptors[ref.Address].(*relationDescriptor)
+	current := next.MustRelation(ref.Address)
 	if !slices.Equal(current.foreignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.foreignKeys[0]) {
 		t.Fatal("slot/name rewrite retargeted action", original, current.foreignKeys[0])
 	}
@@ -92,10 +92,10 @@ func TestForeignActionsEquality(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE p(id "+tc.typ+" PRIMARY KEY)")
 			sessionSQL(t, s, "CREATE TABLE c(pid "+tc.typ+" REFERENCES p ON UPDATE CASCADE)")
 			view := e.CatalogRead()
-			child := view.state.descriptors[catalogRef(t, e, view, "c").Address].(*relationDescriptor)
+			child := view.MustRelation(catalogRef(t, e, view, "c").Address)
 			f := child.foreignKeys[0]
-			parent := view.state.descriptors[f.Target].(*relationDescriptor)
-			index := view.state.descriptors[f.Index].(*relationDescriptor)
+			parent := view.MustRelation(f.Target)
+			index := view.MustRelation(f.Index)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				t.Fatal(err)

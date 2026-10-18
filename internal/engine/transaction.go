@@ -645,7 +645,7 @@ retry:
 	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return errors.New("stuntgres: relation storage is missing")
 	}
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if !ok {
 		return errors.New("stuntgres: invalid relation descriptor")
 	}

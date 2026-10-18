@@ -62,7 +62,7 @@ func collationVersionWarning(op *Operation, d *collationDescriptor, view Catalog
 		return sqlError("XX000", fmt.Sprintf(`collation "%s" has no actual version, but a version was recorded`, d.name))
 	}
 	if *d.version != *actual {
-		ns := view.state.descriptors[d.Namespace()].Name()
+		ns := view.Get(d.Namespace()).Name()
 		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.name), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + dependencyIdentifier(ns) + "." + dependencyIdentifier(d.name) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
 	}
 	return nil
@@ -293,8 +293,8 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if err = auth.CheckCreate(dest); err != nil {
 			return err
 		}
-		sourceNamespace := auth.catalog.state.descriptors[d.Namespace()].(*namespaceDescriptor)
-		targetNamespace := auth.catalog.state.descriptors[dest.Address].(*namespaceDescriptor)
+		sourceNamespace := auth.catalog.MustNamespace(d.Namespace())
+		targetNamespace := auth.catalog.MustNamespace(dest.Address)
 		if d.Namespace() == dest.Address {
 			return nil
 		}
@@ -310,7 +310,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	key := descriptorNameKey(&next)
 	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
+		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.Get(next.Namespace()).Name()))
 	}
 	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {

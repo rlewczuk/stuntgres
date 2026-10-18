@@ -265,7 +265,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	var text string
 	if e.signature == deparseConstraint || e.signature == deparseConstraintPretty {
 		found := false
-		for _, descriptor := range view.state.descriptors {
+		for _, descriptor := range view.Descriptors() {
 			if domain, ok := descriptor.(*typeDescriptor); ok {
 				for _, def := range domain.domainChecks {
 					if def.OID != ids.OID(id) {
@@ -347,7 +347,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				index, ok := view.state.descriptors[def.Index].(*relationDescriptor)
+				index, ok := view.Relation(def.Index)
 				if !ok {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
 				}
@@ -371,7 +371,7 @@ func (e deparseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		var relation *relationDescriptor
 		if id != 0 {
-			relation, ok = view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)}].(*relationDescriptor)
+			relation, ok = view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)})
 			if !ok {
 				return sqltype.Null(e.Usage.Type), nil
 			}
@@ -438,7 +438,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 			}
 			name.Parts[i].Pos = parser.Position{}
 		}
-		ref, err := catalog.owner.resolveRelationSnapshot(scope.deparseAuth, name, true)
+		ref, err := scope.deparseAuth.engine.resolveRelationSnapshot(scope.deparseAuth, name, true)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -450,7 +450,7 @@ func (e deparseExpression) evalRelation(c *EvalContext, values [3]sqltype.Value,
 		}
 		address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(id)}
 	}
-	relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	relation, ok := catalog.Relation(address)
 	if !ok {
 		return sqltype.Null(e.Usage.Type), nil
 	}

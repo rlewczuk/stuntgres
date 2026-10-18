@@ -20,7 +20,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 		t.Fatal("missing int4")
 	}
 	var namespace ids.ObjectAddress
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		if descriptor.Kind() == ids.NamespaceObject && descriptor.Name() == "public" {
 			namespace = address
 			break
@@ -179,9 +179,9 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
 	candidate := cloneCatalog(view.state)
-	candidate.descriptors[d.address] = d
-	candidate.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
-	read := CatalogRead{owner: e, state: candidate}
+	candidate.setDescriptor(d.address, d)
+	candidate.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}, d.address)
+	read := e.catalog.read(candidate)
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	source := []sqltype.Value{base, oldOID}
 	rows := &relationStorage{versions: []rowVersion{{values: source}}}
 	candidate := cloneCatalog(view.state)
-	candidate.descriptors[d.address] = d
+	candidate.setDescriptor(d.address, d)
 	storage := map[ids.ObjectAddress]*relationStorage{d.address: rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.address}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {

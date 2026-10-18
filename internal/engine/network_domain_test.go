@@ -30,7 +30,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				if !ok || array.Concrete() || !array.IsArray() || array.Element() != domain.typ || array.ID() != domain.array {
 					t.Fatal("lookup-only reciprocal", domain, array, ok)
 				}
-				arrays[i] = view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.array)}].(*typeDescriptor)
+				arrays[i] = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(domain.array)})
 				if _, err := sqltype.Array(61000, "_forged", domain.typ); err == nil {
 					t.Fatal("recursive network array constructor admitted")
 				}
@@ -48,9 +48,9 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			next := cloneCatalog(e.CatalogRead().state)
 			physical, _ := New().CatalogRead().LookupType(tc.id)
 			builtinAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)}
-			builtin := *next.descriptors[builtinAddress].(*typeDescriptor)
+			builtin := *next.MustType(builtinAddress)
 			builtin.typ = physical
-			next.descriptors[builtinAddress] = &builtin
+			next.setDescriptor(builtinAddress, &builtin)
 			mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
 				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},
@@ -62,13 +62,13 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
 				t.Fatal(err)
 			}
-			importedDirect := next.descriptors[direct.Address()].(*typeDescriptor)
-			importedChain := next.descriptors[chain.Address()].(*typeDescriptor)
+			importedDirect := next.MustType(direct.Address())
+			importedChain := next.MustType(chain.Address())
 			if importedDirect.typ.ID() != 60001 || importedChain.typ.ID() != 60002 || importedChain.typ.DomainBase().Type != importedDirect.typ || importedChain.typ.BaseType() != physical {
 				t.Fatal("remapped chain identity", importedDirect, importedChain)
 			}
 			for i, domain := range []*typeDescriptor{importedDirect, importedChain} {
-				array := next.descriptors[arrays[i].Address()].(*typeDescriptor)
+				array := next.MustType(arrays[i].Address())
 				if array.typ.Concrete() || !array.typ.IsArray() || array.typ.Element() != domain.typ || array.typ.ID() != sqltype.ID(60003+i) || domain.array != array.typ.ID() {
 					t.Fatal("remap expanded reciprocal array authority", domain, array)
 				}
@@ -77,7 +77,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				}
 			}
 			restored := storage[table.address]
-			if restored == original || restored.versions[0].values[0].Type() != importedChain.typ || next.descriptors[table.address].(*relationDescriptor).columns[0].Usage.Type != importedChain.typ {
+			if restored == original || restored.versions[0].values[0].Type() != importedChain.typ || next.MustRelation(table.address).columns[0].Usage.Type != importedChain.typ {
 				t.Fatal("scalar storage remap")
 			}
 			out, err := importedChain.typ.Output(context.Background(), restored.versions[0].values[0])

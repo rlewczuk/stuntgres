@@ -13,7 +13,7 @@ import (
 func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
-	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
 	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 	empty, err := capturePGCursors(context.Background(), ref, d, s.cursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
@@ -49,7 +49,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// A new catalog's consumer must receive its own timestamp descriptor,
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
-	currentDescriptor := current.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
 	currentRef := current.catalog.domain.Ref(current.catalog.state.epoch, currentDescriptor.address)
 	stored, epoch := cursor.created, cursor.epoch
 	reowned, err := capturePGCursors(context.Background(), currentRef, currentDescriptor, s.cursors)
@@ -124,7 +124,7 @@ func TestPGCursorsSource(t *testing.T) {
 func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID}].(*relationDescriptor)
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgCursorsOID})
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}

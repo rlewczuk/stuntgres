@@ -54,7 +54,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					grant(0, authorization.InsertPrivilege|authorization.SelectPrivilege)
 				}
 				view := e.CatalogRead()
-				current := view.state.descriptors[parent.address].(*relationDescriptor)
+				current := view.MustRelation(parent.address)
 				auth, err := owner.Authorization()
 				if err != nil {
 					t.Fatal(err)
@@ -92,7 +92,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
-				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root || e.catalog.state.descriptors[parent.address] != current {
+				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root || e.catalog.state.Get(parent.address) != current {
 					t.Fatal("failed runtime/TYPE disclosed or published protected state", result)
 				}
 				lockEmpty(t, e)

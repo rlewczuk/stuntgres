@@ -149,7 +149,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if d.valid && (!d.ready || !d.live) || d.ready && !d.live {
 		return fmt.Errorf("stuntgres: invalid index publication state")
 	}
-	parent, ok := view.state.descriptors[d.parent].(*relationDescriptor)
+	parent, ok := view.Relation(d.parent)
 	if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
@@ -545,7 +545,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err = scope.captureIdentityLocked(auth); err != nil {
 			return fail(err)
 		}
-		parent, ok := auth.catalog.state.descriptors[scope.lockedRef.Address].(*relationDescriptor)
+		parent, ok := auth.catalog.Relation(scope.lockedRef.Address)
 		if !ok {
 			return fail(ErrCatalogReplaced)
 		}
@@ -611,12 +611,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				}
 			}
 			name = generatedRelationName(parent.name, addition.String(), "idx", func(n string) bool {
-				_, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: n}]
+				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: n})
 				return ok
 			})
 		}
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: name}
-		if _, exists := auth.catalog.state.names[key]; exists {
+		if _, exists := auth.catalog.LookupName(key); exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
 				scope.op.existingRelationNotice(name)
@@ -698,8 +698,8 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				e.mu.Lock()
 				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
 				current := e.privateCatalogLocked(scope.owner.catalog)
-				_, exists := current.state.names[key]
-				same := current.Epoch() == base.Epoch() && current.state.descriptors[parent.address] != nil
+				_, exists := current.LookupName(key)
+				same := current.Epoch() == base.Epoch() && current.Get(parent.address) != nil
 				if authErr == nil && same && exists {
 					authErr = currentAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true})
 				}

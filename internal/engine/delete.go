@@ -167,7 +167,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 		rows = storage.versions
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[candidate.ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
 	if !found || !ok || len(original.values) != len(relation.columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
@@ -413,7 +413,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.catalog.domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}

@@ -15,10 +15,10 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		for _, use := range fence.uses {
 			stores[use.relation.address] = e.stageStorageLocked(stage, use.relation.address)
 		}
-		if !fence.current(CatalogRead{e, current}, stores) {
+		if !fence.current(e.catalog.read(current), stores) {
 			return CatalogConflict{}
 		}
-		committed, err := domainUsesAt(CatalogRead{e, e.catalog.state}, fence.target, fence.path)
+		committed, err := domainUsesAt(e.catalog.read(e.catalog.state), fence.target, fence.path)
 		if committed == nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 		if len(shape.fills) != 0 {
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
-				target := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
+				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
 				shape.fills[attribute], err = reownDomainDatum(value, target.typ, nil, next.scalarImports, next.aclItemImport)
 				if err != nil {
 					return err

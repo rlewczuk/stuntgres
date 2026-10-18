@@ -83,7 +83,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		func(x *installedUUIDOsspFunctionExpression) { x.Name = "gen_random_uuid" },
 		func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
 		func(x *installedUUIDOsspFunctionExpression) {
-			x.RoutineReference = view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+			x.RoutineReference = view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 		},
 		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
 		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
@@ -199,7 +199,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	t.Cleanup(done)
 	roleExecute(t, e, op, "CREATE TABLE strict_null_rows(v integer)")
 	roleExecute(t, e, op, "CREATE VIEW uuid_authority_recipe AS SELECT uuid_generate_v4()")
-	recipe := e.CatalogRead().state.descriptors[roleTableRef(t, e, "uuid_authority_recipe").Address].(*relationDescriptor)
+	recipe := e.CatalogRead().MustRelation(roleTableRef(t, e, "uuid_authority_recipe").Address)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -275,7 +275,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.catalog.state = cloneCatalog(auth.catalog.state)
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.state.descriptors[n.ref.Address] = &bad
+		auth.catalog.state.setDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -300,16 +300,16 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	state := cloneCatalog(evaluation.catalog.state)
 	for address := range mapping {
-		delete(state.names, descriptorNameKey(state.descriptors[address]))
-		delete(state.descriptors, address)
+		state.unbindName(descriptorNameKey(state.Get(address)))
+		state.removeDescriptor(address)
 	}
 	for address, dest := range mapping {
-		d := remapExtensionDescriptor(evaluation.catalog.state.descriptors[address], mapping)
-		state.descriptors[dest] = d
-		state.names[descriptorNameKey(d)] = dest
+		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
+		state.setDescriptor(dest, d)
+		state.bindName(descriptorNameKey(d), dest)
 	}
 	state.epoch++
-	view := CatalogRead{owner: e, state: state}
+	view := e.catalog.read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.epoch
 		if dest, ok := mapping[ref.Address]; ok {
@@ -326,7 +326,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
 	current, err := expressionRoutineDescriptor(relocated)
-	if err != nil || current != state.descriptors[mapping[n.ref.Address]] || !relocated.(installedUUIDOsspFunctionExpression).validShape() {
+	if err != nil || current != state.Get(mapping[n.ref.Address]) || !relocated.(installedUUIDOsspFunctionExpression).validShape() {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
 	auth := catalogAuthorization(e, view)
@@ -382,7 +382,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 	reader, readerDone := roleOperation(t, e, "uuid_acl_reader")
 	t.Cleanup(readerDone)
 	address := ext.members[0]
-	original := e.CatalogRead().state.descriptors[address].(*procedureDescriptor)
+	original := e.CatalogRead().MustProcedure(address)
 	if original.acl.Explicit || original.acl.Entries != nil {
 		t.Fatal("installed raw ACL must be NULL/default", original.acl)
 	}
@@ -408,7 +408,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		current := auth.catalog.state.descriptors[address].(*procedureDescriptor)
+		current := auth.catalog.MustProcedure(address)
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
 		if err != nil || current.acl.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {

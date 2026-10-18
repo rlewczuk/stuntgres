@@ -11,7 +11,7 @@ import (
 func capturePartitionQueryPrefix(catalog CatalogRead, view *VisibilityView, ref ids.ObjectRef, parent *relationDescriptor) (*querySource, error) {
 	// The visibility capture retains the statement's admitted topology, not a
 	// live descriptor that may have gained children while a leaf lock waited.
-	if captured, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
+	if captured, ok := catalog.Relation(ref.Address); ok {
 		parent = captured
 	}
 	pin := view.Retain()

@@ -106,7 +106,7 @@ func TestDropViewIndexWrongKindAtomicity(t *testing.T) {
 					t.Fatal("wrong-kind DROP partially published")
 				}
 				for _, ref := range refs {
-					if e.CatalogRead().state.descriptors[ref.Address] != before.descriptors[ref.Address] {
+					if e.CatalogRead().Get(ref.Address) != before.Get(ref.Address) {
 						t.Fatal("descriptor or identity changed", ref.Address)
 					}
 				}

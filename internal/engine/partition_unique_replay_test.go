@@ -48,8 +48,8 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDe
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.address, true)
 	li := index(leaf, 47205, "unique_replay_leaf_plain", mi.address, true)
 	partitionAttachUnitInstall(t, e, root, mid, leaf, ri, mi, li)
-	mid = e.catalog.state.descriptors[mid.address].(*relationDescriptor)
-	leaf = e.catalog.state.descriptors[leaf.address].(*relationDescriptor)
+	mid = e.catalog.state.MustRelation(mid.address)
+	leaf = e.catalog.state.MustRelation(leaf.address)
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: mid.name}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUnique, Unique: &parser.UniqueConstraint{Name: parser.Identifier{Text: "__stuntgres_partition_key_1"}, Columns: []parser.Identifier{{Text: "k"}}, Primary: primary}}}}
 	return e, mid, leaf, raw
 }
@@ -83,11 +83,11 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.revision++
-	e.catalog.state.descriptors[leaf.address] = &changed
+	e.catalog.state.setDescriptor(leaf.address, &changed)
 	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
-	e.catalog.state.descriptors[leaf.address] = leaf
+	e.catalog.state.setDescriptor(leaf.address, leaf)
 	op.restorePartitionUnique = nil
 	if partitionConsumerBoundary(op, auth, raw, mid) == nil {
 		t.Fatal("public hierarchy ADD widened")
@@ -134,17 +134,17 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				current := e.catalog.state.descriptors[mid.address].(*relationDescriptor)
-				child := e.catalog.state.descriptors[leaf.address].(*relationDescriptor)
+				current := e.catalog.state.MustRelation(mid.address)
+				child := e.catalog.state.MustRelation(leaf.address)
 				if len(current.uniqueConstraints) != 1 || len(child.uniqueConstraints) != 1 || child.uniqueConstraints[0].Parent != current.uniqueConstraints[0].OID {
 					t.Fatal("missing real constraint ancestry")
 				}
-				rootIndex := e.catalog.state.descriptors[current.uniqueConstraints[0].Index].(*relationDescriptor)
-				childIndex := e.catalog.state.descriptors[child.uniqueConstraints[0].Index].(*relationDescriptor)
+				rootIndex := e.catalog.state.MustRelation(current.uniqueConstraints[0].Index)
+				childIndex := e.catalog.state.MustRelation(child.uniqueConstraints[0].Index)
 				if !rootIndex.sqlIndex.valid || childIndex.sqlIndex.partitionParent != rootIndex.address || childIndex.sqlIndex.constraint.Index != child.uniqueConstraints[0].Index || childIndex.sqlIndex.constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
-				if e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] || e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] {
+				if e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
 					t.Fatal("attached plain tree consumed")
 				}
 				if len(child.notNullConstraints) != len(leaf.notNullConstraints) || len(current.notNullConstraints) != len(mid.notNullConstraints) {
@@ -178,10 +178,10 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	}
 	op.Done()
 	view := e.CatalogRead()
-	mid = view.state.descriptors[mid.address].(*relationDescriptor)
-	leaf = view.state.descriptors[leaf.address].(*relationDescriptor)
-	local := view.state.descriptors[mid.uniqueConstraints[0].Index].(*relationDescriptor)
-	child := view.state.descriptors[leaf.uniqueConstraints[0].Index].(*relationDescriptor)
+	mid = view.MustRelation(mid.address)
+	leaf = view.MustRelation(leaf.address)
+	local := view.MustRelation(mid.uniqueConstraints[0].Index)
+	child := view.MustRelation(leaf.uniqueConstraints[0].Index)
 	if partitionReplayUsingIndex(view, local) || partitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
@@ -192,7 +192,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	graph := make(map[dumpEventKey][]dumpEventKey)
 	var tables []dumpRelation
 	indices := make(map[ids.OID]int)
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		r, ok := descriptor.(*relationDescriptor)
 		if !ok || r.address.ObjectID < 47200 || r.address.ObjectID > 47205 {
 			continue
@@ -210,16 +210,16 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	}
 	graph[dumpEventKey{oid: local.address.ObjectID}] = []dumpEventKey{{oid: mid.address.ObjectID}}
 	indices[local.address.ObjectID] = len(indices)
-	regclass := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}].(*typeDescriptor).typ
+	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, namespace: mid.namespace, owner: mid.owner, name: "unique_replay_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, attributes: []int32{1, 2}, attributeHighWater: 2, index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.address.ObjectID), 10))
 	state := *view.state
-	state.descriptors = make(map[ids.ObjectAddress]Descriptor, len(view.state.descriptors)+1)
-	for address, descriptor := range view.state.descriptors {
-		state.descriptors[address] = descriptor
+	state.descriptors = make(map[ids.ObjectAddress]Descriptor, view.DescriptorCount()+1)
+	for address, descriptor := range view.Descriptors() {
+		state.setDescriptor(address, descriptor)
 	}
-	state.descriptors[consumer.address] = consumer
+	state.setDescriptor(consumer.address, consumer)
 	view.state = &state
 	graph[dumpEventKey{oid: consumer.address.ObjectID}] = []dumpEventKey{{oid: local.address.ObjectID}}
 	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.columns, attributes: consumer.attributes, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value, leafValue}}}})

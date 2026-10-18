@@ -16,7 +16,7 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		if body.ref.Epoch != auth.catalog.Epoch() {
 			return body, ErrCatalogReplaced
 		}
-		current, ok := auth.catalog.state.descriptors[body.ref.Address].(*relationDescriptor)
+		current, ok := auth.catalog.Relation(body.ref.Address)
 		if !ok {
 			return body, ErrCatalogReplaced
 		}

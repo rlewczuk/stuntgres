@@ -101,7 +101,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			case "storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
-				next := *base.state.descriptors[p.Address].(*relationDescriptor)
+				next := *base.MustRelation(p.Address)
 				next.revision++
 				replacement := &relationStorage{versions: oldP.versions, ends: oldP.ends, generation: oldP.generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.versions), oldP.generation, oldP.ends); err != nil {
@@ -156,13 +156,13 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
 	base := e.CatalogRead()
-	destination := base.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "other"}]
+	destination := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "other"})
 	stage := e.BeginCatalogStage(base)
 	// The same genuine group construction used by SET SCHEMA moves the table,
 	// backing index and synchronized row/array types, without reminting storage.
 	for _, name := range []string{"p", "p_pkey"} {
 		ref := roleTableRef(t, e, name)
-		next := *base.state.descriptors[ref.Address].(*relationDescriptor)
+		next := *base.MustRelation(ref.Address)
 		next.namespace = destination
 		next.revision++
 		if err := stage.Replace(&next); err != nil {
@@ -172,7 +172,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	truncateUnitPublish(t, e, stage)
 	transactionEnd(t, holder, tx, false)
 	lockAwait(t, done, ErrCatalogReplaced)
-	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.descriptors[p.Address].Namespace() != destination {
+	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.Get(p.Address).Namespace() != destination {
 		t.Fatal("queued name followed another namespace or undid real control publication")
 	}
 	transactionRows(t, waiter, "SELECT id FROM other.p ORDER BY id", 1, 2)

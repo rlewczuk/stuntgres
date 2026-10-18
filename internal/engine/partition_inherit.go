@@ -31,7 +31,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}
-			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+			stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
 		}
 	}
 	d, err := e.newTableDescriptorLocked(namespace, name, auth.state.CurrentUser, slices.Clone(parent.columns), nil)

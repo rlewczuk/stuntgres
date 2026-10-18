@@ -27,7 +27,7 @@ func TestSchemaTableIntegration(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	clone := roleTableRef(t, e, "sti_second.qualified_clone")
-	d := e.catalog.state.descriptors[clone.Address].(*relationDescriptor)
+	d := e.catalog.state.MustRelation(clone.Address)
 	if len(d.columns) != 3 || d.columns[1].Name != "id" || d.columns[1].Nullable || !d.columns[1].NullabilityKnown || d.acl.Explicit || len(d.columnACL) != 0 {
 		t.Fatal("expanded clone shape/authority", d)
 	}
@@ -43,12 +43,12 @@ func TestSchemaTableIntegration(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("sti_owner")
 	for _, name := range []string{"source", "clone", "z", "zl"} {
-		d := e.catalog.state.descriptors[roleTableRef(t, e, "sti_nested."+name).Address].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(roleTableRef(t, e, "sti_nested."+name).Address)
 		if d.owner != owner.Ref || d.acl.Explicit || len(d.columnACL) != 0 {
 			t.Fatal("nested table owner/ACL", name, d)
 		}
 	}
-	if d := e.catalog.state.descriptors[roleTableRef(t, e, "sti_nested.zl").Address].(*relationDescriptor); len(d.columns) != 0 {
+	if d := e.catalog.state.MustRelation(roleTableRef(t, e, "sti_nested.zl").Address); len(d.columns) != 0 {
 		t.Fatal("zero LIKE gained columns", d)
 	}
 	retained := roleExecute(t, e, op, "SELECT * FROM sti_first.source")
@@ -78,7 +78,7 @@ func TestSchemaTableIntegration(t *testing.T) {
 	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if d := e.catalog.state.descriptors[roleTableRef(t, e, "sti_nested.zl").Address].(*relationDescriptor); len(d.columns) != 0 || d.owner != owner.Ref {
+	if d := e.catalog.state.MustRelation(roleTableRef(t, e, "sti_nested.zl").Address); len(d.columns) != 0 || d.owner != owner.Ref {
 		t.Fatal("restored zero shape/owner", d)
 	}
 }

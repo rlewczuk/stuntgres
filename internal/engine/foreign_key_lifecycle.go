@@ -17,7 +17,7 @@ func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreign
 // construction follows another UNIQUE over the same attributes.
 func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor, f foreignKeyConstraint, primary bool) (string, error) {
 	view, path := r.view, r.path
-	parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
+	parent, ok := view.Relation(f.Target)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing foreign-key deparse target")
 	}
@@ -42,13 +42,13 @@ func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor
 	name := r.identifier(parent.name)
 	visible := false
 	for _, namespace := range path {
-		if a, ok := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.name}]; ok {
+		if a, ok := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: parent.name}); ok {
 			visible = a == parent.address
 			break
 		}
 	}
 	if !visible {
-		name = r.identifier(view.state.descriptors[parent.namespace].Name()) + "." + name
+		name = r.identifier(view.Get(parent.namespace).Name()) + "." + name
 	}
 	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name
 	if !primary {
@@ -228,7 +228,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 		return parent, nil
 	}
 	view := e.stageRead(stage)
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		old, ok := descriptor.(*relationDescriptor)
 		if !ok || len(old.foreignKeys) == 0 {
 			continue
@@ -252,7 +252,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 				}
 			}
 			c := &next.foreignKeys[i]
-			target, ok := view.state.descriptors[c.Target].(*relationDescriptor)
+			target, ok := view.Relation(c.Target)
 			if c.Target == parent.address {
 				target = parent
 				ok = true
@@ -293,7 +293,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, address ids.ObjectAddress) error {
 	var refs []ids.ObjectRef
 	e := s.op.session.Engine()
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -335,7 +335,7 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
 	e := s.op.session.Engine()
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -344,8 +344,8 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 			if f.NotValid || child.address != address && f.Target != address {
 				continue
 			}
-			parent := view.state.descriptors[f.Target].(*relationDescriptor)
-			index := view.state.descriptors[f.Index].(*relationDescriptor)
+			parent := view.MustRelation(f.Target)
+			index := view.MustRelation(f.Index)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				return err
@@ -382,7 +382,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if f.Target == address {
 				continue
 			}
-			if _, external := stage.base.state.descriptors[f.Target]; !external {
+			if _, external := stage.base.Find(f.Target); !external {
 				continue
 			}
 			ref := stage.owner.catalog.domain.Ref(stage.base.Epoch(), f.Target)
@@ -429,14 +429,14 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if f.Target == address {
 				continue
 			}
-			if _, external := stage.base.state.descriptors[f.Target]; !external {
+			if _, external := stage.base.Find(f.Target); !external {
 				continue
 			}
-			parent, ok := auth.catalog.state.descriptors[f.Target].(*relationDescriptor)
+			parent, ok := auth.catalog.Relation(f.Target)
 			if !ok {
 				return ErrCatalogReplaced
 			}
-			index, ok := auth.catalog.state.descriptors[f.Index].(*relationDescriptor)
+			index, ok := auth.catalog.Relation(f.Index)
 			if !ok {
 				return ErrCatalogReplaced
 			}

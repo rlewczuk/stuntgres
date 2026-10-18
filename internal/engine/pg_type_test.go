@@ -14,7 +14,7 @@ import (
 func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing type source")
 	}
@@ -181,19 +181,19 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		} else {
 			bad.columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
 		}
-		root.descriptors[d.address] = &bad
-		view := CatalogRead{owner: e, state: root}
+		root.setDescriptor(d.address, &bad)
+		view := e.catalog.read(root)
 		s, err = e.capturePGType(t.Context(), view, roles, ref, &bad)
 		ordinary(s, err)
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
 	root := cloneCatalog(catalog.state)
-	original := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}].(*typeDescriptor)
+	original := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
 	changed.acl = authorization.ACLValue{Explicit: true}
 	changed.aclSyntheticDefault = false
-	root.descriptors[changed.Address()] = &changed
-	s, err = e.capturePGType(t.Context(), CatalogRead{owner: e, state: root}, roles, ref, d)
+	root.setDescriptor(changed.Address(), &changed)
+	s, err = e.capturePGType(t.Context(), e.catalog.read(root), roles, ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("modified ACL type absent")
 	}
-	for _, at := range []int32{1, 10, 100, int32(len(catalog.state.descriptors) + 25)} {
+	for _, at := range []int32{1, 10, 100, int32(catalog.DescriptorCount() + 25)} {
 		during, cancel := context.WithCancel(context.Background())
 		ctx := &cancelAtErrCheck{Context: during, cancel: cancel, at: at}
 		got, err := e.capturePGType(ctx, catalog, roles, ref, d)
@@ -267,7 +267,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	oldRows := pgTypeUnitBag(t, captured, source)
 	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
 		t.Helper()
-		a, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}].(*typeDescriptor)
+		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)})
 		if !ok || a.typ.Element() != d.typ {
 			t.Fatal("missing canonical domain array", d)
 		}
@@ -278,7 +278,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		base := domainUnitType(t, view, "query_int")
 		domain := domainUnitType(t, view, "pt18_query_domain")
 		nested := domainUnitType(t, view, "pt18_query_nested")
-		ext, ok := view.state.descriptors[base.extension].(*extensionDescriptor)
+		ext, ok := view.Extension(base.extension)
 		if !ok || len(ext.members) != 3 {
 			t.Fatal("missing actual intarray installation")
 		}
@@ -336,16 +336,16 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				root := cloneCatalog(catalog.state)
 				original := domainUnitType(t, catalog, name)
 				if missing {
-					delete(root.descriptors, original.Address())
+					root.removeDescriptor(original.Address())
 				} else {
 					// Same ID and family, deliberately a different immutable
 					// descriptor generation: numeric equality is not authority.
 					foreign := *original.typ
 					replacement := *original
 					replacement.typ = &foreign
-					root.descriptors[original.Address()] = &replacement
+					root.setDescriptor(original.Address(), &replacement)
 				}
-				bad := CatalogRead{owner: e, state: root}
+				bad := e.catalog.read(root)
 				for _, d := range []*typeDescriptor{nested, array(t, catalog, nested)} {
 					facts, err := pgTypeFacts(bad, d)
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {

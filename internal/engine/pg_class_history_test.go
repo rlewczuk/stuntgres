@@ -11,9 +11,9 @@ import (
 func pgClassHistoryCatalog(e *Engine) (CatalogRead, *relationDescriptor) {
 	state := cloneCatalog(e.CatalogRead().state)
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "history_parent", revision: 1, owner: e.authorizationDomain.Principal(10)}
-	state.descriptors[parent.address] = parent
-	state.names[descriptorNameKey(parent)] = parent.address
-	return CatalogRead{e, state}, parent
+	state.setDescriptor(parent.address, parent)
+	state.bindName(descriptorNameKey(parent), parent.address)
+	return e.catalog.read(state), parent
 }
 
 func TestPgClassSubclassPublication(t *testing.T) {
@@ -54,7 +54,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if got.hasSubclasses != want || got.name != next.name || got.revision != next.revision || parent.hasSubclasses || next.hasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
 			}
-			if base.state.descriptors[parent.address] != parent {
+			if base.Get(parent.address) != parent {
 				t.Fatal("private candidate leaked")
 			}
 			// Discarding or failing candidate admission cannot publish history.
@@ -97,17 +97,17 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	e := New()
 	catalog, parent := pgClassHistoryCatalog(e)
 	child := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, inheritance: &tableInheritance{parents: []ids.ObjectAddress{parent.address}}}
-	catalog.state.descriptors[child.address] = child
+	catalog.state.setDescriptor(child.address, child)
 	history := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, hasSubclasses: true, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-	catalog.state.descriptors[history.address] = history
+	catalog.state.setDescriptor(history.address, history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
 		t.Fatal(err)
 	}
-	got := catalog.state.descriptors[parent.address].(*relationDescriptor)
+	got := catalog.MustRelation(parent.address)
 	if !got.hasSubclasses || got == parent || parent.hasSubclasses || !history.hasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := CatalogRead{e, cloneCatalog(catalog.state)}
+	base := e.catalog.read(cloneCatalog(catalog.state))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -120,8 +120,8 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := normalizeReplacementSubclassHistory(canceled, catalog); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := CatalogRead{e, cloneCatalog(catalog.state)}
-	delete(missing.state.descriptors, parent.address)
+	missing := e.catalog.read(cloneCatalog(catalog.state))
+	missing.state.removeDescriptor(parent.address)
 	if err := normalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")
 	}

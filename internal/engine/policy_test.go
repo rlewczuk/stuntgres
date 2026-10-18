@@ -92,8 +92,8 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			owner.name = "renamed"
 			owner.columns = append([]ColumnDescriptor(nil), d.columns...)
 			owner.columns[0].Name = "key"
-			next.descriptors[d.address] = &owner
-			text, err := policyExpressionSQL(context.Background(), CatalogRead{owner: e, state: next}, expression)
+			next.setDescriptor(d.address, &owner)
+			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -193,12 +193,12 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := New()
-	if _, err = imported.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
+	if _, err = imported.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	view := imported.CatalogRead()
 	var copied *relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.name == "t" {
 			copied = table
 			break
@@ -255,10 +255,10 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			state := cloneCatalog(base.state)
 			attached := *owner
 			attached.policies = []policyDefinition{{OID: oid, Name: "p", command: "all", permissive: true, roles: []policyRole{{public: true}}, using: expression}}
-			state.descriptors[owner.address] = &attached
+			state.setDescriptor(owner.address, &attached)
 			base.state = state
 			var target ids.ObjectAddress
-			for address, descriptor := range state.descriptors {
+			for address, descriptor := range state.Descriptors() {
 				if address.ClassID == tc.class && descriptor.Name() == tc.name {
 					target = address
 					break

@@ -27,16 +27,16 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	before := e.CatalogRead()
-	baseAddress := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"}]
-	viewAddress := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"}]
-	original := before.state.descriptors[viewAddress].(*relationDescriptor)
+	baseAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"})
+	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"})
+	original := before.MustRelation(viewAddress)
 	oldBase := e.catalog.domain.Ref(before.Epoch(), baseAddress)
 	providers := make(map[ids.ObjectAddress]*relationDescriptor)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
-		address := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name}]
-		consumer := before.state.descriptors[address].(*relationDescriptor)
+		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name})
+		consumer := before.MustRelation(address)
 		source := consumer.view.sources[0].ref.Address
-		providers[source] = before.state.descriptors[source].(*relationDescriptor)
+		providers[source] = before.MustRelation(source)
 	}
 	controls := []func() error{
 		func() error { return e.Reset(context.Background()) },
@@ -50,11 +50,11 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			current := e.CatalogRead()
-			if current.state.descriptors[viewAddress] != original {
+			if current.Get(viewAddress) != original {
 				t.Fatal("replacement copied retained consumer")
 			}
 			for address, provider := range providers {
-				if current.state.descriptors[address] != provider {
+				if current.Get(address) != provider {
 					t.Fatal("replacement copied certified catalog provider", provider.name)
 				}
 				for _, column := range provider.columns {
@@ -68,7 +68,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			auth.recaptureCatalog(current)
 			e.mu.Lock()
 			refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, queryRowMark{})
-			_, staleErr := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.state.descriptors[baseAddress].(*relationDescriptor)}}, nil, ids.SessionToken{}, queryRowMark{})
+			_, staleErr := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, queryRowMark{})
 			e.mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)

@@ -102,7 +102,7 @@ func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescript
 	for i, c := range d.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
 }
 
@@ -505,7 +505,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		if source == target {
 			continue
 		}
-		descriptor, ok := next.descriptors[target].(*relationDescriptor)
+		descriptor, ok := next.Relation(target)
 		if !ok || len(descriptor.generations) == 0 {
 			continue
 		}
@@ -527,7 +527,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 		if rows == nil {
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}
-		schema := next.descriptors[descriptor.namespace].Name()
+		schema := next.Get(descriptor.namespace).Name()
 		historical := validCheckTraversal(descriptor)
 		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
 		if eval.statementScope != nil {

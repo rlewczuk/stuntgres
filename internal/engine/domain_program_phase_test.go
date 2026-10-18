@@ -60,7 +60,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			}
 			view := auth.catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "phase_child"})
-			child := view.state.descriptors[childRef[0]].(*relationDescriptor)
+			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.owner)
 			e.mu.Unlock()
 			domain := domainUnitType(t, view, "phase_checked")
@@ -165,7 +165,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			}
 			view := auth.catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "inquiry_phase_child"})
-			child := view.state.descriptors[childRef[0]].(*relationDescriptor)
+			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.owner)
 			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
 			binder.queryAuth, binder.queryNamespace = &auth, &queryNamespace{}

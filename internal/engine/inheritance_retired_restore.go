@@ -61,7 +61,7 @@ type restoredHistoryAuthority struct {
 func (e *Engine) retiredArchiveHighWater() uint64 {
 	view := e.CatalogRead()
 	var maximum uint64
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.inheritance != nil {
 			for _, p := range table.inheritance.notNull {
 				for _, history := range p.retired {
@@ -89,11 +89,11 @@ func constraintAttributeKeys(table *relationDescriptor, expression BoundExpr) []
 }
 
 func captureHistoricalRelation(view CatalogRead, ref ids.ObjectRef, facts map[ids.OID]restoredHistoricalFact) {
-	table, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := view.Relation(ref.Address)
 	if !ok || table.inheritance == nil {
 		return
 	}
-	namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor)
+	namespace, ok := view.Namespace(table.namespace)
 	if !ok || namespace.temporary != (ids.SessionToken{}) {
 		return
 	}
@@ -139,7 +139,7 @@ func retiredDeclarationNeeded(view CatalogRead, table *relationDescriptor, p inh
 	// An invalid parent fact is emitted after data, and cannot provide this
 	// captured valid enforcement during CREATE/valid-CHECK reconstruction.
 	for _, origin := range p.origins {
-		parent, ok := view.state.descriptors[origin.parent].(*relationDescriptor)
+		parent, ok := view.Relation(origin.parent)
 		if !ok {
 			continue
 		}
@@ -203,11 +203,11 @@ func (t *dumpRelation) emitRetiredConstraints(view CatalogRead, checks bool, emi
 			kind = "c"
 		}
 		for _, history := range p.retired {
-			parent, ok := view.state.descriptors[history.parent.Address].(*relationDescriptor)
+			parent, ok := view.Relation(history.parent.Address)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing retired constraint parent")
 			}
-			parentName := quoteIdentifier(view.state.descriptors[parent.namespace].Name()) + "." + quoteIdentifier(parent.name)
+			parentName := quoteIdentifier(view.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name)
 			rows = append(rows, "("+commentLiteral(parentName)+"::regclass, "+commentLiteral(history.column)+", "+strconv.FormatInt(int64(history.attribute), 10)+", "+commentLiteral(kind)+", "+commentLiteral(history.name)+", "+commentLiteral(strconv.FormatUint(history.archive, 10)+":"+strconv.FormatUint(history.lifetime, 10))+", "+commentLiteral(strconv.FormatUint(uint64(history.constraint), 10))+")")
 			if !slices.Contains(parents, parentName) {
 				parents = append(parents, parentName)
@@ -267,12 +267,12 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || old.inheritance == nil {
 		e.mu.Unlock()
 		return reject()
 	}
-	namespace, ok := auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor)
+	namespace, ok := auth.catalog.Namespace(old.namespace)
 	if !ok || namespace.temporary != (ids.SessionToken{}) {
 		e.mu.Unlock()
 		return reject()
@@ -413,7 +413,7 @@ func retiredConstraintEvents(view CatalogRead, events map[dumpEventKey][]dumpEve
 			}
 			seen[address] = true
 			addDumpDependency(events, event, dumpEventKey{oid: address.ObjectID, phase: dumpTableCompletion})
-			if parent, ok := view.state.descriptors[address].(*relationDescriptor); ok && parent.inheritance != nil {
+			if parent, ok := view.Relation(address); ok && parent.inheritance != nil {
 				for _, ancestor := range parent.inheritance.parents {
 					ready(ancestor)
 				}

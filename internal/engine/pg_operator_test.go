@@ -17,7 +17,7 @@ import (
 func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2617}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
@@ -117,7 +117,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
-		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if row.owningRelation != d.address || row.owner != d.owner {
 			t.Fatal("row/array ownership", id, row)
 		}

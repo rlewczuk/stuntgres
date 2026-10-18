@@ -86,7 +86,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
 			for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
-				d := auth.catalog.state.descriptors[address].(*operatorDescriptor)
+				d := auth.catalog.MustOperator(address)
 				if d.left == 0 {
 					continue
 				}
@@ -107,7 +107,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	custom := false
 	for i := range path.count() {
 		for _, address := range auth.catalog.state.operatorNames.buckets[operatorNameKey{path.at(i), spelling}] {
-			d := auth.catalog.state.descriptors[address].(*operatorDescriptor)
+			d := auth.catalog.MustOperator(address)
 			if (d.left == 0) != unary {
 				continue
 			}
@@ -241,7 +241,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		}
 		return b.bindBuiltinOperator(raw, policy)
 	}
-	routine, _ := set.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
+	routine, _ := set.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function})
 	if routine == nil {
 		return nil, fmt.Errorf("stuntgres: missing operator implementation")
 	}
@@ -296,7 +296,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *procedureDescriptor, a
 			return nil, sqlError("0A000", "operator implementation has no registered provider")
 		}
 	} else {
-		namespace := b.bindingCatalog().state.descriptors[d.namespace].Name()
+		namespace := b.bindingCatalog().Get(d.namespace).Name()
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace, Pos: pos}, {Text: d.name, Pos: pos}}}, Args: rawArgs, Pos: pos}
 		node, err = b.bindFunctionProvider(raw)
 	}

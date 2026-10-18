@@ -177,7 +177,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					restore = func() { e.storage[address] = original }
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
-					original := e.catalog.state.descriptors[address]
+					original := e.catalog.state.Get(address)
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
 					replacement.revision++
 					switch mode {
@@ -195,8 +195,8 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "acl":
 						replacement.acl = authorization.ACLValue{Explicit: true}
 					}
-					e.catalog.state.descriptors[address] = &replacement
-					restore = func() { e.catalog.state.descriptors[address] = original }
+					e.catalog.state.setDescriptor(address, &replacement)
+					restore = func() { e.catalog.state.setDescriptor(address, original) }
 				case "epoch":
 					original := e.catalog.state.epoch
 					e.catalog.state.epoch++

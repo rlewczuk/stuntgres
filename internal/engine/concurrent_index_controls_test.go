@@ -249,7 +249,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
 	sourceState, targetState := source.CatalogRead().state, target.CatalogRead().state
 	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.nextRow, target.nextVersion
-	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
 	if target.CatalogRead().state != targetState || source.CatalogRead().state != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
@@ -277,7 +277,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	// TEMP table SQL is outside native admission. Reuse the legitimate
 	// catalog-provider component seam, then exercise real SQL index phases.
 	sessionSQL(t, s, "CREATE TABLE temp_prototype(n INT)")
-	prototype := e.CatalogRead().state.descriptors[roleTableRef(t, e, "temp_prototype").Address].(*relationDescriptor)
+	prototype := e.CatalogRead().MustRelation(roleTableRef(t, e, "temp_prototype").Address)
 	op := transactionOperation(t, s)
 	arrayComponentTemporary(t, e, op, prototype)
 	op.Done()
@@ -286,9 +286,9 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	concurrentUnitError(t, s, "CREATE UNIQUE INDEX CONCURRENTLY retained_ci_temp_index ON retained_ci_temp(n)", "23505")
 	var original *relationDescriptor
 	e.mu.Lock()
-	for _, descriptor := range e.catalog.state.descriptors {
+	for _, descriptor := range e.catalog.state.Descriptors() {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.name == "retained_ci_temp_index" {
-			namespace := e.catalog.state.descriptors[index.namespace].(*namespaceDescriptor)
+			namespace := e.catalog.state.MustNamespace(index.namespace)
 			if namespace.temporary == s.token {
 				original = index
 			}
@@ -302,7 +302,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	retained := e.catalog.state.descriptors[original.address] == original && e.indexRoots[original.address] == nil
+	retained := e.catalog.state.Get(original.address) == original && e.indexRoots[original.address] == nil
 	e.mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
@@ -325,7 +325,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			original, _ := concurrentUnitIndex(t, e, "ui", false, false)
 			base := e.CatalogRead()
 			e.mu.Lock()
-			parent := e.catalog.state.descriptors[original.sqlIndex.parent].(*relationDescriptor)
+			parent := e.catalog.state.MustRelation(original.sqlIndex.parent)
 			store := e.storage[parent.address]
 			snapshot := *store
 			e.mu.Unlock()

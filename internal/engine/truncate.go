@@ -42,7 +42,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *relationDescrip
 // Descendant admission and its final graph fence share the inherited-query
 // consumer's namespace/session-token authority, not child ACL or USAGE checks.
 func truncateOtherTemporary(catalog CatalogRead, relation *relationDescriptor, token ids.SessionToken) (bool, error) {
-	namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor)
+	namespace, ok := catalog.Namespace(relation.namespace)
 	if !ok {
 		return false, ErrCatalogReplaced
 	}
@@ -71,7 +71,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
 				err = ErrCatalogReplaced
 			} else {
-				before, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				before, _ = auth.catalog.Relation(ref.Address)
 				if before == nil {
 					err = ErrCatalogReplaced
 				} else {
@@ -124,7 +124,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
 		var d *relationDescriptor
 		if err == nil {
-			d, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ErrCatalogReplaced
@@ -148,7 +148,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && namespace.temporary == s.op.session.token {
+				if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == s.op.session.token {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {
@@ -165,7 +165,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			children = inheritanceChildren(auth.catalog, ref.Address)
 			if d.partition != nil {
 				for _, address := range d.partition.children {
-					child, ok := auth.catalog.state.descriptors[address].(*relationDescriptor)
+					child, ok := auth.catalog.Relation(address)
 					if !ok {
 						err = ErrCatalogReplaced
 						break
@@ -198,7 +198,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			ref, err = e.resolveRelationReference(auth, target.Name, true)
 		}
 		if err == nil {
-			descriptor, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			descriptor, ok := auth.catalog.Relation(ref.Address)
 			if !ok {
 				err = ErrCatalogReplaced
 			} else {
@@ -252,14 +252,14 @@ func compareTruncateAddress(a, b ids.ObjectAddress) int {
 // FK definitions alone decide closure, including empty referencing tables.
 func truncateReferencers(catalog CatalogRead, selected map[ids.ObjectAddress]int) []truncateReferencer {
 	var result []truncateReferencer
-	for address, descriptor := range catalog.state.descriptors {
+	for address, descriptor := range catalog.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || selected[address] != 0 {
 			continue
 		}
 		for _, fk := range d.foreignKeys {
 			if selected[fk.Target] != 0 {
-				parent, _ := catalog.state.descriptors[fk.Target].(*relationDescriptor)
+				parent, _ := catalog.Relation(fk.Target)
 				if parent != nil {
 					result = append(result, truncateReferencer{d, parent})
 				}

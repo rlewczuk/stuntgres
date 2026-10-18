@@ -122,10 +122,10 @@ func TestCommentControls(t *testing.T) {
 	run(t, foreign, "COMMENT ON ROLE owner IS 'foreign'")
 	run(t, foreign, "CREATE TABLE t(v INT)")
 	run(t, foreign, "COMMENT ON TABLE t IS 'imported'")
-	if _, err := e.ReplaceCatalog(context.Background(), foreign.CatalogRead()); err != nil {
+	if _, err := e.ReplaceCatalog(context.Background(), foreign, foreign.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "t"), "imported")
+	commentWant(t, e, e.CatalogRead(), roleTableRef(t, e, "t"), "imported")
 	role, _ = e.Roles().Lookup("owner")
 	if role.Comment != "role" {
 		t.Fatal("import overwrote shared comment", role)
