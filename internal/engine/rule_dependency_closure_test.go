@@ -33,7 +33,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal("missing analyzed domain fixture")
 	}
 	var ruleOID ids.OID
-	for _, rule := range event.rules {
+	for _, rule := range rulesOf(event) {
 		if rule.Name == "r" {
 			ruleOID = rule.OID
 		}
@@ -83,10 +83,10 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.stageRead(stage).MustRelation(event.address)
-	if current.view != event.view || len(current.rules) != 1 || current.rules[0].Name != "keep_r" {
+	if current.view != event.view || len(rulesOf(current)) != 1 || rulesOf(current)[0].Name != "keep_r" {
 		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
 	}
-	if len(event.rules) != 2 {
+	if len(rulesOf(event)) != 2 {
 		t.Fatal("staged retirement mutated published event rules")
 	}
 }

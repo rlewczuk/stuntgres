@@ -399,7 +399,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					return nil, err
 				}
 			}
-			for _, rule := range d.rules {
+			for _, rule := range rulesOf(d) {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}
 				add(owner, d.address, 'a')
 				for _, ref := range rule.references {

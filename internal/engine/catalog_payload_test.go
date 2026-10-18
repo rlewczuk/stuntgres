@@ -59,4 +59,24 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 			t.Fatal("policy dependency", target, want)
 		}
 	}
+
+	if rulesOf(&relationDescriptor{}) != nil || rulesPayloadOf(nil) != nil {
+		t.Fatal("absent rules payload")
+	}
+	empty := &relationDescriptor{rules: rulesPayloadOf([]ruleDefinition{})}
+	if empty.rules == nil || rulesOf(empty) == nil || len(rulesOf(empty)) != 0 {
+		t.Fatal("empty rule list collapsed")
+	}
+	rules := []ruleDefinition{{OID: 40001, Name: "a"}, {OID: 40002, Name: "b"}}
+	withRules := &relationDescriptor{rules: rulesPayloadOf(rules)}
+	if got := rulesOf(withRules); len(got) != 2 || &got[0] != &rules[0] {
+		t.Fatal("rule list identity")
+	}
+	if validateRules(CatalogRead{}, &relationDescriptor{}) != nil {
+		t.Fatal("absent rules rejected")
+	}
+	rules[1].Name = "a"
+	if withRules.rules.Validate(CatalogRead{}, withRules) == nil {
+		t.Fatal("unordered rule names accepted")
+	}
 }

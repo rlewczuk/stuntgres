@@ -217,7 +217,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					continue
 				}
 				var name string
-				for _, rule := range d.rules {
+				for _, rule := range rulesOf(d) {
 					if ruleDepends(provider.base, rule, target) {
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)

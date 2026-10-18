@@ -81,7 +81,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if !ok {
 			continue
 		}
-		if len(d.rules) != 0 {
+		if len(rulesOf(d)) != 0 {
 			var err error
 			d, err = remapRules(view, d, mapping, ref, typ, collation)
 			if err != nil {

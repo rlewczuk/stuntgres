@@ -109,7 +109,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	if d.view != nil && d.view.RuleOID() == id {
 		return true
 	}
-	for _, r := range d.rules {
+	for _, r := range rulesOf(d) {
 		if r.OID == id {
 			return true
 		}
@@ -177,7 +177,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	if d.view != nil {
 		reserved[d.view.RuleOID()] = true
 	}
-	for _, r := range d.rules {
+	for _, r := range rulesOf(d) {
 		reserved[r.OID] = true
 	}
 	for _, p := range d.policies {
@@ -242,7 +242,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
-		for _, r := range d.rules {
+		for _, r := range rulesOf(d) {
 			if err := claim(r.OID); err != nil {
 				return err
 			}
@@ -326,7 +326,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			claimed[d.view.RuleOID()] = true
 		}
 		if ns, ok := next.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
-			for _, r := range d.rules {
+			for _, r := range rulesOf(d) {
 				claimed[r.OID] = true
 			}
 			for _, p := range d.policies {
@@ -410,12 +410,12 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if ns, ok := next.Namespace(old.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies)+len(old.rules) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies)+len(rulesOf(old)) == 0 {
 			continue
 		}
 		d := *old
 		changed, nullCopied, checkCopied, defaultCopied := false, false, false, false
-		for i, r := range old.rules {
+		for i, r := range rulesOf(old) {
 			id, err := remint(r.OID)
 			if err != nil {
 				return err
@@ -423,10 +423,10 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			if id == r.OID {
 				continue
 			}
-			if len(d.rules) != 0 && &d.rules[0] == &old.rules[0] {
-				d.rules = append([]ruleDefinition(nil), old.rules...)
+			if len(rulesOf(&d)) != 0 && &rulesOf(&d)[0] == &rulesOf(old)[0] {
+				d.rules = rulesPayloadOf(append([]ruleDefinition(nil), rulesOf(old)...))
 			}
-			d.rules[i].OID = id
+			rulesOf(&d)[i].OID = id
 			changed = true
 		}
 		for i, p := range old.policies {
@@ -624,7 +624,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		view := e.catalog.read(next)
 		for address, descriptor := range next.Descriptors() {
 			parent, ok := descriptor.(*relationDescriptor)
-			if !ok || len(parent.rules) == 0 {
+			if !ok || len(rulesOf(parent)) == 0 {
 				continue
 			}
 			if namespace, ok := next.Namespace(parent.namespace); ok && namespace.temporary != (ids.SessionToken{}) {

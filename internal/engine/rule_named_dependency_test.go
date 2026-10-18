@@ -32,7 +32,7 @@ func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine,
 
 func ruleNamedDependencyAction(t *testing.T, event *relationDescriptor, modifier bool) (ruleDefinition, *boundInsertConflict) {
 	t.Helper()
-	for _, r := range event.rules {
+	for _, r := range rulesOf(event) {
 		if r.Name != "r" {
 			continue
 		}
@@ -141,19 +141,19 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal(err)
 						}
 						current := e.stageRead(stage).MustRelation(event.address)
-						rules := len(current.rules)
+						rules := len(rulesOf(current))
 						want := 1
 						if inferred {
 							want = 2
 						}
-						if rules != want || current.rules[0].Name != "keep_r" || len(stage.descriptors[parent.address].(*relationDescriptor).uniqueConstraints) != 0 {
-							t.Fatal("retirement changed unrelated rule or missed provider", current.rules)
+						if rules != want || rulesOf(current)[0].Name != "keep_r" || len(stage.descriptors[parent.address].(*relationDescriptor).uniqueConstraints) != 0 {
+							t.Fatal("retirement changed unrelated rule or missed provider", rulesOf(current))
 						}
 						if stage.removals[parent.uniqueConstraints[0].Index].ref.Address != parent.uniqueConstraints[0].Index {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.state != before || len(event.rules) != 2 || len(parent.uniqueConstraints) != 1 {
+					if e.catalog.state != before || len(rulesOf(event)) != 2 || len(parent.uniqueConstraints) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})

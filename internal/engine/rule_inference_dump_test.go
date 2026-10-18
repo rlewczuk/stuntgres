@@ -41,7 +41,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				inputRef := catalogRef(t, e, view, "input")
 				matchingRef := catalogRef(t, e, view, "matching")
 				ordinaryRef := catalogRef(t, e, view, "ordinary")
-				stored := view.MustRelation(srcRef.Address).rules[0]
+				stored := rulesOf(view.MustRelation(srcRef.Address))[0]
 				assertSourceOwnership := func(r ruleDefinition) {
 					t.Helper()
 					if !cte {
@@ -142,7 +142,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].sql)
 				}
 				reboundView := e.CatalogRead()
-				rebound := reboundView.MustRelation(srcRef.Address).rules[0]
+				rebound := rulesOf(reboundView.MustRelation(srcRef.Address))[0]
 				assertSourceOwnership(rebound)
 				assertKey(conflict(rebound), reboundView)
 				assertKey(original, view)

@@ -38,7 +38,7 @@ func ruleCTEProgramError(program ruleProgram) error {
 // inference. Rewrite modifiers before parent rules, without altering providers.
 func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth AuthorizationView, statement parser.Statement, b *binding) error {
 	matched := func(relation *relationDescriptor, statement parser.Statement) bool {
-		return relation != nil && slices.ContainsFunc(relation.rules, func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
+		return relation != nil && slices.ContainsFunc(rulesOf(relation), func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
 	}
 	needed := b.ruleTemplate || matched(bindingRuleRelation(*b), statement)
 	for _, definition := range b.ctes {

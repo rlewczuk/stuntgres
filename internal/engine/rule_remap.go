@@ -282,9 +282,9 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 		}
 	}
 	copy := *d
-	copy.rules = slices.Clone(d.rules)
-	for i := range copy.rules {
-		r := &copy.rules[i]
+	copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
+	for i := range rulesOf(&copy) {
+		r := &rulesOf(&copy)[i]
 		var err error
 		if r.condition != nil {
 			r.condition, _, err = retagBoundTypes(view, r.condition, typ, collation)
@@ -344,7 +344,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 // WITH definitions and their scans coherent without remapping scalar types again.
 func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress) (*relationDescriptor, error) {
 	var replacement *relationDescriptor
-	for i, r := range d.rules {
+	for i, r := range rulesOf(d) {
 		var references []ids.ObjectAddress
 		for j, address := range r.references {
 			if next, ok := mapping[address]; ok && next != address {
@@ -359,7 +359,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 		}
 		if replacement == nil {
 			copy := *d
-			copy.rules = slices.Clone(d.rules)
+			copy.rules = rulesPayloadOf(slices.Clone(rulesOf(d)))
 			replacement = &copy
 		}
 		r.references = references
@@ -390,7 +390,7 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 			}
 			r.actions[j].binding = next
 		}
-		replacement.rules[i] = r
+		rulesOf(replacement)[i] = r
 	}
 	if replacement == nil {
 		return d, nil
@@ -402,14 +402,14 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 	view := e.catalog.read(e.catalog.state)
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || len(d.rules) == 0 {
+		if !ok || len(rulesOf(d)) == 0 {
 			continue
 		}
 		ns, ok := e.catalog.state.Namespace(d.namespace)
 		if !ok || ns.temporary == (ids.SessionToken{}) {
 			continue
 		}
-		for _, rule := range d.rules {
+		for _, rule := range rulesOf(d) {
 			for _, address := range rule.references {
 				address.SubID = 0
 				if pgDependPinned(view, address) {

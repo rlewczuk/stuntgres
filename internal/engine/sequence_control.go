@@ -546,7 +546,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	next.operatorNames = operators.index
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || len(relation.policies) == 0 && len(relation.rules) == 0 {
+		if !ok || len(relation.policies) == 0 && len(rulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -562,7 +562,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			relation = replacement
 		}
-		if len(relation.rules) != 0 {
+		if len(rulesOf(relation)) != 0 {
 			replacement, err := remapRules(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err

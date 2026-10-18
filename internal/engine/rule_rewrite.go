@@ -746,7 +746,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	if current.relationKind != viewRelation {
 		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 	}
-	rules := b.relation.rules
+	rules := rulesOf(b.relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
 	if matched {
 		dependency := expressionDependency{ref: b.ref, revision: current.revision}

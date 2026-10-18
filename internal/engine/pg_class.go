@@ -136,7 +136,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.hasIndexes), boolean(15, shared),
 		text(16, pgClassPersistence(catalog, relation)), text(17, kind), integer(18, int64(relation.attributeHighWater)), integer(19, int64(len(relation.checkConstraints))),
-		boolean(20, len(relation.rules) != 0 || relation.view != nil || relation.relationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.hasSubclasses),
+		boolean(20, len(rulesOf(relation)) != 0 || relation.view != nil || relation.relationKind == catalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.hasSubclasses),
 		boolean(23, relation.rlsEnabled), boolean(24, relation.rlsForced), boolean(25, relation.relationKind != materializedViewRelation || relation.populated),
 		text(26, replica), boolean(27, relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.columns[30].Usage.Type, 0)), acl, options, bound,

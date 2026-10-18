@@ -421,7 +421,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
-	if relation := bindingRuleRelation(b); relation != nil && len(relation.rules) != 0 {
+	if relation := bindingRuleRelation(b); relation != nil && len(rulesOf(relation)) != 0 {
 		program := ruleProgram{count: -1, returning: -1}
 		if _, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err

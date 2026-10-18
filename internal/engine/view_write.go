@@ -182,7 +182,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	cascaded := false
 	for d.relationKind == viewRelation {
 		match := false
-		for _, rule := range d.rules {
+		for _, rule := range rulesOf(d) {
 			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
 				match = true
 				if rule.instead && rule.condition == nil {
@@ -384,7 +384,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		d = source
 		ref = use
 	}
-	for _, rule := range d.rules {
+	for _, rule := range rulesOf(d) {
 		if rule.event == ruleEvent(stmt) && rule.instead && rule.condition == nil && (len(consumed) == 0 || consumed[0] != ref) {
 			w.checks = nil
 			break

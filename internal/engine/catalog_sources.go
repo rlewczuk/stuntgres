@@ -528,7 +528,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			if relation.view != nil {
 				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.view.RuleOID())), text(1, "_RETURN"), oid(2, uint32(relation.address.ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
 			}
-			for _, rule := range relation.rules {
+			for _, rule := range rulesOf(relation) {
 				rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.address.ObjectID)), text(3, ruleEventCode(rule.event)), text(4, "O"), boolean(5, rule.instead)})
 			}
 		default:

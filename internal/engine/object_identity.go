@@ -426,7 +426,7 @@ func ownedAddressName(d *relationDescriptor, a ids.ObjectAddress) (string, int32
 		if d.view != nil && d.view.RuleOID() == a.ObjectID {
 			return "_RETURN", 0
 		}
-		for _, x := range d.rules {
+		for _, x := range rulesOf(d) {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
