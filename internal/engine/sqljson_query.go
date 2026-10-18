@@ -28,7 +28,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
 	}
-	arg, err = b.sqlJSONInput(arg, format, false, false)
+	arg, err = sqlJSONInput(b, arg, format, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -38,15 +38,9 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	}
 	var returning sqltype.Usage
 	if raw.Returning != nil {
-		if raw.Returning.Setof {
-			return nil, sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions")
-		}
-		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true, false)
+		returning, err = sqlJSONReturningType(b, *raw.Returning)
 		if err != nil {
 			return nil, err
-		}
-		if functions.JSONReturningPseudoType(returning.Type) {
-			return nil, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 		}
 		id = sqltype.JSON
 		if returning.Type.ID() == sqltype.JSONB {

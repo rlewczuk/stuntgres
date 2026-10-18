@@ -2582,7 +2582,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.JSONPredicateExpr:
 			var err error
-			node, err = b.bindJSONPredicate(r)
+			node, err = bindJSONPredicate(b, r)
 			if err != nil {
 				return nil, err
 			}

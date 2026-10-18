@@ -68,7 +68,11 @@ func (e sqlJSONExpression) reconstruct(info expr.Info, args []expr.Expr) (expr.E
 	e.Info, e.args, e.plan = info, args, plan
 	return e, nil
 }
-func (b *expressionBinder) sqlJSONInput(arg expr.Expr, format *parser.JSONFormat, implicit, unique bool) (expr.Expr, error) {
+
+// sqlJSONInput applies a constructor argument's FORMAT JSON clause, or the
+// implicit JSON input of JSON() and JSON_SERIALIZE(): JSON and JSONB pass
+// through, string and bytea inputs convert explicitly to JSON.
+func sqlJSONInput(b functions.Binder, arg expr.Expr, format *parser.JSONFormat, implicit, unique bool) (expr.Expr, error) {
 	base := arg.ResultUsage().Type.BaseType()
 	if format == nil && !implicit {
 		return arg, nil
@@ -91,90 +95,122 @@ func (b *expressionBinder) sqlJSONInput(arg expr.Expr, format *parser.JSONFormat
 		}
 		return nil, expr.ErrorAt("42846", "cannot cast type "+base.DiagnosticName()+" to json", arg.SourcePosition())
 	}
-	plan, err := sqltype.PlanJSONFormattedInput(arg.ResultUsage(), b.typ(sqltype.JSON).Usage(), encoding)
+	target := b.Type(sqltype.JSON).Usage()
+	plan, err := sqltype.PlanJSONFormattedInput(arg.ResultUsage(), target, encoding)
 	if err != nil {
 		return nil, err
 	}
 	if unique {
-		plan, err = sqltype.PlanJSONUniqueInput(arg.ResultUsage(), b.typ(sqltype.JSON).Usage(), encoding)
+		plan, err = sqltype.PlanJSONUniqueInput(arg.ResultUsage(), target, encoding)
 		if err != nil {
 			return nil, err
 		}
 	}
-	info, err := b.coercionInfo(b.info(b.typ(sqltype.JSON).Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg)
-	if err != nil {
-		return nil, err
-	}
-	return coercionExpression{info, arg, plan, sqltype.Explicit, false}, nil
+	return b.CoerceArgument(functions.Argument{Expression: arg, Usage: arg.ResultUsage()}, functions.CoercionRequest{Intent: functions.JSONFormattedArgument, Target: target, Plan: plan, Planned: true})
 }
+
+// sqlJSONReturningType resolves a SQL/JSON RETURNING clause, rejecting SETOF
+// and pseudo-types.
+func sqlJSONReturningType(b functions.Binder, raw parser.TypeName) (sqltype.Usage, error) {
+	if raw.Setof {
+		return sqltype.Usage{}, sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions")
+	}
+	returning, err := b.JSONReturningType(raw)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	if functions.JSONReturningPseudoType(returning.Type) {
+		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
+	}
+	return returning, nil
+}
+
+// bindSQLJSON binds a SQL/JSON constructor. The query form of JSON_ARRAY is a
+// subquery; the other forms bind as a constructor whose RETURNING clause the
+// engine applies as an assignment coercion.
 func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error) {
-	kind := sqlJSONKind(raw.Kind)
-	if kind == 0 {
+	if sqlJSONKind(raw.Kind) == 0 {
 		return nil, fmt.Errorf("invalid SQL/JSON constructor")
 	}
 	if raw.Query != nil {
 		return b.bindSQLJSONArrayQuery(raw)
 	}
+	node, returning, err := bindSQLJSONConstructor(b, raw)
+	if err != nil {
+		return nil, err
+	}
+	if returning.Type == nil {
+		return node, nil
+	}
+	if err = b.captureTypeDiagnosticInput(returning.Type); err != nil {
+		return nil, err
+	}
+	plan, err := functions.JSONReturningCoercion(node.ResultUsage(), returning, raw.Output)
+	if err != nil {
+		return nil, err
+	}
+	info, err := b.coercionInfo(b.info(returning, raw.Pos, coercionProperties(node, plan)), node)
+	if err != nil {
+		return nil, err
+	}
+	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
+}
+
+// bindSQLJSONConstructor binds a constructor without its query form and
+// returns its RETURNING usage (zero when absent) for the caller to apply.
+func bindSQLJSONConstructor(b functions.Binder, raw parser.SQLJSONExpr) (expr.Expr, sqltype.Usage, error) {
+	kind := sqlJSONKind(raw.Kind)
 	if kind >= sqltype.SQLJSONParse && len(raw.Args) != 1 || kind == sqltype.SQLJSONObject && len(raw.Args)%2 != 0 {
-		return nil, expr.ErrorAt("42601", "invalid SQL/JSON constructor arguments", raw.Pos)
+		return nil, sqltype.Usage{}, expr.ErrorAt("42601", "invalid SQL/JSON constructor arguments", raw.Pos)
 	}
 	if kind == sqltype.SQLJSONScalar && raw.Returning != nil {
-		return nil, expr.ErrorAt("42601", "syntax error at or near \"RETURNING\"", raw.Returning.Pos)
+		return nil, sqltype.Usage{}, expr.ErrorAt("42601", "syntax error at or near \"RETURNING\"", raw.Returning.Pos)
 	}
 	var returning sqltype.Usage
 	var err error
 	if raw.Returning != nil {
-		if raw.Returning.Setof {
-			return nil, sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions")
-		}
-		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true, false)
+		returning, err = sqlJSONReturningType(b, *raw.Returning)
 		if err != nil {
-			return nil, err
-		}
-		if functions.JSONReturningPseudoType(returning.Type) {
-			return nil, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
+			return nil, sqltype.Usage{}, err
 		}
 	}
 	args := make([]expr.Expr, len(raw.Args))
 	properties := expr.Properties{Volatility: expr.Immutable}
 	id := sqltype.JSON
 	for i, child := range raw.Args {
-		operand, err := b.comparisonOperand(child)
+		operand, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
-			return nil, err
+			return nil, sqltype.Usage{}, err
 		}
-		arg := operand.node
-		if kind == sqltype.SQLJSONObject && i%2 == 0 && operand.descriptor() == nil {
-			if parameter, ok := arg.(parameterExpression); ok {
-				b.anyParameters = append(b.anyParameters, parameter)
-				args[i] = arg
-				properties = expr.MergeProperties(properties, arg.Properties())
-				continue
-			}
+		arg := operand.Expression
+		if kind == sqltype.SQLJSONObject && i%2 == 0 && b.RetainUntypedParameter(arg) {
+			args[i] = arg
+			properties = expr.MergeProperties(properties, arg.Properties())
+			continue
 		}
-		if operand.descriptor() == nil {
-			arg, err = b.finalizeOperand(operand, b.typ(sqltype.Text))
+		if operand.Usage.Type == nil {
+			arg, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.Type(sqltype.Text).Usage()})
 			if err != nil {
-				return nil, err
+				return nil, sqltype.Usage{}, err
 			}
 		}
 		if raw.Unique && kind == sqltype.SQLJSONParse && arg.ResultUsage().Type.BaseType().ID() != sqltype.Bytea && !sqltype.StringCategory(arg.ResultUsage().Type.BaseType().ID()) {
-			return nil, expr.ErrorAt("42804", "cannot use non-string types with WITH UNIQUE KEYS clause", raw.Pos)
+			return nil, sqltype.Usage{}, expr.ErrorAt("42804", "cannot use non-string types with WITH UNIQUE KEYS clause", raw.Pos)
 		}
 		var format *parser.JSONFormat
 		if i < len(raw.Formats) {
 			format = raw.Formats[i]
 		}
-		arg, err = b.sqlJSONInput(arg, format, kind == sqltype.SQLJSONParse || kind == sqltype.SQLJSONSerialize, raw.Unique && kind == sqltype.SQLJSONParse)
+		arg, err = sqlJSONInput(b, arg, format, kind == sqltype.SQLJSONParse || kind == sqltype.SQLJSONSerialize, raw.Unique && kind == sqltype.SQLJSONParse)
 		if err != nil {
-			return nil, err
+			return nil, sqltype.Usage{}, err
 		}
 		if arg.ResultUsage().Type.ID() == sqltype.JSONB && !(kind == sqltype.SQLJSONObject && i%2 == 0) {
 			id = sqltype.JSONB
 		}
 		args[i] = arg
 		if arg.ResultUsage().Type.ContainsCatalogIdentifier() {
-			b.regclassConcat = true
+			b.NoteCatalogText()
 		}
 		properties = expr.MergeProperties(properties, arg.Properties())
 		base := arg.ResultUsage().Type.BaseType()
@@ -185,17 +221,17 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 		}
 	}
 	if err := functions.ValidateJSONOutputFormat(returning, raw.Output); err != nil {
-		return nil, err
+		return nil, sqltype.Usage{}, err
 	}
 	if kind == sqltype.SQLJSONSerialize {
 		if returning.Type == nil {
-			returning = b.typ(sqltype.Text).Usage()
+			returning = b.Type(sqltype.Text).Usage()
 		}
 		base := returning.Type.BaseType()
 		if base.ID() != sqltype.Bytea && !sqltype.StringCategory(base.ID()) {
 			d := sqlError("42804", "cannot use type "+returning.Type.DiagnosticName()+" in RETURNING clause of JSON_SERIALIZE()").(*sqlstate.Error)
 			d.Hint = "Try returning a string type or bytea."
-			return nil, d
+			return nil, sqltype.Usage{}, d
 		}
 	}
 	if kind >= sqltype.SQLJSONParse {
@@ -210,26 +246,11 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if raw.Output != nil {
 		id = sqltype.JSON
 	}
-	usage := b.typ(id).Usage()
-	node, err := (sqlJSONExpression{raw: raw}).reconstruct(b.info(usage, raw.Pos, properties), args)
+	node, err := (sqlJSONExpression{raw: raw}).reconstruct(b.Info(b.Type(id).Usage(), raw.Pos, properties), args)
 	if err != nil {
-		return nil, err
+		return nil, sqltype.Usage{}, err
 	}
-	if returning.Type == nil {
-		return node, nil
-	}
-	if err = b.captureTypeDiagnosticInput(returning.Type); err != nil {
-		return nil, err
-	}
-	plan, err := functions.JSONReturningCoercion(usage, returning, raw.Output)
-	if err != nil {
-		return nil, err
-	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, coercionProperties(node, plan)), node)
-	if err != nil {
-		return nil, err
-	}
-	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
+	return node, returning, nil
 }
 
 type jsonPredicateExpression struct {
@@ -260,21 +281,21 @@ func (e jsonPredicateExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Boolean(e.Usage.Type, truth), nil
 }
-func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (expr.Expr, error) {
-	operand, err := b.comparisonOperand(raw.Child)
+func bindJSONPredicate(b functions.Binder, raw parser.JSONPredicateExpr) (expr.Expr, error) {
+	operand, err := b.AnalyzeArgument(raw.Child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil {
 		return nil, err
 	}
-	child := operand.node
-	if operand.descriptor() == nil {
-		child, err = b.finalizeOperand(operand, b.typ(sqltype.Text))
+	child := operand.Expression
+	if operand.Usage.Type == nil {
+		child, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.Type(sqltype.Text).Usage()})
 		if err != nil {
 			return nil, err
 		}
 	}
 	typ := child.ResultUsage().Type
 	if typ.ID() != sqltype.JSON && typ.ID() != sqltype.JSONB && typ.ID() != sqltype.Bytea && !sqltype.StringCategory(typ.ID()) {
-		return nil, sqlError("42804", "cannot use type "+b.diagnosticTypeName(typ)+" in IS JSON predicate")
+		return nil, sqlError("42804", "cannot use type "+b.DiagnosticTypeName(typ)+" in IS JSON predicate")
 	}
-	return jsonPredicateExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
+	return jsonPredicateExpression{Info: b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
 }
