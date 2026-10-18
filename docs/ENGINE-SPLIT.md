@@ -250,8 +250,9 @@ Every step follows the same three phases. Each commit keeps the build green.
 
 Tooling for the mechanical parts:
 
-- `gopls rename` exports fields and renames identifiers across the package,
-  including tests.
+- `gopls rename` renames single identifiers across the package, including
+  tests. For hundreds of fields, a `go/types` tool with a before/after
+  reference census is much faster (5d).
 - `gofmt -r` rewrites simple expression patterns.
 - A short script converts the typed map-lookup pattern (§5.5) to accessors.
 - The dependency-graph tool from the appendix re-checks for cycles before each
@@ -595,11 +596,14 @@ Done; see the prompt file's 5c results. Expression payloads were already
 
 **5d — Export descriptor fields.**
 
-- Run `gopls rename` per field. `relationDescriptor` alone has 7,800 field uses
-  in 357 files, so this must be tooled.
+- Export the fields with a tool. `relationDescriptor` alone has 7,800 field
+  uses in 357 files.
 - Descriptors are immutable value records, so exported fields are idiomatic.
 - Fields that collide with `Descriptor` interface methods (`address`, `name`,
   `namespace`, `revision`) are read through those methods.
+
+Done; see the prompt file's 5d results. A `go/types` tool replaced
+per-field `gopls rename`; the identity fields are `Object*`.
 
 **5e — Move.**
 
@@ -717,7 +721,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 eight of nine switches done (deparse and node tree through `expr.Rendering`); F2 stored scalar SQL next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a–5c done; 5d next |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a–5d done; 5e next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |

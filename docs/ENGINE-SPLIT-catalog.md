@@ -77,9 +77,9 @@ provider registry, validation of core kinds, and a pure copy-on-write overlay
 - Decide the exported type names first, for example `relationDescriptor`
   becoming `catalog.Relation` and `catalogState` becoming `catalog.State`.
   Record them here.
-- Export fields one at a time with `gopls rename`. `relationDescriptor` alone
-  had about 7,800 field uses in 357 files at `a2252c0b1`, so this must be
-  tooled.
+- Export the fields with a tool. `relationDescriptor` alone had about 7,800
+  field uses in 357 files at `a2252c0b1`. Done with a `go/types` tool rather
+  than `gopls rename` per field (see 5d results).
 - Fields that collide with `Descriptor` interface methods (`address`, `name`,
   `namespace`, `revision`) are read through those methods.
 - This is a broad rewrite: do not run it in parallel with another (§8).
@@ -170,13 +170,32 @@ startup regression. 5f completes the step; 5g is optional.
 - [x] 5c — View, rule, policy, extension-provider and expression payload
   seams (`3f4eb275c`, `0559a8d7b`, `1e2576d18`, `b4d7e495b`, then the commit
   that records this status) *(racecheck skipped at user request)*
-- [ ] 5d — Descriptor names decided, fields exported
+- [x] 5d — Descriptor names decided, fields exported (`a7c3461ce`,
+  `b69a715b2`, `31ca756a9`, `4a6055b85`, then the commit that records this
+  status) *(racecheck skipped at user request)*
 - [ ] 5e — `catalog` created, types moved, `Candidate` split from
   `CatalogStage`
 - [ ] 5f — Aliases removed
 - [ ] 5g — Optional `relationDescriptor` regrouping
 
-Exported names chosen: none yet.
+Exported names chosen (5d; applied by 5e's move, with engine aliases):
+
+| Engine name | Catalog name |
+|---|---|
+| `namespaceDescriptor`, `relationDescriptor`, `databaseDescriptor`, `extensionDescriptor`, `procedureDescriptor`, `operatorDescriptor`, `parameterDescriptor`, `tablespaceDescriptor`, `typeDescriptor`, `collationDescriptor`, `conversionDescriptor` | the kind without the suffix: `catalog.Namespace`, `Relation`, `Database`, `Extension`, `Procedure`, `Operator`, `Parameter`, `Tablespace`, `Type`, `Collation`, `Conversion` |
+| `tsTemplateDescriptor`, `tsDictionaryDescriptor` | `catalog.TSTemplate`, `catalog.TSDictionary` |
+| `foreignDescriptor` (wrappers, servers, user mappings) | `catalog.ForeignObject` |
+| `ColumnDescriptor` | `catalog.Column` (the engine alias keeps the public name) |
+| `catalogState`, `CatalogRead`, `catalogOwner` | `catalog.State`, `catalog.Read`, `catalog.Owner` |
+| records, enums and payload interfaces | CamelCase of the engine name: `checkConstraint` → `CheckConstraint`, `relationKind` → `RelationKind`, `viewPayload` → `ViewPayload`, `extensionImplementation` → `ExtensionImplementation`, `defaultACLRecord` → `DefaultACLRecord` |
+
+Field names: the engine name capitalized, with Go initialisms on the
+leading word (`acl` → `ACL`, `columnACL` → `ColumnACL`, `oid` → `OID`,
+`sqlIndex` → `SQLIndex`, `rlsEnabled` → `RLSEnabled`, `id` → `ID`,
+`ctype` → `CType`), and `typ` → `SQLType` (so `catalog.Type` has no `Type`
+field). The descriptor identity fields that collide with the `Descriptor`
+methods are `ObjectAddress`, `ObjectNamespace`, `ObjectName` and
+`ObjectRevision` (user decision).
 
 Outstanding aliases: none yet.
 
@@ -368,7 +387,67 @@ Outstanding aliases: none yet.
   both master and branch runs (1.5–2.2 ms), with the quiet baseline at about
   1.52 ms. `make deps` lists only module paths; imports are unchanged.
 
+5d results:
+
+- **Scope.** Measured on `423c4a9da`: the catalog closure (the 14
+  descriptor kinds, `catalogState` and `CatalogRead`, followed through
+  fields and interface method signatures, stopping at `Engine`,
+  `CatalogStage`, `Session`, `StatementScope`, `EvalContext`, `binding`,
+  `viewDefinition` and `ruleDefinition`) is 71 structs, 8 interfaces and 11
+  other named types. 387 unexported fields on 57 structs were exported:
+  43 on `relationDescriptor`, 87 on the other descriptors, 211 on records
+  and 46 identity fields. `catalogState` and `CatalogRead` keep their
+  fields unexported: they are catalog-private ("Done when"), and
+  `descriptors`/`names` collide with the 5b iterators. `ColumnDescriptor`,
+  `uniqueConstraint`, `exclusionConstraint`, `foreignKeyConstraint` and the
+  public FDW structs were already exported. No closure struct has an
+  embedded field.
+- **Identity fields.** Reads go through the `Descriptor` method wherever
+  the method only returns the field (6,007 sites, including map-literal
+  keys). Writes, increments, address-taking uses and the getter bodies keep
+  the field. `typeDescriptor.namespace`/`revision` and
+  `collationDescriptor.namespace`/`revision` keep raw reads under the new
+  name because their methods default or derive the value.
+- **Tool.** Deviation from the plan: a `go/types` rewrite tool (scratchpad
+  `fieldx`, modes `closure`, `plan`, `apply -group`) instead of
+  `gopls rename` per field. `gopls references` alone took about 8 s per
+  field, and gopls cannot turn identity reads into method calls. The tool
+  renames every definition, selector and composite-literal key of a
+  field, field doc comments that open with the old name and qualified
+  `Type.field` mentions in comments and design notes, checks new names
+  against the type's fields and methods, then re-type-checks and compares
+  the use count of every object before and after. Any reference that
+  changed its target would abort the run. 32,130 edits in 1,030 files
+  (557 test files); the diff is a pure rename (17,969 lines each way).
+- **Tests.** Adapted mechanically by the same tool; none moved, deleted or
+  rewritten by hand.
+- **Verification.** `quickcheck` passed after each commit. Targeted
+  catalog, typed-read, payload, extension, sequence, rename and revision
+  selections passed. `racecheck` skipped at the user's request; no
+  `REFERENCE=1` selection is required for a pure rename. `make bench`:
+  7,768 allocations and about 2.07 MB/op on both `master` and the branch.
+  ns/op was noisy because other sessions loaded the machine (load average
+  12–25). In interleaved runs the best was 1.510 ms on `master` and
+  1.515 ms on the branch, with medians of about 1.53 and 1.60 ms. That is
+  over the <1 ms target, which `master` already misses. `make deps` lists
+  only module paths. Imports are unchanged.
+
 Notes for later steps:
+
+- 5e: 38 unexported methods on closure types (for example `hasAttribute`,
+  `indexForAttribute`, `signature`, `stored`) and the enum constants still
+  need exported names, or must stay behind engine functions, when the types
+  move. Decide per method by its callers.
+- 5e: engine code reads `CatalogRead.owner` and builds `catalogState`
+  literals; both need catalog accessors or constructors after the move.
+  `catalogOwner`'s fields are exported, so the engine can still build it.
+- 5e: the public FDW types (`ForeignDataWrapper`, `ForeignScan`,
+  `ForeignOption`, ...) are in the closure; the move needs aliases in the
+  engine for the root package.
+- 5f and later broad rewrites: the `fieldx` approach (rename table, then
+  a before/after per-object use census) is fast (about 10 s per run on the
+  engine package) and catches shadowing; prefer it to per-identifier
+  gopls runs.
 
 - 5e: the payload methods take `CatalogRead` and `*relationDescriptor`,
   which become `catalog.Read` and the exported relation type when the
