@@ -2495,7 +2495,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					b.aggregates, b.windowCalls = parentAggregates, parentWindows
 				}
 			}()
-			if hypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
+			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
 				if r.Window != nil {
 					var err error
 					node, err = b.bindWindow(r, name)
@@ -2516,10 +2516,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
 			}
-			if r.Within && !orderedSetName(r.Name) {
+			if r.Within && !functions.OrderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
 			}
-			if r.Window != nil && !orderedSetName(r.Name) {
+			if r.Window != nil && !functions.OrderedSetName(r.Name) {
 				var err error
 				node, err = b.bindWindow(r, name)
 				if err != nil {
@@ -2584,10 +2584,6 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			var returning sqltype.Usage
 			if definition, ok := functions.LookupAggregate(r.Name); ok {
 				node, returning, err = b.bindRegisteredAggregate(r, name, definition)
-			} else if hypotheticalSetName(r.Name) {
-				node, err = b.bindHypotheticalSet(r, name)
-			} else if orderedSetName(r.Name) {
-				node, err = b.bindOrderedSet(r, name)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
 			} else {

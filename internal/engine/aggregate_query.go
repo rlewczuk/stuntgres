@@ -331,7 +331,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		for p, call := range n.calls {
 			var value sqltype.Value
 			var err error
-			if provider, ordered := call.provider.(orderedSetFinalizer); ordered {
+			if provider, ordered := call.provider.(functions.OrderedAggregate); ordered {
 				direct := directValues[2 : 2+len(call.direct)]
 				for j, expr := range call.direct {
 					direct[j], err = expr.Eval(&evaluation)
@@ -342,17 +342,16 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 						return indexedStage{}, err
 					}
 				}
-				var prepared orderedSetPreparation
+				var prepared functions.OrderedPreparation
 				prepared, err = provider.PrepareOrdered(ctx, direct, len(group.ordered[p])/call.stageWidth)
 				if err == nil {
-					if prepared.terminal {
-						value = prepared.value
+					if prepared.Terminal {
+						value = prepared.Value
 					} else {
 						var input orderedAggregateInput
 						input, err = sortOrderedAggregate(ctx, state, call, group.ordered[p])
-						input.target = directValues[:2+len(call.direct)]
 						if err == nil {
-							value, err = provider.FinalizeOrdered(ctx, prepared, input, state.input)
+							value, err = provider.FinalizeOrdered(ctx, prepared, input.borrowed(directValues[:2+len(call.direct)]), state.input)
 						}
 					}
 				}
@@ -410,6 +409,25 @@ func findQueryGroup(ctx context.Context, grouping []queryGrouping, keys []sqltyp
 		}
 	}
 	return -1, ctx.Err()
+}
+
+// orderedAggregateInput is the sorted view of one call's staged group input;
+// replay and ordered-set finalization borrow it.
+type orderedAggregateInput struct {
+	values  []sqltype.Value
+	indices []int
+	width   int
+	order   []sortKey
+}
+
+// borrowed lends the sorted input to an ordered-set provider, with the
+// hypothetical target row and the call's tuple ordering.
+func (in orderedAggregateInput) borrowed(target []sqltype.Value) functions.OrderedInput {
+	order := in.order
+	return functions.OrderedInput{Values: in.values, Indices: in.indices, Width: in.width, Target: target,
+		Compare: func(ctx context.Context, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
+			return compareOrderedAggregateTuple(ctx, order, left, right, env)
+		}}
 }
 
 func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, tuples []sqltype.Value) (orderedAggregateInput, error) {

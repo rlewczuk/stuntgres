@@ -166,7 +166,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 		resultUsage = b.typ(sqltype.Int4).Usage()
-	} else if hypotheticalSetName(raw.Name) {
+	} else if functions.HypotheticalSetName(raw.Name) {
 		if _, err := b.bindAggregateFilter(raw); err != nil {
 			return nil, err
 		}
@@ -218,7 +218,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
+	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || functions.HypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -227,7 +227,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || functions.HypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -250,7 +250,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !hypotheticalSetName(raw.Name) && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
+	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !functions.HypotheticalSetName(raw.Name) && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
 	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}

@@ -804,29 +804,17 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 			copy.calls[i].routine = ref(call.routine)
 			switch p := call.provider.(type) {
-			case *hypotheticalSetProvider:
-				copy.calls[i].provider = &hypotheticalSetProvider{usage: usage(p.usage), operation: p.operation}
-			case *orderedSetProvider:
-				provider := *p
-				p = &provider
-				p.usage = usage(p.usage)
-				p.input, p.fraction = typ(p.input), typ(p.fraction)
+			case *functions.HypotheticalSet:
+				copy.calls[i].provider = functions.NewHypotheticalSet(usage(p.ResultUsage()), p.Operation())
+			case *functions.OrderedSet:
+				result, input, fraction := usage(p.ResultUsage()), typ(p.InputType()), typ(p.FractionType())
+				var comparison sqltype.Comparison
 				if err == nil {
-					inputUsage := usage(call.argument.ResultUsage())
-					if err == nil {
-						p.comparison, err = sqltype.BindOrdering(inputUsage)
-					}
+					comparison, err = sqltype.BindOrdering(usage(call.argument.ResultUsage()))
 				}
-				if err == nil && p.operation == functions.AggregatePercentileCont && p.input.ID() == sqltype.Interval {
-					p.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, p.input, p.input, p.input)
-					if err == nil {
-						p.multiply, err = sqltype.BindArithmetic(sqltype.ArithmeticMultiply, p.input, p.fraction, p.input)
-					}
-					if err == nil {
-						p.add, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, p.input, p.input, p.input)
-					}
+				if err == nil {
+					copy.calls[i].provider, err = functions.NewOrderedSet(result, input, fraction, p.Operation(), p.Array(), comparison)
 				}
-				copy.calls[i].provider = p
 			case functions.CountProvider:
 				copy.calls[i].provider = functions.NewCountProvider(usage(p.ResultUsage()))
 			case functions.BooleanAggregateProvider:
@@ -938,7 +926,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					copy.calls[i].distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
 				}
 				if err == nil {
-					_, err = aggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)
+					_, err = functions.AggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)
 				}
 			}
 			copy.calls[i].order = append([]sortKey(nil), call.order...)
@@ -953,7 +941,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					} else if key.slot >= 2 {
 						usage = copy.calls[i].order[key.slot-2].expression.ResultUsage()
 					}
-					copy.calls[i].order[k].comparison, err = aggregateOrdering(usage, key.expression.SourcePosition(), false)
+					copy.calls[i].order[k].comparison, err = functions.AggregateOrdering(usage, key.expression.SourcePosition(), false)
 				}
 			}
 		}

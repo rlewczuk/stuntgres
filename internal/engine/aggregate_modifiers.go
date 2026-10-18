@@ -19,31 +19,6 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundE
 	return b.bindBoolean(raw.Filter, projectionContext, "FILTER")
 }
 
-func aggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) (sqltype.Comparison, error) {
-	base := usage.Type.BaseType()
-	if base.IsArray() || base.IsComposite() || base.ID() == sqltype.PgNodeTree ||
-		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
-		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange || base.ID() == sqltype.TimestamptzRange ||
-		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
-		kind := "ordering"
-		if distinct {
-			kind = "DISTINCT"
-		}
-		return sqltype.Comparison{}, expressionError("0A000", "aggregate "+kind+" is unsupported for type "+base.DiagnosticName(), pos)
-	}
-	comparison, err := sqltype.BindOrdering(usage)
-	if d, ok := err.(*sqlstate.Error); ok {
-		copy := *d
-		copy.Position = fmt.Sprint(pos.Character)
-		if distinct {
-			copy.Hint = ""
-			copy.Detail = "Aggregates with DISTINCT must be able to sort their inputs."
-		}
-		return sqltype.Comparison{}, &copy
-	}
-	return comparison, err
-}
-
 // SQL99 ignores implicit coercion of an existing target, not explicit casts.
 func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) bool {
 	for {
@@ -66,14 +41,14 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 	}
-	if _, ordered := call.provider.(orderedSetFinalizer); !ordered {
+	if _, ordered := call.provider.(functions.OrderedAggregate); !ordered {
 		call.order = make([]sortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 && call.stageWidth == 0 {
 		call.stageWidth = 2
 	}
 	for i, key := range raw.Order {
-		if _, ordered := call.provider.(orderedSetFinalizer); ordered {
+		if _, ordered := call.provider.(functions.OrderedAggregate); ordered {
 			break
 		}
 		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
@@ -114,7 +89,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, d
 		}
 		// Positions in the order list always belong to the original occurrence.
-		comparison, err := aggregateOrdering(expression.ResultUsage(), key.Pos, false)
+		comparison, err := functions.AggregateOrdering(expression.ResultUsage(), key.Pos, false)
 		if err != nil {
 			return nil, err
 		}
@@ -126,9 +101,9 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			}
 		}
 		if slot == 0 {
-			comparison, err = aggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
 		} else if slot == 1 {
-			comparison, err = aggregateOrdering(call.separator.ResultUsage(), key.Pos, false)
+			comparison, err = functions.AggregateOrdering(call.separator.ResultUsage(), key.Pos, false)
 		}
 		if err != nil {
 			return nil, err
@@ -181,7 +156,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			if err != nil {
 				return nil, err
 			}
-			if _, err := aggregateOrdering(arg.ResultUsage(), pos, true); err != nil {
+			if _, err := functions.AggregateOrdering(arg.ResultUsage(), pos, true); err != nil {
 				return nil, err
 			}
 			call.distinct[i] = grouping

@@ -140,4 +140,13 @@ type AggregateBinder interface {
 	// type search path, propagating lookup errors; other types use their
 	// diagnostic name, and nil is "unknown".
 	DomainTypeName(*sqltype.Descriptor) (string, error)
+	// CollationName spells a collation for diagnostics through the binding
+	// catalog.
+	CollationName(uint32) string
+	// CommonArgumentUsage is PostgreSQL's labeled common-type selection over
+	// analyzed operands (select_common_type), reporting the label's 42804.
+	CommonArgumentUsage(operands []Argument, label string) (sqltype.Usage, error)
+	// CollationRelabel wraps child in the engine's metadata-only node that
+	// presents info's usage and collation without converting values.
+	CollationRelabel(child expr.Expr, info expr.Info) expr.Expr
 }

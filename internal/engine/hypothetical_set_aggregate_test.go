@@ -14,7 +14,28 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ...string) (hypotheticalSetProvider, orderedAggregateInput) {
+// hypotheticalUnit is a sorted hypothetical-set input with the engine's
+// tuple ordering; borrowed lends it to the provider as execution does.
+type hypotheticalUnit struct {
+	values  []sqltype.Value
+	indices []int
+	width   int
+	order   []sortKey
+	target  []sqltype.Value
+}
+
+func (in hypotheticalUnit) len() int { return len(in.indices) }
+
+func (in hypotheticalUnit) tuple(i int) []sqltype.Value {
+	start := in.indices[i] * in.width
+	return in.values[start : start+in.width]
+}
+
+func (in hypotheticalUnit) borrowed() functions.OrderedInput {
+	return orderedAggregateInput{values: in.values, indices: in.indices, width: in.width, order: in.order}.borrowed(in.target)
+}
+
+func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ...string) (*functions.HypotheticalSet, hypotheticalUnit) {
 	t.Helper()
 	catalog := New().CatalogRead()
 	input, _ := catalog.LookupType(id)
@@ -23,7 +44,7 @@ func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ..
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := orderedAggregateInput{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []sortKey{{comparison: comparison, cache: 2, slot: -1}}}
+	in := hypotheticalUnit{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []sortKey{{comparison: comparison, cache: 2, slot: -1}}}
 	parse := func(text string) sqltype.Value {
 		if text == "NULL" {
 			return sqltype.Null(input)
@@ -39,7 +60,7 @@ func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ..
 		in.values[3*i+2] = parse(text)
 		in.indices[i] = i
 	}
-	return hypotheticalSetProvider{usage: result.Usage(), operation: functions.AggregateHypotheticalRank}, in
+	return functions.NewHypotheticalSet(result.Usage(), functions.AggregateHypotheticalRank), in
 }
 
 func TestHypotheticalAggregateTupleEquality(t *testing.T) {
@@ -93,17 +114,17 @@ func TestHypotheticalAggregateFormulasAndBorrowing(t *testing.T) {
 		before := append([]sqltype.Value(nil), in.values...)
 		target := append([]sqltype.Value(nil), in.target...)
 		for i, op := range []functions.AggregateOperation{functions.AggregateHypotheticalRank, functions.AggregateHypotheticalDenseRank, functions.AggregateHypotheticalPercentRank, functions.AggregateHypotheticalCumeDist} {
-			p.operation = op
 			id := sqltype.Int8
 			if i >= 2 {
 				id = sqltype.Float8
 			}
-			p.usage.Type, _ = New().CatalogRead().LookupType(id)
-			out, err := p.FinalizeOrdered(context.Background(), orderedSetPreparation{}, in, sqltype.InputEnvironment{})
+			resultType, _ := New().CatalogRead().LookupType(id)
+			p = functions.NewHypotheticalSet(resultType.Usage(), op)
+			out, err := p.FinalizeOrdered(context.Background(), functions.OrderedPreparation{}, in.borrowed(), sqltype.InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			text, err := p.usage.Type.Output(context.Background(), out)
+			text, err := p.ResultUsage().Type.Output(context.Background(), out)
 			if err != nil || text != tc.want[i] {
 				t.Fatal(tc, op, text, err)
 			}
@@ -113,11 +134,11 @@ func TestHypotheticalAggregateFormulasAndBorrowing(t *testing.T) {
 			empty := in
 			empty.indices = nil
 			empty.values = nil
-			out, err = p.FinalizeOrdered(context.Background(), orderedSetPreparation{}, empty, sqltype.InputEnvironment{})
+			out, err = p.FinalizeOrdered(context.Background(), functions.OrderedPreparation{}, empty.borrowed(), sqltype.InputEnvironment{})
 			if err != nil || out.IsNull() {
 				t.Fatal("empty nonnull", err)
 			}
-			text, err = p.usage.Type.Output(context.Background(), out)
+			text, err = p.ResultUsage().Type.Output(context.Background(), out)
 			want := "1"
 			if i == 2 {
 				want = "0"
@@ -257,7 +278,7 @@ func (c *hypotheticalCompareCancelContext) Err() error {
 	for {
 		frame, more := frames.Next()
 		comparison = comparison || strings.HasSuffix(frame.Function, ".Comparison.Compare")
-		provider = provider || strings.HasSuffix(frame.Function, ".(*hypotheticalSetProvider).FinalizeOrdered")
+		provider = provider || strings.HasSuffix(frame.Function, ".(*HypotheticalSet).FinalizeOrdered")
 		if !more {
 			break
 		}
@@ -275,7 +296,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 	for _, phase := range []string{"success", "direct_first", "direct_later", "sort_compare", "placement", "dense_peer", "prepare", "finalize", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			p, in := hypotheticalUnitInput(t, sqltype.Int4, "30", "10", "10", "20")
-			p.operation = functions.AggregateHypotheticalDenseRank
+			p = functions.NewHypotheticalSet(p.ResultUsage(), functions.AggregateHypotheticalDenseRank)
 			input := in.target[2].Type()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -291,9 +312,9 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				compare = &hypotheticalCompareCancelContext{Context: ctx, cancel: cancel, at: at, providerOnly: phase != "sort_compare"}
 				execution = compare
 			case "prepare", "finalize":
-				target := ".(*hypotheticalSetProvider).PrepareOrdered"
+				target := ".(*HypotheticalSet).PrepareOrdered"
 				if phase == "finalize" {
-					target = ".(*hypotheticalSetProvider).FinalizeOrdered"
+					target = ".(*HypotheticalSet).FinalizeOrdered"
 				}
 				family = &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: target}
 				execution = family
@@ -310,16 +331,16 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				}))
 			}
 			key := queryProbe(input.Usage(), func(c *EvalContext) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
-			call := aggregateCall{provider: &p, direct: direct, operation: p.operation, stageWidth: 4, includeNulls: true, order: []sortKey{{expression: key, comparison: in.order[0].comparison, slot: -1, cache: 2}, {expression: key, comparison: in.order[0].comparison, slot: -1, cache: 3}}}
+			call := aggregateCall{provider: p, direct: direct, operation: p.Operation(), stageWidth: 4, includeNulls: true, order: []sortKey{{expression: key, comparison: in.order[0].comparison, slot: -1, cache: 2}, {expression: key, comparison: in.order[0].comparison, slot: -1, cache: 3}}}
 			child := &valuesNode{querySchema: querySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
 				child.rows = append(child.rows, []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: input.Usage()}, value: in.tuple(i)[2]}})
 			}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.usage}}, child: child, calls: []aggregateCall{call}}
-			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: p.usage}, slot: 0, frame: 1}}, frame: 1}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.ResultUsage()}}, child: child, calls: []aggregateCall{call}}
+			root := &projectNode{querySchema: aggregate.querySchema, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{Usage: p.ResultUsage()}, slot: 0, frame: 1}}, frame: 1}
 			if phase == "prepublication" {
 				result := root.expressions[0]
-				root.expressions[0] = queryProbe(p.usage, func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
+				root.expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
 			}
 			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, flat: []sqltype.Value{sqltype.Null(input)}}
 			source := &querySource{sources: []*querySource{owned}}

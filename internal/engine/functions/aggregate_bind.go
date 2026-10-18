@@ -1,8 +1,11 @@
 package functions
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -103,4 +106,31 @@ func firstOperand(operands []Argument) Argument {
 		return Argument{}
 	}
 	return operands[0]
+}
+
+// AggregateOrdering binds the sort comparison of an aggregate ORDER BY,
+// WITHIN GROUP or DISTINCT input, rejecting types without native ordering.
+func AggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) (sqltype.Comparison, error) {
+	base := usage.Type.BaseType()
+	if base.IsArray() || base.IsComposite() || base.ID() == sqltype.PgNodeTree ||
+		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
+		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange || base.ID() == sqltype.TimestamptzRange ||
+		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
+		kind := "ordering"
+		if distinct {
+			kind = "DISTINCT"
+		}
+		return sqltype.Comparison{}, expr.ErrorAt("0A000", "aggregate "+kind+" is unsupported for type "+base.DiagnosticName(), pos)
+	}
+	comparison, err := sqltype.BindOrdering(usage)
+	if d, ok := err.(*sqlstate.Error); ok {
+		copy := *d
+		copy.Position = fmt.Sprint(pos.Character)
+		if distinct {
+			copy.Hint = ""
+			copy.Detail = "Aggregates with DISTINCT must be able to sort their inputs."
+		}
+		return sqltype.Comparison{}, &copy
+	}
+	return comparison, err
 }

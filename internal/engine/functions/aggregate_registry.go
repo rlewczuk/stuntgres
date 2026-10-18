@@ -26,7 +26,7 @@ type AggregateDefinition struct {
 	// Window resolves the signature of a window call of the aggregate with
 	// the same analysis, without building a provider or registering
 	// aggregate state. It returns the coerced argument and the result usage.
-	// count has none: window binding resolves count with row_number.
+	// count and the WITHIN GROUP aggregates have none (see their entries).
 	Window func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error)
 }
 
@@ -47,6 +47,9 @@ var aggregateDefinitions = [...]AggregateDefinition{
 	{Names: jsonArrayAggregateNames[:], BindReturning: bindJSONArrayAggregate, Window: windowJSONArrayAggregate},
 	{Names: jsonObjectAggregateNames[:], BindReturning: bindJSONObjectAggregate, Window: windowJSONObjectAggregate},
 	{Names: []string{"json_objectagg"}, BindReturning: bindJSONObjectAggregate, Window: windowSQLJSONObjectAggregate},
+	// WITHIN GROUP aggregates reject OVER while binding; the rank family's
+	// window calls bind as window functions.
+	{Names: []string{"percentile_cont", "percentile_disc", "mode", "rank", "dense_rank", "percent_rank", "cume_dist"}, Bind: bindOrderedSet},
 }
 
 // LookupAggregate returns the definition that claims an aggregate name.

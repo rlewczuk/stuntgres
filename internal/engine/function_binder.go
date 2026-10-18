@@ -161,6 +161,7 @@ func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functi
 		stageWidth:   call.StageWidth,
 		operation:    call.Operation,
 		includeNulls: call.IncludeNulls,
+		order:        withinGroupOrder(call.Order),
 	}, filter, info)
 	if err != nil || !call.RetainUntypedArgument {
 		return result, err
@@ -201,4 +202,34 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 
 func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
 	return b.engine.resolveAnnotationTypeInput(raw, b.op, false, false, true, true, false)
+}
+
+// withinGroupOrder converts a family's WITHIN GROUP keys: an argument key
+// reads stage slot 0; other keys own the stage slots after value and
+// separator, in key order.
+func withinGroupOrder(keys []functions.AggregateSortKey) []sortKey {
+	if keys == nil {
+		return nil
+	}
+	order := make([]sortKey, len(keys))
+	for i, key := range keys {
+		slot, cache := -1, 2+i
+		if key.Argument {
+			slot, cache = 0, 0
+		}
+		order[i] = sortKey{expression: key.Expression, comparison: key.Comparison, position: key.Key.Pos.Character, desc: key.Key.Desc, nullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, slot: slot, cache: cache}
+	}
+	return order
+}
+
+func (b *expressionBinder) CollationName(id uint32) string { return b.collationName(id) }
+
+func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, label string) (sqltype.Usage, error) {
+	return selectCommonUsage(len(operands), func(i int) comparisonOperand {
+		return comparisonOperand{node: operands[i].Expression, raw: operands[i].Raw}
+	}, b.typ(sqltype.Text).Usage(), label, (*sqltype.Descriptor).DiagnosticName)
+}
+
+func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {
+	return collationExpression{expressionInfo: info, child: child}
 }

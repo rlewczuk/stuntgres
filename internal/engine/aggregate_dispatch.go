@@ -58,3 +58,19 @@ func (b *expressionBinder) valuesAggregateNamespace() func() {
 	}
 	return func() { b.queryNamespace, b.queryHidden = nil, hidden }
 }
+
+// rejectOrdinaryWithin analyzes WITHIN GROUP on an aggregate that is not an
+// ordered-set aggregate as an ordinary call first, so its errors win.
+func (b *expressionBinder) rejectOrdinaryWithin(raw parser.AggregateExpr) (BoundExpr, error) {
+	combined := raw
+	combined.Args = make([]parser.Expr, 0, len(raw.Args)+len(raw.Order))
+	combined.Args = append(combined.Args, raw.Args...)
+	for _, key := range raw.Order {
+		combined.Args = append(combined.Args, key.Expr)
+	}
+	combined.Within, combined.Order, combined.Window = false, nil, nil
+	if _, err := b.bind(combined, expressionPolicy{context: projectionContext}); err != nil {
+		return nil, err
+	}
+	return nil, expressionError("42809", raw.Name+" is not an ordered-set aggregate, so it cannot have WITHIN GROUP", raw.Pos)
+}

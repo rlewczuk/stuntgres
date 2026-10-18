@@ -87,14 +87,14 @@ func TestBitwiseAggregateOrderingBoundary(t *testing.T) {
 	e := New()
 	for _, id := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
 		d, _ := e.CatalogRead().LookupType(id)
-		_, err := aggregateOrdering(d.Usage(), parser.Position{Character: 27}, false)
+		_, err := functions.AggregateOrdering(d.Usage(), parser.Position{Character: 27}, false)
 		diagnostic, ok := err.(*sqlstate.Error)
 		if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "aggregate ordering is unsupported for type "+d.DiagnosticName() || diagnostic.Position != "27" {
 			t.Fatal("structured bit ordering boundary", err)
 		}
 	}
 	d, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	if _, err := aggregateOrdering(d.Usage(), parser.Position{Character: 27}, false); err != nil {
+	if _, err := functions.AggregateOrdering(d.Usage(), parser.Position{Character: 27}, false); err != nil {
 		t.Fatal("independent integer-key ordering changed", err)
 	}
 }

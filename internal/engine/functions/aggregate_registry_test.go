@@ -37,6 +37,7 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		"regr_intercept", "regr_r2", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg",
 		"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique",
 		"jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict", "json_objectagg",
+		"percentile_cont", "percentile_disc", "mode", "rank", "dense_rank", "percent_rank", "cume_dist",
 	}
 	for _, name := range claimed {
 		if _, ok := LookupAggregate(name); !ok {
@@ -44,7 +45,7 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		}
 	}
 	// Matching is exact; the engine keeps intagg and every unported family.
-	for _, name := range []string{"SUM", "Count", "Array_Agg", "int_array_aggregate", "percentile_cont", "mode", "rank", "row_number", "JSON_AGG", "json_object", "jsonb_build_object", "json_array", "sum_", "regr"} {
+	for _, name := range []string{"SUM", "Count", "Array_Agg", "int_array_aggregate", "Mode", "row_number", "ntile", "lag", "first_value", "JSON_AGG", "json_object", "jsonb_build_object", "json_array", "sum_", "regr"} {
 		if _, ok := LookupAggregate(name); ok {
 			t.Errorf("aggregate %q is claimed", name)
 		}
@@ -55,7 +56,7 @@ func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 		if definition.ValuesNamespace != values {
 			t.Errorf("aggregate %q ValuesNamespace = %v", name, definition.ValuesNamespace)
 		}
-		if (definition.Window == nil) != (name == "count") {
+		if (definition.Window == nil) != (name == "count" || OrderedSetName(name)) {
 			t.Errorf("aggregate %q: window signature presence is wrong", name)
 		}
 	}

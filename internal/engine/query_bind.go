@@ -405,7 +405,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
-				result.Nullable = operation != functions.AggregateCount && operation != functions.AggregateRegrCount && !hypotheticalOperation(operation)
+				result.Nullable = operation != functions.AggregateCount && operation != functions.AggregateRegrCount && !operation.Hypothetical()
 			}
 		}
 		if window, ok := expr.(*windowExpression); ok {
@@ -712,4 +712,16 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 	info.Property = coercionProperties(input, plan)
 	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	return storageDestination(expr, target.Usage, info.Pos)
+}
+
+// rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct
+// arguments over the group keys.
+func (b *expressionBinder) rewriteOrderedSetDirect(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
+	direct, err := b.rewriteGroup(expr, keys)
+	if d, ok := err.(*sqlstate.Error); ok && d.Code == "42803" {
+		copy := *d
+		copy.Detail = "Direct arguments of an ordered-set aggregate must use only grouped columns."
+		return nil, &copy
+	}
+	return direct, err
 }

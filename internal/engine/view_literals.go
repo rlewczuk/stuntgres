@@ -289,7 +289,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					} else if i > 1 {
 						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
 					}
-					if hypotheticalOperation(call.operation) {
+					if call.operation.Hypothetical() {
 						expression = expression.(collationExpression).child
 					}
 					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
@@ -307,7 +307,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 				for i, key := range r.Order {
 					expression := call.order[i].expression
-					if hypotheticalOperation(call.operation) {
+					if call.operation.Hypothetical() {
 						expression = expression.(collationExpression).child
 					}
 					if err := child(key.Expr, expression); err != nil {

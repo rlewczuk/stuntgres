@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -104,4 +105,17 @@ type AggregateCall struct {
 	// parameter whose type is still unresolved (an ANY formal), after ORDER BY
 	// matching had its chance to resolve it.
 	RetainUntypedArgument bool
+	// Order is the WITHIN GROUP sort of an ordered-set or hypothetical-set
+	// call, bound by the family; FinishAggregate then binds no ORDER BY.
+	Order []AggregateSortKey
+}
+
+// AggregateSortKey is one bound WITHIN GROUP sort key.
+type AggregateSortKey struct {
+	Expression expr.Expr
+	Comparison sqltype.Comparison
+	Key        parser.OrderKey
+	// Argument marks a key that sorts the call's argument (stage slot 0);
+	// other keys stage their own value after the value and separator slots.
+	Argument bool
 }
