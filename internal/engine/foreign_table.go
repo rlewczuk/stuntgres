@@ -131,7 +131,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	}
 	jobs := []foreignValidation{job}
 	for _, attribute := range d.Attributes {
-		column := d.Columns[d.indexForAttribute(attribute)]
+		column := d.Columns[d.IndexForAttribute(attribute)]
 		options, er := transformForeignOptions(nil, s.ColumnOptions[column.Name])
 		if er != nil {
 			return nil, nil, er

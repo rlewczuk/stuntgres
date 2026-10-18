@@ -24,7 +24,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
 			current := cloneCatalog(f.e.catalog.state)
-			current.setDescriptor(local.Address(), &local)
+			current.SetDescriptor(local.Address(), &local)
 			f.e.catalog.state = current
 			mapped, err := mapPartitionIndex(context.Background(), f.e.catalog.read(current), f.root, f.leaf, f.parent.SQLIndex)
 			if err != nil {
@@ -39,15 +39,15 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			backing.Columns = slices.Clone(f.child.Columns)
 			backing.Attributes = slices.Clone(f.child.Attributes)
 			next := cloneCatalog(current)
-			next.setDescriptor(backing.Address(), &backing)
-			next.bindName(descriptorNameKey(&backing), backing.Address())
+			next.SetDescriptor(backing.Address(), &backing)
+			next.BindName(descriptorNameKey(&backing), backing.Address())
 			// Completing the only child's backing makes the virtual parent
 			// valid in this private candidate, without changing its old head.
 			parentIndex := *f.parent
 			parentDefinition := *f.parent.SQLIndex
 			parentDefinition.Valid = true
 			parentIndex.SQLIndex = &parentDefinition
-			next.setDescriptor(parentIndex.Address(), &parentIndex)
+			next.SetDescriptor(parentIndex.Address(), &parentIndex)
 			integer := func(slot int, n int64) sqltype.Value {
 				value, err := sqltype.Integer(f.leaf.Columns[slot].Usage.Type, n)
 				if err != nil {

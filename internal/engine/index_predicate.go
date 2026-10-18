@@ -59,7 +59,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 			continue
 		}
 		source := key.Derived.Definition
-		if !definition.requiresInsertionOutput() {
+		if !definition.RequiresInsertionOutput() {
 			// No callable or domain conversion can have disappeared here.
 			// Retain the established body-free cooked programme fast path.
 			source = key.Derived.Execution
@@ -175,7 +175,7 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 	}
 	if !p.predicatePrepared {
 		source := definition.Predicate.Definition
-		if !definition.requiresInsertionOutput() {
+		if !definition.RequiresInsertionOutput() {
 			source = definition.Predicate.Execution
 		}
 		prepared, err := prepareIndexRecipe(evaluation, source, definition.Predicate.Dependencies, parent, &p.admission, true)
@@ -201,7 +201,7 @@ func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logic
 			root.membership[entry.row] = entry.version
 		}
 	}
-	if (d.Unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
+	if (d.Unique || d.IsExclusion()) && d.HasRuntimeDomainKeyConversion() {
 		root.rowEntries = make(map[ids.RowID]int, len(entries))
 		for i, entry := range entries {
 			root.rowEntries[entry.row] = i

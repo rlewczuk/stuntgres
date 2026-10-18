@@ -25,7 +25,7 @@ func uniqueBacking(c *uniqueConstraint) *backingConstraint {
 func exclusionBacking(c *exclusionConstraint) *backingConstraint {
 	return &backingConstraint{OID: c.OID, Name: c.Name, Index: c.Index, Kind: exclusionBackingKind}
 }
-func (d *indexDefinition) isExclusion() bool {
+func (d *indexDefinition) IsExclusion() bool {
 	return d.Constraint != nil && d.Constraint.Kind == exclusionBackingKind
 }
 func backingConstraintPresent(parent *relationDescriptor, index *relationDescriptor) bool {

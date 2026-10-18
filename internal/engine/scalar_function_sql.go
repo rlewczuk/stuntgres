@@ -81,20 +81,20 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case installedFunctionExpression:
 		proc, ok := r.descriptor(view, n.ref.Address).(*procedureDescriptor)
-		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || !n.validProvider() || proc.Name() != n.procedure.Name() || proc.Signature != n.procedure.Signature || proc.RoutineKind != n.procedure.RoutineKind || proc.Result != n.procedure.Result || proc.Strict != n.procedure.Strict || proc.Volatility != n.procedure.Volatility || proc.unaccentProvider() != n.procedure.unaccentProvider() || proc.intarrayProvider() != n.procedure.intarrayProvider() || proc.pgcryptoProvider() != n.procedure.pgcryptoProvider() || proc.fuzzystrmatchProvider() != n.procedure.fuzzystrmatchProvider() || proc.Dictionary != n.procedure.Dictionary || proc.Extension != n.procedure.Extension || proc.Namespace() != n.procedure.Namespace() {
+		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || !n.validProvider() || proc.Name() != n.procedure.Name() || proc.Signature != n.procedure.Signature || proc.RoutineKind != n.procedure.RoutineKind || proc.Result != n.procedure.Result || proc.Strict != n.procedure.Strict || proc.Volatility != n.procedure.Volatility || unaccentProviderOf(proc) != unaccentProviderOf(n.procedure) || intarrayProviderOf(proc) != intarrayProviderOf(n.procedure) || pgcryptoProviderOf(proc) != pgcryptoProviderOf(n.procedure) || fuzzystrmatchProviderOf(proc) != fuzzystrmatchProviderOf(n.procedure) || proc.Dictionary != n.procedure.Dictionary || proc.Extension != n.procedure.Extension || proc.Namespace() != n.procedure.Namespace() {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		if n.dictionary != nil {
 			dictionary, ok := r.descriptor(view, proc.Dictionary).(*tsDictionaryDescriptor)
-			if !ok || dictionary.Address() != n.dictionary.Address() || dictionary.Template != n.dictionary.Template || dictionary.unaccentProvider() != n.dictionary.unaccentProvider() {
+			if !ok || dictionary.Address() != n.dictionary.Address() || dictionary.Template != n.dictionary.Template || unaccentDictionaryProviderOf(dictionary) != unaccentDictionaryProviderOf(n.dictionary) {
 				return "", fmt.Errorf("stuntgres: invalid stored installed dictionary")
 			}
 			template, ok := r.descriptor(view, dictionary.Template).(*tsTemplateDescriptor)
-			if !ok || template.Address() != n.template.Address() || template.unaccentProvider() != n.template.unaccentProvider() {
+			if !ok || template.Address() != n.template.Address() || unaccentTemplateProviderOf(template) != unaccentTemplateProviderOf(n.template) {
 				return "", fmt.Errorf("stuntgres: invalid stored installed template")
 			}
 		}
-		if proc.fuzzystrmatchProvider() == nil && n.dictionary == nil {
+		if fuzzystrmatchProviderOf(proc) == nil && n.dictionary == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		namespace, ok := r.descriptor(view, proc.Namespace()).(*namespaceDescriptor)

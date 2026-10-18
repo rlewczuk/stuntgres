@@ -47,7 +47,7 @@ func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *
 		switch d := d.(type) {
 		case *procedureDescriptor:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
-			if d.intarrayProvider() != nil && d.Name() == "bqarr_out" {
+			if intarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
 			principal = d.Owner
@@ -286,7 +286,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
-					candidate.setDescriptor(a, &n)
+					candidate.SetDescriptor(a, &n)
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
 					array, ok := candidate.Type(arrayAddress)
 					if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != d.SQLType {
@@ -294,21 +294,21 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					}
 					mapped := *array
 					mapped.Owner = owner.Ref
-					candidate.setDescriptor(arrayAddress, &mapped)
+					candidate.SetDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
 			case *procedureDescriptor:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
-					candidate.setDescriptor(a, &n)
+					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}
 			case *tsDictionaryDescriptor:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref
-					candidate.setDescriptor(a, &n)
+					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}
 			default:

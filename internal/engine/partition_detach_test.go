@@ -185,7 +185,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 				next := cloneCatalog(f.e.catalog.state)
 				p := *f.parent
 				p.ObjectRevision++
-				next.setDescriptor(p.Address(), &p)
+				next.SetDescriptor(p.Address(), &p)
 				f.e.catalog.state = next
 			}
 			before := f.e.catalog.state
@@ -237,8 +237,8 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := f.e.stageRead(stage)
-	next.State().removeDescriptor(f.child.Address())
-	next.State().removeDescriptor(f.leaf.Address())
+	next.State().RemoveDescriptor(f.child.Address())
+	next.State().RemoveDescriptor(f.leaf.Address())
 	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), catalog: next}, newCatalogState(0), next.State(), nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.Address()] != nil || f.parent.SQLIndex.Valid {
 		t.Fatal("virtual invalid-complete required root or promotion", err)

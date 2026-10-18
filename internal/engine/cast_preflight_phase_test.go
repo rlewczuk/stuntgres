@@ -102,8 +102,8 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 					// captured physical attribute identity instead.
 					replacement.Attributes = append([]int32(nil), replacement.Attributes...)
 					replacement.Attributes[0]++
-					e.catalog.state.setDescriptor(address, &replacement)
-					restore = func() { e.catalog.state.setDescriptor(address, original) }
+					e.catalog.state.SetDescriptor(address, &replacement)
+					restore = func() { e.catalog.state.SetDescriptor(address, original) }
 				case "epoch":
 					original := e.catalog.state.Epoch()
 					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)

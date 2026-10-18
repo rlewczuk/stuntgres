@@ -40,7 +40,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 		}
 		copy := *d
 		copy.SQLType = typ
-		next.setDescriptor(address, &copy)
+		next.SetDescriptor(address, &copy)
 		if next.ScalarImports() == nil {
 			next.SetScalarImports(make(map[*sqltype.Descriptor]*sqltype.Descriptor))
 		}

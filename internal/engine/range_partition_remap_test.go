@@ -175,7 +175,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	partition := *root.Partition
 	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
 	candidate.Partition = &partition
-	state.setDescriptor(root.Address(), &candidate)
+	state.SetDescriptor(root.Address(), &candidate)
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
@@ -269,7 +269,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	view := e.CatalogRead()
 	text, _ := view.LookupType(sqltype.Text)
 	provider := collationUnitDefinition(e, 90000, "partition_provider")
-	capability, err := provider.usage()
+	capability, err := provider.Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,8 +298,8 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	temporary.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}
 	temporaryBefore := temporary
 	next := cloneCatalog(view.State())
-	next.setDescriptor(provider.Address(), &temporary)
-	next.setDescriptor(imported.Address(), &imported)
+	next.SetDescriptor(provider.Address(), &temporary)
+	next.SetDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
 	collation := remappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
@@ -319,7 +319,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 		if next.Get(provider.Address()) != &temporary || !reflect.DeepEqual(temporary, temporaryBefore) {
 			t.Fatal("remap changed exact retained TEMP descriptor")
 		}
-		wantCapability, err := imported.usage()
+		wantCapability, err := imported.Usage()
 		if err != nil {
 			t.Fatal(err)
 		}

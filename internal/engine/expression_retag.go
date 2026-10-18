@@ -195,7 +195,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		if n.procedure != nil {
 			descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 			proc, ok := descriptor.(*procedureDescriptor)
-			if !ok || proc.intaggProvider() != stockIntagg {
+			if !ok || intaggProviderOf(proc) != stockIntagg {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped intagg enumerator")
 			}
 			changed = changed || n.procedure != proc
@@ -212,7 +212,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
-		if !ok || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Soundex function")
 		}
 		changed = changed || n.procedure != proc
@@ -229,7 +229,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
-		if !ok || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Metaphone function")
 		}
 		changed = changed || n.procedure != proc
@@ -246,7 +246,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
-		if !ok || proc.fuzzystrmatchProvider() != stockFuzzystrmatch {
+		if !ok || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Levenshtein function")
 		}
 		changed = changed || n.procedure != proc
@@ -259,7 +259,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 	case installedUUIDOsspFunctionExpression:
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
-		if !ok || proc.uuidOsspProvider() != stockUUIDOssp {
+		if !ok || uuidOsspProviderOf(proc) != stockUUIDOssp {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped uuid-ossp function")
 		}
 		changed = changed || n.procedure != proc
@@ -274,7 +274,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		}
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
-		if !ok || proc.pgcryptoProvider() != stockPgcrypto {
+		if !ok || pgcryptoProviderOf(proc) != stockPgcrypto {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
 		}
 		changed = changed || n.procedure != proc
@@ -293,7 +293,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node ex
 		}
 		var dict *tsDictionaryDescriptor
 		var tmpl *tsTemplateDescriptor
-		if proc.unaccentProvider() != nil {
+		if unaccentProviderOf(proc) != nil {
 			descriptor, _ = definitionDescriptorAt(view, reader, proc.Dictionary)
 			dict, ok = descriptor.(*tsDictionaryDescriptor)
 			if !ok {

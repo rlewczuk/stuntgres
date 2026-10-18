@@ -104,7 +104,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		t.Fatal("own inherited TEMP child omitted", refs, err)
 	}
 	missing := cloneCatalog(catalog.State())
-	missing.removeDescriptor(foreign.Namespace())
+	missing.RemoveDescriptor(foreign.Namespace())
 	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing captured namespace accepted", err)

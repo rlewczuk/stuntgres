@@ -249,7 +249,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			collision := *alterConstraintDescriptor(t, e, "log")
 			collision.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oldConstraint.ObjectID}
 			collision.ObjectName = "collision"
-			next.setDescriptor(collision.Address(), &collision)
+			next.SetDescriptor(collision.Address(), &collision)
 			e.mu.Lock()
 			err = e.remapDefinitionOIDsLocked(next)
 			e.mu.Unlock()

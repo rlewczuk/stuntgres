@@ -34,8 +34,8 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := cloneCatalog(e.catalog.state)
 	namespace := &namespaceDescriptor{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
-	next.setDescriptor(schema, namespace)
-	next.bindName(descriptorNameKey(namespace), schema)
+	next.SetDescriptor(schema, namespace)
+	next.BindName(descriptorNameKey(namespace), schema)
 	e.catalog.state = next
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)

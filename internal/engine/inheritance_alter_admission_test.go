@@ -602,7 +602,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			drop := prepared.steps[1].drop
 			add := prepared.steps[0]
-			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.hasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
+			if drop.old != p || drop.ref != command.scope.lockedRef || drop.next.HasAttribute(p.Attributes[p.Index["b"]]) || add.old != drop.next || add.added.attribute == p.Attributes[p.Index["b"]] {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
 			cooked := prepared.checks.next

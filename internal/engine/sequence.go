@@ -602,7 +602,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			continue
 		}
 		for _, attribute := range old.Attributes {
-			if !next.hasAttribute(attribute) {
+			if !next.HasAttribute(attribute) {
 				target := address
 				target.SubID = attribute
 				targets = append(targets, target)

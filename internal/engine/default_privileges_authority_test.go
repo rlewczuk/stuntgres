@@ -91,7 +91,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 	namespace.ACL = authorization.ACLValue{Explicit: true}
-	state.setDescriptor(f.schema, &namespace)
+	state.SetDescriptor(f.schema, &namespace)
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
 	f.e.mu.Unlock()
@@ -127,7 +127,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		candidate := cloneCatalog(state)
 		invalidNamespace := namespace
 		invalidNamespace.Temporary = token
-		candidate.setDescriptor(f.schema, &invalidNamespace)
+		candidate.SetDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
 		invalid.catalog = f.e.catalog.read(candidate)
 		invalid.recaptureCatalog(invalid.catalog)
@@ -140,7 +140,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	ordinary := cloneCatalog(state)
 	permanent := namespace
 	permanent.Temporary = ids.SessionToken{}
-	ordinary.setDescriptor(f.schema, &permanent)
+	ordinary.SetDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
 	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
@@ -156,7 +156,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
 	table := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: tableRelation, ACL: authorization.ACLValue{Explicit: true}}
-	state.setDescriptor(table.Address(), table)
+	state.SetDescriptor(table.Address(), table)
 	tableRef := f.e.catalog.Domain.Ref(state.Epoch(), table.Address())
 	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

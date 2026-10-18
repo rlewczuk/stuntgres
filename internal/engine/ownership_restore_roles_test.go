@@ -22,7 +22,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	database := *current.MustDatabase(currentDatabaseAddress)
 	database.Owner = source.Ref
 	database.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
-	current.setDescriptor(currentDatabaseAddress, &database)
+	current.SetDescriptor(currentDatabaseAddress, &database)
 	e.catalog.state = current
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 	entries := append([]authorization.ACLEntry(nil), database.ACL.Entries...)

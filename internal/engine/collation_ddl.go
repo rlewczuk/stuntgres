@@ -15,15 +15,15 @@ func collationSemantics(d *collationDescriptor) (uint32, error) {
 	switch d.Provider {
 	case "c":
 		if d.Collate == nil || d.CType == nil || d.Locale != nil {
-			return 0, sqlError("42P17", "invalid libc collation properties")
+			return 0, expr.ErrorAt("42P17", "invalid libc collation properties", parser.Position{})
 		}
 		if (*d.Collate != "C" && *d.Collate != "POSIX") || (*d.CType != "C" && *d.CType != "POSIX") {
-			return 0, sqlError("0A000", "libc locale provider data is not available in this engine")
+			return 0, expr.ErrorAt("0A000", "libc locale provider data is not available in this engine", parser.Position{})
 		}
 		return 950, nil
 	case "b":
 		if d.Locale == nil || d.Collate != nil || d.CType != nil {
-			return 0, sqlError("42P17", "invalid builtin collation properties")
+			return 0, expr.ErrorAt("42P17", "invalid builtin collation properties", parser.Position{})
 		}
 		switch *d.Locale {
 		case "C":
@@ -33,11 +33,11 @@ func collationSemantics(d *collationDescriptor) (uint32, error) {
 		case "PG_UNICODE_FAST":
 			return 6411, nil
 		}
-		return 0, sqlError("42809", fmt.Sprintf(`invalid locale name "%s" for builtin provider`, *d.Locale))
+		return 0, expr.ErrorAt("42809", fmt.Sprintf(`invalid locale name "%s" for builtin provider`, *d.Locale), parser.Position{})
 	case "i":
-		return 0, sqlError("0A000", "ICU is not supported in this build")
+		return 0, expr.ErrorAt("0A000", "ICU is not supported in this build", parser.Position{})
 	}
-	return 0, sqlError("42P17", "unrecognized collation provider: "+d.Provider)
+	return 0, expr.ErrorAt("42P17", "unrecognized collation provider: "+d.Provider, parser.Position{})
 }
 
 var builtinCollationVersion = "1"
@@ -335,7 +335,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
-		if d.seeded() {
+		if d.Seeded() {
 			path, pathErr := e.referencePath(auth)
 			if pathErr != nil {
 				return pathErr

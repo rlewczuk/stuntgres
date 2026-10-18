@@ -269,7 +269,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			for a, d := range c.descriptors {
 				if a.ClassID == ids.NamespaceClassID && current.Get(a) != d {
-					if err := nextCatalog.advanceNamespaceGeneration(); err != nil {
+					if err := nextCatalog.AdvanceNamespaceGeneration(); err != nil {
 						return err
 					}
 					break

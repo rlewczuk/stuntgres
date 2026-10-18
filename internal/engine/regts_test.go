@@ -37,14 +37,14 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 		if i == 3 {
 			ns.Temporary = e.catalog.Domain.Session(99)
 		}
-		view.State().setDescriptor(ns.Address(), &ns)
-		view.State().bindName(descriptorNameKey(&ns), ns.Address())
+		view.State().SetDescriptor(ns.Address(), &ns)
+		view.State().BindName(descriptorNameKey(&ns), ns.Address())
 		namespaces[i] = ns.Address()
 		d := *installed
 		d.ObjectAddress = ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(91000 + i)}
 		d.ObjectNamespace = ns.Address()
-		view.State().setDescriptor(d.Address(), &d)
-		view.State().bindName(descriptorNameKey(&d), d.Address())
+		view.State().SetDescriptor(d.Address(), &d)
+		view.State().BindName(descriptorNameKey(&d), d.Address())
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -117,7 +117,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	next = next.WithState(cloneCatalog(view.State()))
 	ns := *next.MustNamespace(namespaces[0])
 	ns.ObjectName = "renamed"
-	next.State().setDescriptor(ns.Address(), &ns)
+	next.State().SetDescriptor(ns.Address(), &ns)
 	if got := regTSSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
 		t.Fatal("fresh spelling", got)
 	}
@@ -130,8 +130,8 @@ func TestRegTSProviderResolution(t *testing.T) {
 		d := *view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
 		d.ObjectAddress.ObjectID = ids.OID(92001 + i)
 		d.ObjectName = name
-		quoted.State().setDescriptor(d.Address(), &d)
-		quoted.State().bindName(descriptorNameKey(&d), d.Address())
+		quoted.State().SetDescriptor(d.Address(), &d)
+		quoted.State().BindName(descriptorNameKey(&d), d.Address())
 	}
 	quotedInput := input
 	quotedInput.auth.recaptureCatalog(quoted)

@@ -510,7 +510,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 			if !frozen {
 				return fmt.Errorf("stuntgres: invalid view read attribute")
 			}
-			if !source.hasAttribute(attribute) {
+			if !source.HasAttribute(attribute) {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}
@@ -528,7 +528,7 @@ func (definition *viewDefinition) Validate(v CatalogRead, d *relationDescriptor)
 		}
 		if ref.Address.SubID != 0 {
 			relation, ok := object.(*relationDescriptor)
-			if !ok || !relation.hasAttribute(ref.Address.SubID) {
+			if !ok || !relation.HasAttribute(ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}

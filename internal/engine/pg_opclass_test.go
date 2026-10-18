@@ -173,14 +173,14 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if tc.id == 48001 {
 			typ = enum
 		}
-		class, ok := tc.method.lookupClass(tc.class)
+		class, ok := tc.method.LookupClass(tc.class)
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
 		parent := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: tableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
 		index := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: indexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &indexDefinition{Parent: parent.Address(), Method: tc.method, Keys: []indexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
-		e.catalog.state.setDescriptor(parent.Address(), parent)
-		e.catalog.state.setDescriptor(index.Address(), index)
+		e.catalog.state.SetDescriptor(parent.Address(), parent)
+		e.catalog.state.SetDescriptor(index.Address(), index)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)

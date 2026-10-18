@@ -152,7 +152,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 		t.Fatal("reversed default still blocked retirement", err)
 	}
 	candidate := cloneCatalog(f.e.catalog.state)
-	candidate.setDescriptor(table.Address(), table)
+	candidate.SetDescriptor(table.Address(), table)
 	if err := f.e.roleRetirementPreflightLocked(changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("materialized dependency omitted from final retirement", err)
 	}

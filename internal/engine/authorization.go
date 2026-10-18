@@ -325,7 +325,7 @@ func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
 	}
 	if ref.Address.SubID > 0 {
 		r, ok := d.(*relationDescriptor)
-		if !ok || !r.hasAttribute(ref.Address.SubID) {
+		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return nil, fmt.Errorf("stuntgres: invalid authorization column")
 		}
 	}
@@ -559,7 +559,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 	}
 	for sub, a := range cols {
 		relation, ok := d.(*relationDescriptor)
-		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
+		if !ok || sub <= 0 || !relation.HasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
 		if err := authorization.ValidateACL(r, a, authorization.ColumnGrantPrivileges); err != nil {
@@ -845,7 +845,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		n.ACL = acl
 		next = &n
 	case *relationDescriptor:
-		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.hasAttribute(ref.Address.SubID) {
+		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
 		n := *d
@@ -876,7 +876,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if parameter, ok := next.(*parameterDescriptor); ok {
 		installParameterGrant(state, parameter)
 	} else {
-		state.setDescriptor(addr, next)
+		state.SetDescriptor(addr, next)
 	}
 	roles := advanceRoleRevision(e.roles)
 	if err := ctx.Err(); err != nil {
@@ -890,7 +890,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		n.SequencePlanStamp = stamp
 	}
 	if _, ok := next.(*namespaceDescriptor); ok {
-		if err := state.advanceNamespaceGeneration(); err != nil {
+		if err := state.AdvanceNamespaceGeneration(); err != nil {
 			return err
 		}
 	}

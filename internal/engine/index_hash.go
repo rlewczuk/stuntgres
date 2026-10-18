@@ -26,7 +26,7 @@ func (m indexMethod) String() string {
 	}
 	return "btree"
 }
-func (m indexMethod) defaultClass(t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
+func (m indexMethod) DefaultClass(t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
 	if m == gistMethod {
 		return sqltype.DefaultGiSTIndexClass(t)
 	}
@@ -35,7 +35,7 @@ func (m indexMethod) defaultClass(t *sqltype.Descriptor) (sqltype.IndexClass, bo
 	}
 	return sqltype.DefaultIndexClass(t)
 }
-func (m indexMethod) defaultClassID(id sqltype.ID) (sqltype.IndexClass, bool) {
+func (m indexMethod) DefaultClassID(id sqltype.ID) (sqltype.IndexClass, bool) {
 	if m == gistMethod {
 		return sqltype.DefaultGiSTIndexClassID(id)
 	}
@@ -44,7 +44,7 @@ func (m indexMethod) defaultClassID(id sqltype.ID) (sqltype.IndexClass, bool) {
 	}
 	return sqltype.DefaultIndexClassID(id)
 }
-func (m indexMethod) lookupClass(name string) (sqltype.IndexClass, bool) {
+func (m indexMethod) LookupClass(name string) (sqltype.IndexClass, bool) {
 	if m == gistMethod {
 		return sqltype.LookupGiSTIndexClass(name)
 	}
@@ -95,7 +95,7 @@ func bindHashIndex(parent *relationDescriptor, d *indexDefinition) (hashIndexBin
 	class := key.Class
 	if class.Name == "" {
 		var exists bool
-		class, exists = d.Method.defaultClass(usage.Type)
+		class, exists = d.Method.DefaultClass(usage.Type)
 		if !exists {
 			return b, indexDefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
@@ -249,7 +249,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 		}
 		class := key.Class
 		if class.Name == "" {
-			class, _ = d.Method.defaultClass(usage.Type)
+			class, _ = d.Method.DefaultClass(usage.Type)
 		}
 		slot := slices.Index(parent.Attributes, key.Attribute)
 		if key.Derived != nil {
@@ -322,7 +322,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 			}
 			key = output.key
 		} else {
-			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced hash index row")
 			}
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
@@ -428,7 +428,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 }
 
 func (r *hashIndexRoot) captureRowEntries(ctx context.Context, d *indexDefinition) error {
-	if !d.isExclusion() || !d.hasRuntimeDomainKeyConversion() {
+	if !d.IsExclusion() || !d.HasRuntimeDomainKeyConversion() {
 		return nil
 	}
 	r.rowEntries = make(map[ids.RowID]*hashIndexEntry)

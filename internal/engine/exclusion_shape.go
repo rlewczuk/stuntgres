@@ -28,7 +28,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 				continue
 			}
 			var keys []sqltype.Value
-			if index.SQLIndex.requiresInsertionOutput() {
+			if index.SQLIndex.RequiresInsertionOutput() {
 				output, ok := row.indexOutputs[index.Address()]
 				if !ok || !output.matches(index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")

@@ -12,7 +12,7 @@ import (
 type fuzzystrmatchProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *fuzzystrmatchProvider) Control() extensionControl { return p.control.detached() }
+func (p *fuzzystrmatchProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2", Trusted: true, Superuser: true, Relocatable: true, Comment: new("determine similarities and distance between strings")}}
 
@@ -107,7 +107,7 @@ func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedure
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.Address()) != proc || proc.fuzzystrmatchProvider() != p {
+	if v.Get(proc.Address()) != proc || fuzzystrmatchProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: foreign fuzzystrmatch procedure")
 	}
 	for _, address := range ext.Members {

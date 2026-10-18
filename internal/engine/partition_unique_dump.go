@@ -34,7 +34,7 @@ func partitionReplaySeparateConstraint(view CatalogRead, index *relationDescript
 // ONLY declarations create just the local origin. Captured covered providers
 // are created later by their table membership, never by index attachment.
 func partitionReplayOnlyExclusion(index *relationDescriptor) bool {
-	return index.SQLIndex != nil && index.SQLIndex.isExclusion() && !index.SQLIndex.Valid && index.SQLIndex.PartitionParent == (ids.ObjectAddress{})
+	return index.SQLIndex != nil && index.SQLIndex.IsExclusion() && !index.SQLIndex.Valid && index.SQLIndex.PartitionParent == (ids.ObjectAddress{})
 }
 
 func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dumpEventKey {
@@ -45,7 +45,7 @@ func partitionConstraintCreator(view CatalogRead, index *relationDescriptor) dum
 	// UNIQUE can adopt a provider declared on the standalone child before
 	// ATTACH. Its name is an attachment prerequisite, not an attachment output.
 	// Only EXCLUDE's mandatory fresh clones use membership creator readiness.
-	if !index.SQLIndex.isExclusion() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
+	if !index.SQLIndex.IsExclusion() || index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) || partitionReplayUsingIndex(view, index) {
 		oid, _ := dumpPredecessor(view, index.Address(), ids.ObjectAddress{})
 		return dumpEventKey{oid: oid}
 	}
@@ -78,7 +78,7 @@ func partitionExclusionDefaultBefore(view CatalogRead, gap, sibling *relationDes
 
 func partitionVirtualUniqueDefinitionSQL(view CatalogRead, index *relationDescriptor) (string, error) {
 	table := view.MustRelation(index.SQLIndex.Parent)
-	if index.SQLIndex.isExclusion() {
+	if index.SQLIndex.IsExclusion() {
 		text, err := indexDefinitionSQL(context.Background(), view, index, indexPresentation{dump: true, exclusion: true})
 		if err != nil {
 			return "", err
@@ -129,7 +129,7 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view CatalogRead, index
 				r.occupied[child.Namespace()] = used
 			}
 			suffix, addition := "key", ""
-			if childIndex.SQLIndex.isExclusion() {
+			if childIndex.SQLIndex.IsExclusion() {
 				suffix = "excl"
 			}
 			if childIndex.SQLIndex.Constraint.Primary {

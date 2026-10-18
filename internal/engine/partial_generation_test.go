@@ -59,11 +59,11 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			beforeAttributes := append([]int32(nil), predicate.Attributes...)
 			next := cloneCatalog(oldCatalog)
 			next.SetEpoch(next.Epoch() + 1)
-			next.setDescriptor(index.Address(), &index)
+			next.SetDescriptor(index.Address(), &index)
 			typeAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}
 			typeDefinition := *next.MustType(typeAddress)
 			typeDefinition.SQLType = current
-			next.setDescriptor(typeAddress, &typeDefinition)
+			next.SetDescriptor(typeAddress, &typeDefinition)
 			typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				if old == oldUsage.Type {
 					return current

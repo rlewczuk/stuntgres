@@ -85,7 +85,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		bad := *source
 		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
-		state.setDescriptor(address, &bad)
+		state.SetDescriptor(address, &bad)
 		if got, err := capturePGAggregate(context.Background(), e.catalog.read(state), ref, &bad); got != nil || err == nil {
 			t.Fatal("foreign column generation admitted", i, err)
 		}

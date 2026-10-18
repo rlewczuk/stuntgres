@@ -154,7 +154,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	original := catalog.MustRelation(ref.Address)
 	copy := *original
 	copy.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	catalog.setDescriptor(ref.Address, &copy)
+	catalog.SetDescriptor(ref.Address, &copy)
 	e.catalog.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)

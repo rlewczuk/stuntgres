@@ -229,7 +229,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		for _, dependency := range definition.Dependencies {
 			if dependency.Address.ClassID == next.Address().ClassID && dependency.Address.ObjectID == next.Address().ObjectID && dependency.Address.SubID == next.Attributes[slot] {
 				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
-				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.indexForAttribute(attribute)].Name)
+				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.Columns[next.IndexForAttribute(attribute)].Name)
 				return fail(diagnostic)
 			}
 		}
@@ -368,7 +368,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 	}, len(additions))
 	generatedSlots := make([]int, len(generations))
 	for i, attribute := range generations {
-		generatedSlots[i] = next.indexForAttribute(attribute)
+		generatedSlots[i] = next.IndexForAttribute(attribute)
 	}
 	for i, added := range additions {
 		addedSlots[i].index = next.Index[added.column.Name]

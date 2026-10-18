@@ -27,8 +27,8 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := cloneCatalog(e.catalog.state)
-	next.setDescriptor(src.Address(), src)
-	next.setDescriptor(sink.Address(), sink)
+	next.SetDescriptor(src.Address(), src)
+	next.SetDescriptor(sink.Address(), sink)
 	e.catalog.state = next
 	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
 }
@@ -515,8 +515,8 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
 	next := cloneCatalog(auth.catalog.State())
-	next.setDescriptor(newSrc.Address(), &newSrc)
-	next.setDescriptor(newSink.Address(), &newSink)
+	next.SetDescriptor(newSrc.Address(), &newSrc)
+	next.SetDescriptor(newSink.Address(), &newSink)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.Address(): newSrc.Address(), sink.Address(): newSink.Address()}
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		whole := old.Address

@@ -50,7 +50,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	oldSlot, newSlot := h.relation.indexForAttribute(attribute), d.indexForAttribute(attribute)
+	oldSlot, newSlot := h.relation.IndexForAttribute(attribute), d.IndexForAttribute(attribute)
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}

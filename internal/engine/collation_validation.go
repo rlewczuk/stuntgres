@@ -22,7 +22,7 @@ func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqlty
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")
 	}
-	ref, err := d.usage()
+	ref, err := d.Usage()
 	if err != nil || ref != u.Collation {
 		return fmt.Errorf("stuntgres: invalid stored collation authority")
 	}
@@ -39,7 +39,7 @@ func validateCollationProvider(view CatalogRead, ref ids.ObjectRef) error {
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
-	if capability, err := d.usage(); err != nil || capability.ID != uint32(ref.Address.ObjectID) {
+	if capability, err := d.Usage(); err != nil || capability.ID != uint32(ref.Address.ObjectID) {
 		return fmt.Errorf("stuntgres: invalid stored collation provider")
 	}
 	return nil

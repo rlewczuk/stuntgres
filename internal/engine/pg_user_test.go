@@ -218,7 +218,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 		attrs := append([]int32(nil), d.Attributes...)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.Address(), &view)
+		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}
 	inner := addView(20010, "pg_user_inner", ref)
@@ -279,7 +279,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	}
 	unknown := *d
 	unknown.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.catalog.state.setDescriptor(unknown.Address(), &unknown)
+	e.catalog.state.SetDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}

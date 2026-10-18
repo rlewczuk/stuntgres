@@ -45,7 +45,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	nonmember := *n.procedure
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := cloneCatalog(e.catalog.state)
-	foreignState.setDescriptor(nonmember.Address(), &nonmember)
+	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
 	if err := stockFuzzystrmatch.validateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
@@ -89,7 +89,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
-		state.setDescriptor(n.ref.Address, &bad)
+		state.SetDescriptor(n.ref.Address, &bad)
 		forged := n
 		forged.procedure = &bad
 		if err := forged.validate(e.catalog.read(state)); err == nil {
@@ -163,17 +163,17 @@ func TestLevenshteinRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.State())
 	for address := range mapping {
-		next.unbindName(descriptorNameKey(before.Get(address)))
-		next.removeDescriptor(address)
+		next.UnbindName(descriptorNameKey(before.Get(address)))
+		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-		next.setDescriptor(destination, descriptor)
-		next.bindName(descriptorNameKey(descriptor), destination)
+		next.SetDescriptor(destination, descriptor)
+		next.BindName(descriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &relationDescriptor{ObjectAddress: address, Defaults: map[int32]columnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]columnGeneration{2: {Kind: generationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}
-	next.setDescriptor(address, consumer)
+	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal(err)

@@ -82,7 +82,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
+	if !seed.Seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.Handler != d.Handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
 	if original := view.MustConversion(seed.Address()); original.Name() != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {

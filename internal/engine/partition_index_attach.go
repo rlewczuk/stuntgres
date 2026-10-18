@@ -125,7 +125,7 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 	if child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.Name()))
 	}
-	if parent.SQLIndex.isExclusion() || child.SQLIndex.isExclusion() {
+	if parent.SQLIndex.IsExclusion() || child.SQLIndex.IsExclusion() {
 		return diagnostic("42P17", "The index definitions do not match.")
 	}
 	mapped, err := mapPartitionIndex(op.Context(), view, table, childTable, parent.SQLIndex)
@@ -145,8 +145,8 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 		}
 		if parent.SQLIndex.Constraint.Primary {
 			for _, key := range child.SQLIndex.Keys {
-				if childTable.Columns[childTable.indexForAttribute(key.Attribute)].Nullable {
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: "invalid primary key definition", Detail: fmt.Sprintf(`Column "%s" of relation "%s" is not marked NOT NULL.`, childTable.Columns[childTable.indexForAttribute(key.Attribute)].Name, childTable.Name())}
+				if childTable.Columns[childTable.IndexForAttribute(key.Attribute)].Nullable {
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P16", Message: "invalid primary key definition", Detail: fmt.Sprintf(`Column "%s" of relation "%s" is not marked NOT NULL.`, childTable.Columns[childTable.IndexForAttribute(key.Attribute)].Name, childTable.Name())}
 				}
 			}
 		}

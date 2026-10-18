@@ -128,7 +128,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 			}
 		case parser.DropNotNull, parser.DropConstraint:
 			if action.Action == parser.DropConstraint && relation.Inheritance != nil {
-				if provenance, exists := relation.Inheritance.Checks[action.Constraint.Text]; exists && provenance.count() != 0 {
+				if provenance, exists := relation.Inheritance.Checks[action.Constraint.Text]; exists && provenance.Count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.Name()))
 				}
 			}
@@ -140,7 +140,7 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 				if slot, exists := relation.Index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
 					matches = constraint.Attribute == relation.Attributes[slot]
 				}
-				if matches && relation.Inheritance.NotNull[constraint.Attribute].count() != 0 {
+				if matches && relation.Inheritance.NotNull[constraint.Attribute].Count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.Name()))
 				}
 			}

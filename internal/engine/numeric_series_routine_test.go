@@ -129,7 +129,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			changed.catalog = changed.catalog.WithState(cloneCatalog(changed.catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
-			changed.catalog.State().setDescriptor(address, &replacement)
+			changed.catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, node, false, false); err == nil {

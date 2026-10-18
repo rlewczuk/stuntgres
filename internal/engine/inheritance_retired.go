@@ -27,7 +27,7 @@ type retiredInheritanceOrigin struct {
 	Replayed bool
 }
 
-func (p inheritedConstraint) count() int { return len(p.Origins) + len(p.Retired) }
+func (p inheritedConstraint) Count() int { return len(p.Origins) + len(p.Retired) }
 
 func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p inheritedConstraint, own ids.OID, check bool) error {
 	for i, history := range p.Retired {
@@ -40,7 +40,7 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 		}
 		if !history.Replayed {
 			tombstone, exists := parent.DroppedAttributes[history.Attribute]
-			if !exists || !tombstone.Dropped || parent.hasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
+			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
 				return fmt.Errorf("stuntgres: retired inheritance source was not removed")
 			}
 		}
@@ -55,7 +55,7 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 			}
 		}
 	}
-	if p.count() > 32767 {
+	if p.Count() > 32767 {
 		return fmt.Errorf("stuntgres: too many inherited constraint contributions")
 	}
 	return nil
@@ -219,7 +219,7 @@ func (e *Engine) remapRetiredConstraints(next *catalogState, previous map[ids.Ob
 		}
 		copy := *table
 		copy.Inheritance = graph
-		next.setDescriptor(address, &copy)
+		next.SetDescriptor(address, &copy)
 	}
 	return nil
 }
@@ -368,7 +368,7 @@ func releaseRetiredTypeConstraints(old *relationDescriptor, actions []parser.Alt
 				}
 				next.PhysicalNotNull[fact.Attribute] = proof
 			} else {
-				next.Columns[next.indexForAttribute(fact.Attribute)].Nullable = true
+				next.Columns[next.IndexForAttribute(fact.Attribute)].Nullable = true
 			}
 		}
 	}

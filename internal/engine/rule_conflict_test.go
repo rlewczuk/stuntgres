@@ -54,7 +54,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
 	current.Index = map[string]int{"v": 0, "id": 1}
 	catalog := cloneCatalog(auth.catalog.State())
-	catalog.setDescriptor(sink.Address(), &current)
+	catalog.SetDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
 	check := func(next binding) {
 		t.Helper()

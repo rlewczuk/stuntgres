@@ -237,7 +237,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 						changed[address] = objectGrantChange{}
 					}
 				} else {
-					candidate.setDescriptor(address, next)
+					candidate.SetDescriptor(address, next)
 				}
 			}
 			continue
@@ -420,14 +420,14 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if candidate == nil {
 				candidate = cloneCatalog(v.catalog.State())
 			}
-			candidate.setDescriptor(address, next)
+			candidate.SetDescriptor(address, next)
 		}
 	}
 	if candidate == nil {
 		return Result{}, op.Context().Err()
 	}
 	if s.Kind == "schema" {
-		if err := candidate.advanceNamespaceGeneration(); err != nil {
+		if err := candidate.AdvanceNamespaceGeneration(); err != nil {
 			return Result{}, err
 		}
 	}

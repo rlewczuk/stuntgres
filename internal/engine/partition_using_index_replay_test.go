@@ -68,7 +68,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	next := cloneCatalog(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++
-	next.setDescriptor(index.Address(), &changed)
+	next.SetDescriptor(index.Address(), &changed)
 	e.catalog.state = next
 	fresh, err := op.Authorization()
 	if err != nil {

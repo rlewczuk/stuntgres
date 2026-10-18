@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"iter"
 	"maps"
 
 	"stuntgres/internal/engine/ids"
@@ -14,37 +15,37 @@ import (
 // candidate or a replacement before publication. A published state is never
 // written again; publication swaps the whole state under Engine.mu.
 
-// setDescriptor stores d at a.
-func (s *catalogState) setDescriptor(a ids.ObjectAddress, d Descriptor) { s.descriptors[a] = d }
+// SetDescriptor stores d at a.
+func (s *catalogState) SetDescriptor(a ids.ObjectAddress, d Descriptor) { s.descriptors[a] = d }
 
-// removeDescriptor deletes the descriptor at a.
-func (s *catalogState) removeDescriptor(a ids.ObjectAddress) { delete(s.descriptors, a) }
+// RemoveDescriptor deletes the descriptor at a.
+func (s *catalogState) RemoveDescriptor(a ids.ObjectAddress) { delete(s.descriptors, a) }
 
-// bindName binds k to a.
-func (s *catalogState) bindName(k ids.NameKey, a ids.ObjectAddress) { s.names[k] = a }
+// BindName binds k to a.
+func (s *catalogState) BindName(k ids.NameKey, a ids.ObjectAddress) { s.names[k] = a }
 
-// unbindName removes the binding of k.
-func (s *catalogState) unbindName(k ids.NameKey) { delete(s.names, k) }
+// UnbindName removes the binding of k.
+func (s *catalogState) UnbindName(k ids.NameKey) { delete(s.names, k) }
 
-// cloneDescriptors gives s its own copy of its descriptor map, so that s can
+// CloneDescriptors gives s its own copy of its descriptor map, so that s can
 // be written without changing the state it was copied from. Names stay
 // shared.
-func (s *catalogState) cloneDescriptors() { s.descriptors = maps.Clone(s.descriptors) }
+func (s *catalogState) CloneDescriptors() { s.descriptors = maps.Clone(s.descriptors) }
 
-// cloneNames gives s its own copy of its name map. Descriptors stay shared.
-func (s *catalogState) cloneNames() { s.names = maps.Clone(s.names) }
+// CloneNames gives s its own copy of its name map. Descriptors stay shared.
+func (s *catalogState) CloneNames() { s.names = maps.Clone(s.names) }
 
-// resetDescriptors gives s an empty descriptor map with room for capacity
+// ResetDescriptors gives s an empty descriptor map with room for capacity
 // entries. Names stay shared.
-func (s *catalogState) resetDescriptors(capacity int) {
+func (s *catalogState) ResetDescriptors(capacity int) {
 	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
 }
 
-// resetMaps gives s empty descriptor and name maps with room for capacity
-// entries and returns the previous descriptor map, which s no longer uses.
-func (s *catalogState) resetMaps(capacity int) map[ids.ObjectAddress]Descriptor {
+// ResetMaps gives s empty descriptor and name maps with room for capacity
+// entries and iterates the previous descriptors, which s no longer uses.
+func (s *catalogState) ResetMaps(capacity int) iter.Seq2[ids.ObjectAddress, Descriptor] {
 	previous := s.descriptors
 	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
 	s.names = make(map[ids.NameKey]ids.ObjectAddress, capacity)
-	return previous
+	return maps.All(previous)
 }

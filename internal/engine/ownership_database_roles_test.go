@@ -27,7 +27,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
 	database.Owner = next
-	candidate.setDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(currentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
 	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
 	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
@@ -83,7 +83,7 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	candidate := cloneCatalog(retained.State())
 	database := *candidate.MustDatabase(currentDatabaseAddress)
 	database.ObjectRevision++
-	candidate.setDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(currentDatabaseAddress, &database)
 	auth.catalog = e.catalog.read(candidate)
 	ref := e.catalog.Domain.Ref(retained.Epoch(), currentDatabaseAddress)
 	if _, err := auth.object(ref); err == nil {
@@ -106,7 +106,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	candidate := cloneCatalog(e.catalog.state)
 	database := *candidate.MustDatabase(currentDatabaseAddress)
 	database.ObjectName = `ownership "odd" database`
-	candidate.setDescriptor(currentDatabaseAddress, &database)
+	candidate.SetDescriptor(currentDatabaseAddress, &database)
 	auth := catalogAuthorization(e, e.catalog.read(candidate))
 	auth.state.CurrentUser = reader
 	ref := e.catalog.Domain.Ref(candidate.Epoch(), currentDatabaseAddress)

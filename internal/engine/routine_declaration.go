@@ -28,9 +28,9 @@ func grantRoutineKindMatches(target string, kind routineKind) bool {
 	return false
 }
 
-func (d *procedureDescriptor) returnsSet() bool {
+func procedureReturnsSet(d *procedureDescriptor) bool {
 	return d.Builtin != nil && d.Builtin.ReturnsSet ||
-		d.intaggProvider() == stockIntagg && d.RoutineKind == functionRoutine &&
+		intaggProviderOf(d) == stockIntagg && d.RoutineKind == functionRoutine &&
 			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }
 
@@ -46,7 +46,7 @@ type builtinRoutineDeclaration struct {
 	ReturnsSet bool
 	Variadic   ids.OID
 	Defaults   uint8
-	Providers  routineProvider
+	Providers  expr.RoutineProvider
 }
 
 // Temporary aliases for the provider vocabulary that moved to functions in
@@ -79,7 +79,7 @@ const (
 	networkRoutineProvider   = functions.NetworkRoutineProvider
 )
 
-func (d *procedureDescriptor) seeded() bool {
+func (d *procedureDescriptor) Seeded() bool {
 	return d.Builtin != nil || d.Conversion.Name() != ""
 }
 

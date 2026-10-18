@@ -28,7 +28,7 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 		if constraint.NotValid {
 			return fmt.Errorf("stuntgres: invalid no-inherit not-null replay fact")
 		}
-		column := t.columns[t.descriptor.indexForAttribute(constraint.Attribute)].Name
+		column := t.columns[t.descriptor.IndexForAttribute(constraint.Attribute)].Name
 		if err := setOwner(t.owner); err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 			if constraint.Name == name && constraint.Attribute == attribute && !constraint.NotValid {
 				if graph := relation.Inheritance; graph != nil {
 					fact := graph.NotNull[attribute]
-					if !fact.Local || fact.count() != 0 {
+					if !fact.Local || fact.Count() != 0 {
 						return
 					}
 				}
@@ -176,7 +176,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	}
 	if graph := old.Inheritance; graph != nil {
 		fact := graph.NotNull[origin.attribute]
-		if !fact.Local || fact.count() != 0 {
+		if !fact.Local || fact.Count() != 0 {
 			e.mu.Unlock()
 			return sqlError("0A000", restoreNoInheritBoundary)
 		}

@@ -22,7 +22,7 @@ func TestInheritanceGuards(t *testing.T) {
 	standalone := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90004}, RelationKind: tableRelation}
 	view := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90005}, RelationKind: viewRelation, View: &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: parent.Address()}}}}}
 	for _, relation := range []*relationDescriptor{parent, child, standalone, view} {
-		catalog.State().setDescriptor(relation.Address(), relation)
+		catalog.State().SetDescriptor(relation.Address(), relation)
 	}
 	assertError := func(err error, code, message, position string) {
 		t.Helper()
@@ -33,7 +33,7 @@ func TestInheritanceGuards(t *testing.T) {
 	}
 	cyclic := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90006}, RelationKind: viewRelation}
 	cyclic.View = &viewDefinition{sources: []viewLeaf{{ref: ids.ObjectRef{Address: cyclic.Address()}}, {ref: ids.ObjectRef{Address: parent.Address()}}}}
-	catalog.State().setDescriptor(cyclic.Address(), cyclic)
+	catalog.State().SetDescriptor(cyclic.Address(), cyclic)
 	assertError(inheritanceTargetGuard(catalog, cyclic), "0A000", "recursive table inheritance is unsupported", "")
 	for _, relation := range []*relationDescriptor{parent, view} {
 		assertError(inheritanceTargetGuard(catalog, relation), "0A000", "recursive table inheritance is unsupported", "")

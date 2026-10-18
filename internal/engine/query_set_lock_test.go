@@ -72,7 +72,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	right.Address.ObjectID = 1000000
 	copy := *original
 	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
-	e.catalog.state.setDescriptor(right.Address, &copy)
+	e.catalog.state.SetDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
 	add := func(name string, invoker bool, root *projectNode, leaves []viewLeaf) ids.ObjectRef {
@@ -82,7 +82,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, viewRelation
 		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
-		e.catalog.state.setDescriptor(ref.Address, &d)
+		e.catalog.state.SetDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
 	}
@@ -182,7 +182,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		next++
 		d := *e.catalog.state.MustRelation(base.Address)
 		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, viewPayloadOf(definition), kind
-		e.catalog.state.setDescriptor(ref.Address, &d)
+		e.catalog.state.SetDescriptor(ref.Address, &d)
 		return ref
 	}
 	sequence := add("kind_sequence", nil, sequenceRelation)
@@ -253,7 +253,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	definition.sources = append([]viewLeaf(nil), definition.sources...)
 	definition.sources[1].ref.Epoch++
 	d.View = &definition
-	e.catalog.state.setDescriptor(set.Address, &d)
+	e.catalog.state.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()
 	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: set, relation: &d, mark: localMark}})

@@ -77,7 +77,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
-	if proc.uuidOsspProvider() != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
+	if uuidOsspProviderOf(proc) != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -278,7 +278,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.catalog = auth.catalog.WithState(cloneCatalog(auth.catalog.State()))
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.State().setDescriptor(n.ref.Address, &bad)
+		auth.catalog.State().SetDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -303,13 +303,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	state := cloneCatalog(evaluation.catalog.State())
 	for address := range mapping {
-		state.unbindName(descriptorNameKey(state.Get(address)))
-		state.removeDescriptor(address)
+		state.UnbindName(descriptorNameKey(state.Get(address)))
+		state.RemoveDescriptor(address)
 	}
 	for address, dest := range mapping {
 		d := remapExtensionDescriptor(evaluation.catalog.Get(address), mapping)
-		state.setDescriptor(dest, d)
-		state.bindName(descriptorNameKey(d), dest)
+		state.SetDescriptor(dest, d)
+		state.BindName(descriptorNameKey(d), dest)
 	}
 	state.SetEpoch(state.Epoch() + 1)
 	view := e.catalog.read(state)

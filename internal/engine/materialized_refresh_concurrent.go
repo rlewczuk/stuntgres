@@ -17,12 +17,12 @@ func materializedIndexEligible(parent, index *relationDescriptor) bool {
 		return false
 	}
 	for _, key := range d.Keys {
-		if key.Attribute <= 0 || key.Derived != nil || !parent.hasAttribute(key.Attribute) {
+		if key.Attribute <= 0 || key.Derived != nil || !parent.HasAttribute(key.Attribute) {
 			return false
 		}
 	}
 	for _, attribute := range d.Include {
-		if attribute <= 0 || !parent.hasAttribute(attribute) {
+		if attribute <= 0 || !parent.HasAttribute(attribute) {
 			return false
 		}
 	}

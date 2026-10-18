@@ -179,7 +179,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	corrupt := *catalog.MustParameter(address)
 	corrupt.Owner = authorization.PrincipalRef{}
 	broken := cloneCatalog(catalog.State())
-	broken.setDescriptor(address, &corrupt)
+	broken.SetDescriptor(address, &corrupt)
 	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}

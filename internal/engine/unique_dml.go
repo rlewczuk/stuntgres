@@ -68,13 +68,13 @@ retry:
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Live {
 			continue
 		}
-		if index.SQLIndex.Ready && index.SQLIndex.requiresInsertionOutput() {
+		if index.SQLIndex.Ready && index.SQLIndex.RequiresInsertionOutput() {
 			b.checked = true
-			if !index.SQLIndex.Unique && !index.SQLIndex.isExclusion() {
+			if !index.SQLIndex.Unique && !index.SQLIndex.IsExclusion() {
 				checkedNonunique = append(checkedNonunique, index)
 			}
 		}
-		if !index.SQLIndex.Unique && !index.SQLIndex.isExclusion() {
+		if !index.SQLIndex.Unique && !index.SQLIndex.IsExclusion() {
 			continue
 		}
 		// REL18 row-key eligibility is independent of readiness/validity.
@@ -120,7 +120,7 @@ retry:
 		bound := &b.keys[i]
 		bound.index = index
 		bound.parent = parent
-		if index.SQLIndex.isExclusion() {
+		if index.SQLIndex.IsExclusion() {
 			bound.ordering, err = bindExclusionOrdering(parent, index.SQLIndex)
 		} else {
 			bound.ordering, err = bindIndexOrdering(parent, index.SQLIndex)
@@ -255,12 +255,12 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 	for i := range binding.keys {
 		bound := &binding.keys[i]
 		index := bound.index
-		if index.SQLIndex.isExclusion() {
+		if index.SQLIndex.IsExclusion() {
 			c := exclusionDefinition(binding.parent, index)
 			if c == nil {
 				return ids.ErrCatalogReplaced
 			}
-			if c.Deferrable || !index.SQLIndex.exactEqualityClaims() {
+			if c.Deferrable || !index.SQLIndex.ExactEqualityClaims() {
 				continue
 			}
 		}
@@ -321,7 +321,7 @@ func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error 
 	if err != nil {
 		return err
 	}
-	if c.index.SQLIndex.isExclusion() {
+	if c.index.SQLIndex.IsExclusion() {
 		return exclusionDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.existing, c.schema, s.output, allowed, false, c.view)
 	}
 	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
@@ -386,7 +386,7 @@ retry:
 			bound = &binding.keys[i]
 		}
 		index := bound.index
-		if index.SQLIndex.isExclusion() {
+		if index.SQLIndex.IsExclusion() {
 			if conflict, err := s.probeExclusionRow(ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.index != nil {
 				return conflict, err
 			}
@@ -439,7 +439,7 @@ retry:
 			}
 		}
 		var versions []rowVersion
-		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.hasRuntimeDomainKeyConversion()) {
+		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
 				versions = storage.versions
 			}
@@ -508,12 +508,12 @@ retry:
 				}
 			}
 			if !replaced {
-				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.hasRuntimeDomainKeyConversion()) {
+				if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 					head, err := conflictEntryVersion(versions, entry)
 					if err != nil {
 						return uniqueConflict{}, err
 					}
-					if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+					if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 						if err := bound.fillKeys(head.values, bound.scratch, &evaluation); err != nil {
 							return uniqueConflict{}, err
 						}
@@ -531,7 +531,7 @@ retry:
 				return uniqueConflict{}, err
 			}
 			if found {
-				if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 					if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 						return uniqueConflict{}, err
 					}
@@ -555,7 +555,7 @@ retry:
 						return uniqueConflict{}, err
 					}
 					if equal {
-						if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+						if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 							if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 								return uniqueConflict{}, err
 							}

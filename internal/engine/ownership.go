@@ -71,13 +71,13 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 		r, ok := catalog.Relation(t.OwningRelation)
 		return ok && r.RelationKind == compositeRelation
 	case *collationDescriptor:
-		return !t.seeded() && t.Owner != (authorization.PrincipalRef{})
+		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *conversionDescriptor:
-		return !t.seeded() && t.Owner != (authorization.PrincipalRef{})
+		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *operatorDescriptor:
-		return !t.seeded()
+		return !operatorSeeded(t)
 	case *procedureDescriptor:
-		return !t.seeded() && t.Foreign == nil
+		return !t.Seeded() && t.Foreign == nil
 	case *databaseDescriptor, *extensionDescriptor, *tsDictionaryDescriptor:
 		return true
 	}

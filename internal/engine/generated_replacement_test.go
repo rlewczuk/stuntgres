@@ -94,8 +94,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	source := []sqltype.Value{base, oldOID}
 	next := cloneCatalog(view.State())
 	next.SetEpoch(next.Epoch() + 1)
-	next.setDescriptor(d.Address(), d)
-	next.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	next.SetDescriptor(d.Address(), d)
+	next.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	// Retain a real TEMP namespace and row vector in the target generation.
 	tempNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 27000}
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
@@ -104,8 +104,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.Generations, temp.CheckConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = cloneCatalog(e.catalog.state)
-	e.catalog.state.setDescriptor(tempNamespace, &namespaceDescriptor{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
-	e.catalog.state.setDescriptor(tempAddress, &temp)
+	e.catalog.state.SetDescriptor(tempNamespace, &namespaceDescriptor{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
+	e.catalog.state.SetDescriptor(tempAddress, &temp)
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
@@ -198,7 +198,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				copy := *next.MustRelation(f.temp)
 				copy.ObjectAddress.ObjectID++
 				copy.ObjectName = "concurrent_temp"
-				next.setDescriptor(copy.Address(), &copy)
+				next.SetDescriptor(copy.Address(), &copy)
 				f.target.storage[copy.Address()] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
 				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next

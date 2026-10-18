@@ -36,7 +36,7 @@ func typedClosure(catalog CatalogRead, source ids.ObjectAddress) map[ids.ObjectA
 	}
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.RelationKind.stored() || result[table.Address()] != nil {
+		if !ok || !table.RelationKind.Stored() || result[table.Address()] != nil {
 			continue
 		}
 		for _, column := range table.Columns {
@@ -134,7 +134,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 	for i, attribute := range old.Attributes {
 		target := table.Attributes[i]
 		name := table.Columns[i].Name
-		slot := next.indexForAttribute(attribute)
+		slot := next.IndexForAttribute(attribute)
 		if slot < 0 {
 			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: name}, Mode: parser.DropCascade}})
 			continue
@@ -148,7 +148,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 		}
 	}
 	for i, attribute := range next.Attributes {
-		if old.hasAttribute(attribute) {
+		if old.HasAttribute(attribute) {
 			continue
 		}
 		usage := next.Columns[i].Usage
@@ -172,7 +172,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 		requestedDimensions := int16(0)
 		for _, origin := range provenance.Origins {
 			parent := view.MustRelation(origin.Parent)
-			slot := parent.indexForAttribute(origin.Attribute)
+			slot := parent.IndexForAttribute(origin.Attribute)
 			if slot < 0 {
 				continue
 			}
@@ -304,7 +304,7 @@ func finishTypedInheritance(view CatalogRead, next *relationDescriptor, graph *t
 		graph.Checks[name] = provenance
 	}
 	for attribute, provenance := range graph.NotNull {
-		if !next.hasAttribute(attribute) {
+		if !next.HasAttribute(attribute) {
 			delete(graph.NotNull, attribute)
 			continue
 		}

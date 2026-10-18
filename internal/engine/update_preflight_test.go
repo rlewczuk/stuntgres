@@ -197,8 +197,8 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "acl":
 						replacement.ACL = authorization.ACLValue{Explicit: true}
 					}
-					e.catalog.state.setDescriptor(address, &replacement)
-					restore = func() { e.catalog.state.setDescriptor(address, original) }
+					e.catalog.state.SetDescriptor(address, &replacement)
+					restore = func() { e.catalog.state.SetDescriptor(address, original) }
 				case "epoch":
 					original := e.catalog.state.Epoch()
 					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)

@@ -208,7 +208,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 			}
 			return err
 		}
-		if d.seeded() {
+		if d.Seeded() {
 			path, pathErr := e.referencePath(auth)
 			if pathErr != nil {
 				return pathErr

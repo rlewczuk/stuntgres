@@ -72,7 +72,7 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			historyAddress := roleTableRef(t, e, "summary_history").Address
 			parent := *state.MustRelation(address)
 			parent.HasIndexes = false
-			state.setDescriptor(address, &parent)
+			state.SetDescriptor(address, &parent)
 			stage := e.BeginCatalogStage(base)
 			if err := stage.Replace(&parent); err == nil {
 				t.Fatal("same-identity replacement cleared sticky history")

@@ -52,11 +52,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				ns := schemaRef(t, source, "imported").Address
 				n := *next.MustNamespace(ns)
 				n.ObjectRevision = 100
-				next.setDescriptor(ns, &n)
+				next.SetDescriptor(ns, &n)
 				addr := roleTableRef(t, source, "imported.t").Address
 				r := *next.MustRelation(addr)
 				r.ObjectRevision = 200
-				next.setDescriptor(addr, &r)
+				next.SetDescriptor(addr, &r)
 				e.catalog.nextRevision = frontier
 				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 					t.Fatal(err)
@@ -91,7 +91,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			addr := schemaRef(t, source, "terminal").Address
 			n := *next.MustNamespace(addr)
 			n.ObjectRevision = revision
-			next.setDescriptor(addr, &n)
+			next.SetDescriptor(addr, &n)
 			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next)); err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +127,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		addr := schemaRef(t, source, "canceled").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
-		next.setDescriptor(addr, &n)
+		next.SetDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -145,7 +145,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		addr := schemaRef(t, source, "invalid").Address
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
-		next.setDescriptor(addr, &n)
+		next.SetDescriptor(addr, &n)
 		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.read(next))
 		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().State() != before.State() {

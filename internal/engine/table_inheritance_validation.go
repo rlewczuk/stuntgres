@@ -115,7 +115,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	}
 	for attribute, provenance := range graph.NotNull {
 		child := slices.IndexFunc(d.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
-		if child < 0 || !provenance.Local && provenance.count() == 0 {
+		if child < 0 || !provenance.Local && provenance.Count() == 0 {
 			return invalid()
 		}
 		if err := validateRetiredInheritance(v, d, provenance, d.NotNullConstraints[child].OID, false); err != nil {
@@ -143,7 +143,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	}
 	for name, provenance := range graph.Checks {
 		child := slices.IndexFunc(d.CheckConstraints, func(c checkConstraint) bool { return c.Name == name })
-		if child < 0 || !provenance.Local && provenance.count() == 0 || d.CheckConstraints[child].NoInherit && provenance.count() != 0 {
+		if child < 0 || !provenance.Local && provenance.Count() == 0 || d.CheckConstraints[child].NoInherit && provenance.Count() != 0 {
 			return invalid()
 		}
 		if err := validateRetiredInheritance(v, d, provenance, d.CheckConstraints[child].OID, true); err != nil {

@@ -211,7 +211,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	}
 	pending := false
 	for _, captured := range captures {
-		pending = pending || captured.lineage.target.SQLIndex.hasRuntimeDomainConversion()
+		pending = pending || captured.lineage.target.SQLIndex.HasRuntimeDomainConversion()
 	}
 	for _, row := range sourceWrites {
 		pending = pending || len(row.indexOutputs) != 0
@@ -236,7 +236,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		for _, captured := range captures {
 			lineage := captured.lineage
 			output, ok := sourceWrites[position].indexOutputs[lineage.source.Address()]
-			if !ok && !lineage.target.SQLIndex.hasRuntimeDomainConversion() {
+			if !ok && !lineage.target.SQLIndex.HasRuntimeDomainConversion() {
 				continue
 			}
 			if !ok || (!output.matches(lineage.source) && !output.matches(lineage.target)) {

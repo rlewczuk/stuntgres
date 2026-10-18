@@ -83,11 +83,11 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.ObjectRevision++
-	e.catalog.state.setDescriptor(leaf.Address(), &changed)
+	e.catalog.state.SetDescriptor(leaf.Address(), &changed)
 	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
-	e.catalog.state.setDescriptor(leaf.Address(), leaf)
+	e.catalog.state.SetDescriptor(leaf.Address(), leaf)
 	op.restorePartitionUnique = nil
 	if partitionConsumerBoundary(op, auth, raw, mid) == nil {
 		t.Fatal("public hierarchy ADD widened")
@@ -215,11 +215,11 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()
-	state.resetDescriptors(view.DescriptorCount() + 1)
+	state.ResetDescriptors(view.DescriptorCount() + 1)
 	for address, descriptor := range view.Descriptors() {
-		state.setDescriptor(address, descriptor)
+		state.SetDescriptor(address, descriptor)
 	}
-	state.setDescriptor(consumer.Address(), consumer)
+	state.SetDescriptor(consumer.Address(), consumer)
 	view = view.WithState(&state)
 	graph[dumpEventKey{oid: consumer.Address().ObjectID}] = []dumpEventKey{{oid: local.Address().ObjectID}}
 	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value, leafValue}}}})

@@ -120,13 +120,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.State())
 	for address := range mapping {
-		next.unbindName(descriptorNameKey(before.Get(address)))
-		next.removeDescriptor(address)
+		next.UnbindName(descriptorNameKey(before.Get(address)))
+		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
 		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
-		next.setDescriptor(destination, descriptor)
-		next.bindName(descriptorNameKey(descriptor), destination)
+		next.SetDescriptor(destination, descriptor)
+		next.BindName(descriptorNameKey(descriptor), destination)
 	}
 	view := e.catalog.read(next)
 	remapped := next.MustExtension(mapping[ext.Address()])
@@ -139,7 +139,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.MustProcedure(original)
-		if remapped.Members[i] != proc.Address() || proc.Extension != remapped.Address() || proc.Namespace() != old.Namespace() || proc.Owner != old.Owner || proc.pgcryptoProvider() != old.pgcryptoProvider() || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
+		if remapped.Members[i] != proc.Address() || proc.Extension != remapped.Address() || proc.Namespace() != old.Namespace() || proc.Owner != old.Owner || pgcryptoProviderOf(proc) != pgcryptoProviderOf(old) || proc.Signature != old.Signature || proc.Result != old.Result || proc.Strict != old.Strict || proc.Volatility != old.Volatility {
 			t.Fatal("remapped member identity", proc)
 		}
 		if old.Address() != original || old.Extension != ext.Address() || ext.Members[i] != original {
@@ -171,7 +171,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.ref},
 		}}}},
 	}
-	next.setDescriptor(address, consumer)
+	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
 		t.Fatal("relocated consumer", err)

@@ -13,7 +13,7 @@ import (
 type intarrayProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *intarrayProvider) Control() extensionControl { return p.control.detached() }
+func (p *intarrayProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockIntarray = &intarrayProvider{control: extensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 
@@ -108,7 +108,7 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	}
 	for i, address := range ext.Members[1:] {
 		proc, ok := v.Procedure(address)
-		if !ok || proc.Address() != address || proc.intarrayProvider() != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
+		if !ok || proc.Address() != address || intarrayProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
 		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(base.SQLType.ID())

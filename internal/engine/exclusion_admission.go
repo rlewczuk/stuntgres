@@ -151,7 +151,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 		return rowVersion{}, err
 	}
 	member = member && !uniqueHasNull(keys)
-	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
+	if member && (purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() || bound.index.SQLIndex.Method == hashMethod) {
 		keys = slices.Clone(keys)
 	}
 	if purpose == indexProbeRevalidation && proposal.exclusion == nil {
@@ -360,7 +360,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			if err != nil || !match {
 				return err
 			}
-			if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+			if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 				if err := bound.ordering.fillKeys(entry.row.values, bound.scratch, &evaluation); err != nil {
 					return err
 				}
@@ -385,7 +385,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			}
 			if hit.index == nil {
 				existing := entry.keys
-				if purpose != indexProbeRevalidation && index.SQLIndex.hasRuntimeDomainKeyConversion() {
+				if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
 					existing = slices.Clone(bound.scratch)
 				} else if committed && scan.root.hash != nil {
 					existing = slices.Clone(existing)
@@ -484,7 +484,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		}
 		indexRef := ref
 		indexRef.Address = index.Address()
-		if index.SQLIndex.exactEqualityClaims() {
+		if index.SQLIndex.ExactEqualityClaims() {
 			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
 				return uniqueConflict{}, err
 			}

@@ -44,7 +44,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer.View = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
 				viewOf(&outer).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.Columns), ref: ruleUnitRef(e, inner)}}
 				next := cloneCatalog(e.catalog.state)
-				next.setDescriptor(outer.Address(), &outer)
+				next.SetDescriptor(outer.Address(), &outer)
 				e.catalog.state = next
 				root = &outer
 			}
@@ -95,7 +95,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			revoked := *base
 			revoked.ACL = grant(other)
 			next := cloneCatalog(e.catalog.state)
-			next.setDescriptor(base.Address(), &revoked)
+			next.SetDescriptor(base.Address(), &revoked)
 			current := auth
 			current.recaptureCatalog(e.catalog.read(next))
 			refs, err := collect(current, owner.Ref, leaf)

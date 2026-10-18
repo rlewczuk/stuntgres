@@ -34,7 +34,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		if !ok || ns.Temporary != namespace.Temporary {
 			return false
 		}
-		return ref.Address.SubID == 0 || target.hasAttribute(ref.Address.SubID)
+		return ref.Address.SubID == 0 || target.HasAttribute(ref.Address.SubID)
 	case *typeDescriptor:
 		// Full rendering has already compared each concrete node's exact Usage
 		// generation. Native replacement retains these builtin descriptors, not
@@ -44,10 +44,10 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
-		if capability, err := target.usage(); err != nil || !capability.Valid() {
+		if capability, err := target.Usage(); err != nil || !capability.Valid() {
 			return false
 		}
-		if target.seeded() {
+		if target.Seeded() {
 			return pgDependPinned(view, ref.Address) && (collationProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
@@ -98,7 +98,7 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		return false
 	}
 	if relation, ok := target.(*relationDescriptor); ok && relation.RelationKind == catalogRelation {
-		return target == captured && pgDependPinned(catalog, address) && (ref.Address.SubID == 0 || relation.hasAttribute(ref.Address.SubID))
+		return target == captured && pgDependPinned(catalog, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
 	}
 	if !storedReferenceEpochValid(catalog, consumer, ref) {
 		return false
@@ -115,15 +115,15 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		if !ok {
 			return false
 		}
-		before, beforeErr := old.usage()
-		after, afterErr := actual.usage()
+		before, beforeErr := old.Usage()
+		after, afterErr := actual.Usage()
 		return beforeErr == nil && afterErr == nil && before == after
 	case *procedureDescriptor:
 		old, ok := captured.(*procedureDescriptor)
 		// An old-epoch intagg occurrence bridges replacement only through the
 		// exact descriptor captured by this retained TEMP consumer. Ordinary
 		// current-epoch COW declarations take the path above, not this bridge.
-		if ok && (old.intaggProvider() != nil || actual.intaggProvider() != nil) && actual != old {
+		if ok && (intaggProviderOf(old) != nil || intaggProviderOf(actual) != nil) && actual != old {
 			return false
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&
@@ -200,7 +200,7 @@ func storedCollationReferenceValid(view CatalogRead, consumer *relationDescripto
 	if !ok {
 		return false
 	}
-	actual, err := collation.usage()
+	actual, err := collation.Usage()
 	return err == nil && actual == capability
 }
 

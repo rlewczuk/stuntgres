@@ -27,7 +27,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	before.setDescriptor(address, &namespace)
+	before.SetDescriptor(address, &namespace)
 	auth.roleRecord = roles
 	auth.recaptureCatalog(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
@@ -38,7 +38,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	after := cloneCatalog(before)
 	database := *after.MustDatabase(currentDatabaseAddress)
 	database.Owner = successor
-	after.setDescriptor(currentDatabaseAddress, &database)
+	after.SetDescriptor(currentDatabaseAddress, &database)
 	fresh := auth
 	fresh.catalog = e.catalog.read(after)
 	fresh.recaptureCatalog(fresh.catalog)

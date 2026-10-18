@@ -66,7 +66,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	index.ObjectRevision++
 	index.SQLIndex = &definition
 	next := cloneCatalog(capture.State())
-	next.setDescriptor(index.Address(), &index)
+	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	index := *f.index
 	index.SQLIndex = &definition
 	next := cloneCatalog(capture.State())
-	next.setDescriptor(index.Address(), &index)
+	next.SetDescriptor(index.Address(), &index)
 	candidate := f.e.catalog.read(next)
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)

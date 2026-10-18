@@ -114,18 +114,18 @@ func indexExpressionDepends(d *relationDescriptor, target ids.ObjectAddress) boo
 	return false
 }
 
-func (d *indexDefinition) hasRuntimeDomainConversion() bool {
+func (d *indexDefinition) HasRuntimeDomainConversion() bool {
 	if d.Predicate != nil && d.Predicate.Execution.Properties().RuntimeDomainConversion {
 		return true
 	}
-	return d.hasRuntimeDomainKeyConversion()
+	return d.HasRuntimeDomainKeyConversion()
 }
 
 // Callable index recipes must run on the produced tuple before RETURNING.
 // Reuse the tracked insertion output so publication does not call them twice.
 // Plain-column indexes retain their allocation-free insertion path.
-func (d *indexDefinition) requiresInsertionOutput() bool {
-	if d.hasRuntimeDomainConversion() {
+func (d *indexDefinition) RequiresInsertionOutput() bool {
+	if d.HasRuntimeDomainConversion() {
 		return true
 	}
 	if d.Predicate != nil {
@@ -148,7 +148,7 @@ func (d *indexDefinition) requiresInsertionOutput() bool {
 	return false
 }
 
-func (d *indexDefinition) hasRuntimeDomainKeyConversion() bool {
+func (d *indexDefinition) HasRuntimeDomainKeyConversion() bool {
 	for _, key := range d.Keys {
 		if key.Derived != nil && key.Derived.Execution.Properties().RuntimeDomainConversion {
 			return true

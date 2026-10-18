@@ -43,7 +43,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 				merge := scope.inheritanceAlter.descendant
 				if parent.Inheritance != nil {
 					provenance := parent.Inheritance.Checks[c.Name]
-					merge = merge || !provenance.Local && provenance.count() != 0
+					merge = merge || !provenance.Local && provenance.Count() != 0
 				}
 				if !merge {
 					continue

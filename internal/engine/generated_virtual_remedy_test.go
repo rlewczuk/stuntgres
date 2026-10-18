@@ -118,7 +118,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	e, catalog, d := generatedUnitDescriptor(t)
 	catalog = catalog.WithState(cloneCatalog(catalog.State()))
-	catalog.State().setDescriptor(d.Address(), d)
+	catalog.State().SetDescriptor(d.Address(), d)
 	ref := e.catalog.Domain.Ref(catalog.Epoch(), d.Address())
 	origin := ref
 	origin.Address.SubID = 2

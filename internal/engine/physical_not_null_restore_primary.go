@@ -41,7 +41,7 @@ func physicalImportedIndexMatches(source *relationDescriptor, constructor *physi
 	}
 	for i, attribute := range primary.Attributes {
 		key, expression, err := indexCatalogKey(constructor.before, source.SQLIndex.Keys[i])
-		slot := current.indexForAttribute(attribute)
+		slot := current.IndexForAttribute(attribute)
 		if err != nil || expression != nil || key != attribute || slot < 0 || source.Columns[i].Usage != current.Columns[slot].Usage {
 			return false
 		}
@@ -106,7 +106,7 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 		return reject()
 	}
 	for i, attribute := range primary.Attributes {
-		slot, before := current.indexForAttribute(attribute), constructor.before.indexForAttribute(attribute)
+		slot, before := current.IndexForAttribute(attribute), constructor.before.IndexForAttribute(attribute)
 		if slot < 0 || before < 0 || current.Columns[slot].Name != definition.Columns[i].Text || current.Columns[slot].Usage != constructor.before.Columns[before].Usage {
 			return reject()
 		}

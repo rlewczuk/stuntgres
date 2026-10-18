@@ -145,4 +145,4 @@ func conversionSeed(oid ids.OID) *conversionDescriptor {
 	return &builtinConversions[index]
 }
 
-func (d *conversionDescriptor) seeded() bool { return conversionSeed(d.OID) != nil }
+func (d *conversionDescriptor) Seeded() bool { return conversionSeed(d.OID) != nil }

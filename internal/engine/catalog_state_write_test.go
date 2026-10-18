@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"maps"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -10,8 +11,8 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 	base, ns, rel := catalogReadFixture()
 
 	copied := *base
-	copied.cloneDescriptors()
-	copied.removeDescriptor(rel.Address())
+	copied.CloneDescriptors()
+	copied.RemoveDescriptor(rel.Address())
 	if _, ok := base.Relation(rel.Address()); !ok {
 		t.Fatal("removal from a cloned state changed its source")
 	}
@@ -20,22 +21,22 @@ func TestCatalogStateWritesStayOnTheirState(t *testing.T) {
 	}
 
 	other := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 902}, ObjectNamespace: ns.Address(), ObjectName: "u", ObjectRevision: 1}
-	copied.setDescriptor(other.Address(), other)
+	copied.SetDescriptor(other.Address(), other)
 	if base.Get(other.Address()) != nil || copied.Get(other.Address()) != other {
 		t.Fatal("setDescriptor did not stay on the clone")
 	}
 
 	key := descriptorNameKey(rel)
-	copied.unbindName(key)
+	copied.UnbindName(key)
 	if _, ok := copied.LookupName(key); ok {
 		t.Fatal("unbindName kept the binding")
 	}
-	copied.bindName(key, other.Address())
+	copied.BindName(key, other.Address())
 	if copied.NameAddress(key) != other.Address() {
 		t.Fatal("bindName did not bind")
 	}
 
-	previous := copied.resetMaps(4)
+	previous := maps.Collect(copied.ResetMaps(4))
 	if copied.DescriptorCount() != 0 || copied.NameCount() != 0 {
 		t.Fatal("resetMaps left entries")
 	}

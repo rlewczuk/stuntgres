@@ -23,7 +23,7 @@ const (
 	foreignRelation
 )
 
-func (k relationKind) stored() bool {
+func (k relationKind) Stored() bool {
 	return k == tableRelation || k == materializedViewRelation
 }
 

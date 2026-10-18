@@ -50,7 +50,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				}
 				index = &maximum
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.setDescriptor(index.Address(), index)
+				e.catalog.state.SetDescriptor(index.Address(), index)
 				t.Cleanup(func() { e.catalog.state = originalCatalog })
 			}
 			before := e.storage[survivor.Address()]

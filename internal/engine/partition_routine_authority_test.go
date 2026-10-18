@@ -158,11 +158,11 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	// when its address, engine and epoch all still match.
 	staleAuth := auth
 	state := *auth.catalog.State()
-	state.cloneDescriptors()
+	state.CloneDescriptors()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
 	declaration.ObjectRevision++
-	state.setDescriptor(address, &declaration)
+	state.SetDescriptor(address, &declaration)
 	staleAuth.catalog = staleAuth.catalog.WithState(&state)
 	staleEvaluation := newEvaluation(staleAuth)
 	if _, err := evaluatePartitionRecipe(&staleEvaluation, owner, 0, row); err == nil {

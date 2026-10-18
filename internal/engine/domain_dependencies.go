@@ -607,7 +607,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 			}
 			// The closure captured a live stable attribute. A nested cascade
 			// may already have consumed it through a different provider path.
-			slot := next.indexForAttribute(edge.address.SubID)
+			slot := next.IndexForAttribute(edge.address.SubID)
 			if slot < 0 {
 				continue
 			}

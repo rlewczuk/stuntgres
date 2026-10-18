@@ -46,7 +46,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	view := e.stageRead(stage)
-	if !d.RelationKind.stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
+	if !d.RelationKind.Stored() || d.Populated || d.View == nil || viewOf(d).rule == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
 	if err := (relationProvider{}).Validate(view, d); err != nil {

@@ -81,7 +81,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	broken := cloneCatalog(e.CatalogRead().State())
 	copied := *domain
 	copied.Array = sqltype.NameArray
-	broken.setDescriptor(domain.Address(), &copied)
+	broken.SetDescriptor(domain.Address(), &copied)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
@@ -97,7 +97,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	forged := *associated
 	forged.SQLType = foreignArray
 	broken = cloneCatalog(e.catalog.state)
-	broken.setDescriptor(associated.Address(), &forged)
+	broken.SetDescriptor(associated.Address(), &forged)
 	if err := (typeProvider{}).Validate(e.catalog.read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
 	}
@@ -217,7 +217,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.MustType(regclassAddress)
 	reboundRegclass.SQLType = fresh.catalog.state.MustType(regclassAddress).SQLType
-	next.setDescriptor(regclassAddress, &reboundRegclass)
+	next.SetDescriptor(regclassAddress, &reboundRegclass)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.Address(): {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.SQLType, rcArray, whole.SQLType, wholeArray, nested.SQLType, nestedArray} {
 		mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}] = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(60001 + i)}
@@ -264,12 +264,12 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		descriptors[target] = descriptor
 		names[descriptorNameKey(descriptor)] = target
 	}
-	next.resetMaps(len(descriptors))
+	next.ResetMaps(len(descriptors))
 	for address, descriptor := range descriptors {
-		next.setDescriptor(address, descriptor)
+		next.SetDescriptor(address, descriptor)
 	}
 	for key, address := range names {
-		next.bindName(key, address)
+		next.BindName(key, address)
 	}
 	view := e.catalog.read(next)
 	for _, descriptor := range next.Descriptors() {

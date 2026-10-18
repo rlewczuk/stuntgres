@@ -54,12 +54,12 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	definition := index.SQLIndex
 	parent := catalog.MustRelation(definition.Parent)
 	n := len(definition.Keys)
-	ready, valid, live := definition.publicationState()
+	ready, valid, live := definition.PublicationState()
 	m = indexMetadata{IndexRelID: index.Address().ObjectID, IndRelID: parent.Address().ObjectID, IndNatts: int16(n + len(definition.Include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.Include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
 	m.IndIsUnique = definition.Unique
 	m.IndNullsNotDistinct = definition.NullsNotDistinct
 	m.IndIsPrimary = definition.Constraint != nil && definition.Constraint.Kind == uniqueBackingKind && definition.Constraint.Primary
-	if definition.isExclusion() {
+	if definition.IsExclusion() {
 		m.IndIsExclusion = true
 		if c := exclusionDefinition(parent, index); c != nil {
 			m.IndImmediate = !c.Deferrable

@@ -199,7 +199,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
 		d, ok := s.descriptors[address].(*relationDescriptor)
-		if !ok || !d.RelationKind.stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		if !ok || !d.RelationKind.Stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {

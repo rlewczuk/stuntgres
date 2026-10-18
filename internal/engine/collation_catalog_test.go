@@ -38,7 +38,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	ref, err := d.usage()
+	ref, err := d.Usage()
 	text, _ := view.LookupType(sqltype.Text)
 	usage := text.Usage()
 	usage.Collation = ref
@@ -80,7 +80,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 	if collationSQLName(view, 90000) != `"public"."registered"` || collationSQLName(e.CatalogRead(), 90000) != `"public"."renamed"` {
 		t.Fatal("snapshot names lost identity")
 	}
-	if current, err := next.usage(); err != nil || current != ref {
+	if current, err := next.Usage(); err != nil || current != ref {
 		t.Fatal("rename changed capability", current, ref, err)
 	}
 	before := e.CatalogRead()

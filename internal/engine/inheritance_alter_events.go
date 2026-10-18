@@ -33,7 +33,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 		}
 	case parser.DropColumn:
 		for slot, attribute := range before.Attributes {
-			if after.hasAttribute(attribute) {
+			if after.HasAttribute(attribute) {
 				continue
 			}
 			action := a
@@ -58,7 +58,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			if !old.NoInherit && !slices.ContainsFunc(after.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == old.Attribute }) {
 				action := a
 				action.Action = parser.DropNotNull
-				action.Column = parser.Identifier{Text: before.Columns[before.indexForAttribute(old.Attribute)].Name}
+				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
 				events = append(events, inheritanceAlterEvent{action: action, attribute: old.Attribute, constraint: old.OID})
 			}
 		}
@@ -85,7 +85,7 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *relatio
 			if index >= 0 && !validation {
 				continue
 			}
-			action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: after.Columns[after.indexForAttribute(next.Attribute)].Name}, Constraint: parser.Identifier{Text: next.Name}, NotValid: next.NotValid}
+			action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: after.Columns[after.IndexForAttribute(next.Attribute)].Name}, Constraint: parser.Identifier{Text: next.Name}, NotValid: next.NotValid}
 			if validation || a.Action == parser.SetNotNull {
 				action.Action = parser.SetNotNull
 			}

@@ -228,14 +228,14 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
-	invalidOwner.resetDescriptors(e.catalog.state.DescriptorCount())
+	invalidOwner.ResetDescriptors(e.catalog.state.DescriptorCount())
 	for address, descriptor := range e.catalog.state.Descriptors() {
-		invalidOwner.setDescriptor(address, descriptor)
+		invalidOwner.SetDescriptor(address, descriptor)
 	}
-	invalidOwner.removeDescriptor(mood.Address())
+	invalidOwner.RemoveDescriptor(mood.Address())
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
-	invalidOwner.setDescriptor(wrongAddress, mood)
+	invalidOwner.SetDescriptor(wrongAddress, mood)
 	if rows, err := capturePGEnum(context.Background(), e.catalog.read(&invalidOwner), ref, d); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}

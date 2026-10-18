@@ -241,10 +241,10 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	}
 	replacement := cloneCatalog(e.catalog.state)
 	copy := *replacement.MustProcedure(oldAddress)
-	replacement.removeDescriptor(oldAddress)
+	replacement.RemoveDescriptor(oldAddress)
 	copy.ObjectAddress.ObjectID = 40010
-	replacement.setDescriptor(copy.Address(), &copy)
-	replacement.bindName(key, copy.Address())
+	replacement.SetDescriptor(copy.Address(), &copy)
+	replacement.BindName(key, copy.Address())
 	_, err := foreignHandlerFor(e.catalog.read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
@@ -254,7 +254,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	uncallable := cloneCatalog(e.catalog.state)
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
-	uncallable.setDescriptor(oldAddress, &procedure)
+	uncallable.SetDescriptor(oldAddress, &procedure)
 	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)

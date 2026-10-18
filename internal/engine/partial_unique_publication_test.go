@@ -314,13 +314,13 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 		t.Run(fmt.Sprint(materialize), func(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			next := *f.catalog
-			next.cloneDescriptors()
+			next.CloneDescriptors()
 			index := *f.index
 			definition := *index.SQLIndex
 			predicate := *definition.Predicate
 			definition.Predicate = &predicate
 			index.SQLIndex = &definition
-			next.setDescriptor(index.Address(), &index)
+			next.SetDescriptor(index.Address(), &index)
 			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)

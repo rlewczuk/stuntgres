@@ -44,7 +44,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
 				if err == nil && added.column != nil {
 					if planned.usage != nil {
-						mutation.next.Columns[mutation.next.indexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
+						mutation.next.Columns[mutation.next.IndexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
 					}
 					mutation.additions = append(mutation.additions, added)
 				}

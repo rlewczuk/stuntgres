@@ -246,8 +246,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			}}
 		}
 		d.Comment = namespaceCommentBaseline(ns.oid)
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -257,15 +257,15 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if typ.NamespaceName() == "information_schema" {
 			d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
 	}
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
 		d.Owner = e.authorizationDomain.Principal(10)
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeConversionRoutines()
 	e.initializeBuiltinRoutines()
@@ -276,8 +276,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d.Owner = e.authorizationDomain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.ObjectRevision = 1
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)
@@ -289,7 +289,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	view := e.catalog.read(e.catalog.state)
 	for _, d := range e.catalog.state.Descriptors() {
-		p := e.catalog.provider(d.Address().ClassID)
+		p := e.catalog.Provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
 		}

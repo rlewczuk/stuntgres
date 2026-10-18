@@ -40,10 +40,10 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
 	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
-	e.catalog.state.setDescriptor(base.Address(), base)
-	e.catalog.state.setDescriptor(view.Address(), view)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
+	e.catalog.state.SetDescriptor(base.Address(), base)
+	e.catalog.state.SetDescriptor(view.Address(), view)
+	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
+	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -169,7 +169,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	f.e.catalog.state.setDescriptor(indexAddress, &relationDescriptor{
+	f.e.catalog.state.SetDescriptor(indexAddress, &relationDescriptor{
 		ObjectAddress: indexAddress,
 		SQLIndex:      &indexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})

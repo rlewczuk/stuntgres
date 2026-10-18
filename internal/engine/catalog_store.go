@@ -66,9 +66,9 @@ func (s *catalogStore) registerProviderLocked(id ids.OID, p CatalogProvider) err
 	return nil
 }
 
-// provider returns the registered provider of a catalog class, or nil. The
+// Provider returns the registered provider of a catalog class, or nil. The
 // registry is immutable after construction.
-func (s *catalogOwner) provider(class ids.OID) CatalogProvider {
+func (s *catalogOwner) Provider(class ids.OID) CatalogProvider {
 	return s.Providers[class]
 }
 
@@ -156,7 +156,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 	}
 	if ref.Address.SubID > 0 {
 		r, ok := d.(*relationDescriptor)
-		if !ok || !r.hasAttribute(ref.Address.SubID) {
+		if !ok || !r.HasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}
 	}

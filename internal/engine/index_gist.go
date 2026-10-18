@@ -49,7 +49,7 @@ func bindIndexKeys(parent *relationDescriptor, d *indexDefinition) (indexOrderin
 
 // Comparator-based exclusive claims are sound only for the original equality
 // providers. Overlap admissions use existing dirty projections/completion waits.
-func (d *indexDefinition) exactEqualityClaims() bool {
+func (d *indexDefinition) ExactEqualityClaims() bool {
 	if d.Method == gistMethod {
 		return false
 	}

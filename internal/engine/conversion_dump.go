@@ -44,7 +44,7 @@ func conversionDumpStatements(ctx context.Context, view CatalogRead, roles autho
 	}
 	occupiedPairs := make(map[pair]bool)
 	for _, descriptor := range view.Descriptors() {
-		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.DefaultConversion {
+		if d, ok := descriptor.(*conversionDescriptor); ok && d.Seeded() && d.DefaultConversion {
 			occupiedPairs[pair{d.Namespace(), d.Source, d.Destination}] = true
 		}
 	}

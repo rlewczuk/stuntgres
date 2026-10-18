@@ -70,7 +70,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	ref, err := d.usage()
+	ref, err := d.Usage()
 	if err != nil {
 		return sqltype.Usage{}, expr.ErrorAt("0A000", "collation is unsupported", pos)
 	}
@@ -87,7 +87,7 @@ func (e *Engine) lookupCollation(raw parser.ObjectName, op *Operation) (uint32, 
 	if err != nil {
 		return 0, err
 	}
-	if _, err = d.usage(); err != nil {
+	if _, err = d.Usage(); err != nil {
 		return 0, expr.ErrorAt("0A000", "collation is unsupported", raw.Parts[0].Pos)
 	}
 	return uint32(d.OID), nil

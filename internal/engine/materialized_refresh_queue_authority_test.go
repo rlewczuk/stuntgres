@@ -65,8 +65,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
 			e.mu.Lock()
 			nextState := *e.catalog.state
-			nextState.cloneDescriptors()
-			nextState.cloneNames()
+			nextState.CloneDescriptors()
+			nextState.CloneNames()
 			next := *d
 			next.ObjectRevision++
 			expectedAddress := d.Address()
@@ -94,8 +94,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "ref":
 				next.ObjectAddress.ObjectID += 100000
 				expectedAddress = next.Address()
-				nextState.removeDescriptor(d.Address())
-				nextState.bindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
+				nextState.RemoveDescriptor(d.Address())
+				nextState.BindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
 				storage := *oldStorage
 				expectedStorage = &storage
 				e.storage = maps.Clone(e.storage)
@@ -104,7 +104,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			case "epoch":
 				nextState.SetEpoch(nextState.Epoch() + 1)
 			}
-			nextState.setDescriptor(expectedAddress, &next)
+			nextState.SetDescriptor(expectedAddress, &next)
 			e.catalog.state = &nextState
 			before, rowCounter, versionCounter := e.commitSeq, e.nextRow, e.nextVersion
 			e.mu.Unlock()

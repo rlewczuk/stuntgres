@@ -172,7 +172,7 @@ func (e columnExpression) capturedGeneration(source *querySource, index int, cur
 
 func generationInheritanceError(column string, parent, child generationKind) error {
 	err := sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column of different kind`, column)).(*sqlstate.Error)
-	err.Detail = fmt.Sprintf("Parent column is %s, child column is %s.", parent.sql(), child.sql())
+	err.Detail = fmt.Sprintf("Parent column is %s, child column is %s.", parent.SQL(), child.SQL())
 	return err
 }
 

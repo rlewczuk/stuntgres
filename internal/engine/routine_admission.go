@@ -89,7 +89,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	if err != nil || captured == nil {
 		return err
 	}
-	if scalarPlanning && captured.returnsSet() {
+	if scalarPlanning && procedureReturnsSet(captured) {
 		return nil
 	}
 	auth, dependencies, err := c.routineAdmissionAuthority()

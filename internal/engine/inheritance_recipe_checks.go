@@ -235,7 +235,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 		return
 	}
 	for attribute, definition := range table.Generations {
-		column := table.Columns[table.indexForAttribute(attribute)].Name
+		column := table.Columns[table.IndexForAttribute(attribute)].Name
 		declared := false
 		for _, element := range raw.Elements {
 			if element.Column != nil && element.Column.Name == column {
@@ -262,7 +262,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 				}
 				inherited = true
 				record, exists := origins[restoredGenerationKey{origin.Parent, origin.Attribute}]
-				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.Kind || record.usage != parent.Columns[parent.indexForAttribute(origin.Attribute)].Usage {
+				if !exists || record.ref.Domain() != created.Domain() || record.ref.Epoch != created.Epoch || record.generation != generation.OID || record.kind != generation.Kind || record.usage != parent.Columns[parent.IndexForAttribute(origin.Attribute)].Usage {
 					compatible = false
 					break
 				}
@@ -270,7 +270,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 			declared = inherited && compatible && !table.Inheritance.Columns[attribute].ExplicitGeneration
 		}
 		if declared {
-			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{ref: created, attribute: attribute, generation: definition.OID, usage: table.Columns[table.indexForAttribute(attribute)].Usage, kind: definition.Kind}
+			origins[restoredGenerationKey{created.Address, attribute}] = restoredGenerationRecipe{ref: created, attribute: attribute, generation: definition.OID, usage: table.Columns[table.IndexForAttribute(attribute)].Usage, kind: definition.Kind}
 		}
 	}
 }
@@ -402,7 +402,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 			continue
 		}
 		generation, ok := table.Generations[repair.attribute]
-		slot := table.indexForAttribute(repair.attribute)
+		slot := table.IndexForAttribute(repair.attribute)
 		if !ok || slot < 0 || generation.OID != repair.generation || generation.Kind != repair.kind || table.Columns[slot].Usage != repair.usage {
 			continue
 		}

@@ -68,7 +68,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if key.Collation != 0 && key.Collation != key.Usage.Collation.ID {
 				return invalid()
 			}
-			if key.Derived == nil && !d.hasAttribute(key.Attribute) {
+			if key.Derived == nil && !d.HasAttribute(key.Attribute) {
 				return invalid()
 			}
 			if key.Derived != nil && !slices.Equal(key.Derived.Attributes, d.Attributes) {

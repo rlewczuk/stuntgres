@@ -323,7 +323,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 			current.Sequence = &options
 			e.mu.Lock()
 			e.catalog.state = cloneCatalog(base)
-			e.catalog.state.setDescriptor(sequence, &current)
+			e.catalog.state.SetDescriptor(sequence, &current)
 			changes := newCatalogChanges()
 			changes.originals[sequence] = &current
 			target := tableRef.Address
@@ -336,10 +336,10 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				changes.originals[sequence] = old
 			case "post-grant-change":
 				later := current
-				e.catalog.state.setDescriptor(sequence, &later)
+				e.catalog.state.SetDescriptor(sequence, &later)
 			case "new-identity":
 				observationBase = cloneCatalog(base)
-				observationBase.removeDescriptor(sequence)
+				observationBase.RemoveDescriptor(sequence)
 				changes.originals[sequence] = nil
 			case "changed-check":
 				changed := *table
@@ -347,7 +347,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				extra := changed.CheckConstraints[0]
 				extra.Name = "late_check"
 				changed.CheckConstraints = append(changed.CheckConstraints, extra)
-				e.catalog.state.setDescriptor(tableRef.Address, &changed)
+				e.catalog.state.SetDescriptor(tableRef.Address, &changed)
 				changes.originals[tableRef.Address] = &changed
 			}
 			changes.dependencies = append(changes.dependencies, catalogDependencyObservation{observationBase, []ids.ObjectAddress{target}})

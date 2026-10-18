@@ -58,8 +58,8 @@ func (e *Engine) initializeBuiltinRoutines() {
 			RoutineKind: declaration.Kind, Builtin: declaration, Owner: owner,
 			Result: declaration.Result, Volatility: declaration.Volatility, Strict: declaration.Strict,
 		}
-		e.catalog.state.setDescriptor(d.Address(), d)
-		e.catalog.state.bindName(descriptorNameKey(d), d.Address())
+		e.catalog.state.SetDescriptor(d.Address(), d)
+		e.catalog.state.BindName(descriptorNameKey(d), d.Address())
 	}
 	e.initializeBuiltinRoutineBodies()
 }

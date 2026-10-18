@@ -223,7 +223,7 @@ func rawObjectACL(catalog CatalogRead, address ids.ObjectAddress) (authorization
 		// AttrNumber is signed int16. Narrow only after choosing the column
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))
-		if relation, ok := d.(*relationDescriptor); ok && subid > 0 && relation.hasAttribute(subid) {
+		if relation, ok := d.(*relationDescriptor); ok && subid > 0 && relation.HasAttribute(subid) {
 			return relation.ColumnACL[subid], nil
 		}
 		return authorization.ACLValue{}, nil

@@ -43,8 +43,8 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		RelationKind: sequenceRelation, Sequence: &sequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
-		view.State().setDescriptor(descriptor.Address(), descriptor)
-		view.State().bindName(descriptorNameKey(descriptor), descriptor.Address())
+		view.State().SetDescriptor(descriptor.Address(), descriptor)
+		view.State().BindName(descriptorNameKey(descriptor), descriptor.Address())
 	}
 	literal := func(s string) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
@@ -105,7 +105,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	options := *changed.Sequence
 	options.Owned = ids.ObjectAddress{}
 	changed.Sequence = &options
-	f.engine.catalog.state.setDescriptor(changed.Address(), &changed)
+	f.engine.catalog.state.SetDescriptor(changed.Address(), &changed)
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)

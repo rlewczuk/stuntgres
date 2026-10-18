@@ -36,7 +36,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())
 		if temporary && namespace.Temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
-			retained.setDescriptor(address, descriptor)
+			retained.SetDescriptor(address, descriptor)
 			continue
 		}
 		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil && (!index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live) {
@@ -108,7 +108,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			return nil, 0, 0, ids.ErrCatalogReplaced
 		}
 		schema := ""
-		if index.SQLIndex.Unique || index.SQLIndex.isExclusion() {
+		if index.SQLIndex.Unique || index.SQLIndex.IsExclusion() {
 			namespace := next.Get(parent.Namespace())
 			if namespace == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced

@@ -39,7 +39,7 @@ type indexDefinition struct {
 	Exclusion          []sqltype.ExclusionOperator
 }
 
-func (d *indexDefinition) publicationState() (ready, valid, live bool) {
+func (d *indexDefinition) PublicationState() (ready, valid, live bool) {
 	return d.Ready, d.Valid, d.Live
 }
 
@@ -372,7 +372,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
-	validate := (d.Unique || d.isExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
+	validate := (d.Unique || d.IsExclusion()) && (d.Constraint != nil || d.Valid || reconstruct)
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 			}
 			entry = logicalIndexEntry{keys: output.keys, row: row.row, version: row.version}
 		} else {
-			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced index row")
 			}
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)

@@ -202,12 +202,12 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			continue
 		}
 		def := index.SQLIndex
-		if def.Parent != parent.Address() || !def.Live || !def.Ready || (!def.Unique && !def.isExclusion()) {
+		if def.Parent != parent.Address() || !def.Live || !def.Ready || (!def.Unique && !def.IsExclusion()) {
 			continue
 		}
 		if c.constraint != (ids.ObjectAddress{}) {
 			if index.Address() == c.namedIndex {
-				if c.update != nil && def.isExclusion() {
+				if c.update != nil && def.IsExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
 				}
 				c.selected = append(c.selected, index.Address())

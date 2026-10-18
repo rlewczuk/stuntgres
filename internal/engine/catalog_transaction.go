@@ -139,18 +139,18 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	for a, d := range c.descriptors {
 		operators.replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
-			n.unbindName(descriptorNameKey(old))
+			n.UnbindName(descriptorNameKey(old))
 		}
 		if d == nil {
-			n.removeDescriptor(a)
+			n.RemoveDescriptor(a)
 			n.RemoveDumpPriority(a)
 		} else {
-			n.setDescriptor(a, d)
+			n.SetDescriptor(a, d)
 		}
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			n.bindName(descriptorNameKey(d), d.Address())
+			n.BindName(descriptorNameKey(d), d.Address())
 		}
 	}
 	n.SetOperatorNames(operators.index)
@@ -222,7 +222,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		if d == nil {
 			continue
 		}
-		p := e.catalog.provider(a.ClassID)
+		p := e.catalog.Provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
 		}

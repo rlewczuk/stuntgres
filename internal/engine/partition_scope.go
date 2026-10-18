@@ -305,11 +305,11 @@ func (s *StatementScope) partitionCaptureCatalog(catalog CatalogRead) CatalogRea
 		return catalog
 	}
 	state := *catalog.State()
-	state.cloneDescriptors()
+	state.CloneDescriptors()
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.Relation(address)
 		if current != captured && partitionAppendCompatible(captured, current) {
-			state.setDescriptor(address, captured)
+			state.SetDescriptor(address, captured)
 		}
 	}
 	catalog = catalog.WithState(&state)

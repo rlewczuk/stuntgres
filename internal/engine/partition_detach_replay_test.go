@@ -23,7 +23,7 @@ func TestPartitionDetachReplayEvents(t *testing.T) {
 				f.child.SQLIndex.PartitionParent = ids.ObjectAddress{}
 			}
 			reserved := ids.NameKey{ClassID: ids.RelationClassID, Namespace: f.root.Namespace(), Name: partitionReplayStem + "1"}
-			f.view.State().bindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
+			f.view.State().BindName(reserved, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46700})
 			r, c, pi, ci := f.root.Address().ObjectID, f.leaf.Address().ObjectID, f.parent.Address().ObjectID, f.child.Address().ObjectID
 			graph := map[dumpEventKey][]dumpEventKey{{oid: r}: nil, {oid: c}: nil, {oid: pi}: {{oid: r}}, {oid: ci}: {{oid: c}}}
 			if !empty {
@@ -103,8 +103,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	definition.Constraint = uniqueBacking(&constraint)
 	local.SQLIndex = &definition
 	f.leaf.UniqueConstraints = []uniqueConstraint{constraint}
-	f.view.State().setDescriptor(local.Address(), &local)
-	f.view.State().bindName(descriptorNameKey(&local), local.Address())
+	f.view.State().SetDescriptor(local.Address(), &local)
+	f.view.State().BindName(descriptorNameKey(&local), local.Address())
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
 		t.Fatal("local origin must be explicit only for this captured replay")
 	}
@@ -113,8 +113,8 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	consumer := &relationDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: tableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	consumer.Defaults = map[int32]columnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
-	f.view.State().setDescriptor(consumer.Address(), consumer)
-	f.view.State().bindName(descriptorNameKey(consumer), consumer.Address())
+	f.view.State().SetDescriptor(consumer.Address(), consumer)
+	f.view.State().BindName(descriptorNameKey(consumer), consumer.Address())
 	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].Dependencies[0].Address, consumer.Address())
 	if err != nil {
 		t.Fatal(err)

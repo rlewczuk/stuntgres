@@ -26,7 +26,7 @@ func checkTemporaryStorageAccess(catalog CatalogRead, relation *relationDescript
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}
-	if !relation.RelationKind.stored() {
+	if !relation.RelationKind.Stored() {
 		return nil
 	}
 	namespace, ok := catalog.Namespace(relation.Namespace())
@@ -152,7 +152,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				return collect(child, true)
 			})
 		}
-		if relation.RelationKind.stored() {
+		if relation.RelationKind.Stored() {
 			if err := checkTemporaryStorageAccess(catalog, relation, token); err != nil {
 				return err
 			}

@@ -29,7 +29,7 @@ const (
 	generationVirtual
 )
 
-func (k generationKind) sql() string {
+func (k generationKind) SQL() string {
 	if k == generationVirtual {
 		return "VIRTUAL"
 	}
@@ -381,7 +381,7 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 	return ctx.Err()
 }
 
-func (d *relationDescriptor) indexForAttribute(attribute int32) int {
+func (d *relationDescriptor) IndexForAttribute(attribute int32) int {
 	for slot, live := range d.Attributes {
 		if live == attribute {
 			return slot
@@ -618,7 +618,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 				}
 			}
 			if address == d.Address() {
-				if ref.Address.SubID != 0 && !d.hasAttribute(ref.Address.SubID) {
+				if ref.Address.SubID != 0 && !d.HasAttribute(ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: missing generation source attribute")
 				}
 				continue

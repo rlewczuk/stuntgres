@@ -18,7 +18,7 @@ func TestExclusionIndexRoots(t *testing.T) {
 			constraint := parent.ExclusionConstraints[0]
 			index := e.catalog.state.MustRelation(constraint.Index)
 			root := e.indexRoots[constraint.Index]
-			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.isExclusion() || !backingConstraintPresent(parent, index) {
+			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.IsExclusion() || !backingConstraintPresent(parent, index) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
 			metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), index.Address()))

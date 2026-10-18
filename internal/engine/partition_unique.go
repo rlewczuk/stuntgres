@@ -13,14 +13,14 @@ import (
 )
 
 func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) error {
-	if table.Partition == nil || !index.Unique && !index.isExclusion() {
+	if table.Partition == nil || !index.Unique && !index.IsExclusion() {
 		return nil
 	}
 	kind := "UNIQUE"
 	if index.Constraint != nil && index.Constraint.Primary {
 		kind = "PRIMARY KEY"
 	}
-	if index.isExclusion() {
+	if index.IsExclusion() {
 		kind = "EXCLUDE"
 	}
 	for _, partitionKey := range table.Partition.Keys {
@@ -32,8 +32,8 @@ func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) 
 			if key.Attribute != partitionKey.Attribute || key.Derived != nil {
 				continue
 			}
-			usage := indexKeyCollation(table.Columns[table.indexForAttribute(key.Attribute)].Usage, key)
-			if index.isExclusion() {
+			usage := indexKeyCollation(table.Columns[table.IndexForAttribute(key.Attribute)].Usage, key)
+			if index.IsExclusion() {
 				if usage.Collation != partitionKey.Usage.Collation {
 					continue
 				}
@@ -139,7 +139,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 		}
 		d.Predicate = predicate
 	}
-	if old.isExclusion() {
+	if old.IsExclusion() {
 		var err error
 		d.Exclusion, err = rebindExclusionOperators(child, &d)
 		if err != nil {
@@ -273,7 +273,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	})
 	for _, candidate := range candidates {
 		// PostgreSQL 18.0 never adopts an independent exclusion backing.
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			continue
 		}
 		// Recursive CREATE retains a reusable incomplete virtual tree. Table
@@ -329,7 +329,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	}
 	if parentIndex.SQLIndex.Constraint != nil {
 		suffix = "key"
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			suffix = "excl"
 		}
 		if parentIndex.SQLIndex.Constraint.Primary {
@@ -358,7 +358,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 			return nil, err
 		}
 		changed := *child
-		if parentIndex.SQLIndex.isExclusion() {
+		if parentIndex.SQLIndex.IsExclusion() {
 			var source exclusionConstraint
 			for _, c := range table.ExclusionConstraints {
 				if c.OID == backing.OID {

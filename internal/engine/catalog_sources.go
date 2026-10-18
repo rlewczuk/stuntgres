@@ -387,8 +387,8 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 			array.OwningRelation, array.Owner = d.Address(), d.Owner
 		}
 	}
-	e.catalog.state.setDescriptor(d.Address(), d)
-	e.catalog.state.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	e.catalog.state.SetDescriptor(d.Address(), d)
+	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
@@ -548,7 +548,7 @@ func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescripto
 			provenance, exists = graph.Checks[name]
 		}
 		if exists {
-			return provenance.Local, int64(provenance.count())
+			return provenance.Local, int64(provenance.Count())
 		}
 	}
 	if table.Membership != nil {

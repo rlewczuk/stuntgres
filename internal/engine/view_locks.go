@@ -108,7 +108,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				continue
 			}
 			relation := catalog.MustRelation(ref.Address)
-			if relation.RelationKind.stored() {
+			if relation.RelationKind.Stored() {
 				leaves = append(leaves, queryLeaf{ref: ref})
 			}
 		}

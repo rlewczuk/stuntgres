@@ -142,17 +142,17 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	state := *e.catalog.state
-	state.cloneDescriptors()
+	state.CloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			state.removeDescriptor(a)
+			state.RemoveDescriptor(a)
 		}
 	}
 	view := e.catalog.read(&state)
 	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d); err != nil || rows == nil || rows.count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
-	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
+	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
 	if rows, err := captureExtensionCatalog(context.Background(), view, ref, d); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}

@@ -30,7 +30,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		return extension.Address().ObjectID, nil
 	}
 	if operator, ok := object.(*operatorDescriptor); ok {
-		if operator.seeded() {
+		if operatorSeeded(operator) {
 			return 0, nil
 		}
 		if operator.Function != 0 {
@@ -102,7 +102,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ids.ObjectAddress) (ids
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.RelationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
+		if !ok || table.RelationKind != tableRelation || !table.HasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table

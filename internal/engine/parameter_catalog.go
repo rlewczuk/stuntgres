@@ -89,10 +89,10 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 // the owner alone. Explicit empty ACLs are not the default baseline.
 func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
 	if !d.ACL.Explicit || authorization.MatchesDefaultBaseline(d.ACL, d.Owner, authorization.DefaultParameters, false) {
-		candidate.removeDescriptor(d.Address())
-		candidate.unbindName(descriptorNameKey(d))
+		candidate.RemoveDescriptor(d.Address())
+		candidate.UnbindName(descriptorNameKey(d))
 		return
 	}
-	candidate.setDescriptor(d.Address(), d)
-	candidate.bindName(descriptorNameKey(d), d.Address())
+	candidate.SetDescriptor(d.Address(), d)
+	candidate.BindName(descriptorNameKey(d), d.Address())
 }

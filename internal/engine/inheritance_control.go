@@ -126,7 +126,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 		}
 		copy := *table
 		copy.Inheritance = graph
-		next.setDescriptor(address, &copy)
+		next.SetDescriptor(address, &copy)
 	}
 	return nil
 }

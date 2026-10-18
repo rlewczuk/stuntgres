@@ -426,7 +426,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 						copyDescriptor.ObjectRevision++
 						copyDescriptor.Comment = "concurrent replacement"
 						state := cloneCatalog(e.catalog.state)
-						state.setDescriptor(original.Address(), &copyDescriptor)
+						state.SetDescriptor(original.Address(), &copyDescriptor)
 						e.catalog.state = state
 						e.mu.Unlock()
 					case "authorization":

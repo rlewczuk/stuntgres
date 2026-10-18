@@ -181,7 +181,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		} else {
 			bad.Columns[0].Usage.Type, _ = foreign.LookupType(sqltype.Oid)
 		}
-		root.setDescriptor(d.Address(), &bad)
+		root.SetDescriptor(d.Address(), &bad)
 		view := e.catalog.read(root)
 		s, err = e.capturePGType(t.Context(), view, roles, ref, &bad)
 		ordinary(s, err)
@@ -192,7 +192,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	changed := *original
 	changed.ACL = authorization.ACLValue{Explicit: true}
 	changed.ACLSyntheticDefault = false
-	root.setDescriptor(changed.Address(), &changed)
+	root.SetDescriptor(changed.Address(), &changed)
 	s, err = e.capturePGType(t.Context(), e.catalog.read(root), roles, ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -336,14 +336,14 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				root := cloneCatalog(catalog.State())
 				original := domainUnitType(t, catalog, name)
 				if missing {
-					root.removeDescriptor(original.Address())
+					root.RemoveDescriptor(original.Address())
 				} else {
 					// Same ID and family, deliberately a different immutable
 					// descriptor generation: numeric equality is not authority.
 					foreign := *original.SQLType
 					replacement := *original
 					replacement.SQLType = &foreign
-					root.setDescriptor(original.Address(), &replacement)
+					root.SetDescriptor(original.Address(), &replacement)
 				}
 				bad := e.catalog.read(root)
 				for _, d := range []*typeDescriptor{nested, array(t, catalog, nested)} {

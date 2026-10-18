@@ -12,7 +12,7 @@ import (
 type uuidOsspProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *uuidOsspProvider) Control() extensionControl { return p.control.detached() }
+func (p *uuidOsspProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockUUIDOssp = &uuidOsspProvider{control: extensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
 
@@ -48,7 +48,7 @@ func (p *uuidOsspProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 }
 
 func (p *uuidOsspProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	if v.Get(proc.Address()) != proc || proc.uuidOsspProvider() != p {
+	if v.Get(proc.Address()) != proc || uuidOsspProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid uuid-ossp procedure identity")
 	}
 	ext, ok := v.Extension(proc.Extension)

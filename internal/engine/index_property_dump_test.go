@@ -16,8 +16,8 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	parent := &relationDescriptor{ObjectAddress: parentAddress, ObjectNamespace: namespace, RelationKind: tableRelation}
 	index := &relationDescriptor{ObjectAddress: indexAddress, ObjectNamespace: namespace, RelationKind: indexRelation, SQLIndex: &indexDefinition{Parent: parentAddress, Ready: true, Valid: true, Live: true}}
-	view.State().setDescriptor(parentAddress, parent)
-	view.State().setDescriptor(indexAddress, index)
+	view.State().SetDescriptor(parentAddress, parent)
+	view.State().SetDescriptor(indexAddress, index)
 	got, err := dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != indexAddress.ObjectID {
 		t.Fatal("ordinary index lost exact predecessor", got, err)

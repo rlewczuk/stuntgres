@@ -167,7 +167,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 		}
 		if graph := current.Inheritance; graph != nil {
 			fact := graph.NotNull[attribute]
-			if !fact.Local || fact.count() != 0 {
+			if !fact.Local || fact.Count() != 0 {
 				return reject()
 			}
 		}
@@ -182,7 +182,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 				return reject()
 			}
 			for k, key := range primary.Attributes {
-				if current.Columns[current.indexForAttribute(key)].Name != repair.keys[k] {
+				if current.Columns[current.IndexForAttribute(key)].Name != repair.keys[k] {
 					return reject()
 				}
 			}
@@ -251,7 +251,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return reject()
 	}
 	fact := pair.facts[pair.position]
-	slot := old.indexForAttribute(fact.attribute)
+	slot := old.IndexForAttribute(fact.attribute)
 	index := slices.IndexFunc(old.NotNullConstraints, func(c notNullConstraint) bool {
 		return c.OID == fact.oid && c.Attribute == fact.attribute && !c.NotValid && !c.NoInherit
 	})
@@ -261,7 +261,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	}
 	if graph := old.Inheritance; graph != nil {
 		provenance := graph.NotNull[fact.attribute]
-		if !provenance.Local || provenance.count() != 0 {
+		if !provenance.Local || provenance.Count() != 0 {
 			e.mu.Unlock()
 			return reject()
 		}

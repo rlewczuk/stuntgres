@@ -109,9 +109,9 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		ns := *state.MustNamespace(target.schema)
 		ns.ObjectName = "pg_temp_collision"
 		ns.Temporary = target.op.session.token
-		state.unbindName(descriptorNameKey(state.Get(target.schema)))
-		state.setDescriptor(target.schema, &ns)
-		state.bindName(descriptorNameKey(&ns), target.schema)
+		state.UnbindName(descriptorNameKey(state.Get(target.schema)))
+		state.SetDescriptor(target.schema, &ns)
+		state.BindName(descriptorNameKey(&ns), target.schema)
 		target.e.catalog.state = state
 		target.op.session.temporaryNamespace = target.schema
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, source.e.CatalogRead()); err != nil {
@@ -129,9 +129,9 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		tempNS := *tempSource.MustNamespace(source.schema)
 		tempNS.ObjectName = "pg_temp_source"
 		tempNS.Temporary = source.op.session.token
-		tempSource.unbindName(descriptorNameKey(tempSource.Get(source.schema)))
-		tempSource.setDescriptor(source.schema, &tempNS)
-		tempSource.bindName(descriptorNameKey(&tempNS), source.schema)
+		tempSource.UnbindName(descriptorNameKey(tempSource.Get(source.schema)))
+		tempSource.SetDescriptor(source.schema, &tempNS)
+		tempSource.BindName(descriptorNameKey(&tempNS), source.schema)
 		fresh := newDefaultUnitFixture(t)
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), source.e, source.e.catalog.read(tempSource)); err != nil {
 			t.Fatal(err)

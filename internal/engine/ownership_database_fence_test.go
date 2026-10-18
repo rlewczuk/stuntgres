@@ -26,7 +26,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 				database := *committed.(*databaseDescriptor)
 				database.ACL = authorization.ACLValue{Explicit: true}
 				database.ObjectRevision++
-				selected.setDescriptor(currentDatabaseAddress, &database)
+				selected.SetDescriptor(currentDatabaseAddress, &database)
 				auth.catalog = e.catalog.read(selected)
 				auth.recaptureCatalog(auth.catalog)
 			}
@@ -54,7 +54,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			next := cloneCatalog(e.catalog.state)
 			database := *committed.(*databaseDescriptor)
 			database.ObjectRevision++
-			next.setDescriptor(currentDatabaseAddress, &database)
+			next.SetDescriptor(currentDatabaseAddress, &database)
 			e.catalog.state = next
 			if err := e.catalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")

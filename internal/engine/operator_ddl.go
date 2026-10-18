@@ -231,7 +231,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return 0, err
 		}
-		builtin = d.seeded()
+		builtin = d.Seeded()
 		if !builtin {
 			actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 			if err != nil {
@@ -770,7 +770,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if d.seeded() {
+	if operatorSeeded(d) {
 		return sqlError("0A000", "altering built-in operators is unsupported")
 	}
 	switch s.Action {
@@ -860,7 +860,7 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 				return err
 			}
 		}
-		if d.seeded() {
+		if operatorSeeded(d) {
 			path, _ := e.referencePath(auth)
 			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.catalog, d.Address(), path)+" because it is required by the database system")
 		}

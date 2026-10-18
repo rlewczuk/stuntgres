@@ -80,17 +80,17 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		// The registry and every member hold the one implementation instance;
 		// typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"] || proc.unaccentProvider() != stockUnaccent || proc.pgcryptoProvider() != nil || proc.intaggProvider() != nil {
+		if proc.Implementation != e.catalog.Extensions["unaccent"] || unaccentProviderOf(proc) != stockUnaccent || pgcryptoProviderOf(proc) != nil || intaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
-	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != stockUnaccent || tmpl.unaccentProvider() != stockUnaccent {
+	if tmpl, _ := view.TSTemplate(ext.Members[4]); tmpl == nil || tmpl.Implementation != stockUnaccent || unaccentTemplateProviderOf(tmpl) != stockUnaccent {
 		t.Fatal("template implementation identity")
 	}
-	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || dict.unaccentProvider() != stockUnaccent {
+	if dict := view.MustTSDictionary(ext.Members[5]); dict.Implementation != stockUnaccent || unaccentDictionaryProviderOf(dict) != stockUnaccent {
 		t.Fatal("dictionary implementation identity")
 	}
-	if (&procedureDescriptor{}).unaccentProvider() != nil || (&tsDictionaryDescriptor{}).unaccentProvider() != nil {
+	if unaccentProviderOf((&procedureDescriptor{})) != nil || unaccentDictionaryProviderOf((&tsDictionaryDescriptor{})) != nil {
 		t.Fatal("absent implementation has a typed view")
 	}
 	for _, a := range ext.Members {
@@ -311,13 +311,13 @@ func TestExtensionProviderPublication(t *testing.T) {
 				next := *e.catalog.state.MustDatabase(currentDatabaseAddress)
 				next.ObjectRevision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.setDescriptor(currentDatabaseAddress, &next)
+				e.catalog.state.SetDescriptor(currentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				next := *e.catalog.state.MustNamespace(a)
 				next.ObjectRevision++
 				e.catalog.state = cloneCatalog(e.catalog.state)
-				e.catalog.state.setDescriptor(a, &next)
+				e.catalog.state.SetDescriptor(a, &next)
 			}
 			e.mu.Unlock()
 			committed := e.catalog.state

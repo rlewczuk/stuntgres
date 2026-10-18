@@ -241,7 +241,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 		t.Fatal("actual NN reconstruction failed to mint the same surviving fact")
 	}
 	current := rebuilt.Inheritance.NotNull[1]
-	if !current.Local || current.count() != len(provenance.Origins) || len(current.Retired) != 0 || local.Inheritance.NotNull[1].Retired[0] != archive {
+	if !current.Local || current.Count() != len(provenance.Origins) || len(current.Retired) != 0 || local.Inheritance.NotNull[1].Retired[0] != archive {
 		t.Fatal("fresh NN inherited destroyed historical contributions or mutated the old archive")
 	}
 	if err := validateInheritance(e.stageRead(stage), rebuilt); err != nil {
@@ -281,7 +281,7 @@ func TestInheritanceRetiredLocalCheckReconstruction(t *testing.T) {
 	current := retiredUnitTable(t, e, "c")
 	after := current.CheckConstraints[0]
 	reconstructed := current.Inheritance.Checks["ck"]
-	if after.OID == 0 || after.OID == before.OID || !reconstructed.Local || reconstructed.count() != 0 || len(reconstructed.Retired) != 0 {
+	if after.OID == 0 || after.OID == before.OID || !reconstructed.Local || reconstructed.Count() != 0 || len(reconstructed.Retired) != 0 {
 		t.Fatal("real CHECK rebuild transferred destroyed historical support")
 	}
 	if old.Inheritance.Checks["ck"].Retired[0] != archive {

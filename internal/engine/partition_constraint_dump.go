@@ -42,7 +42,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		return view, replay
 	}
 	state := *view.State()
-	state.cloneDescriptors()
+	state.CloneDescriptors()
 	ordinal := 0
 	for _, table := range tables {
 		// PARTITION OF binds local declarations before cloning inherited keys,
@@ -79,7 +79,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			index.ObjectName = c.Name
 			definition.Constraint = uniqueBacking(c)
 			index.SQLIndex = &definition
-			state.setDescriptor(index.Address(), &index)
+			state.SetDescriptor(index.Address(), &index)
 		}
 		next.ExclusionConstraints = slices.Clone(table.ExclusionConstraints)
 		for i := range next.ExclusionConstraints {
@@ -90,9 +90,9 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 			index.ObjectName = c.Name
 			definition.Constraint = exclusionBacking(c)
 			index.SQLIndex = &definition
-			state.setDescriptor(index.Address(), &index)
+			state.SetDescriptor(index.Address(), &index)
 		}
-		state.setDescriptor(next.Address(), &next)
+		state.SetDescriptor(next.Address(), &next)
 	}
 	view = view.WithState(&state)
 	return view, replay
@@ -148,7 +148,7 @@ func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *r
 			r.occupied[index.Namespace()] = used
 		}
 		suffix, addition := "key", ""
-		if index.SQLIndex.isExclusion() {
+		if index.SQLIndex.IsExclusion() {
 			suffix = "excl"
 		}
 		if index.SQLIndex.Constraint.Primary {

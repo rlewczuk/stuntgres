@@ -240,7 +240,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		view.ObjectName, view.RelationKind, view.VirtualView = name, viewRelation, false
 		attrs := slices.Clone(d.Attributes)
 		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.Columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.catalog.state.setDescriptor(view.Address(), &view)
+		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	}
 	inner := addView(20010, "pg_group_inner", ref)

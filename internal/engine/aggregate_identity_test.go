@@ -78,8 +78,8 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := cloneCatalog(view.State())
-	removed.removeDescriptor(proc.Address())
-	removed.unbindName(descriptorNameKey(proc))
+	removed.RemoveDescriptor(proc.Address())
+	removed.UnbindName(descriptorNameKey(proc))
 	retired := e.catalog.read(removed)
 	for _, helper := range proc.Aggregate.Helpers {
 		if _, ok := routineIdentityByOID(retired, helper.ID); ok {
@@ -119,7 +119,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		mutate(&owned)
 		bad.Aggregate = &owned
 		state := cloneCatalog(view.State())
-		state.setDescriptor(proc.Address(), &bad)
+		state.SetDescriptor(proc.Address(), &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
@@ -132,7 +132,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 			bad.Aggregate = proc.Aggregate
 		}
 		state := cloneCatalog(view.State())
-		state.setDescriptor(member, &bad)
+		state.SetDescriptor(member, &bad)
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
@@ -141,7 +141,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	helper := proc.Aggregate.Helpers[0]
 	namespace := *view.MustNamespace(proc.Namespace())
 	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
-	collision.setDescriptor(namespace.Address(), &namespace)
+	collision.SetDescriptor(namespace.Address(), &namespace)
 	if err := stockIntagg.ValidateExtension(e.catalog.read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
@@ -221,7 +221,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 		t.Fatal("failed provider published partial installation")
 	}
 	for _, d := range e.catalog.state.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.intaggProvider() != nil {
+		if p, ok := d.(*procedureDescriptor); ok && intaggProviderOf(p) != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
 	}
@@ -238,8 +238,8 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.authorizationDomain.Principal(10),
 		Temporary: target.catalog.Domain.Session(99),
 	}
-	target.catalog.state.setDescriptor(namespace.Address(), namespace)
-	target.catalog.state.bindName(descriptorNameKey(namespace), namespace.Address())
+	target.catalog.state.SetDescriptor(namespace.Address(), namespace)
+	target.catalog.state.BindName(descriptorNameKey(namespace), namespace.Address())
 	target.catalog.nextOID = 30000
 	next := cloneCatalog(source.catalog.state)
 	target.mu.Lock()

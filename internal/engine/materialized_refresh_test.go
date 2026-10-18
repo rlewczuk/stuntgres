@@ -142,7 +142,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "descriptor":
 				copy := *d
 				copy.ObjectRevision++
-				e.catalog.state.setDescriptor(d.Address(), &copy)
+				e.catalog.state.SetDescriptor(d.Address(), &copy)
 			case "epoch":
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "cancel":

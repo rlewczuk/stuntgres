@@ -76,7 +76,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	nullSyntax := *syntax
 	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.NotNullConstraints)+len(syntax.Elements))
 	for _, constraint := range parent.NotNullConstraints {
-		slot := parent.indexForAttribute(constraint.Attribute)
+		slot := parent.IndexForAttribute(constraint.Attribute)
 		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.Columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
 	}
 	nullSyntax.Elements = append(nullSyntax.Elements, syntax.Elements...)
@@ -89,7 +89,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	}
 	for i := range d.NotNullConstraints {
 		constraint := &d.NotNullConstraints[i]
-		slot := d.indexForAttribute(constraint.Attribute)
+		slot := d.IndexForAttribute(constraint.Attribute)
 		constraint.PartitionLocal = declarations[slot].columnNotNull
 		for _, element := range syntax.Elements {
 			if element.NotNull != nil && element.NotNull.Column.Text == d.Columns[slot].Name {
@@ -137,7 +137,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				attribute := old.Address.SubID
 				old.Address = d.Address()
 				if attribute != 0 {
-					old.Address.SubID = d.Attributes[parent.indexForAttribute(attribute)]
+					old.Address.SubID = d.Attributes[parent.IndexForAttribute(attribute)]
 				}
 				old = e.catalog.Domain.Ref(old.Epoch, old.Address)
 				old.Epoch = auth.catalog.Epoch()

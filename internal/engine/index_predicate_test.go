@@ -43,8 +43,8 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 		}
 		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{value, active}})
 	}
-	e.catalog.state.setDescriptor(parent.Address(), parent)
-	e.catalog.state.setDescriptor(index.Address(), index)
+	e.catalog.state.SetDescriptor(parent.Address(), parent)
+	e.catalog.state.SetDescriptor(index.Address(), index)
 	e.storage[parent.Address()] = store
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, store, nil)
 	if err != nil {
@@ -190,7 +190,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	def.Keys = []indexKey{{Class: f.index.SQLIndex.Keys[0].Class, Derived: &derivedIndexKey{Definition: key, Execution: key}}}
 	idx := *f.index
 	idx.SQLIndex = &def
-	f.e.catalog.state.setDescriptor(idx.Address(), &idx)
+	f.e.catalog.state.SetDescriptor(idx.Address(), &idx)
 	scope.stage.rows = map[ids.ObjectAddress][]rowVersion{f.parent.Address(): {f.store.versions[1], f.store.versions[2]}}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
@@ -441,7 +441,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				f.store.ends = &deletionRoot{}
 			case "definition":
 				copy := *f.index
-				f.e.catalog.state.setDescriptor(f.index.Address(), &copy)
+				f.e.catalog.state.SetDescriptor(f.index.Address(), &copy)
 			case "catalog snapshot":
 				data.catalog = data.catalog.WithState(cloneCatalog(f.e.catalog.state))
 			case "missing root":
@@ -451,7 +451,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "shape":
 				copy := *f.parent
 				copy.Attributes = []int32{11, 20}
-				f.e.catalog.state.setDescriptor(a, &copy)
+				f.e.catalog.state.SetDescriptor(a, &copy)
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":

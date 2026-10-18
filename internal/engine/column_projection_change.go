@@ -26,7 +26,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *relati
 	}
 	shape.fills = maps.Clone(shape.fills)
 	for attribute := range shape.fills {
-		if !next.hasAttribute(attribute) {
+		if !next.HasAttribute(attribute) {
 			delete(shape.fills, attribute)
 		}
 	}
@@ -186,7 +186,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		shape := changes.storage[address]
 		shape.fills = maps.Clone(shape.fills)
 		for attribute := range shape.fills {
-			if !next.hasAttribute(attribute) {
+			if !next.HasAttribute(attribute) {
 				delete(shape.fills, attribute)
 			}
 		}

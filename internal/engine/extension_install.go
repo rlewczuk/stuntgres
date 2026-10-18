@@ -18,8 +18,8 @@ type extensionControl struct {
 	Requires                        []string
 }
 
-// detached returns a copy that shares no storage with c.
-func (c extensionControl) detached() extensionControl {
+// Detached returns a copy that shares no storage with c.
+func (c extensionControl) Detached() extensionControl {
 	if c.Comment != nil {
 		value := *c.Comment
 		c.Comment = &value

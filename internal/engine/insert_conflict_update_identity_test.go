@@ -139,7 +139,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 					relation.Columns = relation.Columns[:1]
 					relation.Attributes = relation.Attributes[:1]
 				}
-				catalog.setDescriptor(ref.Address, &relation)
+				catalog.SetDescriptor(ref.Address, &relation)
 				e.catalog.state = catalog
 			}
 			// AuthorizationAfterWait supplies the real SQL REVOKE witness.

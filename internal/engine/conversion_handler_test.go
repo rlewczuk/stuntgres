@@ -20,7 +20,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	candidate := cloneCatalog(view.State())
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
-	candidate.setDescriptor(procedure.Address(), &procedure)
+	candidate.SetDescriptor(procedure.Address(), &procedure)
 	auth.recaptureCatalog(e.catalog.read(candidate))
 	stage := e.BeginCatalogStage(auth.catalog)
 	e.mu.Lock()

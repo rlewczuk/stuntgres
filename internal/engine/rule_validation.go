@@ -63,7 +63,7 @@ func validateRuleList(view CatalogRead, d *relationDescriptor, rules []ruleDefin
 			}
 			if address.SubID != 0 && address.SubID != -6 {
 				relation, ok := provider.(*relationDescriptor)
-				if !ok || !relation.hasAttribute(address.SubID) {
+				if !ok || !relation.HasAttribute(address.SubID) {
 					return fmt.Errorf("stuntgres: missing rule dependency attribute")
 				}
 			}

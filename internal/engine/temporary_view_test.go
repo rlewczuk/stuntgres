@@ -191,12 +191,12 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	}
 	peerNamespace := *next.MustNamespace(table.Namespace())
 	peerNamespace.Temporary = withSessionID(peerNamespace.Temporary, peerNamespace.Temporary.ID()+1)
-	next.setDescriptor(table.Namespace(), &peerNamespace)
+	next.SetDescriptor(table.Namespace(), &peerNamespace)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("peer namespace accepted")
 	}
-	next.setDescriptor(table.Namespace(), before.Get(table.Namespace()))
-	next.removeDescriptor(table.Address())
+	next.SetDescriptor(table.Namespace(), before.Get(table.Namespace()))
+	next.RemoveDescriptor(table.Address())
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("retired source resurrected")
 	}
@@ -223,18 +223,18 @@ func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	}
 	old := next.MustRelation(ref.Address)
 	impostor := *old
-	next.setDescriptor(ref.Address, &impostor)
+	next.SetDescriptor(ref.Address, &impostor)
 	if storedViewReferenceValid(retained, view, ref) {
 		t.Fatal("same-address/kind/layout catalog copy accepted")
 	}
-	next.setDescriptor(ref.Address, old)
+	next.SetDescriptor(ref.Address, old)
 	fake := *view
 	fake.View = &viewDefinition{consumer: view.Address(), temporary: viewOf(view).temporary}
-	next.setDescriptor(view.Address(), &fake)
+	next.SetDescriptor(view.Address(), &fake)
 	if storedViewReferenceValid(retained, &fake, ref) {
 		t.Fatal("missing captured manifest accepted")
 	}
-	next.setDescriptor(view.Address(), view)
+	next.SetDescriptor(view.Address(), view)
 	if storedViewReferenceValid(New().CatalogRead(), view, ref) {
 		t.Fatal("foreign provider authority accepted")
 	}

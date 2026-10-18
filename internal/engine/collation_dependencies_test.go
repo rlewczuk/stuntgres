@@ -13,7 +13,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	d := collationUnitDefinition(e, 90000, "provider")
-	ref, err := d.usage()
+	ref, err := d.Usage()
 	if err != nil {
 		t.Fatal(err)
 	}

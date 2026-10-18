@@ -197,7 +197,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	e.mu.Lock()
 	next := cloneCatalog(e.catalog.state)
-	next.setDescriptor(survivor.Address(), &maximum)
+	next.SetDescriptor(survivor.Address(), &maximum)
 	e.catalog.state = next
 	e.mu.Unlock()
 	joined := make(chan struct{})
@@ -311,7 +311,7 @@ func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	broken.Index["txt"] = len(broken.Columns)
 	e.mu.Lock()
 	root := cloneCatalog(e.catalog.state)
-	root.setDescriptor(broken.Address(), &broken)
+	root.SetDescriptor(broken.Address(), &broken)
 	e.catalog.state = root
 	e.mu.Unlock()
 	expectedFailure = true

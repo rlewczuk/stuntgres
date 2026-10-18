@@ -48,7 +48,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 		used := make(map[int32]bool, len(c.Attributes))
 		for i, a := range c.Attributes {
 			attribute, expression, err := indexCatalogKey(parent, index.SQLIndex.Keys[i])
-			if err != nil || expression != nil || used[a] || !parent.hasAttribute(a) || attribute != a || index.SQLIndex.Keys[i].Desc || index.SQLIndex.Keys[i].NullsFirst {
+			if err != nil || expression != nil || used[a] || !parent.HasAttribute(a) || attribute != a || index.SQLIndex.Keys[i].Desc || index.SQLIndex.Keys[i].NullsFirst {
 				return fmt.Errorf("stuntgres: invalid unique key")
 			}
 			used[a] = true
@@ -393,7 +393,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 
 func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	d := index.SQLIndex
-	if d.isExclusion() {
+	if d.IsExclusion() {
 		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
 	}
 	if !d.Unique {
@@ -407,7 +407,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, 
 }
 
 func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
-	if index.SQLIndex.isExclusion() {
+	if index.SQLIndex.IsExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
 	}
 	for i := 1; i < len(entries); i++ {
@@ -420,7 +420,7 @@ func validateUniqueEntries(ctx context.Context, parent, index *relationDescripto
 
 func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
-	if d.isExclusion() {
+	if d.IsExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
 	}
 	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.keys) {

@@ -22,10 +22,10 @@ func (n installedFunctionExpression) validProvider() bool {
 	if p == nil || n.Arg == nil || n.Usage.Type == nil || n.Arg.ResultUsage().Type == nil || p.Signature != unaccentTextSignature || n.Arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.Result {
 		return false
 	}
-	if p.fuzzystrmatchProvider() != nil {
-		return p.fuzzystrmatchProvider() == stockFuzzystrmatch && p.Name() == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
+	if fuzzystrmatchProviderOf(p) != nil {
+		return fuzzystrmatchProviderOf(p) == stockFuzzystrmatch && p.Name() == "daitch_mokotoff" && p.Result == 1009 && p.Volatility == expr.Immutable && p.Strict && p.Conversion.Name() == "" && p.Dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.Arg.ResultUsage().Type
 	}
-	return p.unaccentProvider() == stockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.Dictionary == n.dictionary.Address() && n.dictionary.Template == n.template.Address() && p.unaccentProvider() == n.dictionary.unaccentProvider() && n.dictionary.unaccentProvider() == n.template.unaccentProvider()
+	return unaccentProviderOf(p) == stockUnaccent && p.Conversion.Name() == "" && p.Result == 25 && p.Volatility == expr.Stable && p.Strict && n.Usage.Type == n.Arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.Dictionary == n.dictionary.Address() && n.dictionary.Template == n.template.Address() && unaccentProviderOf(p) == unaccentDictionaryProviderOf(n.dictionary) && unaccentDictionaryProviderOf(n.dictionary) == unaccentTemplateProviderOf(n.template)
 }
 
 func (n installedFunctionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {

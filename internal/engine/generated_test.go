@@ -180,8 +180,8 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
 	candidate := cloneCatalog(view.State())
-	candidate.setDescriptor(d.Address(), d)
-	candidate.bindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	candidate.SetDescriptor(d.Address(), d)
+	candidate.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	read := e.catalog.read(candidate)
 	if err := (relationProvider{}).Validate(read, d); err != nil {
 		t.Fatal(err)
@@ -220,7 +220,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	source := []sqltype.Value{base, oldOID}
 	rows := &relationStorage{versions: []rowVersion{{values: source}}}
 	candidate := cloneCatalog(view.State())
-	candidate.setDescriptor(d.Address(), d)
+	candidate.SetDescriptor(d.Address(), d)
 	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {

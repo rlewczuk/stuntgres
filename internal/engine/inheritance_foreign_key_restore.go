@@ -205,7 +205,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 				pending.definitions[0].supporting = key.Index
 				referenced = make([]parser.Identifier, len(key.Attributes))
 				for i, attribute := range key.Attributes {
-					slot := target.indexForAttribute(attribute)
+					slot := target.IndexForAttribute(attribute)
 					if slot < 0 {
 						return reject()
 					}

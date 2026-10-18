@@ -64,7 +64,7 @@ func capturePhysicalPrimarySupport(table *relationDescriptor, primary *uniqueCon
 	}
 	keys := make([]physicalPrimaryKeyUsage, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
-		keys[i] = physicalPrimaryKeyUsage{attribute, table.Columns[table.indexForAttribute(attribute)].Usage}
+		keys[i] = physicalPrimaryKeyUsage{attribute, table.Columns[table.IndexForAttribute(attribute)].Usage}
 	}
 	return &physicalPrimarySupport{Constraint: primary.OID, Index: primary.Index, Keys: keys}
 }
@@ -80,7 +80,7 @@ func physicalNotNullFromType(old, candidate *relationDescriptor, fact notNullCon
 	if primary == nil {
 		return physicalNotNullProof{}, false
 	}
-	slot := old.indexForAttribute(fact.Attribute)
+	slot := old.IndexForAttribute(fact.Attribute)
 	provenance := old.Inheritance.NotNull[fact.Attribute]
 	if slot < 0 || provenance.Local || len(provenance.Origins) != 0 || len(provenance.Retired) == 0 || old.Columns[slot].Nullable || !old.Columns[slot].NullabilityKnown {
 		return physicalNotNullProof{}, false
@@ -112,7 +112,7 @@ func physicalNotNullOriginValid(view CatalogRead, table *relationDescriptor, att
 	} else if cause.Primary == 0 || cause.Index.ClassID != ids.RelationClassID || cause.Index.ObjectID == 0 || cause.Index.SubID != 0 {
 		return false
 	}
-	slot := table.indexForAttribute(attribute)
+	slot := table.IndexForAttribute(attribute)
 	return table.RelationKind == tableRelation && table.Partition == nil && table.Membership == nil && slot >= 0 && table.Columns[slot].NullabilityKnown && !table.Columns[slot].Nullable && proof.Usage == table.Columns[slot].Usage
 }
 
@@ -125,7 +125,7 @@ func physicalPrimarySupportValid(view CatalogRead, table *relationDescriptor, pr
 		return false
 	}
 	for i, key := range support.Keys {
-		slot := table.indexForAttribute(key.Attribute)
+		slot := table.IndexForAttribute(key.Attribute)
 		attribute, expression, err := indexCatalogKey(table, index.SQLIndex.Keys[i])
 		if slot < 0 || key.Attribute != primary.Attributes[i] || key.Usage != table.Columns[slot].Usage || key.Usage != index.Columns[i].Usage || err != nil || expression != nil || attribute != key.Attribute {
 			return false
@@ -175,7 +175,7 @@ func prunePhysicalNotNull(next *relationDescriptor) {
 	}
 	var copied bool
 	for attribute := range next.PhysicalNotNull {
-		slot := next.indexForAttribute(attribute)
+		slot := next.IndexForAttribute(attribute)
 		ordinary := slices.ContainsFunc(next.NotNullConstraints, func(fact notNullConstraint) bool { return fact.Attribute == attribute })
 		if slot >= 0 && !next.Columns[slot].Nullable && !ordinary {
 			continue
@@ -227,11 +227,11 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *relationDescriptor, 
 			// Usage merely because a stale proof still names the same position.
 			keys := make([]physicalPrimaryKeyUsage, len(primary.Attributes))
 			for i, key := range primary.Attributes {
-				keys[i] = physicalPrimaryKeyUsage{key, next.Columns[next.indexForAttribute(key)].Usage}
+				keys[i] = physicalPrimaryKeyUsage{key, next.Columns[next.IndexForAttribute(key)].Usage}
 			}
 			support = &physicalPrimarySupport{Constraint: primary.OID, Index: primary.Index, Keys: keys}
 		}
-		proof.Usage = next.Columns[next.indexForAttribute(attribute)].Usage
+		proof.Usage = next.Columns[next.IndexForAttribute(attribute)].Usage
 		if primary != nil {
 			proof.Support = support
 		}

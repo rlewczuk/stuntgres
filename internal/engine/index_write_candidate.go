@@ -94,7 +94,7 @@ func (r indexRowOutput) matches(index *relationDescriptor) bool {
 
 func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *EvalContext, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
-	if purpose == indexProbeRuntime && !index.SQLIndex.hasRuntimeDomainConversion() {
+	if purpose == indexProbeRuntime && !index.SQLIndex.HasRuntimeDomainConversion() {
 		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, r.values, &bound.ordering, nil)
 		if err != nil || !member {
 			return member, nil, err
@@ -153,7 +153,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 }
 
 func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value) (bool, error) {
-	if !bound.index.SQLIndex.hasRuntimeDomainConversion() && r.indexes == nil {
+	if !bound.index.SQLIndex.HasRuntimeDomainConversion() && r.indexes == nil {
 		return bound.matches(evaluation, r.values, key)
 	}
 	member, produced, err := r.uniqueOutput(bound, evaluation, false, indexProbeRevalidation)
@@ -246,7 +246,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	if output, exists := s.existingIndexOutputs[index.Address()][identity]; exists {
 		return read(output)
 	}
-	if !index.SQLIndex.hasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
+	if !index.SQLIndex.HasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
 		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, row.values, &bound.ordering, nil)
 		if err != nil {
 			return false, nil, err
@@ -347,7 +347,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		return false, nil, nil
 	}
 	if root.hash != nil {
-		if !index.SQLIndex.hasRuntimeDomainKeyConversion() {
+		if !index.SQLIndex.HasRuntimeDomainKeyConversion() {
 			if err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
@@ -378,7 +378,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	if index.SQLIndex.Predicate != nil && root.membership[row.row] != row.version {
 		return false, nil, nil
 	}
-	if index.SQLIndex.hasRuntimeDomainKeyConversion() {
+	if index.SQLIndex.HasRuntimeDomainKeyConversion() {
 		ordinal, ok := root.rowEntries[row.row]
 		if !ok || ordinal < 0 || ordinal >= len(root.entries) {
 			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
@@ -394,7 +394,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 }
 
 func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
-	if purpose == indexProbeRuntime && !bound.index.SQLIndex.hasRuntimeDomainConversion() && row.indexOutputs == nil {
+	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.indexOutputs == nil {
 		return bound.matches(evaluation, row.values, key)
 	}
 	member, produced, err := s.existingUniqueOutput(bound, row, evaluation, purpose)

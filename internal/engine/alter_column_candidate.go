@@ -58,7 +58,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 		if !dependent {
 			continue
 		}
-		generatedSlot := old.indexForAttribute(attribute)
+		generatedSlot := old.IndexForAttribute(attribute)
 		if a.Mode == parser.DropRestrict {
 			message := "cannot drop desired object(s) because other objects depend on them"
 			if provider.scope == nil || provider.scope.inheritanceAlter == nil {
@@ -115,7 +115,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ids
 // dropColumnMetadata cooks the stable-slot migration once. Dependency effects
 // supply the actual surviving provider descriptor and index identities.
 func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ids.ObjectAddress) Descriptor, old *relationDescriptor, target ids.ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
-	slot := old.indexForAttribute(target.SubID)
+	slot := old.IndexForAttribute(target.SubID)
 	next := *old
 	if old.Foreign != nil {
 		foreign := *old.Foreign

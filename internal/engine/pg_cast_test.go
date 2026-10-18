@@ -148,10 +148,10 @@ func TestPGCastProjection(t *testing.T) {
 	}
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.catalog.state
-	state.cloneDescriptors()
+	state.CloneDescriptors()
 	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
-			state.removeDescriptor(a)
+			state.RemoveDescriptor(a)
 		}
 	}
 	view := e.catalog.read(&state)
@@ -159,7 +159,7 @@ func TestPGCastProjection(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(pgCastUnitBag(t, projected, d), bag) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
-	state.removeDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
+	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
 	if rows, err := capturePGCast(context.Background(), view, ref, d); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}

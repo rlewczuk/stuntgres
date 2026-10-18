@@ -193,28 +193,28 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		for _, corrupt := range []func(*catalogState, *extensionDescriptor){
 			func(_ *catalogState, d *extensionDescriptor) { d.Members[1] = d.Members[0] },
 			func(_ *catalogState, d *extensionDescriptor) { d.Version = "1.2" },
-			func(state *catalogState, d *extensionDescriptor) { state.removeDescriptor(d.Members[1]) },
+			func(state *catalogState, d *extensionDescriptor) { state.RemoveDescriptor(d.Members[1]) },
 			func(state *catalogState, d *extensionDescriptor) {
 				proc := *state.MustProcedure(d.Members[1])
 				proc.Result++
-				state.setDescriptor(proc.Address(), &proc)
+				state.SetDescriptor(proc.Address(), &proc)
 			},
 			func(state *catalogState, d *extensionDescriptor) {
 				proc := *state.MustProcedure(d.Members[2])
 				proc.Signature = "25"
-				state.setDescriptor(proc.Address(), &proc)
+				state.SetDescriptor(proc.Address(), &proc)
 			},
 			func(state *catalogState, _ *extensionDescriptor) {
 				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
 				array := *state.MustType(address)
 				array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), text)
-				state.setDescriptor(address, &array)
+				state.SetDescriptor(address, &array)
 			},
 		} {
 			candidate := cloneCatalog(e.catalog.state)
 			bad := *ext
 			bad.Members = slices.Clone(ext.Members)
-			candidate.setDescriptor(bad.Address(), &bad)
+			candidate.SetDescriptor(bad.Address(), &bad)
 			corrupt(candidate, &bad)
 			if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
 				t.Fatal("invalid manifest accepted")

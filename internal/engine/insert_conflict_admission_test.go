@@ -184,7 +184,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.Keys = []indexKey{{Attribute: 20, Class: class}}
 	def.Predicate = nil
 	second.SQLIndex = &def
-	f.e.catalog.state.setDescriptor(second.Address(), &second)
+	f.e.catalog.state.SetDescriptor(second.Address(), &second)
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +243,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.Columns = []ColumnDescriptor{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}
 		index.AttributeHighWater = 2
-		f.e.catalog.state.setDescriptor(index.Address(), &index)
+		f.e.catalog.state.SetDescriptor(index.Address(), &index)
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)

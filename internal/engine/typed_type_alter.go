@@ -164,7 +164,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			if !rename {
 				continue
 			}
-			slot := mutation.next.indexForAttribute(attribute)
+			slot := mutation.next.IndexForAttribute(attribute)
 			if slot < 0 {
 				continue
 			}

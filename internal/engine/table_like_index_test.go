@@ -112,7 +112,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 			definition.Live = false
 		}
 		copy.SQLIndex = &definition
-		candidate.setDescriptor(ref.Address, &copy)
+		candidate.SetDescriptor(ref.Address, &copy)
 	}
 	auth.catalog = e.catalog.read(candidate)
 	auth.recaptureCatalog(auth.catalog)

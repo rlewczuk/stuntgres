@@ -31,7 +31,7 @@ func (n installedMetaphoneFunctionExpression) validate(v CatalogRead) error {
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || proc.fuzzystrmatchProvider() != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != procedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
+	if !ok || proc != n.procedure || fuzzystrmatchProviderOf(proc) != stockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != procedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone identity")
 	}
 	if err := stockFuzzystrmatch.validateProcedure(v, proc); err != nil {

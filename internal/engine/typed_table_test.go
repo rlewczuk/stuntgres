@@ -183,25 +183,25 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
 		next := newCatalogState(stage.base.Epoch())
 		for address, descriptor := range stage.base.Descriptors() {
-			next.setDescriptor(address, descriptor)
+			next.SetDescriptor(address, descriptor)
 		}
 		late := *table
 		late.ObjectAddress.ObjectID += 1000
 		late.ObjectName = "late"
 		switch kind {
 		case "attach":
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		case "child":
 			late.OfType = ids.ObjectAddress{}
 			late.Inheritance = &tableInheritance{Parents: []ids.ObjectAddress{table.Address()}}
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		case "descriptor":
 			replacement := *table
 			replacement.ObjectRevision++
-			next.setDescriptor(table.Address(), &replacement)
+			next.SetDescriptor(table.Address(), &replacement)
 		case "unrelated":
 			late.OfType = ids.ObjectAddress{}
-			next.setDescriptor(late.Address(), &late)
+			next.SetDescriptor(late.Address(), &late)
 		}
 		valid := typedObservationValid(stage, e.catalog.read(next))
 		if valid != (kind == "unrelated") {

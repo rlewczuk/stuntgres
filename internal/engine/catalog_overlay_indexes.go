@@ -106,7 +106,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}
 		evaluation.routineAuthority = &auth
-		if index.SQLIndex.hasRuntimeDomainConversion() {
+		if index.SQLIndex.HasRuntimeDomainConversion() {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(indexAuth)
 			if err != nil {
@@ -122,7 +122,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		var outputs *indexBuildCapture
-		if index.SQLIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
 			outputs = &indexBuildCapture{index: index}
 		}
 		if outputs != nil {

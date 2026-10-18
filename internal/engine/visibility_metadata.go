@@ -67,7 +67,7 @@ var builtinCollations = [...]collationDescriptor{
 	{OID: 6411, ObjectName: "pg_unicode_fast", Encoding: 6, Provider: "b", Deterministic: true, Locale: collationText("PG_UNICODE_FAST"), Version: collationText("1"), Semantics: 6411},
 }
 
-func (d *collationDescriptor) seeded() bool {
+func (d *collationDescriptor) Seeded() bool {
 	for i := range builtinCollations {
 		if d.OID == builtinCollations[i].OID {
 			return true
@@ -75,7 +75,7 @@ func (d *collationDescriptor) seeded() bool {
 	}
 	return false
 }
-func (d *collationDescriptor) usage() (sqltype.CollationRef, error) {
+func (d *collationDescriptor) Usage() (sqltype.CollationRef, error) {
 	return sqltype.RegisteredCollation(uint32(d.OID), d.Semantics)
 }
 
@@ -89,7 +89,7 @@ func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error
 	if !ok || d == nil {
 		return fmt.Errorf("stuntgres: invalid collation descriptor")
 	}
-	if d.seeded() {
+	if d.Seeded() {
 		found := false
 		for _, fixed := range builtinCollations {
 			if d.OID != fixed.OID {
@@ -114,7 +114,7 @@ func (collationProvider) Validate(view CatalogRead, descriptor Descriptor) error
 		if err != nil || mode != d.Semantics {
 			return fmt.Errorf("stuntgres: invalid collation provider")
 		}
-		if _, err = d.usage(); err != nil {
+		if _, err = d.Usage(); err != nil {
 			return err
 		}
 	}

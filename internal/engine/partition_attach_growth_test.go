@@ -146,9 +146,9 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				changed := *old
 				changed.ObjectName = "replacement_identity"
 				changed.ObjectRevision++
-				next.unbindName(descriptorNameKey(old))
-				next.bindName(descriptorNameKey(&changed), changed.Address())
-				next.setDescriptor(old.Address(), &changed)
+				next.UnbindName(descriptorNameKey(old))
+				next.BindName(descriptorNameKey(&changed), changed.Address())
+				next.SetDescriptor(old.Address(), &changed)
 				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.
 				reader.partitionRelations[old.Address()] = old

@@ -210,9 +210,9 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	for _, d := range []Descriptor{outer, index, provider, inner} {
 		original := e.catalog.state.Get(d.Address())
-		e.catalog.state.removeDescriptor(d.Address())
+		e.catalog.state.RemoveDescriptor(d.Address())
 		err := e.catalogPreflightLocked(changes)
-		e.catalog.state.setDescriptor(d.Address(), original)
+		e.catalog.state.SetDescriptor(d.Address(), original)
 		if err == nil {
 			t.Fatal("source compatibility weakened strict original", d.Address())
 		}

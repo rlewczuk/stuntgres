@@ -35,11 +35,11 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			case *typeDescriptor:
 				copy := *descriptor
 				copy.ObjectRevision = revision
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 			case *relationDescriptor:
 				copy := *descriptor
 				copy.ObjectRevision = revision
-				next.setDescriptor(address, &copy)
+				next.SetDescriptor(address, &copy)
 			}
 		}
 	}

@@ -68,7 +68,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	incompatible := *next
 	incompatible.ObjectName = "renamed"
 	e.mu.Lock()
-	e.catalog.state.setDescriptor(next.Address(), &incompatible)
+	e.catalog.state.SetDescriptor(next.Address(), &incompatible)
 	err = scope.validateLockedRelation(e)
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -167,7 +167,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "ordinary_table":
 					copy.RelationKind = tableRelation
 				}
-				e.catalog.state.setDescriptor(d.Address(), &copy)
+				e.catalog.state.SetDescriptor(d.Address(), &copy)
 			}
 			view, err := scope.AcquireDataView(ref)
 			if view != nil || !errors.Is(err, ids.ErrCatalogReplaced) {

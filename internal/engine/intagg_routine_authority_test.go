@@ -79,7 +79,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				captured, ref = enum.procedure, enum.ref
 				carrier, err := expressionRoutineDescriptor(node)
-				if err != nil || carrier != captured || !captured.returnsSet() || strictScalarRoutine(captured) {
+				if err != nil || carrier != captured || !procedureReturnsSet(captured) || strictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {
@@ -106,7 +106,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || captured.intaggProvider() != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != procedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || intaggProviderOf(captured) != stockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -193,7 +193,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				auth.catalog = auth.catalog.WithState(cloneCatalog(auth.catalog.State()))
 				bad := *captured
 				mutate(&bad)
-				auth.catalog.State().setDescriptor(ref.Address, &bad)
+				auth.catalog.State().SetDescriptor(ref.Address, &bad)
 				if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
@@ -268,13 +268,13 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					state := cloneCatalog(evaluation.catalog.State())
 					for a := range mapping {
-						state.unbindName(descriptorNameKey(state.Get(a)))
-						state.removeDescriptor(a)
+						state.UnbindName(descriptorNameKey(state.Get(a)))
+						state.RemoveDescriptor(a)
 					}
 					for a, dest := range mapping {
 						d := remapExtensionDescriptor(evaluation.catalog.Get(a), mapping)
-						state.setDescriptor(dest, d)
-						state.bindName(descriptorNameKey(d), dest)
+						state.SetDescriptor(dest, d)
+						state.BindName(descriptorNameKey(d), dest)
 					}
 					state.SetEpoch(state.Epoch() + 1)
 					view := e.catalog.read(state)
@@ -413,7 +413,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		for _, a := range ext.Members {
 			bad := *state.MustProcedure(a)
 			bad.Owner = owner
-			state.setDescriptor(a, &bad)
+			state.SetDescriptor(a, &bad)
 		}
 		if err := stockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")

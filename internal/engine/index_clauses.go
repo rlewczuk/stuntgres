@@ -19,9 +19,9 @@ func indexKeyCollation(u sqltype.Usage, key indexKey) sqltype.Usage {
 }
 
 func reconstructIndexKey(key indexKey, oldUsage, newUsage sqltype.Usage, method indexMethod) indexKey {
-	oldDefault, _ := method.defaultClass(oldUsage.Type)
+	oldDefault, _ := method.DefaultClass(oldUsage.Type)
 	if key.Class.Name == "" || key.Class == oldDefault {
-		key.Class, _ = method.defaultClass(newUsage.Type)
+		key.Class, _ = method.DefaultClass(newUsage.Type)
 		key.ExplicitClass = false
 	}
 	if key.Collation == oldUsage.Collation.ID {
@@ -49,7 +49,7 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 	}
 	for i := range path.count() {
 		if path.at(i) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
-			if c, ok := method.lookupClass(raw.Parts[len(raw.Parts)-1].Text); ok {
+			if c, ok := method.LookupClass(raw.Parts[len(raw.Parts)-1].Text); ok {
 				return c, nil
 			}
 		}
@@ -69,12 +69,12 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		}
 		key.Collation = id
 		d := auth.catalog.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
-		key.CollationRef, err = d.usage()
+		key.CollationRef, err = d.Usage()
 		if err != nil {
 			return key, err
 		}
 	}
-	c, exists := method.defaultClass(u.Type)
+	c, exists := method.DefaultClass(u.Type)
 	if raw.Opclass != nil {
 		var err error
 		c, err = e.lookupIndexClass(auth, *raw.Opclass, method)
@@ -136,7 +136,7 @@ func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, r
 		if !class.AcceptsID(id) {
 			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, objectNameText(*raw.Opclass), name))
 		}
-	} else if _, exists := method.defaultClassID(id); !exists {
+	} else if _, exists := method.DefaultClassID(id); !exists {
 		return indexDefaultClassError(name, method)
 	}
 	return nil

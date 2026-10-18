@@ -116,7 +116,7 @@ func (d *relationDescriptor) Namespace() ids.ObjectAddress     { return d.Object
 func (d *relationDescriptor) Name() string                     { return d.ObjectName }
 func (*relationDescriptor) Kind() ids.ObjectKind               { return ids.RelationObject }
 
-func (d *relationDescriptor) hasAttribute(sub int32) bool {
+func (d *relationDescriptor) HasAttribute(sub int32) bool {
 	for _, live := range d.Attributes {
 		if live == sub {
 			return true
@@ -199,7 +199,7 @@ func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
 	if !ok || ns == nil || ns.TemporaryToast && ns.Temporary == (ids.SessionToken{}) || v.state == nil || v.Get(ns.Address()) != ns {
 		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
 	}
-	if ns.Temporary != (ids.SessionToken{}) && (ns.Temporary.Domain() != v.Domain() || ns.Temporary.ID() == 0 || privateSessionOf(ns.Temporary) != nil) {
+	if ns.Temporary != (ids.SessionToken{}) && (ns.Temporary.Domain() != v.Domain() || ns.Temporary.ID() == 0 || ns.Temporary.Private() != nil) {
 		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
 	}
 	a := d.Address()
@@ -251,7 +251,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	}
-	if r.RelationKind.stored() || r.RelationKind == partitionedRelation || r.RelationKind == viewRelation || r.RelationKind == compositeRelation || r.RelationKind == foreignRelation {
+	if r.RelationKind.Stored() || r.RelationKind == partitionedRelation || r.RelationKind == viewRelation || r.RelationKind == compositeRelation || r.RelationKind == foreignRelation {
 		types := v.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: r.Namespace(), Name: r.Name()})
 		if len(types) != 0 {
 			row, ok := v.Type(types[0])
@@ -278,7 +278,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid catalog attribute metadata")
 	}
 	for number, history := range r.DroppedAttributes {
-		if number <= 0 || number > r.AttributeHighWater || history.Number != number || !history.Dropped || history.TypeID != 0 || history.NotNull || history.HasDefault || history.Generated != "" || history.Dimensions < 0 || r.indexForAttribute(number) >= 0 {
+		if number <= 0 || number > r.AttributeHighWater || history.Number != number || !history.Dropped || history.TypeID != 0 || history.NotNull || history.HasDefault || history.Generated != "" || history.Dimensions < 0 || r.IndexForAttribute(number) >= 0 {
 			return fmt.Errorf("stuntgres: invalid dropped attribute metadata")
 		}
 	}
@@ -355,7 +355,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.Relation(tableAddress)
-			if !ok || table.RelationKind != tableRelation && table.RelationKind != partitionedRelation || !table.hasAttribute(owned.SubID) || table.Owner != r.Owner || table.Namespace() != r.Namespace() {
+			if !ok || table.RelationKind != tableRelation && table.RelationKind != partitionedRelation || !table.HasAttribute(owned.SubID) || table.Owner != r.Owner || table.Namespace() != r.Namespace() {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
 			if r.Sequence.Identity {
@@ -373,7 +373,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	names := make(map[string]bool, len(r.NotNullConstraints))
 	attrs := make(map[int32]bool, len(r.NotNullConstraints))
 	for _, c := range r.NotNullConstraints {
-		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.hasAttribute(c.Attribute) {
+		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.HasAttribute(c.Attribute) {
 			return fmt.Errorf("stuntgres: invalid not-null constraint identity")
 		}
 		names[c.Name], attrs[c.Attribute] = true, true
@@ -486,7 +486,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return err
 	}
 	for sub, text := range r.ColumnComments {
-		if !r.hasAttribute(sub) || text == "" {
+		if !r.HasAttribute(sub) || text == "" {
 			return fmt.Errorf("stuntgres: invalid relation column comment")
 		}
 	}
@@ -812,26 +812,26 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	case *collationDescriptor:
-		if d.(*collationDescriptor).seeded() {
+		if d.(*collationDescriptor).Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *conversionDescriptor:
-		if d.(*conversionDescriptor).seeded() {
+		if d.(*conversionDescriptor).Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *operatorDescriptor:
-		if d.(*operatorDescriptor).seeded() {
+		if operatorSeeded(d.(*operatorDescriptor)) {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *foreignDescriptor:
-		if err := provider.owner.catalog.provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
+		if err := provider.owner.catalog.Provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
-		if procedure, ok := d.(*procedureDescriptor); ok && procedure.seeded() {
+		if procedure, ok := d.(*procedureDescriptor); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-		objectProvider := provider.owner.catalog.provider(ref.Address.ClassID)
+		objectProvider := provider.owner.catalog.Provider(ref.Address.ClassID)
 		if objectProvider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")
 		}
@@ -1003,7 +1003,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 	}
 	for _, d := range s.descriptors {
-		p := e.catalog.provider(d.Address().ClassID)
+		p := e.catalog.Provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1247,20 +1247,20 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			d := removal.descriptor
 			operators.replace(current.Get(a), s.descriptors[a])
-			next.removeDescriptor(a)
+			next.RemoveDescriptor(a)
 			next.RemoveDumpPriority(a)
-			next.unbindName(descriptorNameKey(d))
+			next.UnbindName(descriptorNameKey(d))
 			delete(storage, a)
 		}
 		for k := range s.oldNames {
-			next.unbindName(k)
+			next.UnbindName(k)
 		}
 		for a, d := range s.descriptors {
 			if _, removed := s.removals[a]; !removed {
 				operators.replace(current.Get(a), d)
 			}
-			next.setDescriptor(a, d)
-			if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind.stored() && storage[a] == nil {
+			next.SetDescriptor(a, d)
+			if relation, ok := d.(*relationDescriptor); ok && relation.RelationKind.Stored() && storage[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
 					storage[a] = initial
 				} else {
@@ -1275,7 +1275,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			storage[replacement.original.Address()] = replacement.storage
 		}
 		for k, a := range s.names {
-			next.bindName(k, a)
+			next.BindName(k, a)
 		}
 		next.SetOperatorNames(operators.index)
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
@@ -1507,7 +1507,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				namespaceChanged = namespaceChanged || a.ClassID == ids.NamespaceClassID
 			}
 			if namespaceChanged {
-				err = next.advanceNamespaceGeneration()
+				err = next.AdvanceNamespaceGeneration()
 			}
 		}
 		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == ids.CommitSeq(math.MaxUint64) {
@@ -1637,7 +1637,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.Descriptors() {
-		p := e.catalog.provider(d.Address().ClassID)
+		p := e.catalog.Provider(d.Address().ClassID)
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1652,7 +1652,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if relation, ok := d.(*relationDescriptor); ok && hierarchyRelation(relation) {
 			hasHierarchy = true
 		}
-		if r, ok := d.(*relationDescriptor); ok && r.RelationKind.stored() {
+		if r, ok := d.(*relationDescriptor); ok && r.RelationKind.Stored() {
 			relationAddresses = append(relationAddresses, a)
 		}
 	}
@@ -1886,10 +1886,10 @@ func cloneCatalog(s *catalogState) *catalogState {
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	for k, v := range s.Descriptors() {
-		n.setDescriptor(k, v)
+		n.SetDescriptor(k, v)
 	}
 	for k, v := range s.Names() {
-		n.bindName(k, v)
+		n.BindName(k, v)
 	}
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
@@ -1904,7 +1904,7 @@ func cloneCatalog(s *catalogState) *catalogState {
 
 // Namespace cache invalidation is independent of descriptor revision allocation.
 // Advance only the unpublished catalog so exhaustion cannot publish any effects.
-func (s *catalogState) advanceNamespaceGeneration() error {
+func (s *catalogState) AdvanceNamespaceGeneration() error {
 	if s.namespaceGeneration == math.MaxUint64 {
 		return fmt.Errorf("stuntgres: namespace invalidation generation exhausted")
 	}

@@ -652,7 +652,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			shape.fills[attribute] = value
 		}
 		for attribute := range shape.fills {
-			if !next.hasAttribute(attribute) {
+			if !next.HasAttribute(attribute) {
 				delete(shape.fills, attribute)
 			}
 		}
@@ -740,7 +740,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.indexForAttribute(attribute)) {
+			if next.Generations[attribute].Kind == generationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}
@@ -775,7 +775,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var dependencyTargets []ids.ObjectAddress
 	for _, attribute := range old.Attributes {
-		if !next.hasAttribute(attribute) {
+		if !next.HasAttribute(attribute) {
 			target := ref.Address
 			target.SubID = attribute
 			dependencyTargets = append(dependencyTargets, target)

@@ -214,7 +214,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next := *d
 		next.RLSEnabled, next.RLSForced = state.enabled, state.forced
 		catalog := cloneCatalog(base.State())
-		catalog.setDescriptor(d.Address(), &next)
+		catalog.SetDescriptor(d.Address(), &next)
 		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
 		if err != nil {
 			t.Fatal(err)

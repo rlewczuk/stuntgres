@@ -17,7 +17,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			e, _, parent, index := primaryKeyUnitFixture(t)
 			view := e.CatalogRead()
 			state := *view.State()
-			state.cloneDescriptors()
+			state.CloneDescriptors()
 			view = view.WithState(&state)
 			next := *parent
 			next.Columns = slices.Clone(parent.Columns)
@@ -26,8 +26,8 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			definition := *index.SQLIndex
 			constraint := *definition.Constraint
 			definition.Constraint, backing.SQLIndex = &constraint, &definition
-			state.setDescriptor(next.Address(), &next)
-			state.setDescriptor(backing.Address(), &backing)
+			state.SetDescriptor(next.Address(), &next)
+			state.SetDescriptor(backing.Address(), &backing)
 			switch mode {
 			case "nullable":
 				next.Columns[0].Nullable = true
@@ -50,7 +50,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				otherDefinition := definition
 				otherDefinition.Constraint = uniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
-				state.setDescriptor(other.Address(), &other)
+				state.SetDescriptor(other.Address(), &other)
 				next.UniqueConstraints = append(next.UniqueConstraints, second)
 			}
 			err := validateUniques(view, &next, map[string]bool{})

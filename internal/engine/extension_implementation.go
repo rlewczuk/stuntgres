@@ -4,42 +4,42 @@ package engine
 // the implementation when it has that concrete type, and nil otherwise, so a
 // nil check still asks "was this installed by that extension".
 
-func (d *procedureDescriptor) unaccentProvider() *unaccentProvider {
+func unaccentProviderOf(d *procedureDescriptor) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
-func (d *procedureDescriptor) intarrayProvider() *intarrayProvider {
+func intarrayProviderOf(d *procedureDescriptor) *intarrayProvider {
 	p, _ := d.Implementation.(*intarrayProvider)
 	return p
 }
 
-func (d *procedureDescriptor) fuzzystrmatchProvider() *fuzzystrmatchProvider {
+func fuzzystrmatchProviderOf(d *procedureDescriptor) *fuzzystrmatchProvider {
 	p, _ := d.Implementation.(*fuzzystrmatchProvider)
 	return p
 }
 
-func (d *procedureDescriptor) pgcryptoProvider() *pgcryptoProvider {
+func pgcryptoProviderOf(d *procedureDescriptor) *pgcryptoProvider {
 	p, _ := d.Implementation.(*pgcryptoProvider)
 	return p
 }
 
-func (d *procedureDescriptor) intaggProvider() *intaggProvider {
+func intaggProviderOf(d *procedureDescriptor) *intaggProvider {
 	p, _ := d.Implementation.(*intaggProvider)
 	return p
 }
 
-func (d *procedureDescriptor) uuidOsspProvider() *uuidOsspProvider {
+func uuidOsspProviderOf(d *procedureDescriptor) *uuidOsspProvider {
 	p, _ := d.Implementation.(*uuidOsspProvider)
 	return p
 }
 
-func (d *tsTemplateDescriptor) unaccentProvider() *unaccentProvider {
+func unaccentTemplateProviderOf(d *tsTemplateDescriptor) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }
 
-func (d *tsDictionaryDescriptor) unaccentProvider() *unaccentProvider {
+func unaccentDictionaryProviderOf(d *tsDictionaryDescriptor) *unaccentProvider {
 	p, _ := d.Implementation.(*unaccentProvider)
 	return p
 }

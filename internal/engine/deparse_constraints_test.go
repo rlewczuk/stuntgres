@@ -383,7 +383,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy := *d
 	copy.CheckConstraints = append([]checkConstraint(nil), d.CheckConstraints...)
 	copy.CheckConstraints[0].OID = d.Defaults[1].OID
-	bad.setDescriptor(d.Address(), &copy)
+	bad.SetDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}

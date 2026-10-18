@@ -7,10 +7,10 @@ import "stuntgres/internal/engine/ids"
 func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddress]Descriptor, names map[ids.NameKey]ids.ObjectAddress) *catalogState {
 	s := newCatalogState(epoch)
 	for a, d := range descriptors {
-		s.setDescriptor(a, d)
+		s.SetDescriptor(a, d)
 	}
 	for k, a := range names {
-		s.bindName(k, a)
+		s.BindName(k, a)
 	}
 	return s
 }

@@ -143,10 +143,10 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
-		if d.uuidOsspProvider() != nil && (d.Aggregate != nil || d.Foreign != nil || d.Builtin != nil) {
+		if uuidOsspProviderOf(d) != nil && (d.Aggregate != nil || d.Foreign != nil || d.Builtin != nil) {
 			return invalid()
 		}
-		if d.Aggregate != nil && d.intaggProvider() != stockIntagg {
+		if d.Aggregate != nil && intaggProviderOf(d) != stockIntagg {
 			return invalid()
 		}
 		if d.Foreign != nil {
@@ -170,8 +170,8 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			}
 			break
 		}
-		if d.intaggProvider() != nil {
-			if err := d.intaggProvider().validateProcedure(v, d); err != nil {
+		if intaggProviderOf(d) != nil {
+			if err := intaggProviderOf(d).validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.Extension
@@ -180,32 +180,32 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		if d.RoutineKind != functionRoutine {
 			return invalid()
 		}
-		if d.uuidOsspProvider() != nil {
+		if uuidOsspProviderOf(d) != nil {
 			if d.Conversion.Name() != "" || d.Dictionary != (ids.ObjectAddress{}) {
 				return invalid()
 			}
-			if err := d.uuidOsspProvider().validateProcedure(v, d); err != nil {
+			if err := uuidOsspProviderOf(d).validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.Extension
 			break
 		}
-		if d.fuzzystrmatchProvider() != nil {
-			if err := d.fuzzystrmatchProvider().validateProcedure(v, d); err != nil {
+		if fuzzystrmatchProviderOf(d) != nil {
+			if err := fuzzystrmatchProviderOf(d).validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.Extension
 			break
 		}
-		if d.pgcryptoProvider() != nil {
-			if err := d.pgcryptoProvider().validateProcedure(v, d); err != nil {
+		if pgcryptoProviderOf(d) != nil {
+			if err := pgcryptoProviderOf(d).validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.Extension
 			break
 		}
-		if d.intarrayProvider() != nil {
-			if err := d.intarrayProvider().validateProcedure(v, d); err != nil {
+		if intarrayProviderOf(d) != nil {
+			if err := intarrayProviderOf(d).validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.Extension
@@ -213,12 +213,12 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.Conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.Name())
-			if !ok || d.Conversion != registered || d.unaccentProvider() != nil || d.Signature != conversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.Address().ObjectID) != d.Name() {
+			if !ok || d.Conversion != registered || unaccentProviderOf(d) != nil || d.Signature != conversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.Address().ObjectID) != d.Name() {
 				return invalid()
 			}
 			break
 		}
-		if d.unaccentProvider() != stockUnaccent {
+		if unaccentProviderOf(d) != stockUnaccent {
 			return invalid()
 		}
 		ext = d.Extension
@@ -245,7 +245,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return invalid()
 		}
 	case *tsTemplateDescriptor:
-		if d.Name() != "unaccent" || d.unaccentProvider() != stockUnaccent {
+		if d.Name() != "unaccent" || unaccentTemplateProviderOf(d) != stockUnaccent {
 			return invalid()
 		}
 		ext = d.Extension
@@ -256,7 +256,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			}
 		}
 	case *tsDictionaryDescriptor:
-		if d.Name() != "unaccent" || d.unaccentProvider() != stockUnaccent {
+		if d.Name() != "unaccent" || unaccentDictionaryProviderOf(d) != stockUnaccent {
 			return invalid()
 		}
 		ext = d.Extension
@@ -364,11 +364,11 @@ func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *extensionDescript
 		}
 	}
 	tmpl, ok := v.TSTemplate(d.Members[4])
-	if !ok || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || tmpl.unaccentProvider() != p {
+	if !ok || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || unaccentTemplateProviderOf(tmpl) != p {
 		return invalid()
 	}
 	dict, ok := v.TSDictionary(d.Members[5])
-	if !ok || dict.Template != d.Members[4] || dict.unaccentProvider() != p {
+	if !ok || dict.Template != d.Members[4] || unaccentDictionaryProviderOf(dict) != p {
 		return invalid()
 	}
 	return nil

@@ -60,7 +60,7 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.Function == 0 || peer.seeded() {
+	if peer == nil || peer.Function == 0 || operatorSeeded(peer) {
 		return false
 	}
 	reciprocal := peer.Commutator
@@ -244,7 +244,7 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 		declaration := dumpEventKey{oid: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.Function == 0 || peer.seeded() {
+			if peer == nil || peer.Function == 0 || operatorSeeded(peer) {
 				continue
 			}
 			target := dumpEventKey{oid: id}

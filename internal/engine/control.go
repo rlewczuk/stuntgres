@@ -281,7 +281,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !operatorSeeded(t) {
 					operators = append(operators, t)
 				}
 				continue
@@ -396,7 +396,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !t.Seeded() {
 					collations = append(collations, t)
 				}
 				continue
@@ -405,7 +405,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if !t.seeded() {
+				if !t.Seeded() {
 					conversions = append(conversions, t)
 				}
 				continue
@@ -1328,7 +1328,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 							return err
 						}
 					}
-					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.sql())
+					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.Kind.SQL())
 				}
 				if identity, exists := t.identities[t.attributes[i]]; exists {
 					mode := "ALWAYS"
@@ -1363,7 +1363,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						line.WriteString(", ")
 					}
 					localElements++
-					slot := t.descriptor.indexForAttribute(constraint.Attribute)
+					slot := t.descriptor.IndexForAttribute(constraint.Attribute)
 					line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
 				}
 			}

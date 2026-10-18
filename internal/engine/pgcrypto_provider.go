@@ -11,7 +11,7 @@ import (
 type pgcryptoProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *pgcryptoProvider) Control() extensionControl { return p.control.detached() }
+func (p *pgcryptoProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockPgcrypto = &pgcryptoProvider{control: extensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 
@@ -65,7 +65,7 @@ func (p *pgcryptoProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 }
 
 func (p *pgcryptoProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
-	if v.Get(proc.Address()) != proc || proc.pgcryptoProvider() != p {
+	if v.Get(proc.Address()) != proc || pgcryptoProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: invalid pgcrypto procedure identity")
 	}
 	ext, ok := v.Extension(proc.Extension)

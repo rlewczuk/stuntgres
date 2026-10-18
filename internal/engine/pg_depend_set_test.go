@@ -16,7 +16,7 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		catalog.State().setDescriptor(pgDependUnitAddress(1247, ids.OID(49501+i), 0), &typeDescriptor{SQLType: domain})
+		catalog.State().SetDescriptor(pgDependUnitAddress(1247, ids.OID(49501+i), 0), &typeDescriptor{SQLType: domain})
 		domains = append(domains, domain)
 	}
 	literal := literalExpression{Info: expr.Info{Usage: integer.Usage()}}

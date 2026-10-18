@@ -58,7 +58,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	}
 	for _, attribute := range child.Attributes {
 		if _, ok := child.Identities[attribute]; ok {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.Name(), child.Columns[child.indexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.Name(), child.Columns[child.IndexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
 		}
 	}
 	// Existing FK execution boundaries precede publication.
@@ -115,7 +115,7 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 		in.targetSlots[i] = slot
 	}
 	for _, required := range parent.NotNullConstraints {
-		parentSlot := parent.indexForAttribute(required.Attribute)
+		parentSlot := parent.IndexForAttribute(required.Attribute)
 		attribute := child.Attributes[in.targetSlots[parentSlot]]
 		at := slices.IndexFunc(child.NotNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
 		if at >= 0 && !required.NotValid && child.NotNullConstraints[at].NotValid {
@@ -155,7 +155,7 @@ func partitionAttachSchema(ctxScope *StatementScope, catalog CatalogRead, parent
 	next.NotNullConstraints = slices.Clone(child.NotNullConstraints)
 	for i := range next.NotNullConstraints {
 		constraint := &next.NotNullConstraints[i]
-		slot := child.indexForAttribute(constraint.Attribute)
+		slot := child.IndexForAttribute(constraint.Attribute)
 		parentSlot := parent.Index[child.Columns[slot].Name]
 		if !parent.Columns[parentSlot].Nullable {
 			constraint.PartitionLocal = false

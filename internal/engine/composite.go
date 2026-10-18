@@ -132,7 +132,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	var column string
 	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || !table.RelationKind.stored() {
+		if !ok || !table.RelationKind.Stored() {
 			continue
 		}
 		for _, c := range table.Columns {

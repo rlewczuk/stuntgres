@@ -11,7 +11,7 @@ func collationDisplayName(view CatalogRead, id uint32, path []ids.ObjectAddress)
 	if !ok {
 		return ""
 	}
-	if path == nil && d.seeded() {
+	if path == nil && d.Seeded() {
 		return pgIdentifier(d.Name())
 	}
 	for _, ns := range path {

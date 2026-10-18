@@ -224,7 +224,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 					return err
 				}
 			}
-			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.hasAttribute(dep.Ref.Address.SubID) {
+			if relation, ok := provider.(*relationDescriptor); ok && dep.Ref.Address.SubID != 0 && !relation.HasAttribute(dep.Ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing check provider attribute")
 			}
 		}
@@ -439,7 +439,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 			address := dep.Ref.Address
 			address.SubID = 0
 			if address == d.Address() {
-				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.hasAttribute(dep.Ref.Address.SubID) {
+				if !storedReferenceEpochValid(view, d, dep.Ref) || !d.HasAttribute(dep.Ref.Address.SubID) {
 					return fmt.Errorf("stuntgres: invalid check column dependency")
 				}
 			} else {

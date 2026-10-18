@@ -221,7 +221,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	named := false
 	for _, index := range indexes {
 		var capture *indexBuildCapture
-		if index.SQLIndex.hasRuntimeDomainConversion() && !named {
+		if index.SQLIndex.HasRuntimeDomainConversion() && !named {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = auth.engine.captureTypeDiagnosticName(auth)
 			if err != nil {
@@ -229,7 +229,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 			}
 			named = true
 		}
-		if index.SQLIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
 			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.versions))}
 		}
 		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)

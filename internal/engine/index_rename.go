@@ -55,7 +55,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *relationDescriptor) err
 	}
 	next := *parent
 	next.ObjectRevision++
-	if index.SQLIndex.isExclusion() {
+	if index.SQLIndex.IsExclusion() {
 		next.ExclusionConstraints = append([]exclusionConstraint(nil), parent.ExclusionConstraints...)
 		next.ExclusionConstraints[slot].Name = index.Name()
 	} else {

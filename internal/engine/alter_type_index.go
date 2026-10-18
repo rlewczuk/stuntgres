@@ -31,11 +31,11 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 		dropped := false
 		for _, key := range index.SQLIndex.Keys {
 			if key.Derived == nil {
-				dropped = dropped || !survivor.hasAttribute(key.Attribute)
+				dropped = dropped || !survivor.HasAttribute(key.Attribute)
 			} else {
 				for _, dep := range key.Derived.Dependencies {
 					a := dep.Address
-					if a.ClassID == original.Address().ClassID && a.ObjectID == original.Address().ObjectID && a.SubID != 0 && !survivor.hasAttribute(a.SubID) {
+					if a.ClassID == original.Address().ClassID && a.ObjectID == original.Address().ObjectID && a.SubID != 0 && !survivor.HasAttribute(a.SubID) {
 						dropped = true
 					}
 				}
@@ -47,7 +47,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				if a.ClassID != original.Address().ClassID || a.ObjectID != original.Address().ObjectID || a.SubID == 0 {
 					continue
 				}
-				dropped = dropped || !survivor.hasAttribute(a.SubID)
+				dropped = dropped || !survivor.HasAttribute(a.SubID)
 				for _, action := range actions {
 					slot, exists := original.Index[action.Column.Text]
 					if exists && action.Action == parser.AlterColumnType && original.Attributes[slot] == a.SubID {
@@ -57,7 +57,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 			}
 		}
 		for _, attribute := range index.SQLIndex.Include {
-			dropped = dropped || !survivor.hasAttribute(attribute)
+			dropped = dropped || !survivor.HasAttribute(attribute)
 		}
 		if dropped {
 			continue

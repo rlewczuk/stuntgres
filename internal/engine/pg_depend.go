@@ -34,13 +34,13 @@ func pgDependPinned(catalog CatalogRead, address ids.ObjectAddress) bool {
 		// arrays retain their owned element's dependency even without storage.
 		return !d.SQLType.IsUserDefined() && !(d.SQLType.IsArray() && (d.SQLType.Element().IsDomain() || d.SQLType.Element().IsUserDefined()))
 	case *collationDescriptor:
-		return d.seeded()
+		return d.Seeded()
 	case *conversionDescriptor:
-		return d.seeded()
+		return d.Seeded()
 	case *procedureDescriptor:
-		return d.seeded()
+		return d.Seeded()
 	case *operatorDescriptor:
-		return d.seeded()
+		return operatorSeeded(d)
 	case *relationDescriptor:
 		return d.RelationKind == catalogRelation
 	}
@@ -81,7 +81,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		}
 		switch d := descriptor.(type) {
 		case *operatorDescriptor:
-			if !d.seeded() {
+			if !operatorSeeded(d) {
 				for _, address := range operatorDependencyAddresses(catalog, d) {
 					add(d.Address(), address, 'n')
 				}
@@ -97,7 +97,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *procedureDescriptor:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
-			if d.intarrayProvider() != nil {
+			if intarrayProviderOf(d) != nil {
 				if d.Name() == "bqarr_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				} else {
@@ -115,11 +115,11 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			add(d.Address(), d.Namespace(), 'n')
 			add(d.Address(), d.Template, 'n')
 		case *collationDescriptor:
-			if !d.seeded() {
+			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 			}
 		case *conversionDescriptor:
-			if !d.seeded() {
+			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')
 				add(d.Address(), d.Handler, 'n')
 			}

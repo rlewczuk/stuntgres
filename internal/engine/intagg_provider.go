@@ -12,7 +12,7 @@ import (
 type intaggProvider struct{ control extensionControl }
 
 // Control implements extensionImplementation.
-func (p *intaggProvider) Control() extensionControl { return p.control.detached() }
+func (p *intaggProvider) Control() extensionControl { return p.control.Detached() }
 
 var stockIntagg = &intaggProvider{control: extensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 
@@ -110,7 +110,7 @@ func (p *intaggProvider) validateProcedure(v CatalogRead, proc *procedureDescrip
 	if err := p.ValidateExtension(v, ext); err != nil {
 		return err
 	}
-	if v.Get(proc.Address()) != proc || proc.intaggProvider() != p {
+	if v.Get(proc.Address()) != proc || intaggProviderOf(proc) != p {
 		return fmt.Errorf("stuntgres: foreign intagg procedure")
 	}
 	for _, address := range ext.Members {

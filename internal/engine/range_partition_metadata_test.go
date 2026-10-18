@@ -179,14 +179,14 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 			t.Fatal("valid owned key authority", err)
 		}
 		missing := cloneCatalog(view.State())
-		missing.removeDescriptor(address)
+		missing.RemoveDescriptor(address)
 		if err := validatePartitionDescriptor(e.catalog.read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := cloneCatalog(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
-		mismatch.setDescriptor(address, &changed)
+		mismatch.SetDescriptor(address, &changed)
 		if err := validatePartitionDescriptor(e.catalog.read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
@@ -267,8 +267,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	middleDefinition.Children = []ids.ObjectAddress{root.Address()}
 	middleDefinition.DefaultChild = root.Address()
 	cyclicMiddle.Partition = &middleDefinition
-	cyclic.setDescriptor(root.Address(), &cyclicRoot)
-	cyclic.setDescriptor(middle.Address(), &cyclicMiddle)
+	cyclic.SetDescriptor(root.Address(), &cyclicRoot)
+	cyclic.SetDescriptor(middle.Address(), &cyclicMiddle)
 	if err := validatePartitionDescriptor(e.catalog.read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
@@ -278,8 +278,8 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	rootDefinition.DefaultChild = ids.ObjectAddress{}
 	overlappingRoot.Partition = &rootDefinition
 	overlappingRest.Membership = &partitionMembership{Parent: root.Address(), Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
-	overlapping.setDescriptor(root.Address(), &overlappingRoot)
-	overlapping.setDescriptor(rest.Address(), &overlappingRest)
+	overlapping.SetDescriptor(root.Address(), &overlappingRoot)
+	overlapping.SetDescriptor(rest.Address(), &overlappingRest)
 	if err := validatePartitionDescriptor(e.catalog.read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}

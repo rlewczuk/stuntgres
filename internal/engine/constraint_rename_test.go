@@ -70,7 +70,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			candidate := *after
 			candidate.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 			exhaustedBase := cloneCatalog(e.catalog.state)
-			exhaustedBase.setDescriptor(ref.Address, &candidate)
+			exhaustedBase.SetDescriptor(ref.Address, &candidate)
 			failed := e.BeginCatalogStage(e.catalog.read(exhaustedBase))
 			attempt := *backing
 			attempt.ObjectName = "again"
@@ -205,7 +205,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 						replacement.ObjectRevision++
 						replacement.Comment = "concurrent"
 						state := cloneCatalog(e.catalog.state)
-						state.setDescriptor(ref.Address, &replacement)
+						state.SetDescriptor(ref.Address, &replacement)
 						e.catalog.state = state
 						e.mu.Unlock()
 					case "authorization":
