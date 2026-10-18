@@ -2,8 +2,8 @@ package functions
 
 import (
 	"strings"
-	"stuntgres/internal/engine/expr"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,6 +26,23 @@ func bindStringName(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	return BindString(b, raw, visible && raw.Name.Parts[len(raw.Name.Parts)-1].Text != "trim")
+}
+
+// bindStringToTable binds the string_to_table set-returning function, which
+// the analyzer admits only where its clause and consumer allow sets.
+func bindStringToTable(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	visible, err := b.BuiltinVisible(raw.Name)
+	if err != nil {
+		return nil, err
+	}
+	node, err := BindString(b, raw, visible)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.AdmitSetReturning(raw.Pos); err != nil {
+		return nil, err
+	}
+	return node, nil
 }
 
 // bindParseIdent claims parse_ident in any spelling before the shared gates;
@@ -69,8 +86,7 @@ func bindLowerUpper(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	return FinishString(b, raw, visible, operands)
 }
 
-// BindString analyzes and binds a string function call. The engine calls it
-// for string_to_table, whose set placement it owns.
+// BindString analyzes and binds a string function call.
 func BindString(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [4]Argument

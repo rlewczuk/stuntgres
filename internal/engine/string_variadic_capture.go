@@ -122,21 +122,13 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 	}
 }
 
-// bindStringVariadic records, after a successful bind, what only the analyzer
-// owns: untyped parameters left for statement finish, catalog-identifier
-// output, and polymorphic body casts of quote_literal/quote_nullable.
+// bindStringVariadic captures the polymorphic body casts of
+// quote_literal/quote_nullable on anyelement after binding in the current
+// query frame, which keys the quote capture cache.
 func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExpr, error) {
 	node, err := functions.BindStringVariadic(b, raw, b.frameID())
 	if err != nil {
 		return nil, err
-	}
-	for _, arg := range node.Args {
-		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
-			b.anyParameters = append(b.anyParameters, parameter)
-		}
-		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
-			b.regclassConcat = true
-		}
 	}
 	if err := b.capturePolymorphicBody(node); err != nil {
 		return nil, err

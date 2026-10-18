@@ -77,7 +77,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q).OwnsLabels = %v", name, definition.OwnsLabels)
 		}
 	}
-	for _, name := range []string{"left", "trim", "split_part", "string_to_array", "position", "md5", "unicode_assigned"} {
+	for _, name := range []string{"left", "trim", "split_part", "string_to_array", "string_to_table", "position", "md5", "unicode_assigned"} {
 		definition, ok := Lookup(name)
 		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
@@ -100,9 +100,9 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "pg_sleep", "now", "to_number",
 		"LIKE_ESCAPE", "regexp_match", "regexp_replace", "similar_to_escape", "similar_escape",
-		// string_to_table and the variadic family keep engine-owned analyzer
-		// state; substring routes through the binary family.
-		"LEFT", "Trim", "string_to_table", "concat", "concat_ws", "quote_literal", "substring", "substr"} {
+		// The variadic family keeps an engine wrapper for polymorphic body
+		// capture; substring routes through the binary family.
+		"LEFT", "Trim", "String_To_Table", "concat", "concat_ws", "quote_literal", "substring", "substr"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

@@ -167,19 +167,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return e, nil
 	case "to_number":
 		return b.bindNumericFormatting(raw, visible)
-	case "string_to_table":
-		expr, err := functions.BindString(b, raw, visible)
-		if err != nil {
-			return nil, err
-		}
-		if err := b.stringSetAllowed(raw.Pos); err != nil {
-			return nil, err
-		}
-		switch b.aggregateClause {
-		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetSet = true
-		}
-		return expr, nil
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":

@@ -2,8 +2,8 @@ package functions
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/expr"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -104,6 +104,7 @@ func BindStringVariadic(b Binder, raw parser.FunctionExpr, frame uint32) (String
 		properties.Volatility = expr.Stable
 	}
 	for _, arg := range args {
+		b.RetainUntypedParameter(arg)
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
@@ -111,6 +112,9 @@ func BindStringVariadic(b Binder, raw parser.FunctionExpr, frame uint32) (String
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
+		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
+			b.NoteCatalogText()
+		}
 	}
 	usage := text
 	if id := StringVariadicResult(name); id != usage.Type.ID() {
