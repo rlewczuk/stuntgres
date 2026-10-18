@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -205,4 +206,17 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 			}
 		}
 	}
+}
+
+// bitwiseAggregateOperator maps a bit_* identity to its operator.
+func bitwiseAggregateOperator(operation functions.AggregateOperation) (sqltype.BitwiseOperator, error) {
+	switch operation {
+	case functions.AggregateBitAnd:
+		return sqltype.BitwiseAnd, nil
+	case functions.AggregateBitOr:
+		return sqltype.BitwiseOr, nil
+	case functions.AggregateBitXor:
+		return sqltype.BitwiseXor, nil
+	}
+	return 0, fmt.Errorf("invalid bitwise aggregate operation %d", operation)
 }

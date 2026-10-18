@@ -193,7 +193,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 		if raw.Name == "count" {
-			if err := b.resolveCountSignature(raw, name, args); err != nil {
+			if err := functions.ResolveCountSignature(b, raw, name, args); err != nil {
 				return nil, err
 			}
 		} else {
@@ -286,7 +286,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 		}
 		var err error
-		call.provider, _, err = b.sumProvider(argument.ResultUsage().Type)
+		call.provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
 		if err != nil {
 			return nil, err
 		}
@@ -410,18 +410,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		}
 		if operands != nil {
 			operands[i] = operand
-			types[i] = "unknown"
-			if raw.Name == "sum" || raw.Name == "array_agg" || raw.Name == "bit_and" || raw.Name == "bit_or" || raw.Name == "bit_xor" {
-				types[i] = b.diagnosticTypeName(operand.descriptor())
-			} else if typ := operand.descriptor(); typ != nil {
-				types[i] = typ.DiagnosticName()
-			}
-			if raw.Name == "min" || raw.Name == "max" || raw.Name == "range_agg" || raw.Name == "range_intersect_agg" {
-				types[i], err = b.extremaArgumentTypeName(operand)
-				if err != nil {
-					return sqltype.Usage{}, err
-				}
-			}
+			types[i] = functions.DiagnosticNameOrUnknown(operand.descriptor())
 		}
 	}
 	if _, err := b.bindAggregateFilter(raw); err != nil {
@@ -438,35 +427,6 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 	var err error
 	var usage sqltype.Usage
 	switch raw.Name {
-	case "bool_and", "bool_or", "every":
-		arg, err = b.resolveBooleanAggregateSignature(raw, name, operands, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-		}
-	case "avg":
-		var operation functions.AggregateOperation
-		arg, operation, err = b.resolveAvgSignature(raw, name, operand, types)
-		if err == nil {
-			switch operation {
-			case functions.AggregateIntervalAvg:
-				usage = arg.ResultUsage()
-			case functions.AggregateNumericAvg:
-				usage = b.typ(sqltype.Numeric).Usage()
-			case functions.AggregateFloatAvg:
-				usage = b.typ(sqltype.Float8).Usage()
-			}
-		}
-	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
-		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
-		var args [2]BoundExpr
-		args, usage, err = b.resolveStatisticalSignature(raw, name, operands, types)
-		arg = args[0]
-	case "any_value":
-		arg, err = b.resolveAnyValueSignature(raw, name, operand.node, sqltype.Usage{Type: operand.descriptor()}, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-			usage.Typmod = -1
-		}
 	case "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg":
 		var returning sqltype.Usage
 		arg, usage, returning, err = b.resolveJSONArrayAggregateSignature(raw, name, operand, types)
@@ -479,49 +439,6 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		var args [2]BoundExpr
 		args, usage, err = b.resolveJSONObjectAggregateSignature(raw, name, operands, types)
 		arg = args[0]
-	case "min", "max":
-		arg, err = b.resolveExtremaSignature(raw, name, operand, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-			usage.Typmod = -1
-		}
-	case "string_agg":
-		arg, _, err = b.resolveStringAggregateSignature(raw, name, operands, types)
-		if err == nil {
-			usage = arg.ResultUsage()
-		}
-	case "array_agg":
-		arg, usage, _, err = b.resolveArrayAggregateSignature(raw, name, operand, types)
-	case "range_agg", "range_intersect_agg":
-		arg, err = b.resolveRangeAggregateSignature(raw, name, operand, types)
-		if err == nil {
-			operation := sqltype.RangeAggregateUnion
-			if raw.Name == "range_intersect_agg" {
-				operation = sqltype.RangeAggregateIntersection
-			}
-			var bound sqltype.RangeAggregate
-			bound, err = sqltype.BindRangeAggregate(arg.ResultUsage().Type, operation)
-			if err == nil {
-				usage = bound.ResultUsage()
-			}
-		}
-	case "bit_and", "bit_or", "bit_xor":
-		arg, err = b.resolveBitwiseAggregateSignature(raw, name, operand, types)
-		if err == nil {
-			usage = arg.ResultUsage().Type.Usage()
-		}
-	case "sum":
-		arg, err = b.resolveSumSignature(raw, name, operand, types)
-		if err == nil {
-			switch arg.ResultUsage().Type.ID() {
-			case sqltype.Int2, sqltype.Int4:
-				usage = b.typ(sqltype.Int8).Usage()
-			case sqltype.Int8, sqltype.Numeric:
-				usage = b.typ(sqltype.Numeric).Usage()
-			default:
-				usage = arg.ResultUsage()
-			}
-		}
 	default:
 		err = functionSignatureErrorForTypes(name, raw.Pos, types)
 	}

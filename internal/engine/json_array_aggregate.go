@@ -134,7 +134,7 @@ func (b *expressionBinder) resolveJSONArrayAggregateSignature(raw parser.Aggrega
 		return nil, sqltype.Usage{}, sqltype.Usage{}, err
 	}
 	if raw.JSON == nil {
-		arg, err = b.resolveAnyValueSignature(raw, name, operand.node, sqltype.Usage{Type: operand.descriptor()}, types)
+		arg, err = functions.ResolveAnyValueSignature(b, raw, name, operand.node, sqltype.Usage{Type: operand.descriptor()}, types)
 	} else {
 		arg = operand.node
 		if operand.descriptor() == nil {

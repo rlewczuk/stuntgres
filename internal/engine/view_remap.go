@@ -852,15 +852,15 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						copy.calls[i].provider = functions.NewIntegralBitwiseAggregateProvider(u, p.Operator(), bound)
 					}
 				}
-			case moneySumProvider:
-				p.usage = usage(p.usage)
+			case functions.MoneySum:
+				u := usage(p.ResultUsage())
 				if err == nil {
-					p.bound, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, p.usage.Type, p.usage.Type, p.usage.Type)
+					var rebound functions.MoneySum
+					rebound, err = p.Reconstruct(u)
+					copy.calls[i].provider = rebound
 				}
-				copy.calls[i].provider = p
-			case intervalSumProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
+			case functions.IntervalSum:
+				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
 			case functions.BitStringAggregateProvider:
 				copy.calls[i].provider = functions.NewBitStringAggregateProvider(usage(p.ResultUsage()), p.Operator())
 			case functions.IntegralSum:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -65,4 +66,9 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 			})
 		}
 	}
+}
+
+// regressionAggregateName reports the two-argument statistical aggregates.
+func regressionAggregateName(name string) bool {
+	return strings.HasPrefix(name, "regr_") || name == "corr" || strings.HasPrefix(name, "covar_")
 }

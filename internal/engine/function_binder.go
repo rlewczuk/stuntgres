@@ -174,3 +174,27 @@ func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functi
 func (b *expressionBinder) DomainTypeName(typ *sqltype.Descriptor) (string, error) {
 	return b.domainTypeName(typ)
 }
+
+// extremaArgumentTypeName spells an aggregate operand as DomainTypeName does.
+func (b *expressionBinder) extremaArgumentTypeName(operand comparisonOperand) (string, error) {
+	return b.domainTypeName(operand.descriptor())
+}
+
+func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, error) {
+	if typ == nil {
+		return "unknown", nil
+	}
+	if !typ.IsDomain() {
+		return typ.DiagnosticName(), nil
+	}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return "", err
+	}
+	path, err := b.engine.lookupPath(auth, typeLookup)
+	if err != nil {
+		return "", err
+	}
+	d := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	return typeDiagnosticNameAt(auth.catalog, d, path), nil
+}

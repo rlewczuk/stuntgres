@@ -27,3 +27,34 @@ func toLowerASCII(s string) string {
 	}
 	return string(b)
 }
+
+func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
+	claimed := []string{
+		"count", "sum", "avg", "min", "max", "any_value", "bool_and", "bool_or", "every",
+		"bit_and", "bit_or", "bit_xor", "string_agg", "array_agg", "range_agg", "range_intersect_agg",
+		"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx",
+		"regr_sxy", "regr_syy", "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count",
+		"regr_intercept", "regr_r2",
+	}
+	for _, name := range claimed {
+		if _, ok := LookupAggregate(name); !ok {
+			t.Errorf("aggregate %q is not claimed", name)
+		}
+	}
+	// Matching is exact; the engine keeps intagg and every unported family.
+	for _, name := range []string{"SUM", "Count", "Array_Agg", "int_array_aggregate", "percentile_cont", "mode", "rank", "row_number", "json_agg", "jsonb_object_agg", "json_objectagg", "sum_", "regr"} {
+		if _, ok := LookupAggregate(name); ok {
+			t.Errorf("aggregate %q is claimed", name)
+		}
+	}
+	for _, name := range claimed {
+		definition, _ := LookupAggregate(name)
+		values := name == "sum" || name == "bit_and" || name == "bit_or" || name == "bit_xor"
+		if definition.ValuesNamespace != values {
+			t.Errorf("aggregate %q ValuesNamespace = %v", name, definition.ValuesNamespace)
+		}
+		if (definition.Window == nil) != (name == "count") {
+			t.Errorf("aggregate %q: window signature presence is wrong", name)
+		}
+	}
+}

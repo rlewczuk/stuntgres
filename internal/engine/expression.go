@@ -2587,34 +2587,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindHypotheticalSet(r, name)
 			} else if orderedSetName(r.Name) {
 				node, err = b.bindOrderedSet(r, name)
-			} else if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
-				node, err = b.bindBooleanAggregate(r, name)
-			} else if r.Name == "avg" {
-				node, err = b.bindAvg(r, name)
-			} else if statisticalAggregateName(r.Name) {
-				node, err = b.bindStatisticalAggregate(r, name)
-			} else if r.Name == "sum" {
-				node, err = b.bindSum(r, name)
-			} else if r.Name == "any_value" {
-				node, err = b.bindAnyValue(r, name)
 			} else if jsonArrayAggregateName(r.Name) {
 				node, err = b.bindJSONArrayAggregate(r, name)
 			} else if jsonObjectAggregateName(r.Name) {
 				node, err = b.bindJSONObjectAggregate(r, name)
-			} else if r.Name == "min" || r.Name == "max" {
-				node, err = b.bindExtrema(r, name)
-			} else if r.Name == "string_agg" {
-				node, err = b.bindStringAggregate(r, name)
-			} else if r.Name == "array_agg" {
-				node, err = b.bindArrayAggregate(r, name)
 			} else if r.Name == "int_array_aggregate" {
 				node, err = b.bindIntaggAggregate(r, name)
-			} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
-				node, err = b.bindRangeAggregate(r, name)
-			} else if r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" {
-				node, err = b.bindBitwiseAggregate(r, name)
 			} else {
-				node, err = b.bindCount(r, name)
+				// Every other name binds as count, for its 42883 diagnostics.
+				node, err = functions.BindCount(b, r, name)
 			}
 			if err != nil {
 				return nil, err

@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -11,9 +11,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func moneySumUnitProvider(t *testing.T, e *Engine) moneySumProvider {
+// builtinUnitType finds a descriptor in one builtin generation; separate
+// generations stand for separate engines' catalogs.
+func builtinUnitType(types []*sqltype.Descriptor, id sqltype.ID) (*sqltype.Descriptor, bool) {
+	for _, d := range types {
+		if d.ID() == id {
+			return d, true
+		}
+	}
+	return nil, false
+}
+
+func moneySumUnitProvider(t *testing.T, types []*sqltype.Descriptor) MoneySum {
 	t.Helper()
-	d, ok := e.CatalogRead().LookupType(sqltype.Money)
+	d, ok := builtinUnitType(types, sqltype.Money)
 	if !ok {
 		t.Fatal("missing money descriptor")
 	}
@@ -21,11 +32,11 @@ func moneySumUnitProvider(t *testing.T, e *Engine) moneySumProvider {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return moneySumProvider{d.Usage(), bound}
+	return NewMoneySum(d.Usage(), bound)
 }
 
 func TestMoneySumProvider(t *testing.T) {
-	p := moneySumUnitProvider(t, New())
+	p := moneySumUnitProvider(t, sqltype.Builtins())
 	ctx := context.Background()
 	if p.ResultUsage().Typmod != -1 || p.ResultUsage().Type.ID() != sqltype.Money {
 		t.Fatal(p.ResultUsage())
@@ -116,7 +127,7 @@ func TestMoneySumProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreign := moneySumUnitProvider(t, New())
+	foreign := moneySumUnitProvider(t, sqltype.Builtins())
 	wrong, _ := sqltype.MoneyValue(foreign.usage.Type, 1)
 	for _, invalid := range []sqltype.Value{{}, wrong, sqltype.Null(foreign.usage.Type)} {
 		err := p.Advance(ctx, state, invalid, sqltype.Value{})
@@ -133,7 +144,7 @@ func TestMoneySumProvider(t *testing.T) {
 			t.Fatal("invalid final state accepted")
 		}
 	}
-	for _, invalid := range []moneySumProvider{{}, {usage: p.usage}} {
+	for _, invalid := range []MoneySum{{}, {usage: p.usage}} {
 		if _, err := invalid.Init(ctx); err == nil {
 			t.Fatal("invalid descriptor/binding accepted")
 		}
@@ -141,7 +152,7 @@ func TestMoneySumProvider(t *testing.T) {
 }
 
 func TestMoneySumProviderCancellation(t *testing.T) {
-	p := moneySumUnitProvider(t, New())
+	p := moneySumUnitProvider(t, sqltype.Builtins())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if state, err := p.Init(ctx); state != nil || err != context.Canceled {
@@ -152,6 +163,110 @@ func TestMoneySumProviderCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, _ := sqltype.MoneyValue(p.usage.Type, 1234)
+	for _, invalid := range []any{state, nil} {
+		if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err != context.Canceled {
+			t.Fatal(err)
+		}
+		if out, err := p.Finalize(ctx, invalid); err != context.Canceled || out.Type() != nil {
+			t.Fatal(out, err)
+		}
+	}
+	out, err := p.Finalize(context.Background(), state)
+	if err != nil || !out.IsNull() {
+		t.Fatal("canceled transition changed state", out, err)
+	}
+}
+
+func TestIntervalSumProvider(t *testing.T) {
+	d, _ := builtinUnitType(sqltype.Builtins(), sqltype.Interval)
+	p := IntervalSum{d.Usage()}
+	ctx := context.Background()
+	state, err := p.Init(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolated, err := p.Init(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.ResultUsage() != d.Usage() || p.ResultUsage().Typmod != -1 {
+		t.Fatal(p.ResultUsage())
+	}
+	if err := p.Advance(ctx, state, sqltype.Null(d), sqltype.Value{}); err != nil {
+		t.Fatal(err)
+	}
+	empty, err := p.Finalize(ctx, state)
+	if err != nil || !empty.IsNull() || empty.Type() != d {
+		t.Fatal(empty, err)
+	}
+	for _, in := range []struct {
+		m, days int32
+		u       int64
+	}{{1, 0, 9007199254740993}, {0, 30, 1}} {
+		v, err := sqltype.IntervalValue(d, in.m, in.days, in.u)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := *state.(*sqltype.IntervalAvgState)
+	for range 2 {
+		out, err := p.Finalize(ctx, state)
+		if err != nil || out.Type() != d {
+			t.Fatal(out, err)
+		}
+		m, days, u, err := out.Interval()
+		if err != nil || m != 1 || days != 30 || u != 9007199254740994 {
+			t.Fatal(m, days, u, err)
+		}
+	}
+	if before != *state.(*sqltype.IntervalAvgState) {
+		t.Fatal("finalization changed state")
+	}
+	out, err := p.Finalize(ctx, isolated)
+	if err != nil || !out.IsNull() || out.Type() != d {
+		t.Fatal("group leaked", out, err)
+	}
+	foreign, _ := builtinUnitType(sqltype.Builtins(), sqltype.Interval)
+	wrong, _ := sqltype.IntervalValue(foreign, 0, 1, 0)
+	for _, invalid := range []sqltype.Value{{}, wrong, sqltype.Null(foreign)} {
+		err := p.Advance(ctx, state, invalid, sqltype.Value{})
+		var diagnostic *sqlstate.Error
+		if err == nil || errors.As(err, &diagnostic) {
+			t.Fatal("ownership error must be ordinary", err)
+		}
+	}
+	for _, invalid := range []any{nil, struct{}{}, (*sqltype.IntervalAvgState)(nil), &moneySumState{}} {
+		if err := p.Advance(ctx, invalid, sqltype.Null(d), sqltype.Value{}); err == nil {
+			t.Fatal("invalid state accepted")
+		}
+		if _, err := p.Finalize(ctx, invalid); err == nil {
+			t.Fatal("invalid final state accepted")
+		}
+	}
+	money, _ := builtinUnitType(sqltype.Builtins(), sqltype.Money)
+	for _, invalid := range []IntervalSum{{}, {money.Usage()}} {
+		if _, err := invalid.Init(ctx); err == nil {
+			t.Fatal("invalid descriptor accepted")
+		}
+	}
+}
+
+func TestIntervalSumProviderCancellation(t *testing.T) {
+	d, _ := builtinUnitType(sqltype.Builtins(), sqltype.Interval)
+	p := IntervalSum{d.Usage()}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if state, err := p.Init(ctx); state != nil || err != context.Canceled {
+		t.Fatal(state, err)
+	}
+	state, err := p.Init(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := sqltype.IntervalValue(d, 1, 2, 3)
 	for _, invalid := range []any{state, nil} {
 		if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err != context.Canceled {
 			t.Fatal(err)
