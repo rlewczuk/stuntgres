@@ -89,8 +89,8 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		defer input.close()
 		project := matched.Root.(*projectNode)
 		found := false
-		for _, expr := range project.analysisExpressions {
-			walkBoundExpression(expr, func(child BoundExpr) {
+		for _, bound := range project.analysisExpressions {
+			walkBoundExpression(bound, func(child BoundExpr) {
 				if _, ok := child.(subqueryExpression); ok {
 					found = true
 				}

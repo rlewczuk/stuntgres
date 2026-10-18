@@ -273,8 +273,8 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		s := &b.queryScopes[index]
 		e.slot = len(s.aggregates)
 		immutable := true
-		call.expressions(func(expr BoundExpr) {
-			if expr != nil && expr.Properties().Volatility != Immutable {
+		call.expressions(func(bound BoundExpr) {
+			if bound != nil && bound.Properties().Volatility != Immutable {
 				immutable = false
 			}
 		})
@@ -358,8 +358,8 @@ func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall
 // Aggregate ownership crosses sublinks, but only columns/aggregates in a
 // visible ancestor frame participate. Child-local frames are ignored by the
 // owner selection above; nesting is checked against that selected owner.
-func walkQueryArgumentExpression(expr BoundExpr, visit func(BoundExpr)) {
-	walkBoundExpression(expr, func(node BoundExpr) {
+func walkQueryArgumentExpression(bound BoundExpr, visit func(BoundExpr)) {
+	walkBoundExpression(bound, func(node BoundExpr) {
 		visit(node)
 		if child, ok := node.(subqueryExpression); ok {
 			walkQueryArgumentNode(child.queryPlan.Root, visit)

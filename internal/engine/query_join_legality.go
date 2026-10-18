@@ -431,16 +431,16 @@ type fullJoinFacts struct {
 // OR retains only structurally common keys in the same operand order. NOT is
 // pushed through Boolean nodes with SQL three-valued truth. At the resulting
 // match boundary, FALSE and UNKNOWN both reject a pair.
-func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bool) (fullJoinFacts, error) {
-	if expr == nil {
+func fullJoinCondition(c *EvalContext, join *joinNode, bound BoundExpr, negate bool) (fullJoinFacts, error) {
+	if bound == nil {
 		return fullJoinFacts{constant: true, truth: True}, nil
 	}
-	p := expr.Properties()
+	p := bound.Properties()
 	// Pruning preserves analyzed dependencies even on a physical literal.
 	// Those properties still govern metadata/ACLs, not its planning truth.
-	_, literal := expr.(literalExpression)
+	_, literal := bound.(literalExpression)
 	if literal || p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
-		value, err := expr.Eval(c)
+		value, err := bound.Eval(c)
 		if err != nil {
 			return fullJoinFacts{}, err
 		}
@@ -454,7 +454,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 		}
 		return fullJoinFacts{constant: true, truth: truth}, err
 	}
-	if e, ok := expr.(logicalExpression); ok {
+	if e, ok := bound.(logicalExpression); ok {
 		if e.op == parser.LogicalNot {
 			return fullJoinCondition(c, join, e.left, !negate)
 		}
@@ -520,7 +520,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 		}
 		return fullJoinFacts{keys: common}, nil
 	}
-	if e, ok := expr.(caseExpression); ok {
+	if e, ok := bound.(caseExpression); ok {
 		var test sqltype.Value
 		if e.test != nil {
 			p := e.test.Properties()
@@ -571,7 +571,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 		}
 		return fullJoinCondition(c, join, e.otherwise, negate)
 	}
-	if e, ok := expr.(conditionalExpression); ok && e.kind == parser.Coalesce {
+	if e, ok := bound.(conditionalExpression); ok && e.kind == parser.Coalesce {
 		for _, arg := range e.args {
 			p := arg.Properties()
 			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
@@ -588,7 +588,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 			}
 		}
 	}
-	if e, ok := expr.(comparisonExpression); ok && fullJoinComparisonOperator(e.operator, negate) == "=" {
+	if e, ok := bound.(comparisonExpression); ok && fullJoinComparisonOperator(e.operator, negate) == "=" {
 		left, err := joinExpressionSides(e.left, join.leftWidth, join.rightWidth)
 		if err != nil {
 			return fullJoinFacts{}, err

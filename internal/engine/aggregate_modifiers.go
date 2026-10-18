@@ -173,9 +173,9 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		call.provider = provider
 	}
 	properties := ExprProperties{StageDependent: true}
-	call.expressions(func(expr BoundExpr) {
-		if expr != nil {
-			properties = mergeExpressionProperties(properties, expr.Properties())
+	call.expressions(func(bound BoundExpr) {
+		if bound != nil {
+			properties = mergeExpressionProperties(properties, bound.Properties())
 		}
 	})
 	info.Property = properties

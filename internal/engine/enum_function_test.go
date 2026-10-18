@@ -36,14 +36,14 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	literal := func(value sqltype.Value) BoundExpr {
 		return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
 	}
-	expr := functions.Enum{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
-	old, err := expr.Eval(&EvalContext{Context: ctx})
+	bound := functions.Enum{Info: expressionInfo{Usage: array.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
+	old, err := bound.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)
 	}
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
-	unchanged, changed, err := retagBoundTypes(sourceView, expr, identity)
-	if err != nil || changed || unchanged.(functions.Enum).Args[0] != expr.Args[0] {
+	unchanged, changed, err := retagBoundTypes(sourceView, bound, identity)
+	if err != nil || changed || unchanged.(functions.Enum).Args[0] != bound.Args[0] {
 		t.Fatal("unchanged mapping", changed, err)
 	}
 	mapping := func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -55,11 +55,11 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		}
 		return d
 	}
-	if _, _, err := retagBoundTypes(targetView, expr, mapping); err == nil {
+	if _, _, err := retagBoundTypes(targetView, bound, mapping); err == nil {
 		t.Fatal("cross-lifetime literal remap admitted without import authority")
 	}
 	targetView.state.scalarImports = map[*sqltype.Descriptor]*sqltype.Descriptor{mood: targetMood}
-	mapped, changed, err := retagBoundTypes(targetView, expr, mapping)
+	mapped, changed, err := retagBoundTypes(targetView, bound, mapping)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -68,7 +68,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || value.Type() != targetArray || value.ArrayElement(0).Type() != targetMood || next.Plan.Enum() != targetMood {
 		t.Fatal(value, err)
 	}
-	if old.Type() != array || old.ArrayElement(0).Type() != mood || expr.Plan.Enum() != mood || expr.Args[0].ResultUsage().Type != mood {
+	if old.Type() != array || old.ArrayElement(0).Type() != mood || bound.Plan.Enum() != mood || bound.Args[0].ResultUsage().Type != mood {
 		t.Fatal("source mutated")
 	}
 	text, deps, err := renderColumnDefault(ctx, targetView, next)
@@ -80,11 +80,11 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged, targetArray.Usage()); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}
-	if !sameGroupExpression(expr, expr) || sameGroupExpression(expr, next) {
+	if !sameGroupExpression(bound, bound) || sameGroupExpression(bound, next) {
 		t.Fatal("provider equality")
 	}
 	var children int
-	boundExpressionChildren(expr, func(BoundExpr) { children++ })
+	boundExpressionChildren(bound, func(BoundExpr) { children++ })
 	if children != 2 {
 		t.Fatal("lost children", children)
 	}
@@ -96,7 +96,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || !projection.Concrete() || projection.Element() != wrapped {
 		t.Fatal("domain-over-enum projection regressed", err)
 	}
-	if plannedVolatility(expr) != Stable {
+	if plannedVolatility(bound) != Stable {
 		t.Fatal("intrinsic volatility")
 	}
 	for _, signature := range []struct {
@@ -128,10 +128,10 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}
-	if !conditionalConstantInputs(expr) {
+	if !conditionalConstantInputs(bound) {
 		t.Fatal("enum closedness")
 	}
-	simplified, changed, err := simplifyConditional(&EvalContext{Context: ctx}, expr, false)
+	simplified, changed, err := simplifyConditional(&EvalContext{Context: ctx}, bound, false)
 	if err != nil || changed {
 		t.Fatal("STABLE call folded", changed, err)
 	}

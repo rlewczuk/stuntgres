@@ -90,13 +90,13 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 		}
 	}
 	raw := statement(t, "SELECT count(DISTINCT nextval('am_unit_sequence') ORDER BY nextval('am_unit_sequence'),nextval('am_unit_sequence'))").(*parser.Select).Targets[0]
-	expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := b.aggregates[expr.(aggregateExpression).slot]
-	if call.order[0].slot != 0 || call.order[1].slot != 0 || expr.Properties().Volatility != Volatile {
-		t.Fatal(call, expr.Properties())
+	call := b.aggregates[bound.(aggregateExpression).slot]
+	if call.order[0].slot != 0 || call.order[1].slot != 0 || bound.Properties().Volatility != Volatile {
+		t.Fatal(call, bound.Properties())
 	}
 	altered := call
 	altered.provider = functions.NewCountProvider(b.typ(sqltype.Int4).Usage())
@@ -284,10 +284,10 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	defer source.close()
 	node := query.Root.(*projectNode).child.(*aggregateNode)
 	original := node.calls[0]
-	rewritten, err := rewriteQueryExpressions(node, func(expr BoundExpr) (BoundExpr, bool, error) {
-		column, ok := expr.(columnExpression)
+	rewritten, err := rewriteQueryExpressions(node, func(bound BoundExpr) (BoundExpr, bool, error) {
+		column, ok := bound.(columnExpression)
 		if !ok || column.slot != 2 {
-			return expr, false, nil
+			return bound, false, nil
 		}
 		return literalExpression{expressionInfo: expressionInfo{Usage: column.ResultUsage()}, value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
 	})

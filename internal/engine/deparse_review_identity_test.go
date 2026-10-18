@@ -34,13 +34,13 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+tc.source+" FROM t").(*parser.Select).Targets[0]
-			expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, ok := expr.(identityExpression)
+			node, ok := bound.(identityExpression)
 			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (ExprProperties{Volatility: Stable}) {
-				t.Fatal(expr)
+				t.Fatal(bound)
 			}
 			id := sqltype.Name
 			if tc.kind == identitySystemUser {

@@ -281,13 +281,13 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	}
 }
 
-func subscriptsUnitProject(t *testing.T, engine *Engine, expr subscriptsExpression) *projectNode {
+func subscriptsUnitProject(t *testing.T, engine *Engine, bound subscriptsExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{expr}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{bound}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &projectNode{querySchema: querySchema{{Name: "s", Usage: expr.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
+	return &projectNode{querySchema: querySchema{{Name: "s", Usage: bound.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
 }
 
 func TestSubscriptsLowering(t *testing.T) {

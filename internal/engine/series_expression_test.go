@@ -272,13 +272,13 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 }
 
-func seriesUnitProject(t *testing.T, engine *Engine, expr seriesExpression) *projectNode {
+func seriesUnitProject(t *testing.T, engine *Engine, bound seriesExpression) *projectNode {
 	t.Helper()
-	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{expr}, 1)
+	root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []BoundExpr{bound}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &projectNode{querySchema: querySchema{{Name: "v", Usage: expr.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
+	return &projectNode{querySchema: querySchema{{Name: "v", Usage: bound.ResultUsage()}}, child: root, expressions: outputs, frame: 1, hasTargetSet: true}
 }
 func TestSeriesLowering(t *testing.T) {
 	engine := New()

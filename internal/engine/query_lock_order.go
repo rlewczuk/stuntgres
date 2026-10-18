@@ -54,8 +54,8 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 		}
 		evaluation.orderValues[key.cache] = value
 	}
-	for i, expr := range n.outputs {
-		properties := expr.Properties()
+	for i, bound := range n.outputs {
+		properties := bound.Properties()
 		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != Volatile {
 			continue
 		}
@@ -63,11 +63,11 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 		if slot >= len(evaluation.orderValues) {
 			return fmt.Errorf("stuntgres: missing replacement output cache")
 		}
-		value, err := expr.Eval(evaluation)
+		value, err := bound.Eval(evaluation)
 		if err != nil {
 			return err
 		}
-		if err := validateProducedValue(value, expr.ResultUsage()); err != nil {
+		if err := validateProducedValue(value, bound.ResultUsage()); err != nil {
 			return err
 		}
 		evaluation.orderValues[slot] = value

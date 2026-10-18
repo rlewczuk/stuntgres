@@ -114,24 +114,24 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 		base = ordered.cacheWidth
 	}
 	var late []BoundExpr
-	for i, expr := range projection {
-		if querySetDepth(expr) != 0 {
+	for i, bound := range projection {
+		if querySetDepth(bound) != 0 {
 			continue
 		}
-		if expr.ResultUsage().Type == nil {
+		if bound.ResultUsage().Type == nil {
 			continue
 		}
-		switch expr.(type) {
+		switch bound.(type) {
 		case columnExpression, groupExpression, cachedOrderExpression, unknownOutput, literalExpression, parameterExpression:
 			continue
 		}
-		if sorting && expr.Properties().Volatility != Volatile {
+		if sorting && bound.Properties().Volatility != Volatile {
 			slot := ordered.cacheWidth
-			ordered.outputs = append(ordered.outputs, expr)
+			ordered.outputs = append(ordered.outputs, bound)
 			ordered.cacheWidth++
-			projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(expr), slot: slot}
+			projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(bound), slot: slot}
 		} else if bounded {
-			late = append(late, expr)
+			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
 		}
 	}
@@ -142,8 +142,8 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 		return root
 	}
 	for j, i := range lateSlots {
-		expr := projection[i]
-		projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(expr), slot: base + j}
+		bound := projection[i]
+		projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(bound), slot: base + j}
 	}
 	return &evaluationNode{querySchema: root.Schema(), child: root, expressions: late, base: base}
 }

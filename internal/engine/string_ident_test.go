@@ -14,11 +14,11 @@ func TestStringIdentBinding(t *testing.T) {
 	for _, query := range []string{"SELECT parse_ident($1,$2)", "SELECT parse_ident(strict=>$2,str=>$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := expr.(functions.String)
+		n := bound.(functions.String)
 		reversed := !n.Textual[0]
 		if len(n.Args) != 2 || !n.ResultUsage().Type.IsArray() || n.ResultUsage().Type.Element() != b.typ(sqltype.Text) || !n.Properties().ParameterDependent {
 			t.Fatal(n)
@@ -66,11 +66,11 @@ func TestStringIdentBinding(t *testing.T) {
 func TestStringIdentReconstruction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT parse_ident(strict=>false,str=>'A.B[]')`).(*parser.Select).Targets[0]
-	expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := expr.(functions.String)
+	n := bound.(functions.String)
 	if err := n.Validate(); err != nil {
 		t.Fatal(err)
 	}

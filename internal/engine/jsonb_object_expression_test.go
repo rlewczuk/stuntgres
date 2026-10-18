@@ -98,9 +98,9 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: []BoundExpr{column, column}}
+	bound := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
+	rewritten, err := binder.rewriteGroup(bound, []BoundExpr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,11 +110,11 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 			t.Fatal(arg)
 		}
 	}
-	if _, ok := expr.Args[0].(columnExpression); !ok {
+	if _, ok := bound.Args[0].(columnExpression); !ok {
 		t.Fatal("mutated original arguments")
 	}
 	var count int
-	boundExpressionChildren(expr, func(child BoundExpr) {
+	boundExpressionChildren(bound, func(child BoundExpr) {
 		if !sameGroupExpression(child, column) {
 			t.Fatal(child)
 		}

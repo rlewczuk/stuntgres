@@ -189,15 +189,15 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(Bo
 		return
 	}
 	visit(node)
-	queryExpressions(node, func(expr BoundExpr) {
-		if expr == nil {
+	queryExpressions(node, func(bound BoundExpr) {
+		if bound == nil {
 			return
 		}
-		if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition && !includeDefinitions {
+		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition && !includeDefinitions {
 			return
 		}
-		expression(expr)
-		walkBoundExpression(expr, func(n BoundExpr) {
+		expression(bound)
+		walkBoundExpression(bound, func(n BoundExpr) {
 			if s, ok := n.(subqueryExpression); ok {
 				visitCTEQuery(s.queryPlan.Root, visit, expression, includeDefinitions)
 			}
@@ -219,8 +219,8 @@ func cteVolatile(root LogicalNode) bool {
 				volatile = true
 			}
 		}
-	}, func(expr BoundExpr) {
-		if expr.Properties().Volatility == Volatile {
+	}, func(bound BoundExpr) {
+		if bound.Properties().Volatility == Volatile {
 			volatile = true
 		}
 	}, true)

@@ -55,7 +55,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary{Info: expressionInfo{Usage: usage}, Plan: plan, Args: args}
+			bound := functions.Binary{Info: expressionInfo{Usage: usage}, Plan: plan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -71,7 +71,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				t.Fatal(err)
 			}
 			eval := &EvalContext{Context: context.Background(), statementScope: scope}
-			got, err := expr.Eval(eval)
+			got, err := bound.Eval(eval)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,17 +91,17 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if !reflect.DeepEqual(order, wantOrder) {
 				t.Fatal(order)
 			}
-			if plannedVolatility(expr) != tc.volatility {
+			if plannedVolatility(bound) != tc.volatility {
 				t.Fatal("intrinsic volatility lost")
 			}
 			for i, arg := range args {
 				observed := arg.(mathObservedArgument)
 				args[i] = literalExpression{expressionInfo: observed.expressionInfo, value: observed.value}
 			}
-			if generationImmutable(expr) != (tc.volatility == Immutable) {
+			if generationImmutable(bound) != (tc.volatility == Immutable) {
 				t.Fatal("generation intrinsic volatility lost")
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+			rebound, changed, err := retagBoundTypes(New().CatalogRead(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
@@ -111,7 +111,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil || retagErr != nil || result != want {
 				t.Fatal(result, want, err, retagErr)
 			}
-			if expr.Plan.ResultUsage().Type != types[tc.result] || next.Plan.ResultUsage().Type != replacement[tc.result] {
+			if bound.Plan.ResultUsage().Type != types[tc.result] || next.Plan.ResultUsage().Type != replacement[tc.result] {
 				t.Fatal("descriptor ownership")
 			}
 		})

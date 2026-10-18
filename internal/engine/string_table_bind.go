@@ -108,8 +108,8 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 	}
 	return expr, nil
 }
-func functionCallArguments(expr BoundExpr) []BoundExpr {
-	switch call := expr.(type) {
+func functionCallArguments(bound BoundExpr) []BoundExpr {
+	switch call := bound.(type) {
 	case functions.JSONBPathQuery:
 		return call.Arguments()
 	case catalogUserNameExpression:
@@ -162,8 +162,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return nil
 	}
 }
-func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
-	switch call := expr.(type) {
+func withFunctionCallArguments(bound BoundExpr, args []BoundExpr) (BoundExpr, error) {
+	switch call := bound.(type) {
 	case functions.JSONBPathQuery:
 		if len(args) != 4 {
 			return nil, fmt.Errorf("invalid JSONPath query arguments")
@@ -338,20 +338,20 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	ordinal := b.viewFunctionCount
 	b.viewFunctionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
-		expr, err := b.bindFunctionSource(call)
+		bound, err := b.bindFunctionSource(call)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
 		if len(call.ColumnDefinitions) != 0 {
-			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), call.ColumnDefinitions[0].Name.Pos)
+			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
 		}
-		if !isStringSet(expr) {
+		if !isStringSet(bound) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)
 		}
-		calls[i] = expr
-		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: expr.ResultUsage()}
+		calls[i] = bound
+		schema[i] = ColumnDescriptor{Name: "string_to_table", Usage: bound.ResultUsage()}
 		if b.noParameters || b.materializedDefinition {
-			if err := b.captureViewLiterals(call, expr, viewFunctionLiteral, ordinal+i); err != nil {
+			if err := b.captureViewLiterals(call, bound, viewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}
@@ -375,8 +375,8 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
-func (b *expressionBinder) mapQuerySetStage(expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
-	mapped, _, err := mapBoundExpression(b.bindingCatalog(), expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
+func (b *expressionBinder) mapQuerySetStage(bound BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
+	mapped, _, err := mapBoundExpression(b.bindingCatalog(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
 		if _, ok := e.(*windowExpression); ok {
@@ -387,9 +387,9 @@ func (b *expressionBinder) mapQuerySetStage(expr BoundExpr, leaf func(BoundExpr)
 	return mapped, err
 }
 
-func functionFrameReference(expr BoundExpr, frame uint32) bool {
+func functionFrameReference(bound BoundExpr, frame uint32) bool {
 	found := false
-	walkQueryArgumentExpression(expr, func(node BoundExpr) {
+	walkQueryArgumentExpression(bound, func(node BoundExpr) {
 		if column, ok := node.(columnExpression); ok && column.frame == frame {
 			found = true
 		}

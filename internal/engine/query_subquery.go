@@ -358,8 +358,8 @@ func canSimplifyExists(query *BoundQuery) bool {
 func presenceQueryPlan(query *BoundQuery) (*BoundQuery, error) {
 	project := query.Root.(*projectNode)
 	expressions := project.expressions
-	for i, expr := range project.expressions {
-		cached, ok := expr.(cachedOrderExpression)
+	for i, bound := range project.expressions {
+		cached, ok := bound.(cachedOrderExpression)
 		if !ok {
 			continue
 		}

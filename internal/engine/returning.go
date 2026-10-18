@@ -374,11 +374,11 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, er
 
 func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning, error) {
 	var expressions []BoundExpr
-	for i, expr := range output.expressions {
+	for i, bound := range output.expressions {
 		// Plan genuine SQL constants before importing frame coercions and before
 		// tuple/index demand. Row-dependent output still executes after insertion
 		// preparation; an imported parameter must not become a SQL constant.
-		planned, changed, err := simplifyConditional(c, expr, false)
+		planned, changed, err := simplifyConditional(c, bound, false)
 		if err != nil {
 			return nil, err
 		}

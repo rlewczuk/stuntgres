@@ -29,7 +29,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	uuid := b.typ(sqltype.UUID)
 	iv := b.typ(sqltype.Interval)
 	argument := literalExpression{expressionInfo{Usage: iv.Usage()}, sqltype.Null(iv)}
-	expr := functions.UUIDGeneration{Info: expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "uuidv7", Args: []BoundExpr{argument}}
+	bound := functions.UUIDGeneration{Info: expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "uuidv7", Args: []BoundExpr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
 	stored, err := b.bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -44,7 +44,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if n.Timestamp != other.typ(sqltype.Timestamptz) || n.ResultUsage().Type != other.typ(sqltype.UUID) || n.Args[0].ResultUsage().Type != other.typ(sqltype.Interval) || n.Properties() != stored.Properties() {
 		t.Fatal("retag lost descriptor/dependence")
 	}
-	if generationImmutable(expr) {
+	if generationImmutable(bound) {
 		t.Fatal("UUID admitted to immutable consumer")
 	}
 	if closedUUIDDefault(functions.Random{Info: expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}) {

@@ -32,10 +32,10 @@ func TestSessionIdentityTypedStableBinding(t *testing.T) {
 	}
 	e.mu.Lock()
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	expr, err := binder.bind(parser.IdentityExpr{Name: "current_user", Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext})
+	bound, err := binder.bind(parser.IdentityExpr{Name: "current_user", Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext})
 	e.mu.Unlock()
-	if err != nil || expr.Properties() != (ExprProperties{Volatility: Stable}) {
-		t.Fatal(expr, err)
+	if err != nil || bound.Properties() != (ExprProperties{Volatility: Stable}) {
+		t.Fatal(bound, err)
 	}
 }
 

@@ -9,8 +9,8 @@ func ruleQueryHasPseudo(root LogicalNode) bool {
 		if node == nil || found {
 			return
 		}
-		queryExpressions(node, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(expr BoundExpr) {
+		queryExpressions(node, func(bound BoundExpr) {
+			walkBoundExpression(bound, func(expr BoundExpr) {
 				if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
 					found = true
 				}

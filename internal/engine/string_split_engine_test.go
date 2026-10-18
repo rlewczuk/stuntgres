@@ -581,11 +581,11 @@ func TestStringSplitBinding(t *testing.T) {
 	}
 	b.stringSetGuard = ""
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,'x')").(*parser.Select)
-	expr, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
+	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
+	folded, _, err := simplifyConditional(&EvalContext{Context: context.Background()}, bound, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1029,11 +1029,11 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.aggregateClause = "SELECT"
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,split_part('x',',',0))").(*parser.Select)
-	expr, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
+	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal("immutable sibling error moved into binding", err)
 	}
-	projection := []BoundExpr{expr}
+	projection := []BoundExpr{bound}
 	root, err := b.lowerQuerySets(&singletonNode{}, projection, nil, true)
 	if err != nil {
 		t.Fatal("immutable sibling error moved into lowering", err)

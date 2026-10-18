@@ -6,8 +6,8 @@ import "slices"
 // stored projection planner also retains volatile outputs and clause caches.
 func ruleProducerOutputUses(original binding, rule ruleDefinition, action binding) []int {
 	uses := []int{}
-	inspect := func(expr BoundExpr) {
-		walkBoundExpression(expr, func(node BoundExpr) {
+	inspect := func(bound BoundExpr) {
+		walkBoundExpression(bound, func(node BoundExpr) {
 			column, ok := node.(columnExpression)
 			if !ok || column.scope != rulePseudoScope || column.frame != 2 {
 				return
@@ -21,9 +21,9 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 		})
 	}
 	query := func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, inspect, true) }
-	expression := func(expr BoundExpr) {
-		if expr != nil {
-			query(&projectNode{expressions: []BoundExpr{expr}})
+	expression := func(bound BoundExpr) {
+		if bound != nil {
+			query(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {

@@ -41,17 +41,17 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 					}
 					return sqltype.Integer(usage.Type, 1)
 				})
-				expr := subqueryTestExpression(t, e, q, kind)
+				bound := subqueryTestExpression(t, e, q, kind)
 				if kind == parser.SubqueryRow {
-					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.Usage.Type, usage.Collation, false)
+					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, bound.Usage.Type, usage.Collation, false)
 					if err != nil {
 						t.Fatal(err)
 					}
-					expr.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+					bound.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 				}
 				parent := queryState{source: source}
 				c := parent.evaluation(ctx)
-				_, err := expr.Eval(&c)
+				_, err := bound.Eval(&c)
 				if calls != 2 {
 					t.Fatal("must project exactly two tuples", calls, err)
 				}

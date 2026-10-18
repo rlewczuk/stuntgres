@@ -149,8 +149,8 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 		left, right := queryInputs(node)
 		walk(left)
 		walk(right)
-		queryExpressions(node, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(expr BoundExpr) {
+		queryExpressions(node, func(bound BoundExpr) {
+			walkBoundExpression(bound, func(expr BoundExpr) {
 				if e, ok := expr.(subqueryExpression); ok {
 					walk(e.queryPlan.Root)
 				}
@@ -171,8 +171,8 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 		}
 	}
 	changed := false
-	queryExpressions(node, func(expr BoundExpr) {
-		walkBoundExpression(expr, func(expr BoundExpr) {
+	queryExpressions(node, func(bound BoundExpr) {
+		walkBoundExpression(bound, func(expr BoundExpr) {
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
@@ -236,17 +236,17 @@ func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
 			return
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
-			queryExpressions(node, func(expr BoundExpr) {
-				if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition {
+			queryExpressions(node, func(bound BoundExpr) {
+				if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
 					return
 				}
-				if expr == nil {
+				if bound == nil {
 					return
 				}
-				p := expr.Properties()
+				p := bound.Properties()
 				p.RowDependent = false
 				properties = mergeExpressionProperties(properties, p)
-				walkBoundExpression(expr, func(expr BoundExpr) {
+				walkBoundExpression(bound, func(expr BoundExpr) {
 					var frame uint32
 					switch n := expr.(type) {
 					case columnExpression:

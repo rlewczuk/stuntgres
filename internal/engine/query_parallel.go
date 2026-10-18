@@ -94,11 +94,11 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 // This is deliberately not a volatility classifier. Unknown evaluators, virtual
 // recipes, subqueries and session/sequence functions fall back to serial. Basic
 // scalar providers below operate on immutable datums and worker-local frames.
-func parallelQueryExpression(expr BoundExpr, frame uint32, width int) bool {
-	if expr == nil {
+func parallelQueryExpression(bound BoundExpr, frame uint32, width int) bool {
+	if bound == nil {
 		return true
 	}
-	switch e := expr.(type) {
+	switch e := bound.(type) {
 	case literalExpression, parameterExpression, cachedOrderExpression:
 		return true
 	case columnExpression:
@@ -111,11 +111,11 @@ func parallelQueryExpression(expr BoundExpr, frame uint32, width int) bool {
 	default:
 		return false
 	}
-	if expr.Properties().Volatility == Volatile {
+	if bound.Properties().Volatility == Volatile {
 		return false
 	}
 	safe := true
-	boundExpressionChildren(expr, func(child BoundExpr) { safe = safe && parallelQueryExpression(child, frame, width) })
+	boundExpressionChildren(bound, func(child BoundExpr) { safe = safe && parallelQueryExpression(child, frame, width) })
 	return safe
 }
 

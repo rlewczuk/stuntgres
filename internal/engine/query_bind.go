@@ -676,33 +676,33 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {
-	if raw, ok := expr.(unknownOutput); ok {
+func (b *expressionBinder) assignOutput(bound BoundExpr, target ColumnDescriptor) (BoundExpr, error) {
+	if raw, ok := bound.(unknownOutput); ok {
 		return b.bind(raw.raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
 	}
-	if source := expr.ResultUsage().Type; source != nil && source.ID() == 2249 && target.Usage.Type.BaseType().IsComposite() {
+	if source := bound.ResultUsage().Type; source != nil && source.ID() == 2249 && target.Usage.Type.BaseType().IsComposite() {
 		// A projected RECORD output no longer has direct constructor or
 		// whole-source conversion authority at the destination boundary.
-		return nil, b.rowCoercionError(target.Usage, expr.SourcePosition(), "")
+		return nil, b.rowCoercionError(target.Usage, bound.SourcePosition(), "")
 	}
-	if p, ok := expr.(parameterExpression); ok && p.Usage.Type == nil {
+	if p, ok := bound.(parameterExpression); ok && p.Usage.Type == nil {
 		var err error
-		expr, err = b.coerceParameter(p, target.Usage)
+		bound, err = b.coerceParameter(p, target.Usage)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if expr.ResultUsage() == target.Usage {
-		return expr, nil
+	if bound.ResultUsage() == target.Usage {
+		return bound, nil
 	}
-	input, annotations := domainCoercionInput(expr, target.Usage)
-	info, err := storageCoercionInfo(b.bindingCatalog(), b.info(target.Usage, expr.SourcePosition(), input.Properties()), input)
+	input, annotations := domainCoercionInput(bound, target.Usage)
+	info, err := storageCoercionInfo(b.bindingCatalog(), b.info(target.Usage, bound.SourcePosition(), input.Properties()), input)
 	if err != nil {
 		return nil, err
 	}
 	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
-		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(expr.ResultUsage().Type)), expr.SourcePosition())
+		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}
@@ -710,8 +710,8 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 		b.regclassConcat = true
 	}
 	info.Property = coercionProperties(input, plan)
-	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
-	return storageDestination(expr, target.Usage, info.Pos)
+	bound = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+	return storageDestination(bound, target.Usage, info.Pos)
 }
 
 // rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct

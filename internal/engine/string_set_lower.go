@@ -12,14 +12,14 @@ type querySetSlot struct {
 	scheduled bool // The owner reads its reserved slot only for an active scalar event.
 }
 
-func querySetDepth(expr BoundExpr) int {
+func querySetDepth(bound BoundExpr) int {
 	depth := 0
-	boundExpressionChildren(expr, func(child BoundExpr) {
+	boundExpressionChildren(bound, func(child BoundExpr) {
 		if d := querySetDepth(child); d > depth {
 			depth = d
 		}
 	})
-	if isQuerySet(expr) {
+	if isQuerySet(bound) {
 		depth++
 	}
 	return depth
@@ -86,8 +86,8 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 		template.expressions = append([]BoundExpr(nil), templateRoots[0]...)
 	}
 	for level := range maxDepth {
-		for _, expr := range requests {
-			walkBoundExpression(expr, func(e BoundExpr) {
+		for _, bound := range requests {
+			walkBoundExpression(bound, func(e BoundExpr) {
 				if !isQuerySet(e) || querySetDepth(e) != level+1 {
 					return
 				}
@@ -137,13 +137,13 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 			schema = append(schema, ColumnDescriptor{Usage: expression.ResultUsage()})
 		}
 	}
-	column := func(expr BoundExpr, slot int) BoundExpr {
-		info := boundExpressionInfo(expr)
+	column := func(bound BoundExpr, slot int) BoundExpr {
+		info := boundExpressionInfo(bound)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: base + slot}
 	}
-	rewrite := func(expr BoundExpr, sql99 bool, beforeDepth int) (BoundExpr, error) {
-		return b.mapQuerySetStage(expr, func(e BoundExpr) (BoundExpr, bool, error) {
+	rewrite := func(bound BoundExpr, sql99 bool, beforeDepth int) (BoundExpr, error) {
+		return b.mapQuerySetStage(bound, func(e BoundExpr) (BoundExpr, bool, error) {
 			for i, original := range template.origins {
 				if (sameQuerySetOccurrence(e, original) || sql99 && isQuerySet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
@@ -284,8 +284,8 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{expressionInfo: info, scope: 1, frame: n.frame, slot: n.baseWidth + slot}
 	}
-	rewrite := func(expr BoundExpr, beforeDepth int) (BoundExpr, error) {
-		next, _, err := mapBoundExpression(c.catalog, expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
+	rewrite := func(bound BoundExpr, beforeDepth int) (BoundExpr, error) {
+		next, _, err := mapBoundExpression(c.catalog, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
 			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
 				for i, original := range template.origins {
 					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {

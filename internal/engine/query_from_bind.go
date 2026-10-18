@@ -864,19 +864,19 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 		return &copy, nil
 	case *functionFromNode:
 		var rewrite func(BoundExpr) (BoundExpr, bool, error)
-		rewrite = func(expr BoundExpr) (BoundExpr, bool, error) {
+		rewrite = func(bound BoundExpr) (BoundExpr, bool, error) {
 			// Virtual owner recipes have their own frame. The lexical walker
 			// stops at their column, so only actual argument captures enter.
 			used := false
-			walkQueryArgumentExpression(expr, func(node BoundExpr) {
+			walkQueryArgumentExpression(bound, func(node BoundExpr) {
 				if column, ok := node.(columnExpression); ok && column.frame == frame {
 					used = true
 				}
 			})
 			if !used {
-				return expr, false, nil
+				return bound, false, nil
 			}
-			return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
+			return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
 				return rewriteQueryExpressions(query, rewrite)
 			}, nil, func(node BoundExpr) (BoundExpr, bool, error) {
 				column, ok := node.(columnExpression)
@@ -992,24 +992,24 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			}
 			columns = definitions
 		}
-		expr, err := b.completeFunctionDefinitions(raw, calls[i], columns)
+		node, err := b.completeFunctionDefinitions(raw, calls[i], columns)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if !validFunctionSourceCall(expr) {
+		if !validFunctionSourceCall(node) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
 		}
-		calls[i] = expr
-		if expr.ResultUsage().Type.BaseType().IsComposite() {
-			for j := range functionFromCallWidth(expr) {
-				member := expr.ResultUsage().Type.BaseType().CompositeMember(j)
+		calls[i] = node
+		if node.ResultUsage().Type.BaseType().IsComposite() {
+			for j := range functionFromCallWidth(node) {
+				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
 				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
-			if out := functionScalarOutName(expr); out != "" {
+			if out := functionScalarOutName(node); out != "" {
 				name = out
 			}
-			schema = append(schema, ColumnDescriptor{Name: name, Usage: expr.ResultUsage()})
+			schema = append(schema, ColumnDescriptor{Name: name, Usage: node.ResultUsage()})
 		}
 
 	}

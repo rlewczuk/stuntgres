@@ -765,11 +765,11 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}
 		var expressionError error
-		validateExpression := func(expr BoundExpr, contextual bool) {
+		validateExpression := func(bound BoundExpr, contextual bool) {
 			if expressionError != nil {
 				return
 			}
-			walkBoundExpression(expr, func(expr BoundExpr) {
+			walkBoundExpression(bound, func(expr BoundExpr) {
 				if expressionError != nil {
 					return
 				}

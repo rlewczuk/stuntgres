@@ -163,8 +163,8 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 				}
 			}
 		}
-		queryExpressions(node, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(child BoundExpr) {
+		queryExpressions(node, func(bound BoundExpr) {
+			walkBoundExpression(bound, func(child BoundExpr) {
 				if subquery, ok := child.(subqueryExpression); ok {
 					inspect(subquery.queryPlan.Root)
 				}

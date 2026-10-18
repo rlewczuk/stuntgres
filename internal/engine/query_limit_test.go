@@ -116,7 +116,7 @@ func TestQueryLimitCancellation(t *testing.T) {
 				filter.predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
 			} else {
 				original := project.expressions[0]
-				expr := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				bound := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase != "prepublication" || calls == 2 {
 						cancel()
@@ -125,12 +125,12 @@ func TestQueryLimitCancellation(t *testing.T) {
 				})
 				if phase == "offset" {
 					limit.offset = queryLimitBound(t, e, 1)
-					limit.child = &evaluationNode{querySchema: filter.Schema(), child: filter, expressions: []BoundExpr{expr}}
+					limit.child = &evaluationNode{querySchema: filter.Schema(), child: filter, expressions: []BoundExpr{bound}}
 				} else {
 					if phase == "prepublication" {
 						limit.count = queryLimitBound(t, e, 2)
 					}
-					project.expressions[0] = expr
+					project.expressions[0] = bound
 				}
 			}
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

@@ -365,23 +365,23 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 
 // Only top-level conjunctive equality keys spanning the two inputs initialize
 // a join strategy. Comparisons inside branches remain ordinary scalar demand.
-func initializeJoinEquality(ctx context.Context, expr BoundExpr, leftWidth int) error {
-	if expr == nil {
+func initializeJoinEquality(ctx context.Context, bound BoundExpr, leftWidth int) error {
+	if bound == nil {
 		return nil
 	}
-	if logical, ok := expr.(logicalExpression); ok && logical.op == parser.LogicalAnd {
+	if logical, ok := bound.(logicalExpression); ok && logical.op == parser.LogicalAnd {
 		if err := initializeJoinEquality(ctx, logical.left, leftWidth); err != nil {
 			return err
 		}
 		return initializeJoinEquality(ctx, logical.right, leftWidth)
 	}
-	comparison, ok := expr.(comparisonExpression)
+	comparison, ok := bound.(comparisonExpression)
 	if !ok || comparison.operator != "=" {
 		return nil
 	}
-	side := func(expr BoundExpr) int {
+	side := func(bound BoundExpr) int {
 		result := 0
-		walkBoundExpression(expr, func(node BoundExpr) {
+		walkBoundExpression(bound, func(node BoundExpr) {
 			column, ok := node.(columnExpression)
 			if !ok || column.scope != 1 {
 				return

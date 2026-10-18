@@ -26,9 +26,9 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			}
 		}
 	}
-	visitExpression := func(expr BoundExpr) {
-		if expr != nil {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+	visitExpression := func(bound BoundExpr) {
+		if bound != nil {
+			visit(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
 	for _, definition := range b.ctes {
@@ -64,15 +64,15 @@ func ruleBindingMaxFrame(b binding) uint32 {
 		visit(b.query.Root)
 	}
 	for _, row := range b.expressions {
-		for _, expr := range row {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+		for _, bound := range row {
+			visit(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
 	if b.update != nil {
 		visit(b.update.from)
 		visitExpression(b.update.predicate)
-		for _, expr := range b.update.assignments {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+		for _, bound := range b.update.assignments {
+			visit(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
 	visit(b.deleteUsing)

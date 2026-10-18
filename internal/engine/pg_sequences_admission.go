@@ -5,13 +5,13 @@ import "stuntgres/internal/parser"
 // This is only the sequence view's definition qualifier frontier. It is not a
 // general predicate optimizer: unknown, volatile and helper-dependent expressions
 // remain in their original evaluation stage.
-func mapPGSequencesPredicate(expr BoundExpr, column func(columnExpression) (BoundExpr, bool)) (BoundExpr, bool) {
-	if expr == nil {
+func mapPGSequencesPredicate(bound BoundExpr, column func(columnExpression) (BoundExpr, bool)) (BoundExpr, bool) {
+	if bound == nil {
 		return nil, false
 	}
-	switch n := expr.(type) {
+	switch n := bound.(type) {
 	case literalExpression, parameterExpression:
-		return expr, true
+		return bound, true
 	case columnExpression:
 		return column(n)
 	case comparisonExpression:

@@ -197,8 +197,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return nil, err
 		}
 		var expressions []BoundExpr
-		for i, expr := range n.expressions {
-			folded, changed, err := preflightCoercions(c, expr)
+		for i, operand := range n.expressions {
+			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
 			}
@@ -394,8 +394,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		var outputs []BoundExpr
-		for i, expr := range n.outputs {
-			folded, changed, err := preflightCoercions(c, expr)
+		for i, operand := range n.outputs {
+			folded, changed, err := preflightCoercions(c, operand)
 			if err != nil {
 				return nil, err
 			}

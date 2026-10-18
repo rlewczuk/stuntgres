@@ -44,12 +44,12 @@ func pruneProjectWindows(project *projectNode) (*projectNode, error) {
 		query(left)
 		query(right)
 	}
-	expression = func(expr BoundExpr) {
+	expression = func(bound BoundExpr) {
 		// ORDER/LIMIT lowering can own the original CASE in a sort or
 		// evaluation slot while projection only reads its cached result.
 		// Use the existing physical-literal demand policy before those
 		// owners preflight; a lexical walk would revive their dead arms.
-		walkDemandedBoundExpression(expr, func(expr BoundExpr) {
+		walkDemandedBoundExpression(bound, func(expr BoundExpr) {
 			if occurrence, ok := expr.(*windowExpression); ok {
 				// Physical window results occupy consecutive slots after input.
 				i := occurrence.slot - firstSlot

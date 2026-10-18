@@ -84,8 +84,8 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if _, ok := list.args[1].(aggregateExpression); !ok {
 		t.Fatal("immutable list args mutated")
 	}
-	for _, expr := range []BoundExpr{groupCase, groupList} {
-		got, err := b.rewriteGroup(expr, []BoundExpr{expr})
+	for _, bound := range []BoundExpr{groupCase, groupList} {
+		got, err := b.rewriteGroup(bound, []BoundExpr{bound})
 		if _, ok := got.(groupExpression); err != nil || !ok {
 			t.Fatal("whole conditional grouping key not recognized", err)
 		}

@@ -75,8 +75,8 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(functions.Binary)
-			if !ok || expr.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
+			node, ok := bound.(functions.Binary)
+			if !ok || node.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
 				t.Fatal(bound, b.parameters[1])
 			}
 			if !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable {

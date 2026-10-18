@@ -348,11 +348,11 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 				}
 			}
 			var direct []BoundExpr
-			for j, expr := range call.direct {
+			for j, operand := range call.direct {
 				if err != nil {
 					break
 				}
-				next, different, failure := rewrite(expr)
+				next, different, failure := rewrite(operand)
 				err = failure
 				if different {
 					if direct == nil {
@@ -443,9 +443,9 @@ func queryUsesFrame(node LogicalNode, frame uint32) bool {
 	left, right := queryInputs(node)
 	return queryUsesFrame(left, frame) || queryUsesFrame(right, frame)
 }
-func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
+func expressionUsesFrame(bound BoundExpr, frame uint32) bool {
 	found := false
-	walkBoundExpression(expr, func(expr BoundExpr) {
+	walkBoundExpression(bound, func(expr BoundExpr) {
 		switch e := expr.(type) {
 		case columnExpression:
 			found = found || e.frame == frame

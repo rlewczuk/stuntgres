@@ -133,8 +133,8 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			from = b.deleteUsing
 			condition = b.predicate
 		}
-		mapper := func(expr BoundExpr) (BoundExpr, bool, error) {
-			return rewriteViewExpression(catalog, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapper := func(bound BoundExpr) (BoundExpr, bool, error) {
+			return rewriteViewExpression(catalog, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 				column, ok := expr.(columnExpression)
 				if !ok {
 					return expr, false, nil
@@ -453,17 +453,17 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	}
 	windowSlots := make(map[int]int)
 	targetOffset, shift := targetWidth, true
-	substitute := func(expr BoundExpr) (BoundExpr, bool, error) {
-		if window, ok := expr.(*windowExpression); ok && window.frame == actionFrame {
+	substitute := func(bound BoundExpr) (BoundExpr, bool, error) {
+		if window, ok := bound.(*windowExpression); ok && window.frame == actionFrame {
 			if slot, ok := windowSlots[window.slot]; ok && slot != window.slot {
 				copy := *window
 				copy.slot = slot
 				return &copy, true, nil
 			}
 		}
-		column, ok := expr.(columnExpression)
+		column, ok := bound.(columnExpression)
 		if !ok {
-			return expr, false, nil
+			return bound, false, nil
 		}
 		if column.scope == rulePseudoScope {
 			recipes := p.old
@@ -984,9 +984,9 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 	copy.readRequired = provider.readRequired
 	copy.visibilitySnapshot = copy.visibilitySnapshot || provider.visibilitySnapshot
 	copy.expressions = slices.Clone(original.expressions)
-	for i, expr := range copy.expressions {
+	for i, bound := range copy.expressions {
 		var err error
-		copy.expressions[i], _, err = rewriteViewExpression(catalog, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		copy.expressions[i], _, err = rewriteViewExpression(catalog, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 			column, ok := expr.(returningColumnExpression)
 			if !ok {
 				return expr, false, nil
@@ -1226,8 +1226,8 @@ func refreshRuleConflict(catalog CatalogRead, b binding, current *relationDescri
 
 func ruleBindingHasPseudo(b binding) bool {
 	found := false
-	inspect := func(expr BoundExpr) {
-		walkBoundExpression(expr, func(node BoundExpr) {
+	inspect := func(bound BoundExpr) {
+		walkBoundExpression(bound, func(node BoundExpr) {
 			if column, ok := node.(columnExpression); ok && column.scope == rulePseudoScope {
 				found = true
 			}
@@ -1238,9 +1238,9 @@ func ruleBindingHasPseudo(b binding) bool {
 			visitCTEQuery(root, func(LogicalNode) {}, inspect, true)
 		}
 	}
-	expression := func(expr BoundExpr) {
-		if expr != nil && !found {
-			query(&projectNode{expressions: []BoundExpr{expr}})
+	expression := func(bound BoundExpr) {
+		if bound != nil && !found {
+			query(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {

@@ -11,11 +11,11 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 	t.Run("reuse-fresh-owner-source-immutable", func(t *testing.T) {
 		_, q, source := queryJoinsFixture(t, `SELECT k = ANY(SELECT q FROM b WHERE k=3) AS v FROM a`)
 		project := q.Root.(*projectNode)
-		expr := project.expressions[0].(subqueryExpression)
-		if len(expr.membership) != 1 {
+		node := project.expressions[0].(subqueryExpression)
+		if len(node.membership) != 1 {
 			t.Fatal("fixture did not bind real hashed membership")
 		}
-		rhs := expr.queryPlan.Root.(*projectNode)
+		rhs := node.queryPlan.Root.(*projectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
 		probe := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -24,9 +24,9 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}).(queryProbeExpression)
 		probe.Property.Volatility = Volatile
 		subqueryTestTarget(t, rhs, probe)
-		leftUsage, rightUsage := expr.comparisons[0].left.ResultUsage(), expr.comparisons[0].right.ResultUsage()
-		ref, conflict := expr.comparisons[0].predicate.InputCollation()
-		properties := expr.Properties()
+		leftUsage, rightUsage := node.comparisons[0].left.ResultUsage(), node.comparisons[0].right.ResultUsage()
+		ref, conflict := node.comparisons[0].predicate.InputCollation()
+		properties := node.Properties()
 		for execution, want := range [][]any{{true, true, nil, false}, {false, false, nil, true}} {
 			state := queryState{source: source}
 			stage, err := openQueryProjectStage(context.Background(), &state, project)
@@ -67,7 +67,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if len(state.memberships) != 1 {
 				t.Fatal("borrowed stage close erased retained membership", len(state.memberships))
 			}
-			retained := state.memberships[subqueryMembershipKey{expr.queryPlan, source}]
+			retained := state.memberships[subqueryMembershipKey{node.queryPlan, source}]
 			if retained == nil || len(retained.flat) != 1 {
 				t.Fatal("owner lost the successfully built tuple")
 			}

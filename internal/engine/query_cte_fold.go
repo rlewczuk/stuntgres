@@ -16,20 +16,20 @@ func cteMapExpression(view CatalogRead, expr BoundExpr, leaf func(BoundExpr) (Bo
 // remain immutable; each folded occurrence gets its own rewritten path.
 func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error) {
 	var rewrite func(BoundExpr) (BoundExpr, bool, error)
-	rewrite = func(expr BoundExpr) (BoundExpr, bool, error) {
-		if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition {
-			return expr, false, nil
+	rewrite = func(bound BoundExpr) (BoundExpr, bool, error) {
+		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
+			return bound, false, nil
 		}
 		hasQuery := false
-		walkBoundExpression(expr, func(n BoundExpr) {
+		walkBoundExpression(bound, func(n BoundExpr) {
 			if _, ok := n.(subqueryExpression); ok {
 				hasQuery = true
 			}
 		})
 		if !hasQuery {
-			return expr, false, nil
+			return bound, false, nil
 		}
-		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child LogicalNode) (LogicalNode, error) { return foldCTERestrictions(view, child) }, nil, nil)
+		return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child LogicalNode) (LogicalNode, error) { return foldCTERestrictions(view, child) }, nil, nil)
 	}
 	return rewriteQueryExpressions(root, rewrite, func(node LogicalNode) (LogicalNode, error) {
 		if join, ok := node.(*joinNode); ok && join.kind == parser.JoinInner && join.predicate != nil {

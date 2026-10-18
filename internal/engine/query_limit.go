@@ -54,37 +54,37 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 			policy.expected = b.typ(sqltype.Int8).Usage()
 		}
 	}
-	expr, err := b.bind(raw, policy)
+	bound, err := b.bind(raw, policy)
 	if err != nil {
 		return nil, err
 	}
 	usage := b.typ(sqltype.Int8).Usage()
-	if expr.ResultUsage() != usage {
-		plan, err := sqltype.PlanCoercion(expr.ResultUsage(), usage, sqltype.Assignment)
+	if bound.ResultUsage() != usage {
+		plan, err := sqltype.PlanCoercion(bound.ResultUsage(), usage, sqltype.Assignment)
 		if err != nil {
-			return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, expr.ResultUsage().Type.DiagnosticName()), expr.SourcePosition())
+			return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, bound.ResultUsage().Type.DiagnosticName()), bound.SourcePosition())
 		}
-		expr = coercionExpression{b.info(usage, expr.SourcePosition(), coercionProperties(expr, plan)), expr, plan, sqltype.Assignment, false}
+		bound = coercionExpression{b.info(usage, bound.SourcePosition(), coercionProperties(bound, plan)), bound, plan, sqltype.Assignment, false}
 	}
-	if expressionUsesFrame(expr, b.frameID()) {
-		pos := firstQueryBoundFrameVariable(expr, b.frameID())
+	if expressionUsesFrame(bound, b.frameID()) {
+		pos := firstQueryBoundFrameVariable(bound, b.frameID())
 		return nil, expressionError("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
 	if (b.noParameters || b.materializedDefinition) && captureLiterals {
-		if err := b.captureViewLiterals(raw, expr, literalClause, 0); err != nil {
+		if err := b.captureViewLiterals(raw, bound, literalClause, 0); err != nil {
 			return nil, err
 		}
 	}
-	return expr, nil
+	return bound, nil
 }
 
-func firstQueryBoundFrameVariable(expr BoundExpr, frame uint32) parser.Position {
+func firstQueryBoundFrameVariable(bound BoundExpr, frame uint32) parser.Position {
 	var position parser.Position
 	found := false
 	var query func(LogicalNode)
 	var expression func(BoundExpr)
-	expression = func(expr BoundExpr) {
-		walkBoundExpression(expr, func(expr BoundExpr) {
+	expression = func(bound BoundExpr) {
+		walkBoundExpression(bound, func(expr BoundExpr) {
 			matched := false
 			switch e := expr.(type) {
 			case columnExpression:
@@ -122,7 +122,7 @@ func firstQueryBoundFrameVariable(expr BoundExpr, frame uint32) parser.Position 
 		query(left)
 		query(right)
 	}
-	expression(expr)
+	expression(bound)
 	return position
 }
 

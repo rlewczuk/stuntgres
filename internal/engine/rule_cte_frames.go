@@ -26,12 +26,12 @@ func isolateRuleCTEFrames(view CatalogRead, original, action binding, syntax par
 	}
 	visit(action.deleteUsing)
 	for _, row := range action.expressions {
-		for _, expr := range row {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+		for _, bound := range row {
+			visit(&projectNode{expressions: []BoundExpr{bound}})
 		}
 	}
-	for _, expr := range action.defaults {
-		visit(&projectNode{expressions: []BoundExpr{expr}})
+	for _, bound := range action.defaults {
+		visit(&projectNode{expressions: []BoundExpr{bound}})
 	}
 	if action.returning != nil {
 		visit(&projectNode{expressions: action.returning.expressions})

@@ -262,8 +262,8 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 		w.layers = append(w.layers, viewWriteLayer{relation: d, ref: ref, targets: mapped, source: source, sourceRef: use, mainOccurrence: sourceNode.occurrence})
 		var lowerStored func(BoundExpr, bool) (BoundExpr, bool, error)
-		lowerStored = func(expr BoundExpr, frozenLayout bool) (BoundExpr, bool, error) {
-			return rewriteViewExpression(auth.catalog, expr, d, func(n BoundExpr) (BoundExpr, bool, error) {
+		lowerStored = func(bound BoundExpr, frozenLayout bool) (BoundExpr, bool, error) {
+			return rewriteViewExpression(auth.catalog, bound, d, func(n BoundExpr) (BoundExpr, bool, error) {
 				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).owner == (ids.ObjectRef{}) {
 					q = q.WithOrigin(quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision})
 					q.RoutineRecipeReference = d
@@ -395,7 +395,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	return e.lowerViewWrite(b, auth, stmt)
 }
 
-func rewriteViewExpression(view CatalogRead, expr BoundExpr, recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), queries ...func(LogicalNode, func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error)) (BoundExpr, bool, error) {
+func rewriteViewExpression(view CatalogRead, bound BoundExpr, recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), queries ...func(LogicalNode, func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error)) (BoundExpr, bool, error) {
 	var mapper func(BoundExpr) (BoundExpr, bool, error)
 	mapper = func(n BoundExpr) (BoundExpr, bool, error) {
 		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) {
@@ -405,7 +405,7 @@ func rewriteViewExpression(view CatalogRead, expr BoundExpr, recipe *relationDes
 			return rewriteQueryExpressions(root, mapper)
 		}, recipe, leaf)
 	}
-	return mapper(expr)
+	return mapper(bound)
 }
 
 func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
@@ -414,8 +414,8 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 	graft := func(root LogicalNode, mapper func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
 		return w.graftQuery(b, auth.catalog, root, mapper)
 	}
-	lowerMapped := func(expr BoundExpr) (BoundExpr, bool, error) {
-		return rewriteViewExpression(auth.catalog, expr, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+	lowerMapped := func(bound BoundExpr) (BoundExpr, bool, error) {
+		return rewriteViewExpression(auth.catalog, bound, nil, func(n BoundExpr) (BoundExpr, bool, error) {
 			switch n.(type) {
 			case subqueryExpression:
 				b.subqueryDemand = true

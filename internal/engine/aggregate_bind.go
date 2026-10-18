@@ -916,19 +916,19 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	}
 	return false
 }
-func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) rewriteGroup(bound BoundExpr, keys []BoundExpr) (BoundExpr, error) {
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
 	}
-	if operation, ok := expr.(groupingExpression); ok {
+	if operation, ok := bound.(groupingExpression); ok {
 		return b.rewriteGrouping(operation, keys)
 	}
 	for i, key := range keys {
-		if b.sameGroupExpression(expr, key) {
-			properties := expr.Properties()
+		if b.sameGroupExpression(bound, key) {
+			properties := bound.Properties()
 			properties.RowDependent = false
 			properties.StageDependent = true
-			info := boundExpressionInfo(expr)
+			info := boundExpressionInfo(bound)
 			info.Property = properties
 			return groupExpression{expressionInfo: info, slot: i, frame: b.frameID()}, nil
 		}
@@ -943,7 +943,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		return out
 	}
 	stage := func(info *expressionInfo) { info.Property.StageDependent = true }
-	switch e := expr.(type) {
+	switch e := bound.(type) {
 	case subqueryExpression:
 		old := b.groupSubquery
 		b.groupSubquery = true
@@ -970,45 +970,45 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 			e.comparisons = comparisons
 		}
-		expr = e
+		bound = e
 	case currentSchemasExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case objectAddressExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case aclValueExpression:
 		for i := range e.arguments() {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case objectACLExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case accessInquiryExpression:
 		for i := range e.count {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case namespaceInquiryExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case blockingInquiryExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case aggregateExpression:
 		if e.frame != 0 && e.frame != b.frameID() {
 			return e, nil
@@ -1047,18 +1047,18 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return nil, err
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case fieldExpression:
 		e.base = rewrite(e.base)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case arrayExpression:
 		e.elements = append([]BoundExpr(nil), e.elements...)
 		for i, element := range e.elements {
 			e.elements[i] = rewrite(element)
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case subscriptExpression:
 		var failure error
 		e, _, failure = mapSubscript(e, func(child BoundExpr) (BoundExpr, bool, error) {
@@ -1072,20 +1072,20 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			return nil, failure
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case collationExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case coercionExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case bitwiseExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.Timezone:
 		e.Value = rewrite(e.Value)
 		if !e.Local {
@@ -1094,44 +1094,44 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case selectedOperatorExpression:
 		e.provider = rewrite(e.provider)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case arithmeticExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case likeExpression:
 		e.left, e.right = rewrite(e.left), rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.LikeEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Posix:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Similar:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.SimilarEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.PosixSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1139,7 +1139,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.SimilarSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1147,14 +1147,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case rowComparisonExpression:
 		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
 		for i, pair := range e.comparisons {
 			e.comparisons[i] = rewrite(pair).(comparisonExpression)
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.Regexp:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1163,7 +1163,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RegexpSet:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1172,7 +1172,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case scalarArrayComparisonExpression:
 		e.left = rewrite(e.left)
 		if e.array != nil {
@@ -1183,31 +1183,31 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			e.items[i] = rewrite(e.items[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case seriesExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case subscriptsExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case unnestExpression:
 		e.args = []BoundExpr{rewrite(e.args[0])}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.JSONKeys:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBRecord:
 		args := make([]BoundExpr, len(e.Args))
 		for i, arg := range e.Args {
@@ -1217,13 +1217,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBElements:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONRecord:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i, arg := range e.Args {
@@ -1232,42 +1232,42 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONEach:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONElements:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case logicalExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case nullTestExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case truthTestExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case distinctExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case caseExpression:
 		e.test = rewrite(e.test)
 		e.arms = append([]caseBranch(nil), e.arms...)
@@ -1277,21 +1277,21 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		e.otherwise = rewrite(e.otherwise)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case conditionalExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case sequenceCallExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.Binary:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1300,13 +1300,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeJustify:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeExtract:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1314,7 +1314,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeOverlaps:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1322,7 +1322,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeBin:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1330,7 +1330,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeTrunc:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1338,7 +1338,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeZoneCalendar:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1346,7 +1346,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeAgeFinite:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1354,7 +1354,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONStripNulls:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1362,7 +1362,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONExtract:
 		e, _, err = functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			next := rewrite(arg)
@@ -1371,7 +1371,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQueryArray:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1379,7 +1379,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathExists:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1387,7 +1387,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathMatch:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1395,7 +1395,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQueryFirst:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1403,7 +1403,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQuery:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1411,7 +1411,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBSet:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1419,7 +1419,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeMake:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1427,7 +1427,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1435,7 +1435,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.NumericFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1443,7 +1443,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.String:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1452,7 +1452,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayRandom:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1461,7 +1461,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayTransform:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1470,7 +1470,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayInspect:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1479,7 +1479,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArraySearch:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1488,32 +1488,32 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case catalogUserNameExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case catalogForeignKeysExpression:
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case transactionIdentityExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case commitTimestampExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.UUIDExtract:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.NetworkFormat:
 		for i := range e.Kind.Arity() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1521,7 +1521,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RangeOperator:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1529,7 +1529,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RangeInspect:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1538,7 +1538,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Enum:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1547,7 +1547,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Math:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1556,7 +1556,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.UUIDGeneration:
 		if len(e.Args) != 0 {
 			e.Args = []BoundExpr{rewrite(e.Args[0])}
@@ -1564,7 +1564,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Random:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1573,20 +1573,20 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeSleep:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case advisoryExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case indexPropertyExpression:
 		e.Property = ExprProperties{Volatility: Stable}
 		for i := range e.children() {
@@ -1596,7 +1596,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
-		expr = e
+		bound = e
 	case deparseExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		e.Property = ExprProperties{Volatility: Stable}
@@ -1607,18 +1607,18 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
 		}
-		expr = e
+		bound = e
 	case visibilityInquiryExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case commentInquiryExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.NullCount:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1627,7 +1627,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedSoundexFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1636,7 +1636,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedMetaphoneFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1645,7 +1645,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedLevenshteinFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1654,12 +1654,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedUUIDOsspFunctionExpression:
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedCryptoFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1668,22 +1668,22 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedFunctionExpression:
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
-		expr = e
+		bound = e
 	case sqlJSONExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case jsonPredicateExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
-		expr = e
+		bound = e
 	case functions.JSONCreate:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1692,7 +1692,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.StringVariadic:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1701,7 +1701,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Format:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1710,18 +1710,18 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		info := boundExpressionInfo(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	}
-	return expr, err
+	return bound, err
 }
-func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
+func aggregateOccurrence(bound BoundExpr) *aggregateExpression {
 	var found *aggregateExpression
 	walk := func(child BoundExpr) {
 		if found == nil {
 			found = aggregateOccurrence(child)
 		}
 	}
-	switch e := expr.(type) {
+	switch e := bound.(type) {
 	case rowExpression:
 		for _, field := range e.fields {
 			walk(field)

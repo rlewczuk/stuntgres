@@ -6,9 +6,9 @@ import (
 
 // Placement checks run on analyzed expressions, even inside dead branches.
 // Nested subqueries own their own placement checks and are not entered here.
-func rejectRegexpSets(expr BoundExpr, context string, lateralHint bool) error {
+func rejectRegexpSets(bound BoundExpr, context string, lateralHint bool) error {
 	var first BoundExpr
-	walkBoundExpression(expr, func(node BoundExpr) {
+	walkBoundExpression(bound, func(node BoundExpr) {
 		if isQuerySet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}

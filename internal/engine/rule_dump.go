@@ -23,7 +23,7 @@ func ruleRelationSQL(view CatalogRead, ref ids.ObjectRef) (string, error) {
 	return quoteIdentifier(ns.name) + "." + quoteIdentifier(d.name), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view CatalogRead, expr BoundExpr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
+func ruleExpressionSQL(ctx context.Context, view CatalogRead, bound BoundExpr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
 	r := pgRenderer{view: view, showImplicit: true}
 	r.columnSQL = func(column columnExpression) (string, error) {
 		if column.scope == 1 && column.frame == 1 && len(sourceRoots) != 0 {
@@ -116,7 +116,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, expr BoundExpr, ac
 		}
 		return text, true, nil
 	}
-	node, _, err := rewriteViewExpression(view, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+	node, _, err := rewriteViewExpression(view, bound, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 		if c, ok := expr.(returningColumnExpression); ok {
 			return c.columnExpression, true, nil
 		}

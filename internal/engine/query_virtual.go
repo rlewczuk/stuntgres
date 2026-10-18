@@ -13,9 +13,9 @@ func queryHasVirtualReads(root LogicalNode) bool {
 	return found
 }
 
-func boundHasVirtualReads(expr BoundExpr) bool {
-	found := lexicalHasVirtualReads(expr)
-	walkBoundExpression(expr, func(node BoundExpr) {
+func boundHasVirtualReads(bound BoundExpr) bool {
+	found := lexicalHasVirtualReads(bound)
+	walkBoundExpression(bound, func(node BoundExpr) {
 		if query, ok := node.(subqueryExpression); !found && ok && !query.cteDefinition {
 			found = queryHasVirtualReads(query.queryPlan.Root)
 		}
@@ -23,9 +23,9 @@ func boundHasVirtualReads(expr BoundExpr) bool {
 	return found
 }
 
-func lexicalHasVirtualReads(expr BoundExpr) bool {
+func lexicalHasVirtualReads(bound BoundExpr) bool {
 	found := false
-	walkBoundExpression(expr, func(node BoundExpr) {
+	walkBoundExpression(bound, func(node BoundExpr) {
 		if column, ok := node.(columnExpression); ok && column.virtual != nil && column.queryOccurrence != 0 {
 			found = true
 		}

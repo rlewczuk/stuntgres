@@ -746,9 +746,9 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 	return &windowNode{querySchema: schema, child: root, specs: specs, calls: calls, specIndices: indices, sortIndices: sortIndices}, nil
 }
 
-func windowOccurrence(expr BoundExpr) *windowExpression {
+func windowOccurrence(bound BoundExpr) *windowExpression {
 	var found *windowExpression
-	walkBoundExpression(expr, func(child BoundExpr) {
+	walkBoundExpression(bound, func(child BoundExpr) {
 		if e, ok := child.(*windowExpression); ok && found == nil {
 			found = e
 		}
