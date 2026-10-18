@@ -563,12 +563,15 @@ references); the store owns it as the engine's single provenance domain.
 
 - Add accessors to `CatalogRead`: `Relation(a)`, `Namespace(a)`, `Type(a)`,
   `Procedure(a)`, `Operator(a)`, `Collation(a)`, ..., plus name lookup.
-- Migrate the ~1,250 direct map reads. The ~840 typed lookups are scriptable.
-  Confine the 38 writes to publication code.
+- Migrate the direct map reads (about 1,700 in production and 2,600 in
+  tests when done, all scripted). Route the writes (about 110 in
+  production) through one write API.
 - Replace `CatalogRead.owner` service-locator uses (cut 1) with explicit
-  parameters or a catalog owner record holding the domain and provider
-  registry. The authorization domain and roles come from `AuthorizationView`,
-  not `CatalogRead`. `CatalogRead.Comment` becomes an engine function.
+  parameters and a catalog owner record holding the domain, the principal
+  domain and ACL authority that stored values must belong to, and the
+  provider registries. Code with an `AuthorizationView` takes roles and
+  engine services from it. `CatalogRead.Comment` becomes an engine function.
+  Done; see the prompt file's 5b results.
 
 **5c — Payload seams.**
 
@@ -706,7 +709,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 math, UUID, format, uuid-ossp, arrays, ranges, JSON calls, string, LIKE/SIMILAR/regex, datetime, numeric formatting and binary done; F2 six of eight switches done; F2 render hooks and F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a done; 5b next |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a, 5b done; 5c next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |

@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `ec3fcadd4`.
+Last verified against `master` at `5b986e558`.
 
 ## Next ready sub-steps
 
@@ -15,10 +15,10 @@ Last verified against `master` at `ec3fcadd4`.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5** — port Tier A, Tier B and aggregate families one at a time
   (needs F3 ✓).
-- **5b** — typed read API, map reads migrated, writes confined, cut 1
-  (needs 5a ✓) *(broad rewrite)*.
+- **5c** — view, rule, policy, extension-provider and expression payload
+  seams (needs 5b ✓).
 
-They may run in parallel on separate branches, except that 2d, 4c, F2 and 5b
+They may run in parallel on separate branches, except that 2d, 4c and F2
 must not run alongside each other or another broad rewrite or alias removal
 (§8).
 
@@ -109,8 +109,10 @@ must not run alongside each other or another broad rewrite or alias removal
   - [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`,
     then the docs commit) *(full racecheck skipped at user request; targeted
     RACE=1 runs passed)*
-  - [ ] 5b — Typed read API, map reads migrated, writes confined, cut 1
-    *(broad rewrite)*
+  - [x] 5b — Typed read API, map reads migrated, writes confined, cut 1
+    (`17a54431b`, `ddd9eb246`, `0175300e5`, `5aeaedcdc`, then the docs
+    commit) *(full racecheck skipped at user request; targeted RACE=1 runs
+    passed)*
   - [ ] 5c — View, rule, policy, extension-provider and expression payload
     seams
   - [ ] 5d — Descriptor names decided, fields exported *(broad rewrite)*

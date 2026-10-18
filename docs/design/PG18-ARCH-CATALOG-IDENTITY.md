@@ -24,7 +24,7 @@ ClassID is the owning catalog OID, not object kind. SubID is zero except stable 
 
 **Engine policies**, not universal PostgreSQL promises: all internal reads/refs/stages/plans belong to one engine even when numeric IDs coincide across Drivers. Allocate nonzero OIDs without reuse within an epoch; skip feature-registered fixed builtins, allow aborted gaps and fail exhaustion before mutation, without wrapping OIDs/epochs/revisions. Exposed OIDs omit engine/epoch; generated identities are tested relationally, fixed builtin IDs exactly. PostgreSQL's 4-byte OID is not a database-wide uniqueness guarantee.
 
-Engine holds one `*ids.Domain`, allocated once by `newEngine` and preserved across Reset/Restore. The nonzero-size token gives distinct live engines distinct comparable pointer identities; no UUID, global allocator/registry or second catalog. Only owner-bound engine/read/stage construction stamps refs. Copying a complete ref preserves provenance; reconstructing epoch/address does not. Nil owner is invalid at consumption; zero refs represent absence/error or the exclusive pending-temp result, never authority.
+Engine holds one `*ids.Domain`, allocated once by `newEngine` and preserved across Reset/Restore; reads carry the catalog owner record that holds it, not the engine ([ENGINE-SPLIT-catalog.md](../ENGINE-SPLIT-catalog.md) 5b). The nonzero-size token gives distinct live engines distinct comparable pointer identities; no UUID, global allocator/registry or second catalog. Only owner-bound engine/read/stage construction stamps refs. Copying a complete ref preserves provenance; reconstructing epoch/address does not. Nil owner is invalid at consumption; zero refs represent absence/error or the exclusive pending-temp result, never authority.
 
 Instance attachment remains standard-library Driver behavior: the **same Driver + identical exact opaque DSN** selects one Engine/owner across multiple `sql.Open` pools and all their connections. Different DSNs or Driver instances select independent Engines/owners, even with coincident addresses. Closing a connection/pool does not erase the instance; tokens are never per connection. A DSN can simply name the instance; no syntax/parser is added. Internal `DatabaseName` qualification is a separate native attachment property, not DSN parsing.
 
@@ -196,7 +196,7 @@ BeginCatalogStage(base CatalogRead) *CatalogStage
 ValidateCatalogStage(ctx context.Context, stage *CatalogStage) (*PreparedCatalogPublication, error)
 PublishCatalog(prepared *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error)
 DiscardCatalogStage(stage *CatalogStage)
-ReplaceCatalog(ctx context.Context, replacement CatalogRead) (ChangeSet, error)
+ReplaceCatalog(ctx context.Context, source *Engine, replacement CatalogRead) (ChangeSet, error)
 ```
 
 Stage is owner-private overlay, not another authority. Record observed descriptor revisions, uniqueness keys, graph neighborhoods and transaction-supplied storage preconditions, including dependents inserted after DROP preflight. TX selects base visibility, retention, savepoints/rollback and timing; LOCKING schedules. No MVCC/isolation/retry algorithm is specified.
