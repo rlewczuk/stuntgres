@@ -43,3 +43,23 @@ func (b *expressionBinder) AnalyzeFilter(filter parser.Expr) error {
 	_, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: filter})
 	return err
 }
+
+func (b *expressionBinder) DefaultConsumer() bool { return b.defaultConsumer }
+
+func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
+	return b.definitionArray(element)
+}
+
+// The probe passes no label, so selectCommonUsage never fails; operands only
+// contribute their usages.
+func (b *expressionBinder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
+	operand := func(i int) comparisonOperand {
+		return comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{Usage: usages[i]}}}
+	}
+	common, _ := selectCommonUsage(len(usages), operand, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
+	return common
+}
+
+func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, error) {
+	return b.comparisonInfo(left, right)
+}

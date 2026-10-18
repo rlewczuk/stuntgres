@@ -522,15 +522,8 @@ func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectNam
 	return err
 }
 
-func functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
-	code, ending, hint := "42883", "does not exist", functionCastHint
-	if ambiguous {
-		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
-	}
-	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", objectNameText(name), strings.Join(names, ", "), ending), pos).(*sqlstate.Error)
-	d.Hint = hint
-	return d
-}
+// Temporary alias: the pure builder moved to functions (F4/F5 math).
+var functionResolutionErrorForTypes = functions.ResolutionError
 
 func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExpr, error) {
 	visible, err := b.builtinVisible(raw.Name, functionLookup)

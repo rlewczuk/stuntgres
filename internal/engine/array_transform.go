@@ -42,7 +42,7 @@ func (b *expressionBinder) bindArrayTransform(raw parser.FunctionExpr) (BoundExp
 		for i, o := range operands {
 			names[i] = "unknown"
 			if d := o.descriptor(); d != nil {
-				names[i] = b.arraySearchTypeName(d)
+				names[i] = functions.ArrayTypeName(b, d)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
@@ -147,7 +147,7 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 			if u.Type != nil {
 				array, ok := b.definitionArray(u.Type)
 				if !ok {
-					return nil, sqlError("42704", "could not find array type for data type "+b.arraySearchTypeName(u.Type))
+					return nil, sqlError("42704", "could not find array type for data type "+functions.ArrayTypeName(b, u.Type))
 				}
 				if !array.Concrete() {
 					return signature()

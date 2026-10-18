@@ -40,4 +40,17 @@ type Binder interface {
 	// context and discards it. Scalar functions use it to report FILTER
 	// errors in PostgreSQL's order before rejecting the decoration.
 	AnalyzeFilter(parser.Expr) error
+	// DefaultConsumer reports whether a column DEFAULT expression is being
+	// bound. Families outside the admitted DEFAULT set reject themselves.
+	DefaultConsumer() bool
+	// ArrayType returns the array type of an element type as the binding
+	// catalog (or the statement's definition stage) declares it.
+	ArrayType(element *sqltype.Descriptor) (*sqltype.Descriptor, bool)
+	// CommonUsage is PostgreSQL's nonthrowing common-type probe over typed
+	// operand usages. It returns the zero Usage on a category mismatch and
+	// TEXT when no usage is given.
+	CommonUsage([]sqltype.Usage) sqltype.Usage
+	// ComparisonInfo derives the comparison input collation of two bound
+	// operands and records their diagnostic type inputs.
+	ComparisonInfo(left, right expr.Expr) (expr.Info, error)
 }

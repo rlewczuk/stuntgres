@@ -1,0 +1,37 @@
+package functions
+
+import (
+	"fmt"
+	"strings"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// SignatureHint is the hint PostgreSQL attaches to missing-function errors.
+const SignatureHint = "No function matches the given name and argument types. You might need to add explicit type casts."
+
+// ResolutionError builds the 42883 missing-function or 42725 ambiguous-function
+// error for analyzed argument type names. It notes nothing: bind code reports a
+// missing signature through Binder.SignatureError so the engine sees it.
+func ResolutionError(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
+	code, ending, hint := "42883", "does not exist", SignatureHint
+	if ambiguous {
+		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
+	}
+	d := expr.ErrorAt(code, fmt.Sprintf("function %s(%s) %s", qualifiedName(name), strings.Join(names, ", "), ending), pos).(*sqlstate.Error)
+	d.Hint = hint
+	return d
+}
+
+// ArrayTypeName spells signature types: arrays display the visible leaf name,
+// not the internal array descriptor's frozen qualified declaration. Scalar
+// naming remains catalog-owned.
+func ArrayTypeName(b Binder, d *sqltype.Descriptor) string {
+	if d != nil && d.IsArray() {
+		return b.DiagnosticTypeName(d.Element()) + "[]"
+	}
+	return b.DiagnosticTypeName(d)
+}

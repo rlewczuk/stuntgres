@@ -76,7 +76,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 		for i, arg := range operands {
 			names[i] = "unknown"
 			if arg.Usage.Type != nil {
-				names[i] = b.arraySearchTypeName(arg.Usage.Type)
+				names[i] = functions.ArrayTypeName(b, arg.Usage.Type)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}

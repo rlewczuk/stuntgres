@@ -122,7 +122,7 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	for i, operand := range operands {
 		names[i] = "unknown"
 		if operand.Usage.Type != nil {
-			names[i] = b.arraySearchTypeName(operand.Usage.Type)
+			names[i] = functions.ArrayTypeName(b, operand.Usage.Type)
 		}
 	}
 	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }

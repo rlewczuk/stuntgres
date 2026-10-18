@@ -61,7 +61,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		for i, o := range operands {
 			name := "unknown"
 			if d := o.descriptor(); d != nil {
-				name = b.arraySearchTypeName(d)
+				name = functions.ArrayTypeName(b, d)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, name)
 		}
