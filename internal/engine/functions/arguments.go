@@ -133,6 +133,10 @@ const (
 	// RecordFormalArgument finalizes an operand of a fixed RECORD formal: a
 	// parameter keeps its inferred record type, others get an anonymous record.
 	RecordFormalArgument
+	// AssignmentFormalArgument binds the unanalyzed Raw argument in
+	// assignment context to Target with implicit coercion, as the
+	// statement-level setting calls bind their literal and parameter inputs.
+	AssignmentFormalArgument
 )
 
 type CoercionRequest struct {

@@ -3759,6 +3759,8 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
+	case functions.AssignmentFormalArgument:
+		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 	case functions.DirectFormalArgument:
 		if argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: functionArgumentContext, expected: request.Target, mode: sqltype.Implicit})
