@@ -34,11 +34,10 @@ type EvalContext struct {
 	queryProvenance                    []int
 	queryRowSource                     *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
-	queryCurrentRows     [][]sqltype.Value
-	physicalTable        ids.ObjectRef // Existing generated recipe's containing physical row.
-	functionRecheckCache *functionRecheckCache
-	presenceSlots        []int
-	presence             []bool
+	queryCurrentRows [][]sqltype.Value
+	physicalTable    ids.ObjectRef // Existing generated recipe's containing physical row.
+	presenceSlots    []int
+	presence         []bool
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks       map[*relationDescriptor][]expr.Expr

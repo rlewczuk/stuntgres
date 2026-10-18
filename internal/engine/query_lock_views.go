@@ -490,9 +490,6 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
 		return nil, true, nil
 	}
-	if functionRecheckContains(node) {
-		return recheckFunctionQuery(node, inputs, rows, evaluation, scratch, offset, frozen)
-	}
 	switch n := node.(type) {
 	case *derivedNode:
 		if n.cte != nil {
@@ -503,6 +500,10 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		return recheckLockedSource(evaluation.query.derived[n], rows, evaluation, scratch, offset)
 	case *valuesNode:
+		return frozen, true, nil
+	case *functionFromNode:
+		// PostgreSQL 18.6 keeps the function-scan tuple a row was produced
+		// with; the recheck refreshes only locked rows and requalifies.
 		return frozen, true, nil
 	case *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return frozen, true, nil // Its source marks were settled during materialization.
@@ -632,8 +633,6 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	currentRows := make([][]sqltype.Value, len(locks.leaves))
 	scratch := make([]sqltype.Value, queryLockRecheckWidth(node, state.source))
 	evaluation := state.evaluation(nil)
-	var stringCache functionRecheckCache
-	evaluation.functionRecheckCache = &stringCache
 	joined := child.source.materialized
 	source := child.source
 	if !joined {
@@ -645,14 +644,6 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	out := producingStage(&child, child.schema)
 	out.source, out.expressions, out.evaluation = source, child.expressions, child.evaluation
 	out.pending = nil
-	finish := out.finish
-	out.finish = func() error {
-		stringCache.close()
-		if finish != nil {
-			return finish()
-		}
-		return nil
-	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		scope := state.source.liveScope()
 		if scope == nil {

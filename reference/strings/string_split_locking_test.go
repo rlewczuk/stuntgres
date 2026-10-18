@@ -54,9 +54,12 @@ func TestReferenceStringSplitLocking(t *testing.T) {
 						replacement = ""
 					}
 					fixture.RowAffected(t, p.Ctx, holder, "UPDATE split_lock SET payload='"+replacement+"' WHERE id=1", false, 1)
+					// PostgreSQL 18.6 rechecks a lock by refreshing the locked row and
+					// requalifying it with the function-scan tuple the row was produced
+					// with; it does not rerun the function (18.0 did).
 					selectList := "p.payload,f.v,f.n"
 					names, types := []string{"payload", "v", "n"}, []string{"TEXT", "TEXT", "INT8"}
-					want := [][]any{{"new", "new", int64(1)}, {"new", "new", int64(1)}}
+					want := [][]any{{"new", "a", int64(1)}, {"new", "b", int64(2)}}
 					if tc.rollback {
 						want = [][]any{{"a,b", "a", int64(1)}, {"a,b", "b", int64(2)}}
 					}
@@ -64,37 +67,29 @@ func TestReferenceStringSplitLocking(t *testing.T) {
 						selectList = "p.payload,f.v,f.z,f.n"
 						names = []string{"payload", "v", "z", "n"}
 						types = []string{"TEXT", "TEXT", "TEXT", "INT8"}
-						want = [][]any{{"new", "new", "x", int64(1)}, {"new", "new", "x", int64(1)}}
+						want = [][]any{{"new", "a", "x", int64(1)}, {"new", "b", nil, int64(2)}}
 						if tc.rollback {
 							want = [][]any{{"a,b", "a", "x", int64(1)}, {"a,b", "b", nil, int64(2)}}
 						}
 					}
-					if tc.name == "refreshed_field_filter" {
+					switch tc.name {
+					case "refreshed_field_filter":
+						want = [][]any{{"new", "a", int64(1)}}
+					case "refreshed_physical_filter":
 						want = nil
-					}
-					if tc.name == "refreshed_physical_filter" {
-						want = nil
-					}
-					if tc.name == "independent_constant" {
-						want = [][]any{{"new", "a", int64(1)}, {"new", "a", int64(1)}}
-					}
-					if tc.name == "later_qualifying_field" {
+					case "later_qualifying_field":
 						want = [][]any{{"x,b", "b", int64(2)}}
-					}
-					if tc.name == "predecessor_prefix" {
-						want = [][]any{{"new", "new", int64(1)}, {"new", "new", int64(1)}, {"new", "new", int64(1)}}
-					}
-					if tc.name == "left_original_zero" {
-						want = [][]any{{"new", "new", int64(1)}}
-					}
-					if tc.name == "left_replacement_zero" {
-						want = [][]any{{"", nil, nil}, {"", nil, nil}}
-					}
-					if tc.name == "left_both_zero" {
+					case "predecessor_prefix":
+						want = [][]any{{"new", "a", int64(1)}, {"new", "b", int64(2)}, {"new", "7", int64(3)}}
+					case "left_original_zero":
+						want = [][]any{{"new", nil, nil}}
+					case "left_replacement_zero":
+						want = [][]any{{"", "a", int64(1)}, {"", "b", int64(2)}}
+					case "left_both_zero":
 						want = [][]any{{"", nil, nil}}
 					}
 					if tc.volatile {
-						want = [][]any{{"new", "2", int64(1)}, {"new", "2", int64(1)}}
+						want = [][]any{{"new", "1", int64(1)}, {"new", "tail", int64(2)}}
 					}
 					join, tail := " CROSS JOIN LATERAL ", ""
 					if tc.nested {

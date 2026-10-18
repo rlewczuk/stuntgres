@@ -597,11 +597,10 @@ join/filter copies must not replace its captured nodes. This is bounded
 function-input demand, not general predicate splitting or an optimizer that
 crosses subquery boundaries.
 
-Computed function rows have no physical row-lock identity. Rechecks refresh the
-physical contributor and rescan correlated sources; independent sources reuse
-recheck-local materialization. Each original candidate contributes at most its
-first qualifying replacement rather than a new top-level expansion. Pending marks
-and closed cursor caches remain owned by the existing execution owner.
+Computed function rows have no physical row-lock identity. As in PostgreSQL
+18.6, a recheck refreshes the physical contributor and requalifies the row with
+the function-scan tuple it was produced with; it does not rerun the function
+(18.0 did). Pending marks remain owned by the existing execution owner.
 General table functions and lateral derived-query/VALUES sources remain excluded.
 
 ## Blocking stages, bounds and shared producers
