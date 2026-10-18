@@ -715,7 +715,8 @@ they touch hundreds of the same files. Rebase and re-verify before integration.
    place, move with aliases). Every commit builds and passes the targeted
    tests.
 6. **Verify** (§8.3), **document** (§8.4), update the prompt file's Status
-   section and **report** (§8.5).
+   section and [`ENGINE-SPLIT-STATUS.md`](ENGINE-SPLIT-STATUS.md), and
+   **report** (§8.5).
 
 ### 8.2 Constraints
 
@@ -775,6 +776,9 @@ Update only what the sub-step changed, but always check each item:
   questions that the step settled.
 - **Prompt file Status section**: sub-steps done with commits, outstanding
   aliases, tests moved or deleted, follow-ups, and lessons for later steps.
+- **[`ENGINE-SPLIT-STATUS.md`](ENGINE-SPLIT-STATUS.md)**: tick the sub-step
+  and refresh "Next ready sub-steps", following its "Updating this file"
+  section.
 - **Design notes and other docs.** Grep `docs/`, `README.md` and all package
   READMEs for the moved identifiers and the old file names. Update package and
   ownership statements and names. Do not rewrite design rationale. Where a
