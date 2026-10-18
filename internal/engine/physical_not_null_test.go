@@ -222,7 +222,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	provenance := local.Inheritance.NotNull[1]
 	provenance.Local = true
 	local.Inheritance.NotNull[1] = provenance
-	stage := e.BeginCatalogStage(source.base)
+	stage := e.BeginCatalogStage(source.Base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&local); err != nil {
 		t.Fatal(err)

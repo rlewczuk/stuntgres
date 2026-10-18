@@ -299,7 +299,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 		return err
 	}
 	child.ForeignKeys = append(child.ForeignKeys, f)
-	stage.descriptors[child.Address()] = child
+	stage.Descriptors[child.Address()] = child
 	return nil
 }
 

@@ -106,7 +106,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	source := &relationDescriptor{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
 	b := binding{query: viewOf(d).query, querySources: []queryLeaf{{ref: ref, relation: source, uses: []int{1}}}, dependencies: []expressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)

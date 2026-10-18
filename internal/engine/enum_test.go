@@ -53,7 +53,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	cancel()
 	previous := e.CatalogRead().State()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
 		t.Fatal("canceled publication", err)
 	}
 	e.mu.Lock()
@@ -104,7 +104,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	err = e.stageCreateDomainLocked(op, auth, denied, dependent, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")
-	if len(denied.descriptors) != 0 {
+	if len(denied.Descriptors) != 0 {
 		t.Fatal("unauthorized dependent staged")
 	}
 }

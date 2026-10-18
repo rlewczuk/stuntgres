@@ -153,7 +153,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			roots := append([]ids.ObjectAddress{ext.Address()}, ext.Members[:]...)
 			for _, a := range roots {
-				if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
+				if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), a)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -174,7 +174,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		defer e.DiscardCatalogStage(stage)
 		roots := append([]ids.ObjectAddress{ext.Address()}, ext.Members[:]...)
 		for _, a := range roots {
-			if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -203,7 +203,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if _, conflict := err.(CatalogConflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
-		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err == nil {
+		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("late x edge allowed stale retirement")
 		}
 		if e.catalog.state != state || e.catalog.state.Get(d.Address()) != current || e.catalog.state.Get(ext.Address()) != ext || e.storage[d.Address()] != store {
@@ -241,7 +241,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	for _, roots := range [][]ids.ObjectAddress{{member, ext.Address()}, {ext.Address(), member}} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		for _, a := range providerRoots {
-			if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), a)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -278,7 +278,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	for _, a := range providerRoots {
-		if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), a)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), a)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -326,7 +326,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "authorization":
 				op.session.authorization.revision++
 			}
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("unfenced publication")
 			}
@@ -374,7 +374,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	extensionUnitError(t, err, "23505")
 	if e.catalog.state != state || e.storage[d.Address()] != old || e.indexRoots[index.Address()] != root {
@@ -425,7 +425,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	defer target.DiscardCatalogStage(stage)
 	roots := append([]ids.ObjectAddress{importedExt.Address()}, importedExt.Members[:]...)
 	for _, address := range roots {
-		if err := stage.Remove(target.catalog.Domain.Ref(stage.base.Epoch(), address)); err != nil {
+		if err := stage.Remove(target.catalog.Domain.Ref(stage.Base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}

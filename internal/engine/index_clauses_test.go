@@ -267,7 +267,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if err := e.evolveStageIndexesLocked(stage, parent.Address(), transforms); err != nil {
 				t.Fatal(err)
 			}
-			evolved, ok := stage.descriptors[index.Address()].(*relationDescriptor)
+			evolved, ok := stage.Descriptors[index.Address()].(*relationDescriptor)
 			if !ok || evolved == index || evolved.SQLIndex == definition || evolved.Revision() != index.Revision()+1 {
 				t.Fatal("same-Usage TYPE did not detach dependent definition", evolved)
 			}
@@ -294,7 +294,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(unrelated, other, transforms); err != nil || unrelated.descriptors[index.Address()] != nil {
+			if err := e.evolveStageIndexesLocked(unrelated, other, transforms); err != nil || unrelated.Descriptors[index.Address()] != nil {
 				t.Fatal("TYPE attribute leaked across parent identity", err)
 			}
 		})
@@ -310,7 +310,7 @@ func TestIndexClausesUntouchedStage(t *testing.T) {
 	allocations := testing.AllocsPerRun(100, func() {
 		err = e.evolveStageIndexesLocked(stage, parent.Address(), transforms)
 	})
-	if err != nil || allocations != 0 || len(stage.descriptors) != 0 || catalog.Get(index.Address()) != index {
+	if err != nil || allocations != 0 || len(stage.Descriptors) != 0 || catalog.Get(index.Address()) != index {
 		t.Fatal("untouched parent evolution allocated or changed descriptors", allocations, err)
 	}
 }

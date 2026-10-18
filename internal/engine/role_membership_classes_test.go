@@ -70,7 +70,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		return err
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")

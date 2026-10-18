@@ -25,14 +25,14 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	ns := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "ownership_fence_creation"})
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	namespace := *stage.base.MustNamespace(ns)
+	namespace := *stage.Base.MustNamespace(ns)
 	namespace.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.Owner, namespace.Owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.ObjectRevision++
 	if err := stage.Replace(&namespace); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnership(stage, stage.base.Get(table.Address), actor); err != nil {
+	if err := stageOwnership(stage, stage.Base.Get(table.Address), actor); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
@@ -188,7 +188,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					e, session, sequence, _, committed, changes := ownershipSequenceFenceFixture(t, private)
 					ns, _ := ownershipManualCreationFixture(t, e, session.authorization.state.CurrentUser)
 					setup := e.BeginCatalogStage(e.CatalogRead())
-					old := *setup.base.MustRelation(sequence.Address)
+					old := *setup.Base.MustRelation(sequence.Address)
 					old.Comment, old.ObjectRevision = "retained sequence comment", old.Revision()+1
 					if err := setup.Replace(&old); err != nil {
 						t.Fatal(err)
@@ -352,7 +352,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				ns, table := ownershipManualCreationFixture(t, e, session.authorization.state.CurrentUser)
 				// Preserve the same old-comment invariant as the other real routes.
 				setup := e.BeginCatalogStage(e.CatalogRead())
-				old := *setup.base.MustRelation(sequence.Address)
+				old := *setup.Base.MustRelation(sequence.Address)
 				old.Comment, old.ObjectRevision = "retained sequence comment", old.Revision()+1
 				if err := setup.Replace(&old); err != nil {
 					t.Fatal(err)

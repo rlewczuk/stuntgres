@@ -41,7 +41,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	if e.indexRoots[a.Address()] != old {
 		t.Fatal("validation installed a root")
 	}
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
@@ -94,7 +94,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				}
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if action == "reset" {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch replacement accepted old rebuild", err)
@@ -123,7 +123,7 @@ func TestIndexMaintenanceFinalPublicationCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -139,7 +139,7 @@ func TestIndexMaintenanceFinalPublicationCancellation(t *testing.T) {
 		t.Fatal("cancellation fired before root preparation", err)
 	}
 	before := indexMaintenanceCapture(e)
-	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: second.base.Epoch()})
+	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: second.Base.Epoch()})
 	if !errors.Is(err, context.Canceled) || finalVeto.checks.Load() != polls {
 		t.Fatal("final publication veto was not honored", polls, finalVeto.checks.Load(), err)
 	}
@@ -163,7 +163,7 @@ func TestIndexMaintenancePreservesNewestUnchangedSibling(t *testing.T) {
 	if newestB == oldB {
 		t.Fatal("fixture did not publish a newer sibling")
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.indexRoots[a.Address()] == oldA || e.indexRoots[b.Address()] != newestB {
@@ -199,7 +199,7 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION other")
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || err.Error() != "stuntgres: authorization changed before publication" {
 				t.Fatal("final authorization fence accepted stale authority", err)
 			}

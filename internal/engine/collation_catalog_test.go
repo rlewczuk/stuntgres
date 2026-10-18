@@ -18,7 +18,7 @@ func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -187,7 +187,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	err = e.stageAlterCollationLocked(admin, auth, stage, change)
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || len(stage.descriptors) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || len(stage.Descriptors) != 0 {
 		t.Fatal("membership waived target CREATE", err)
 	}
 	auth.state.CurrentUser = bootstrap.Ref
@@ -198,7 +198,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)
 	}
-	changed := stage.descriptors[d.Address()].(*collationDescriptor)
+	changed := stage.Descriptors[d.Address()].(*collationDescriptor)
 	if changed.Owner != target.Ref || changed.OID != d.OID {
 		t.Fatal("owner transfer lost identity", changed)
 	}

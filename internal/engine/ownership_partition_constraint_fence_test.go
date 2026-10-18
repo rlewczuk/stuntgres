@@ -26,12 +26,12 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	for _, ref := range []ids.ObjectRef{root, leaf} {
-		if err := stageOwnership(setup, setup.base.Get(ref.Address), dbOwner); err != nil {
+		if err := stageOwnership(setup, setup.Base.Get(ref.Address), dbOwner); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.base.Get(currentDatabaseAddress), actor); err != nil {
+		if err := stageOwnership(setup, setup.Base.Get(currentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}

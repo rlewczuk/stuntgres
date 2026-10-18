@@ -135,7 +135,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 					t.Fatal(err)
 				}
 				identity := destination.Identities[1]
-				sequence := stage.descriptors[identity.Sequence].(*relationDescriptor)
+				sequence := stage.Descriptors[identity.Sequence].(*relationDescriptor)
 				fresh := stage.generators[identity.Sequence]
 				want := *sourceSequence.Sequence
 				want.Persistence = persistence
@@ -235,7 +235,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	foreign := call.ref
 	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)
 	future := call.ref
-	future.Epoch = stage.base.Epoch() + 1
+	future.Epoch = stage.Base.Epoch() + 1
 	for _, tc := range []struct {
 		name      string
 		ref       ids.ObjectRef
@@ -248,7 +248,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		{"permanent consumer", call.ref, true, false},
 		{"live retained attribute", attribute, false, true},
 	} {
-		candidate := e.BeginCatalogStage(stage.base)
+		candidate := e.BeginCatalogStage(stage.Base)
 		consumer := *destination
 		if tc.permanent {
 			consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

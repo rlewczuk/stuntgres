@@ -120,17 +120,17 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 	if len(s.likeSources) == 0 {
 		return nil
 	}
-	if current.Epoch() != s.base.Epoch() {
+	if current.Epoch() != s.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for _, source := range s.likeSources {
 		address := source.Address()
-		if original, incumbent := s.base.Find(address); incumbent {
+		if original, incumbent := s.Base.Find(address); incumbent {
 			if original != source || current.Get(address) != source {
 				return ids.ErrCatalogReplaced
 			}
 		} else {
-			staged, ok := s.descriptors[address].(*relationDescriptor)
+			staged, ok := s.Descriptors[address].(*relationDescriptor)
 			captured, sourceOK := source.(*relationDescriptor)
 			// Private index-history normalization may replace the pointer while
 			// retaining the staged incarnation and definition revision.

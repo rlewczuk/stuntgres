@@ -33,7 +33,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 		index, attributes := attachment.index, attachment.attributes
 		// A real TYPE reconstruction precedes attachment and gets a new backing
 		// identity. A previous capture of the same index may already have reminted it.
-		if stage.base.Get(index.Address()) != nil && uniqueIndexTypeAffected(index.SQLIndex, transformations) {
+		if stage.Base.Get(index.Address()) != nil && uniqueIndexTypeAffected(index.SQLIndex, transformations) {
 			e.mu.Lock()
 			id, allocateErr := e.catalog.allocateOIDLocked()
 			var revision ids.DefinitionRevision
@@ -66,7 +66,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 				}
 			}
 			e.mu.Lock()
-			err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.base.Epoch(), index.Address()), false)
+			err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), index.Address()), false)
 			e.mu.Unlock()
 			if err == nil {
 				err = stage.Create(&clone)
@@ -167,9 +167,9 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 		return nil, ids.ErrCatalogReplaced
 	}
 	index, clone := prepared.index, prepared.replacement
-	current := stage.descriptors[index.Address()]
+	current := stage.Descriptors[index.Address()]
 	if current == nil {
-		current = stage.base.Get(index.Address())
+		current = stage.Base.Get(index.Address())
 	}
 	if current != index {
 		return nil, ids.ErrCatalogReplaced
@@ -180,13 +180,13 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relatio
 	if prepared.err != nil {
 		return nil, prepared.err
 	}
-	if stage.base.Get(index.Address()) == nil {
+	if stage.Base.Get(index.Address()) == nil {
 		// Preserve the existing TYPE remint's original removal/name observation.
-		delete(stage.names, descriptorNameKey(index))
-		stage.descriptors[index.Address()] = clone
+		delete(stage.Names, descriptorNameKey(index))
+		stage.Descriptors[index.Address()] = clone
 		key := descriptorNameKey(clone)
-		stage.names[key] = clone.Address()
-		stage.touched[key] = stage.base.NameAddress(key)
+		stage.Names[key] = clone.Address()
+		stage.Touched[key] = stage.Base.NameAddress(key)
 	} else if err := stage.Replace(clone); err != nil {
 		return nil, err
 	}

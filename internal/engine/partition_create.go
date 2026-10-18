@@ -72,8 +72,8 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 	}
 	name := syntax.Name.Parts[len(syntax.Name.Parts)-1].Text
-	address := stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
-	child := stage.descriptors[address].(*relationDescriptor)
+	address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
+	child := stage.Descriptors[address].(*relationDescriptor)
 	keyAuth := auth
 	keyAuth.catalog = e.stageRead(stage)
 	keyAuth.recaptureCatalog(keyAuth.catalog)
@@ -141,13 +141,13 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	for _, constraint := range p.child.UniqueConstraints {
-		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
+		index := p.stage.Descriptors[constraint.Index].(*relationDescriptor)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
 	for _, constraint := range p.child.ExclusionConstraints {
-		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
+		index := p.stage.Descriptors[constraint.Index].(*relationDescriptor)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if err := p.validateBounds(scope); err != nil {
 			return err
 		}
-		catalog := p.stage.base
+		catalog := p.stage.Base
 		if err := p.checkOverlap(scope); err != nil {
 			return err
 		}
@@ -235,7 +235,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for _, index := range partitionIndexDeclarationOrder(p.stage.base, p.parent) {
+	for _, index := range partitionIndexDeclarationOrder(p.stage.Base, p.parent) {
 		child := e.stageRead(p.stage).MustRelation(p.child.Address())
 		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err
@@ -342,7 +342,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		bounds = make([]partitionBoundary, 0, 2*count)
 	}
 	for _, address := range p.parent.Partition.Children {
-		sibling := p.stage.base.MustRelation(address)
+		sibling := p.stage.Base.MustRelation(address)
 		if sibling.Membership.DefaultBound {
 			continue
 		}

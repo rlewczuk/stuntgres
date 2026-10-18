@@ -456,14 +456,14 @@ func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *operatorDescr
 	return comm, neg, nil
 }
 func stageOperatorDescriptor(stage *CatalogStage, d *operatorDescriptor) error {
-	if _, exists := stage.base.Find(d.Address()); exists {
+	if _, exists := stage.Base.Find(d.Address()); exists {
 		return stage.Replace(d)
 	}
-	if old := stage.descriptors[d.Address()]; old != nil {
+	if old := stage.Descriptors[d.Address()]; old != nil {
 		if descriptorNameKey(old) != descriptorNameKey(d) {
 			return CatalogConflict{}
 		}
-		stage.descriptors[d.Address()] = d
+		stage.Descriptors[d.Address()] = d
 		return nil
 	}
 	return stage.Create(d)
@@ -787,7 +787,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		next.Owner = target
 	case "schema":
-		if a := stage.lookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && a != d.Address() {
+		if a := stage.LookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && a != d.Address() {
 			return sqlError("42723", "operator "+d.Name()+" already exists in schema \""+s.Target.Text+"\"")
 		}
 	case "options":

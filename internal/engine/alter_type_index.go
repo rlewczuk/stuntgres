@@ -131,7 +131,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			}
 			definition.Keys[slot].Derived = derived
 		}
-		oldParent := stage.base.MustRelation(parent.Address())
+		oldParent := stage.Base.MustRelation(parent.Address())
 		for i, key := range definition.Keys {
 			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.SQLIndex.Keys[i])
 			if err != nil {

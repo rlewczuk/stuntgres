@@ -30,12 +30,12 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 		}
 	}
 	next := cloneCatalog(view.State())
-	operators := operatorIndexEdit{index: view.State().OperatorNames()}
+	operators := operatorIndexEdit{Index: view.State().OperatorNames()}
 	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*namespaceDescriptor)
 		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
-			operators.replace(d, nil)
+			operators.Replace(d, nil)
 			next.RemoveDescriptor(a)
 		}
 	}
@@ -45,7 +45,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			next.UnbindName(key)
 		}
 	}
-	next.SetOperatorNames(operators.index)
+	next.SetOperatorNames(operators.Index)
 	pruneNamespaceDefaults(view.State(), next, nil)
 	return view.WithState(next), nil
 }
@@ -528,9 +528,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
-	operators := operatorIndexEdit{index: next.OperatorNames()}
+	operators := operatorIndexEdit{Index: next.OperatorNames()}
 	for a, d := range temporary {
-		operators.replace(next.Get(a), d)
+		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
 		next.BindName(descriptorNameKey(d), a)
 		if rows := e.storage[a]; rows != nil {
@@ -540,7 +540,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			sequences[a] = g
 		}
 	}
-	next.SetOperatorNames(operators.index)
+	next.SetOperatorNames(operators.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok || len(relation.Policies) == 0 && len(rulesOf(relation)) == 0 {

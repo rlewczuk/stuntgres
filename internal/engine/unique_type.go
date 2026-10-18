@@ -29,11 +29,11 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 	}
 	var next *relationDescriptor
 	for i, old := range parent.UniqueConstraints {
-		index, ok := stage.base.Relation(old.Index)
+		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
 			// USING INDEX attachment. Do not allocate another backing identity.
-			if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
+			if current, exists := stage.Descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 				continue
 			}
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
@@ -41,7 +41,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 		if index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: invalid TYPE unique backing index")
 		}
-		if current, exists := stage.descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
+		if current, exists := stage.Descriptors[old.Index].(*relationDescriptor); exists && current.SQLIndex != nil {
 			index = current
 		}
 		if !uniqueIndexTypeAffected(index.SQLIndex, transformations) {
@@ -53,7 +53,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			next = &clone
 		}
 		c := &next.UniqueConstraints[i]
-		ref := e.catalog.Domain.Ref(stage.base.Epoch(), old.Index)
+		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Index)
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err
 		}

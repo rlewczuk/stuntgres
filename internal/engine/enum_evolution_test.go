@@ -87,7 +87,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	row := shape.replacement.versions[0]
 	oldID, _ := value.EnumMemberID()
 	newID, _ := row.values[0].EnumMemberID()
-	if oldID != newID || row.row != 7 || row.version != 11 || row.born != 3 || row.keyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.descriptors[ref.Address].(*relationDescriptor).Attributes) {
+	if oldID != newID || row.row != 7 || row.version != 11 || row.born != 3 || row.keyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Descriptors[ref.Address].(*relationDescriptor).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
 	if stage.rowShapes[other.Address].replacement != nil || e.storage[other.Address] != otherStore {
@@ -99,7 +99,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.SQLType.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {

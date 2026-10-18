@@ -123,19 +123,19 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						if authority == "staged_child" {
 							wantDescriptors = 1
 						}
-						if projected != 0 || len(stage.descriptors) != wantDescriptors {
+						if projected != 0 || len(stage.Descriptors) != wantDescriptors {
 							t.Fatal("rejection mutated stage")
 						}
 					} else if err != nil {
 						t.Fatal(err)
 					}
 					if authority == "whole" {
-						if _, removed := stage.removals[c.Address()]; !removed || projected != 0 {
+						if _, removed := stage.Removals[c.Address()]; !removed || projected != 0 {
 							t.Fatal("whole retirement projected or retained descendant")
 						}
 					}
 					if authority == "removed_child" || authority == "replaced_child" || authority == "standalone" {
-						next, ok := stage.descriptors[p.Address()].(*relationDescriptor)
+						next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
 						if !ok {
 							t.Fatal("standalone mutation not staged")
 						}
@@ -195,13 +195,13 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if err := stageExpressionDependencies(op.Context(), stage, []ids.ObjectAddress{q.Address()}, parser.DropCascade, scope, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
-			if stage.removals[q.Address()].descriptor != q || stage.removals[c.Address()].descriptor != c {
+			if stage.Removals[q.Address()].Descriptor != q || stage.Removals[c.Address()].Descriptor != c {
 				t.Fatal("complete retirement lost captured descriptor authority")
 			}
-			if _, removed := stage.removals[p.Address()]; removed {
+			if _, removed := stage.Removals[p.Address()]; removed {
 				t.Fatal("other parent was whole-retired")
 			}
-			next, ok := stage.descriptors[p.Address()].(*relationDescriptor)
+			next, ok := stage.Descriptors[p.Address()].(*relationDescriptor)
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}

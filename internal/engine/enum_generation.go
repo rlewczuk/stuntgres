@@ -24,11 +24,11 @@ func enumReownVersions(next *catalogState, versions []rowVersion) ([]rowVersion,
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
 	for a, rebound := range stage.rowShapes {
-		consumer, ok := stage.descriptors[a].(*relationDescriptor)
+		consumer, ok := stage.Descriptors[a].(*relationDescriptor)
 		if !ok {
 			continue
 		}
-		previous, ok := stage.base.Relation(a)
+		previous, ok := stage.Base.Relation(a)
 		if !ok {
 			continue
 		}

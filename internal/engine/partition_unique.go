@@ -231,8 +231,8 @@ func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *rela
 }
 
 func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error {
-	if stage.base.Get(d.Address()) == nil {
-		stage.descriptors[d.Address()] = d
+	if stage.Base.Get(d.Address()) == nil {
+		stage.Descriptors[d.Address()] = d
 		return nil
 	}
 	return stage.Replace(d)
@@ -241,7 +241,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
 	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
-	if stage.base.Get(parentIndex.Address()) != nil {
+	if stage.Base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
 	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.SQLIndex)
@@ -394,7 +394,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 }
 
 func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
-	if original, ok := stage.base.Relation(table.Address()); ok {
+	if original, ok := stage.Base.Relation(table.Address()); ok {
 		stage.domainBases = append(stage.domainBases, original)
 	}
 	for _, address := range table.Partition.Children {

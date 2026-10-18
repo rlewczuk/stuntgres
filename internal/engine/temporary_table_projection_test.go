@@ -43,7 +43,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *relationDescrip
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.terminalCleanup = true
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), provider.Address())
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
@@ -163,8 +163,8 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
 	projected := stage.rowShapes[survivor.Address()].replacement
-	next := stage.descriptors[survivor.Address()].(*relationDescriptor)
-	nextIndex := stage.descriptors[index.Address()].(*relationDescriptor)
+	next := stage.Descriptors[survivor.Address()].(*relationDescriptor)
+	nextIndex := stage.Descriptors[index.Address()].(*relationDescriptor)
 	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.generation != maximumStore.generation || projected.ends != maximumStore.ends || sameVersionRoot(projected.versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}

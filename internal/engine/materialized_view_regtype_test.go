@@ -13,7 +13,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	source := New()
 	_, sourceDone, sourceStage, original := materializedUnitStage(t, source)
 	defer sourceDone()
-	regtype, ok := sourceStage.base.LookupType(sqltype.Regtype)
+	regtype, ok := sourceStage.Base.LookupType(sqltype.Regtype)
 	if !ok {
 		t.Fatal("missing typed identity provider")
 	}
@@ -51,7 +51,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	destinationRegtype, ok := destinationStage.base.LookupType(sqltype.Regtype)
+	destinationRegtype, ok := destinationStage.Base.LookupType(sqltype.Regtype)
 	if !ok {
 		t.Fatal("missing destination identity provider")
 	}

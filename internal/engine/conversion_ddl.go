@@ -93,7 +93,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.ConversionClassID, Namespace: namespace.Address, Name: object}
-	if stage.lookupName(key) != (ids.ObjectAddress{}) {
+	if stage.LookupName(key) != (ids.ObjectAddress{}) {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists`, object))
 	}
 	if s.Default {
@@ -175,7 +175,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	default:
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}
-	if address := stage.lookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
+	if address := stage.LookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave

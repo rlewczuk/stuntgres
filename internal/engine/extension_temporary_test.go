@@ -154,7 +154,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	oldIndex := e.indexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
-	replacement := stage.descriptors[survivor.Address()].(*relationDescriptor)
+	replacement := stage.Descriptors[survivor.Address()].(*relationDescriptor)
 	if len(replacement.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
@@ -620,7 +620,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	roleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
 	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
 	}
 	if err == nil {
 		t.Fatal("late schema dependent bypassed publication fence")

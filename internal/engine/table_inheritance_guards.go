@@ -46,20 +46,20 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 // edges. Scan the overlay directly rather than allocating a second catalog.
 func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
 	descriptors := func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range stage.base.Descriptors() {
+		for address, descriptor := range stage.Base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}
 		}
-		for address, descriptor := range stage.descriptors {
-			if _, exists := stage.base.Find(address); !exists {
+		for address, descriptor := range stage.Descriptors {
+			if _, exists := stage.Base.Find(address); !exists {
 				if !yield(address, descriptor) {
 					return
 				}
 			}
 		}
 	}
-	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.removals[address]; return removed }, relation)
+	return inheritanceDependencyAlterGuard(descriptors, func(address ids.ObjectAddress) Descriptor { return stage.Descriptors[address] }, func(address ids.ObjectAddress) bool { _, removed := stage.Removals[address]; return removed }, relation)
 }
 
 func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ids.ObjectAddress, Descriptor], replacement func(ids.ObjectAddress) Descriptor, removed func(ids.ObjectAddress) bool, relation *relationDescriptor) error {

@@ -220,7 +220,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySessionIndexes) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.catalog.state != stage.base.State() {
+	if e.catalog.state != stage.Base.State() {
 		return true
 	}
 	for address, shape := range stage.rowShapes {
@@ -230,7 +230,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
+		if index, ok := stage.Descriptors[address].(*relationDescriptor); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
@@ -248,7 +248,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 // dependents. Row-only commits need not change that root: copy their current
 // storage/generator/index maps at this final publication, not at preparation.
 func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
-	if e.catalog.state != stage.base.State() {
+	if e.catalog.state != stage.Base.State() {
 		return false, nil
 	}
 	for _, address := range namespaces {
@@ -296,14 +296,14 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			roots[address] = root
 		}
 	}
-	for a := range stage.removals {
+	for a := range stage.Removals {
 		delete(sequences, a)
 		delete(storage, a)
 		delete(roots, a)
 	}
-	pruneNamespaceDefaults(stage.base.State(), next, namespaces)
+	pruneNamespaceDefaults(stage.Base.State(), next, namespaces)
 	nextRevision := e.catalog.nextRevision
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {
 			nextRevision = revision
 			if nextRevision != ids.DefinitionRevision(^uint64(0)) {
@@ -329,13 +329,13 @@ type temporarySessionIndexes struct {
 // terminal install. Unrelated root changes are not fenced or overwritten.
 func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporarySessionIndexes, error) {
 	e.mu.Lock()
-	if e.catalog.state != stage.base.State() {
+	if e.catalog.state != stage.Base.State() {
 		e.mu.Unlock()
 		return nil, CatalogConflict{}
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
-	for address := range stage.removals {
-		index, ok := stage.base.Relation(address)
+	for address := range stage.Removals {
+		index, ok := stage.Base.Relation(address)
 		if ok && index.SQLIndex != nil {
 			result.previous[address] = e.indexRoots[address]
 		}
@@ -380,7 +380,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	}
 	result.roots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(result.previous))
 	for address := range result.previous {
-		if _, removed := stage.removals[address]; !removed {
+		if _, removed := stage.Removals[address]; !removed {
 			index, ok := next.Relation(address)
 			if !ok || index.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced

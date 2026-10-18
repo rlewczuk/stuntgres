@@ -112,7 +112,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if e.CatalogRead().Get(source.Address()) != source {
 		t.Fatal("type-only replacement changed backing source fixture")
 	}
-	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict CatalogConflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)

@@ -142,7 +142,7 @@ func typedRenameStage(t *testing.T, e *Engine, source, table *relationDescriptor
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.typedSource = table.OfType
-	stage.typedObserved = typedClosure(stage.base, table.OfType)
+	stage.typedObserved = typedClosure(stage.Base, table.OfType)
 	for _, old := range []*relationDescriptor{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {
@@ -181,8 +181,8 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := newCatalogState(stage.base.Epoch())
-		for address, descriptor := range stage.base.Descriptors() {
+		next := newCatalogState(stage.Base.Epoch())
+		for address, descriptor := range stage.Base.Descriptors() {
 			next.SetDescriptor(address, descriptor)
 		}
 		late := *table

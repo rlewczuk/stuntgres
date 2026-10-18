@@ -32,7 +32,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -199,12 +199,12 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			source := extensionUnitStage(t, e, op)
-			ext := source.descriptors[source.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+			ext := source.Descriptors[source.Names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 			loose := e.BeginCatalogStage(e.CatalogRead())
 			var conflict Descriptor
 			if kind == "procedure" || kind == "dictionary_procedure" || kind == "init" || kind == "lexize" {
 				index := map[string]int{"procedure": 1, "dictionary_procedure": 0, "init": 2, "lexize": 3}[kind]
-				n := *source.descriptors[ext.Members[index]].(*procedureDescriptor)
+				n := *source.Descriptors[ext.Members[index]].(*procedureDescriptor)
 				n.Extension = ids.ObjectAddress{}
 				n.Dictionary = ids.ObjectAddress{}
 				conflict = &n
@@ -214,14 +214,14 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			} else {
 				catalogNS := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 				for _, i := range []int{2, 3} {
-					n := *source.descriptors[ext.Members[i]].(*procedureDescriptor)
+					n := *source.Descriptors[ext.Members[i]].(*procedureDescriptor)
 					n.Extension = ids.ObjectAddress{}
 					n.ObjectNamespace = catalogNS
 					if err := loose.Create(&n); err != nil {
 						t.Fatal(err)
 					}
 				}
-				tmpl := *source.descriptors[ext.Members[4]].(*tsTemplateDescriptor)
+				tmpl := *source.Descriptors[ext.Members[4]].(*tsTemplateDescriptor)
 				tmpl.Extension = ids.ObjectAddress{}
 				if kind == "dictionary" {
 					tmpl.ObjectNamespace = catalogNS
@@ -231,7 +231,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 				conflict = &tmpl
 				if kind == "dictionary" {
-					dict := *source.descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
+					dict := *source.Descriptors[ext.Members[5]].(*tsDictionaryDescriptor)
 					dict.Extension = ids.ObjectAddress{}
 					conflict = &dict
 					if err := loose.Create(&dict); err != nil {

@@ -342,7 +342,7 @@ func TestAlterDropColumnStageProviderFailureIsAtomic(t *testing.T) {
 	stage, ref, old := alterDropTestStage(t, e)
 	original := e.storage[ref.Address]
 	// Exercise the real provider's validation, not a fabricated callback error.
-	stage.descriptors[ref.Address].(*relationDescriptor).Index["a"] = 9
+	stage.Descriptors[ref.Address].(*relationDescriptor).Index["a"] = 9
 	_, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil || err.Error() != "stuntgres: invalid relation column identity" || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != original {
 		t.Fatal(err)

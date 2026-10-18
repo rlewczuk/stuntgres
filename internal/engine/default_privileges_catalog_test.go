@@ -22,8 +22,8 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 		t.Fatal("clone overlay mutated source")
 	}
 	stage := f.e.BeginCatalogStage(base)
-	stage.defaultACLs = map[defaultACLKey]*defaultACLRecord{key: nil}
-	stage.defaultReads = map[defaultACLKey]*defaultACLRecord{key: record}
+	stage.DefaultACLs = map[defaultACLKey]*defaultACLRecord{key: nil}
+	stage.DefaultReads = map[defaultACLKey]*defaultACLRecord{key: record}
 	staged := f.e.stageRead(stage)
 	if staged.State().DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("default-only stage lost tombstone")
@@ -204,7 +204,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := drop.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}
-	if drop.defaultACLs[scoped] != nil || drop.defaultReads[scoped] != record {
+	if drop.DefaultACLs[scoped] != nil || drop.DefaultReads[scoped] != record {
 		t.Fatal("schema cleanup not staged")
 	}
 	if err := defaultUnitPublish(t, f.e, drop); err != nil {
@@ -232,7 +232,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	// removal observed no such key; otherwise namespace cleanup could orphan it.
 	stale := f.e.BeginCatalogStage(f.e.CatalogRead())
 	ref.Address = namespace.Address()
-	ref.Epoch = stale.base.Epoch()
+	ref.Epoch = stale.Base.Epoch()
 	if err := stale.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}

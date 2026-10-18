@@ -214,7 +214,7 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			err = e.stageCreateOperatorLocked(op, auth, stage, s)
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, tc.detail)
-			if e.CatalogRead().State() != before || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 				t.Fatal("failed validation published/staged operator", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -292,7 +292,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
-			if e.CatalogRead().State() != before || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 				t.Fatal("semantic validation changed actual catalog roots", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -314,7 +314,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
-			if e.CatalogRead().State() != auth.catalog.State() || len(stage.descriptors) != 0 {
+			if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 				t.Fatal("parameter validation followed reciprocal mutation", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -353,7 +353,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 					code, message = "42602", `"invalid" is not a valid operator name`
 				}
 				operatorOptionDiagnostic(t, err, code, message, "")
-				if e.CatalogRead().State() != auth.catalog.State() || len(stage.descriptors) != 0 {
+				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("CREATE semantic failure changed published/private roots")
 				}
 				e.DiscardCatalogStage(stage)
@@ -399,7 +399,7 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				}
 				e.mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
-				if e.CatalogRead().State() != auth.catalog.State() || len(stage.descriptors) != 0 {
+				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("parameter failure changed source, peers or forward shells")
 				}
 				e.DiscardCatalogStage(stage)

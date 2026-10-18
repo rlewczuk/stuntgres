@@ -114,7 +114,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		}
 		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
-		if _, altering := stage.base.Find(parent.Address()); altering {
+		if _, altering := stage.Base.Find(parent.Address()); altering {
 			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
@@ -174,7 +174,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		index.Columns[i].OriginAttribute = int16(i + 1)
 	}
 	parent.ExclusionConstraints = append(parent.ExclusionConstraints, c)
-	if _, existing := stage.base.Find(parent.Address()); existing {
+	if _, existing := stage.Base.Find(parent.Address()); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err
 		}

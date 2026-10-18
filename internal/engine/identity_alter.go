@@ -51,7 +51,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if !exists {
 		return old, sqlError("55000", message+" is not an identity column")
 	}
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), identity.Sequence)
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -91,12 +91,12 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err := e.refreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
-	if _, removed := stage.removals[address]; removed {
+	if _, removed := stage.Removals[address]; removed {
 		return ids.ErrCatalogReplaced
 	}
-	descriptor := stage.descriptors[address]
+	descriptor := stage.Descriptors[address]
 	if descriptor == nil {
-		descriptor = stage.base.Get(address)
+		descriptor = stage.Base.Get(address)
 	}
 	sequence, ok := descriptor.(*relationDescriptor)
 	if !ok {
@@ -121,8 +121,8 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	changed.Sequence = &options
 	changed.ObjectRevision = revision
 	changed.SequencePlanStamp = revision
-	if stage.base.Get(changed.Address()) == nil {
-		stage.descriptors[changed.Address()] = &changed
+	if stage.Base.Get(changed.Address()) == nil {
+		stage.Descriptors[changed.Address()] = &changed
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
-	ref := e.catalog.Domain.Ref(stage.base.Epoch(), address)
+	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), address)
 	if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
 	}
@@ -168,11 +168,11 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if err != nil {
 		return err
 	}
-	if fresh.catalog.Epoch() != stage.base.Epoch() {
+	if fresh.catalog.Epoch() != stage.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.catalog.Get(address)
-	if staged, exists := stage.descriptors[address]; exists {
+	if staged, exists := stage.Descriptors[address]; exists {
 		descriptor = staged
 	}
 	if _, err := identitySequenceDefinition(descriptor, table, attribute); err != nil {
@@ -184,6 +184,6 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, captured := stage.identityOriginals[address]; !captured {
 		stage.identityOriginals[address] = e.catalog.state.Get(address)
 	}
-	stage.base = fresh.catalog
+	stage.Base = fresh.catalog
 	return nil
 }

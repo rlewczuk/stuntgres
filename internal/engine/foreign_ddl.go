@@ -101,7 +101,7 @@ func foreignValidatorJob(stage *CatalogStage, wrapper *foreignDescriptor, kind F
 	if wrapper.Validator == (ids.ObjectAddress{}) {
 		return foreignValidation{}, nil
 	}
-	p, ok := stage.base.Procedure(wrapper.Validator)
+	p, ok := stage.Base.Procedure(wrapper.Validator)
 	if !ok || p.Foreign == nil || p.Foreign.Validator == nil {
 		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.Name()))
 	}
@@ -166,7 +166,7 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	return Result{}, err
 }
 
@@ -383,7 +383,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		next.ACL = authorization.SchemaACLOwner(next.ACL, next.Owner, target)
 		next.Owner = target
 	}
-	if a := stage.lookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
+	if a := stage.LookupName(descriptorNameKey(&next)); a != (ids.ObjectAddress{}) && (old == nil || a != old.Address()) {
 		return nil, nil, sqlError("42710", fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), next.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, wrapper)

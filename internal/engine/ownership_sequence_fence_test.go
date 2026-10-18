@@ -35,7 +35,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	ref := roleTableRef(t, e, "ownership_fence_seq")
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbRole := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	sequence := *setup.base.MustRelation(ref.Address)
+	sequence := *setup.Base.MustRelation(ref.Address)
 	sequence.Owner = dbRole
 	sequence.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		objectACLUnitEntry(dbRole, dbRole, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
@@ -48,15 +48,15 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	}
 	// The successor genuinely owns the containing namespace. It does not
 	// inherit pg_database_owner, and neither actor nor successor is superuser.
-	if err := stageOwnership(setup, setup.base.Get(sequence.Namespace()), target); err != nil {
+	if err := stageOwnership(setup, setup.Base.Get(sequence.Namespace()), target); err != nil {
 		t.Fatal(err)
 	}
 	sentinel := roleTableRef(t, e, "ownership_fence_sentinel")
-	if err := stageOwnership(setup, setup.base.Get(sentinel.Address), actor); err != nil {
+	if err := stageOwnership(setup, setup.Base.Get(sentinel.Address), actor); err != nil {
 		t.Fatal(err)
 	}
 	if !private {
-		if err := stageOwnership(setup, setup.base.Get(currentDatabaseAddress), actor); err != nil {
+		if err := stageOwnership(setup, setup.Base.Get(currentDatabaseAddress), actor); err != nil {
 			t.Fatal(err)
 		}
 	}

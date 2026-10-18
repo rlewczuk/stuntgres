@@ -106,7 +106,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			before := e.catalog.state
 			stores := maps.Clone(e.storage)
 			roots := maps.Clone(e.indexRoots)
-			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if kind == "success" || kind == "unrelated" {
 				if err != nil || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid {
 					t.Fatal("validity not atomically installed", err)
@@ -150,7 +150,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				}
 			}()
 			go func() {
-				_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+				_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				finished <- err
 			}()
 			select {

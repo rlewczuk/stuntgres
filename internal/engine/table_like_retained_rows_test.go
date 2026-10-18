@@ -74,7 +74,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("retained row-expression copy", err)
 			}
 			local := func(attribute int32) ids.ObjectRef {
-				return e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: attribute})
+				return e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: attribute})
 			}
 			assertTree := func(node expr.Expr) {
 				t.Helper()
@@ -83,7 +83,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("fixture lost row reference")
 				}
 				for _, ref := range refs {
-					if ref.Domain() != e.catalog.Domain || ref.Epoch != stage.base.Epoch() || ref.Address.ObjectID != destination.Address().ObjectID {
+					if ref.Domain() != e.catalog.Domain || ref.Epoch != stage.Base.Epoch() || ref.Address.ObjectID != destination.Address().ObjectID {
 						t.Fatal("mapped row lacks fresh destination authority", ref)
 					}
 				}
@@ -119,7 +119,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("CHECK manifest lacks current local authority", copiedCheck.Dependencies)
 			}
 			var clonedIndexes []*relationDescriptor
-			for _, descriptor := range stage.descriptors {
+			for _, descriptor := range stage.Descriptors {
 				index, ok := descriptor.(*relationDescriptor)
 				if !ok || index.SQLIndex == nil {
 					continue
@@ -151,7 +151,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if collision == nil {
 				t.Fatal("duplicate copied column accepted")
 			}
-			for address := range candidate.descriptors {
+			for address := range candidate.Descriptors {
 				if e.CatalogRead().Get(address) != nil || e.storage[address] != nil || e.indexRoots[address] != nil || e.sequences[address] != nil {
 					t.Fatal("failed copied candidate published a fragment", address)
 				}
@@ -161,7 +161,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			for _, index := range clonedIndexes {
@@ -223,7 +223,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		walkBoundExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
 			case columnExpression:
-				if n.origin.Domain() != e.catalog.Domain || n.origin.Epoch != stage.base.Epoch() || n.origin.Address.ObjectID != destination.Address().ObjectID {
+				if n.origin.Domain() != e.catalog.Domain || n.origin.Epoch != stage.Base.Epoch() || n.origin.Address.ObjectID != destination.Address().ObjectID {
 					t.Fatal("local row authority not current", n.origin)
 				}
 			case literalExpression:
@@ -243,7 +243,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		t.Fatal("CHECK external manifest reminted")
 	}
 	assertNode(destination.CheckConstraints[0].Expression)
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue

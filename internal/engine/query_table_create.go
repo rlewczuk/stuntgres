@@ -147,11 +147,11 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err = stage.Create(d); err != nil {
 		return nil, nil, false, err
 	}
-	if len(stage.oldNames) != 0 {
+	if len(stage.OldNames) != 0 {
 		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
-		d = stage.descriptors[d.Address()].(*relationDescriptor)
+		d = stage.Descriptors[d.Address()].(*relationDescriptor)
 	}
 	return stage, d, false, nil
 }
@@ -164,10 +164,10 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.Address()] != d || stage.base.Get(d.Address()) != nil || stage.initialTables != nil {
+	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.Descriptors[d.Address()] != d || stage.Base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
-	if stage.base.Epoch() != e.catalog.state.Epoch() {
+	if stage.Base.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	// A demanded producer can enroll reads even when every row is filtered out.
@@ -198,8 +198,8 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
-		d, ok := s.descriptors[address].(*relationDescriptor)
-		if !ok || !d.RelationKind.Stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		d, ok := s.Descriptors[address].(*relationDescriptor)
+		if !ok || !d.RelationKind.Stored() || d.RelationKind == materializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {
@@ -231,7 +231,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 		if scope.cteInvocation != nil {
 			err = e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 		} else {
-			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 	}
 	if err == nil && scope.cteInvocation == nil {

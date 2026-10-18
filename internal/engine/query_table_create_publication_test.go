@@ -70,7 +70,7 @@ func queryCreatePublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreateAssertAbsent(t, e, d)
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			descriptor, ok := e.CatalogRead().Descriptor(d.Address())
@@ -131,7 +131,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				}
 			}
 			queryCreateAssertTypes(t, e, registry)
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err == nil || e.commitSeq != wantFrontier {
+			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.commitSeq != wantFrontier {
 				t.Fatal("replayed publication", err)
 			}
 		})
@@ -249,7 +249,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				queryCreatePublish(t, e, peer)
 			}
 			before = e.commitSeq
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("invalid stage published", phase)
 			}
@@ -324,7 +324,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	}
 	peer, _ := queryCreateStage(t, e, "unrelated", 1)
 	queryCreatePublish(t, e, peer)
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.nextRow != 1 || e.nextVersion != 1 || e.commitSeq != 1 || len(e.storage[d.Address()].versions) != 1 || !sqltype.SameDatum(e.storage[d.Address()].versions[0].values[0], value) {

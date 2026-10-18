@@ -207,7 +207,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
 	key := ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address, Name: name}
-	if old := stage.lookupName(key); old != (ids.ObjectAddress{}) {
+	if old := stage.LookupName(key); old != (ids.ObjectAddress{}) {
 		message := fmt.Sprintf(`collation "%s" already exists`, name)
 		if d.Encoding != -1 {
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
@@ -310,7 +310,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		next.Owner = ownerTarget
 	}
 	key := descriptorNameKey(&next)
-	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
+	if a := stage.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
 	}
 	next.ObjectRevision, err = e.catalog.revisionLocked()

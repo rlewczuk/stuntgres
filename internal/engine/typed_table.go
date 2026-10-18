@@ -209,7 +209,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true
@@ -247,7 +247,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 			sources[source] = true
 		}
 	} else {
-		for _, descriptor := range stage.descriptors {
+		for _, descriptor := range stage.Descriptors {
 			if table, ok := descriptor.(*relationDescriptor); ok && table.OfType != (ids.ObjectAddress{}) {
 				if sources == nil {
 					sources = make(map[ids.ObjectAddress]bool)
@@ -277,11 +277,11 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		mode = lock.AccessExclusive
 	}
 	for _, source := range addresses {
-		typ, ok := stage.base.Type(source)
+		typ, ok := stage.Base.Type(source)
 		if !ok {
 			continue
 		}
-		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.base.Epoch(), typ.OwningRelation), mode, true); err != nil {
+		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), typ.OwningRelation), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep
@@ -289,7 +289,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.base.Get(typ.OwningRelation)
+		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.OwningRelation) == stage.Base.Get(typ.OwningRelation)
 		e.mu.Unlock()
 		if !valid {
 			return CatalogConflict{}

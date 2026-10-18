@@ -31,26 +31,26 @@ var seededOperatorNames = func() *operatorNameIndex {
 // detaches the map; each touched bucket detaches at most once, even with spare
 // capacity. Metadata-only replacements retain the entire immutable index.
 type operatorIndexEdit struct {
-	index   *operatorNameIndex
+	Index   *operatorNameIndex
 	touched map[operatorNameKey]bool
 }
 
 func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.ObjectAddress {
 	if edit.touched == nil {
 		size := 1
-		if edit.index != nil {
-			size += len(edit.index.Buckets)
+		if edit.Index != nil {
+			size += len(edit.Index.Buckets)
 		}
 		buckets := make(map[operatorNameKey][]ids.ObjectAddress, size)
-		if edit.index != nil {
-			for key, addresses := range edit.index.Buckets {
+		if edit.Index != nil {
+			for key, addresses := range edit.Index.Buckets {
 				buckets[key] = addresses
 			}
 		}
-		edit.index = &operatorNameIndex{Buckets: buckets}
+		edit.Index = &operatorNameIndex{Buckets: buckets}
 		edit.touched = make(map[operatorNameKey]bool)
 	}
-	addresses := edit.index.Buckets[key]
+	addresses := edit.Index.Buckets[key]
 	if !edit.touched[key] {
 		detached := make([]ids.ObjectAddress, len(addresses), len(addresses)+extra)
 		copy(detached, addresses)
@@ -60,7 +60,7 @@ func (edit *operatorIndexEdit) bucket(key operatorNameKey, extra int) []ids.Obje
 	return addresses
 }
 
-func (edit *operatorIndexEdit) replace(old, next Descriptor) {
+func (edit *operatorIndexEdit) Replace(old, next Descriptor) {
 	before, wasOperator := old.(*operatorDescriptor)
 	after, isOperator := next.(*operatorDescriptor)
 	if wasOperator && isOperator && before.Address() == after.Address() && before.Namespace() == after.Namespace() && before.Name() == after.Name() {
@@ -77,15 +77,15 @@ func (edit *operatorIndexEdit) replace(old, next Descriptor) {
 			}
 		}
 		if len(addresses) == 0 {
-			delete(edit.index.Buckets, key)
+			delete(edit.Index.Buckets, key)
 		} else {
-			edit.index.Buckets[key] = addresses
+			edit.Index.Buckets[key] = addresses
 		}
 	}
 	if isOperator {
 		key := operatorNameKey{after.Namespace(), after.Name()}
 		addresses := edit.bucket(key, 1)
-		edit.index.Buckets[key] = append(addresses, after.Address())
+		edit.Index.Buckets[key] = append(addresses, after.Address())
 	}
 }
 

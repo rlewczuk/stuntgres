@@ -177,8 +177,8 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []columnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
 	// relation must not allocate an adapter/iterator/yield closure.
-	provider := dropProvider{base: stage.base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
-	for address, descriptor := range stage.base.Descriptors() {
+	provider := dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+	for address, descriptor := range stage.Base.Descriptors() {
 		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
 		if !affected {
 			continue

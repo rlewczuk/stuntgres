@@ -64,7 +64,7 @@ func validateRetiredInheritance(view CatalogRead, table *relationDescriptor, p i
 func inheritRetiredColumnConstraints(state *inheritanceAlterState, child *relationDescriptor, graph *tableInheritance, attribute int32) {
 	view := state.definition.base
 	if state.stage != nil {
-		view = state.stage.base
+		view = state.stage.Base
 	}
 	for _, parent := range graph.Parents {
 		for _, event := range state.events[parent] {

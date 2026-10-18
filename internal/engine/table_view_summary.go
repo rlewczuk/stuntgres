@@ -11,15 +11,15 @@ import (
 // Index publication and parent history are one immutable catalog candidate.
 // DROP deliberately never clears this flag (PostgreSQL18 pg_class lazy flags).
 func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue
 		}
 		address := index.SQLIndex.Parent
-		descriptor, staged := stage.descriptors[address]
+		descriptor, staged := stage.Descriptors[address]
 		if !staged {
-			descriptor = stage.base.Get(address)
+			descriptor = stage.Base.Get(address)
 		}
 		parent, ok := descriptor.(*relationDescriptor)
 		if !ok || (parent.RelationKind != tableRelation && parent.RelationKind != materializedViewRelation && parent.RelationKind != partitionedRelation) {
@@ -33,7 +33,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 		if staged {
 			// Preserve the complete already-staged parent and its revision/rowtype;
 			// UNIQUE can create the parent and its indexes in this same candidate.
-			stage.descriptors[address] = &next
+			stage.Descriptors[address] = &next
 		} else {
 			revision, err := e.catalog.revisionLocked()
 			if err != nil {

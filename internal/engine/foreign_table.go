@@ -90,7 +90,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, creationError(err, s.Name)
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if stage.lookupName(key) != (ids.ObjectAddress{}) {
+	if stage.LookupName(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			scope.op.existingRelationNotice(key.Name)
 			return nil, nil, nil
@@ -110,7 +110,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.state.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
-	d, ok := stage.descriptors[stage.lookupName(key)].(*relationDescriptor)
+	d, ok := stage.Descriptors[stage.LookupName(key)].(*relationDescriptor)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}

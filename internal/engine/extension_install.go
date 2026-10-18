@@ -86,13 +86,13 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	}
 	e.mu.Lock()
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	for a, d := range stage.descriptors {
+	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
 	}
-	for key, original := range stage.touched {
+	for key, original := range stage.Touched {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
+	changes.extensionAuthority = append(changes.extensionAuthority, extensionAuthorityObservation{roles: stage.roleRevision, namespace: stage.Base.Get(stage.extensionNamespace), database: stage.databasePredecessor})
 	scope.catalog = changes
 	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: currentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
@@ -246,7 +246,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}
-		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
+		if stage.LookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return extensionMemberConflict(proc, ext.TargetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
@@ -283,7 +283,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	tmpl := &tsTemplateDescriptor{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p}
-	if stage.lookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(descriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(tmpl, ext.TargetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
@@ -294,7 +294,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	dict := &tsDictionaryDescriptor{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p}
-	if stage.lookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(descriptorNameKey(dict)) != (ids.ObjectAddress{}) {
 		return extensionMemberConflict(dict, ext.TargetNamespace)
 	}
 	return stage.Create(dict)

@@ -27,7 +27,7 @@ func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	}
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 	proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "uuid_generate_v4", Signature: "", Owner: owner, RoutineKind: functionRoutine, Result: 2950, Volatility: expr.Volatile, Strict: true, Implementation: p}
-	if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
+	if stage.LookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 	}
 	ext.Members = []ids.ObjectAddress{address}

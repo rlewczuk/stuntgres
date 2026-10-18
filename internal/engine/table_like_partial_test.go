@@ -36,10 +36,10 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	local := e.catalog.Domain.Ref(stage.base.Epoch(), destination.Address())
+	local := e.catalog.Domain.Ref(stage.Base.Epoch(), destination.Address())
 	local.Address.SubID = 4
 	var copied []*relationDescriptor
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue
@@ -99,9 +99,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if index.SQLIndex.Keys[0].Attribute != 3 || !reflect.DeepEqual(index.SQLIndex.Include, []int32{2}) || !slices.Contains(predicate.Dependencies, external) {
 				t.Fatal("key/include/external identity lost", index.SQLIndex)
 			}
-			booleanType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
-			regclassType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-			regtypeType := e.catalog.Domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			booleanType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
 			if !slices.Equal(predicate.Dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.Dependencies)
 			}
@@ -131,7 +131,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	for _, index := range copied {
@@ -188,7 +188,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	var copied *relationDescriptor
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 			copied = index
 		}
@@ -228,7 +228,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 			}
 			defer e.DiscardCatalogStage(stage)
 			var copied *relationDescriptor
-			for _, descriptor := range stage.descriptors {
+			for _, descriptor := range stage.Descriptors {
 				if index, ok := descriptor.(*relationDescriptor); ok && index.SQLIndex != nil {
 					copied = index
 				}

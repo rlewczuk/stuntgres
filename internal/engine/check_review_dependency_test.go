@@ -77,7 +77,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, publicationErr := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, publicationErr := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	op, err := a.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestCheckReviewDependencyDeletionBetweenValidationAndPublication(t *testing
 	}
 	sessionSQL(t, a, "DROP SEQUENCE s CASCADE")
 	before := e.CatalogRead().State()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err == nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("CREATE published a validated CHECK after its provider was removed")
 	}
 	if e.CatalogRead().State() != before {

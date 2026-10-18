@@ -152,7 +152,7 @@ func TestExclusionPublicationFinalCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.base.Epoch()}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			polls := counting.checks.Load()
@@ -168,7 +168,7 @@ func TestExclusionPublicationFinalCancellation(t *testing.T) {
 				t.Fatal("cancellation occurred before package preparation", err)
 			}
 			before := indexMaintenanceCapture(e)
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.base.Epoch()}); !errors.Is(err, context.Canceled) {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: second.Base.Epoch()}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 			indexMaintenanceUnchanged(t, e, before)

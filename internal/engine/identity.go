@@ -152,8 +152,8 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 }
 
 func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
-	namespace := stage.base.Get(table.Namespace())
-	if staged, ok := stage.descriptors[table.Namespace()]; ok {
+	namespace := stage.Base.Get(table.Namespace())
+	if staged, ok := stage.Descriptors[table.Namespace()]; ok {
 		namespace = staged
 	}
 	if namespace.(*namespaceDescriptor).Temporary != (ids.SessionToken{}) {

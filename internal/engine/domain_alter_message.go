@@ -77,7 +77,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			return err
 		}
 		original, target := relationStorage{versions: writes}, relationStorage{versions: mapped}
-		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.base.State(), next, &original, &target)
+		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err
 		}

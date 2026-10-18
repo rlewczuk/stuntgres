@@ -28,7 +28,7 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 	if evolutionErr != nil || allocations != 0 {
 		t.Fatal("untouched parent performs evolution work", evolutionErr, allocations)
 	}
-	if stage.descriptors[index.Address()] != nil {
+	if stage.Descriptors[index.Address()] != nil {
 		t.Fatal("unrelated metadata staged an index change")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)

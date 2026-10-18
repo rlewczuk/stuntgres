@@ -45,7 +45,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: "t_a_key"}
-	if stage.lookupName(key) != (ids.ObjectAddress{}) || stage.removals[backing].ref.Address != backing || stage.touched[key] != backing {
+	if stage.LookupName(key) != (ids.ObjectAddress{}) || stage.Removals[backing].Ref.Address != backing || stage.Touched[key] != backing {
 		t.Fatal("retirement did not vacate private name with original publication fences")
 	}
 	next, err = e.stageAddedUnique(op, auth, stage, next, actions[0].Unique)
@@ -56,7 +56,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err := stage.Replace(next); err != nil {
 		t.Fatal(err)
 	}
-	if added.Name != "t_a_key" || added.Index == backing || added.OID == old.UniqueConstraints[0].OID || stage.lookupName(key) != added.Index || stage.touched[key] != backing {
+	if added.Name != "t_a_key" || added.Index == backing || added.OID == old.UniqueConstraints[0].OID || stage.LookupName(key) != added.Index || stage.Touched[key] != backing {
 		t.Fatal("effective generated name or replacement identity/fences lost", added)
 	}
 	e.mu.Lock()
@@ -65,7 +65,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, present := stage.descriptors[backing]; present || stage.removals[backing].ref.Address != backing {
+	if _, present := stage.Descriptors[backing]; present || stage.Removals[backing].Ref.Address != backing {
 		t.Fatal("later layout evolution resurrected retired backing")
 	}
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
@@ -168,7 +168,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 				if err != nil {
 					t.Fatal("later authorized CASCADE leaked into earlier RESTRICT", err)
 				}
-				candidate := stage.descriptors[child.Address()].(*relationDescriptor)
+				candidate := stage.Descriptors[child.Address()].(*relationDescriptor)
 				if len(candidate.ForeignKeys) != 0 {
 					t.Fatal("authorized child dependency retained")
 				}
@@ -179,14 +179,14 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 					t.Fatal("current DROP mode/diagnostic subject lost", got, err)
 				}
 				candidate := child
-				if d, present := stage.descriptors[child.Address()]; present {
+				if d, present := stage.Descriptors[child.Address()]; present {
 					candidate = d.(*relationDescriptor)
 				}
 				if !reflect.DeepEqual(candidate.ForeignKeys, child.ForeignKeys) {
 					t.Fatal("earlier CASCADE removed later RESTRICT dependency")
 				}
 			}
-			if stage.removals[ua].ref.Address != ua || stage.removals[ub].ref.Address != ub {
+			if stage.Removals[ua].Ref.Address != ua || stage.Removals[ub].Ref.Address != ub {
 				t.Fatal("actual selected backing retirement missing")
 			}
 			if e.catalog.state != before || e.storage[old.Address()] != parentStore || e.storage[child.Address()] != childStore || e.indexRoots[ua] != uaRoot || e.indexRoots[ub] != ubRoot || len(child.ForeignKeys) != 1 {

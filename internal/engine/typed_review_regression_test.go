@@ -219,7 +219,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	next := *stage.base.MustType(address)
+	next := *stage.Base.MustType(address)
 	next.ACL, next.ObjectRevision = acl, next.ObjectRevision+1
 	next.ACLSyntheticDefault = false
 	if err := stage.Replace(&next); err != nil {

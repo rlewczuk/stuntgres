@@ -92,7 +92,7 @@ func temporaryCleanupPreparedStage(t *testing.T, e *Engine, owner, sequence *rel
 	stage.terminalCleanup = true
 	targets := []ids.ObjectAddress{owner.Address(), sequence.Address()}
 	for _, address := range targets {
-		if err := stage.Remove(e.catalog.Domain.Ref(stage.base.Epoch(), address)); err != nil {
+		if err := stage.Remove(e.catalog.Domain.Ref(stage.Base.Epoch(), address)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -174,7 +174,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
-	replacement, ok := stage.descriptors[survivor.Address()].(*relationDescriptor)
+	replacement, ok := stage.Descriptors[survivor.Address()].(*relationDescriptor)
 	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
@@ -268,11 +268,11 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 				}
 				if !terminal {
-					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.descriptors) != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
+					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.Descriptors) != 0 || e.catalog.state.Get(consumer.Address()) != &maximum {
 						t.Fatal("ordinary maximum cascade accepted or mutated", err)
 					}
 				} else {
-					replacement, ok := stage.descriptors[consumer.Address()].(*relationDescriptor)
+					replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
@@ -290,7 +290,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			} else {
 				_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.Address()}, parser.DropCascade)
 			}
-			replacement, ok := stage.descriptors[consumer.Address()].(*relationDescriptor)
+			replacement, ok := stage.Descriptors[consumer.Address()].(*relationDescriptor)
 			if err != nil || !ok || replacement.Revision() != consumer.Revision()+1 {
 				t.Fatal("below-maximum cascade did not increment", err)
 			}

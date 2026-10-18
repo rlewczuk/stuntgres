@@ -77,7 +77,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			f := newDefaultUnitFixture(t)
 			setup := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defaultUnitTable(t, f, setup, "default_fence_sentinel", f.owner)
-			database := *setup.base.MustDatabase(currentDatabaseAddress)
+			database := *setup.Base.MustDatabase(currentDatabaseAddress)
 			database.Owner = f.owner
 			database.ObjectRevision++
 			if err := setup.Replace(&database); err != nil {

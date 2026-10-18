@@ -162,11 +162,11 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 					op.session.authorization.revision++
 				}
 			case "foreign_descriptor":
-				copy := *stage.descriptors[d.Address()].(*relationDescriptor)
-				stage.descriptors[d.Address()] = &copy
+				copy := *stage.Descriptors[d.Address()].(*relationDescriptor)
+				stage.Descriptors[d.Address()] = &copy
 			}
 			beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.Address()], e.commitSeq
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || e.catalog.state != beforeCatalog || e.storage[d.Address()] != beforeStore || e.commitSeq != beforeFrontier {
 				t.Fatal("failed fence published", err)
 			}
@@ -234,7 +234,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			}}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			}
 			if err == nil || e.catalog.state.Get(d.Address()) != d || e.storage[d.Address()] != old || len(old.versions) != 3 {
 				t.Fatal("provider fence installed a candidate", err)

@@ -235,7 +235,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	if err := inheritanceAlterJoin(t, result, joined); err != nil {
 		t.Fatal("additive first-grandchild growth was treated as replacement", err)
 	}
-	if state.stage == nil || state.stage.base.State() != grown.State() || state.stage.base.Get(g.Address()) != g || len(state.targets) != 3 {
+	if state.stage == nil || state.stage.Base.State() != grown.State() || state.stage.Base.Get(g.Address()) != g || len(state.targets) != 3 {
 		t.Fatal("sole stage did not capture reconciled actual growth")
 	}
 	if e.CatalogRead().State() != grown.State() {

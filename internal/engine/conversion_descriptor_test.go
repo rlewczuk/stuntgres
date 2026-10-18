@@ -188,7 +188,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		e.mu.Lock()
 		err := e.stageAlterConversionLocked(op, auth, stage, alteration)
 		e.mu.Unlock()
-		if err != nil || len(stage.descriptors) != 0 {
+		if err != nil || len(stage.Descriptors) != 0 {
 			t.Fatal("generic no-op permission boundary", alteration, err)
 		}
 		e.DiscardCatalogStage(stage)

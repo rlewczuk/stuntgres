@@ -40,7 +40,7 @@ func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -129,12 +129,12 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, change)
 	before := e.CatalogRead().State()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: chain.base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("base authorization generation lost", err)
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.domainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.catalog.Domain.Ref(drop.base.Epoch(), a.Address()), false); err != nil {
+	if err = drop.removeObject(e.catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -154,7 +154,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, table)
 	before = e.CatalogRead().State()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: drop.base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("DROP lost new dependent column", err)
 	}
 	canceled := domainUnitStage(t, e, op, "CREATE DOMAIN public.canceled AS integer")
@@ -164,7 +164,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal("canceled domain published", err)
 	}
 }
@@ -213,7 +213,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
-		if e.CatalogRead().State() != before || len(stage.descriptors) != 0 {
+		if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
 			t.Fatal("denied base published")
 		}
 	})

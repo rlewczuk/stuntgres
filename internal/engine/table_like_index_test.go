@@ -25,7 +25,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	count := 0
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue
@@ -70,10 +70,10 @@ func TestTableLikeIndexClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.SQLIndex != nil && e.indexRoots[index.Address()] == nil {
 			t.Fatal("new index has no actual published root", index.Name())
@@ -125,7 +125,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(stage)
 	count := 0
-	for _, descriptor := range stage.descriptors {
+	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.SQLIndex == nil {
 			continue

@@ -231,7 +231,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	options.Owned.SubID = 99
 	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
-	stage.descriptors[sequence] = &bad
+	stage.Descriptors[sequence] = &bad
 	if _, err := dumpPredecessor(e.stageRead(stage), sequence, consumer); err == nil {
 		t.Fatal("invalid reciprocal identity silently lost predecessor")
 	}
@@ -261,9 +261,9 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	candidate := *original
 	candidate.ObjectName = "candidate_only"
 	candidate.SequencePlanStamp++
-	stage.descriptors[address] = &candidate
-	stage.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.Namespace(), Name: candidate.Name()}] = address
-	stage.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.Namespace()
+	stage.Descriptors[address] = &candidate
+	stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: candidate.Namespace(), Name: candidate.Name()}] = address
+	stage.Names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "candidate_schema"}] = candidate.Namespace()
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

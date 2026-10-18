@@ -29,7 +29,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					if err := stageOwnership(stage, member, source.Ref); err == nil {
 						t.Fatal("template acquired an owner")
 					}
-					if e.catalog.state != original.State() || stage.descriptors[member.Address()] != nil {
+					if e.catalog.state != original.State() || stage.Descriptors[member.Address()] != nil {
 						t.Fatal("ownerless template mutation")
 					}
 					return

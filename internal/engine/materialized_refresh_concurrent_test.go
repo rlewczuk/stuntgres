@@ -432,7 +432,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					e.commitSeq = ids.CommitSeq(math.MaxUint64)
 				}
 				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage[d.Address()], e.commitSeq
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				if e.catalog.state != beforeCatalog || e.storage[d.Address()] != beforeStore || e.commitSeq != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
@@ -465,7 +465,7 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 		stage.materializedReplacement.concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 		message := fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 		if concurrent {

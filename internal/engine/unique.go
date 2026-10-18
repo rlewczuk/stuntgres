@@ -159,7 +159,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		// for PK. Ordinary UNIQUE retains its existing collision precedence.
 		if c.Primary || altering {
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-			if stage.lookupName(key) != (ids.ObjectAddress{}) {
+			if stage.LookupName(key) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 			}
 		}
@@ -168,7 +168,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		}
 		// Two distinct UNIQUE definitions with the same name collide as relations.
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: c.Name}
-		if stage.lookupName(key) != (ids.ObjectAddress{}) {
+		if stage.LookupName(key) != (ids.ObjectAddress{}) {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
 		for _, index := range indices {
@@ -206,16 +206,16 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := declarations[i-start].like.remap(key.Derived.Definition, d, stage.base)
+					node, err := declarations[i-start].like.remap(key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := declarations[i-start].like.remap(key.Derived.Execution, d, stage.base)
+					execution, err := declarations[i-start].like.remap(key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
 					derived := &derivedIndexKey{Definition: node, Execution: execution, Attributes: d.Attributes}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.base, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.Base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.Dependencies}).sql(op.Context(), stage.Base, node); err != nil {
 						return err
 					}
 					key.Derived = derived

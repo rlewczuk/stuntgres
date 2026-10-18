@@ -135,9 +135,9 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	}
 	n := cloneCatalog(e.catalog.state)
 	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
-	operators := operatorIndexEdit{index: e.catalog.state.OperatorNames()}
+	operators := operatorIndexEdit{Index: e.catalog.state.OperatorNames()}
 	for a, d := range c.descriptors {
-		operators.replace(e.catalog.state.Get(a), d)
+		operators.Replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
 			n.UnbindName(descriptorNameKey(old))
 		}
@@ -153,7 +153,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 			n.BindName(descriptorNameKey(d), d.Address())
 		}
 	}
-	n.SetOperatorNames(operators.index)
+	n.SetOperatorNames(operators.Index)
 	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
 	return c.cached
 }

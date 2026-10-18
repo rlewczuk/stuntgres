@@ -104,7 +104,7 @@ func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorizat
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
 func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *relationDescriptor {
 	t.Helper()
-	typ, ok := stage.base.LookupType(sqltype.Int4)
+	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
@@ -129,6 +129,6 @@ func defaultUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()})
 	return err
 }

@@ -126,7 +126,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 		return nil, nil, false, fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	if !exists {
-		storageOwner, ok := stage.base.Relation(old.Address())
+		storageOwner, ok := stage.Base.Relation(old.Address())
 		if !ok {
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
@@ -149,7 +149,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 		err = e.evolveStageIndexesLocked(stage, old.Address(), nil)
 	}
 	if err == nil {
-		for address, descriptor := range stage.descriptors {
+		for address, descriptor := range stage.Descriptors {
 			index, ok := descriptor.(*relationDescriptor)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == old.Address() {
 				e.catalogChangeLocked(changes, address, index)
@@ -167,7 +167,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err = prepareAlterIndexRoots(evaluation, changes, stage.base, next, shape.replacement, nil, false); err != nil {
+	if err = prepareAlterIndexRoots(evaluation, changes, stage.Base, next, shape.replacement, nil, false); err != nil {
 		return nil, nil, false, err
 	}
 	return writes, deletes, shape.replacement != store || transported, nil
@@ -178,8 +178,8 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 // snapshots without projecting that physical baseline a second time.
 func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *catalogChanges) error {
 	for address, rowShape := range stage.rowShapes {
-		old, oldOK := stage.base.Relation(address)
-		next, nextOK := stage.descriptors[address].(*relationDescriptor)
+		old, oldOK := stage.Base.Relation(address)
+		next, nextOK := stage.Descriptors[address].(*relationDescriptor)
 		if !oldOK || !nextOK || slices.Equal(old.Attributes, next.Attributes) {
 			continue
 		}

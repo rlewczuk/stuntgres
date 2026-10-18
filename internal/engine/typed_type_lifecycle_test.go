@@ -34,7 +34,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict CatalogConflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
@@ -185,7 +185,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 			} else {
 				late := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(late)
-				next := *late.base.MustType(table.OfType)
+				next := *late.Base.MustType(table.OfType)
 				next.ObjectRevision++
 				if err := late.Replace(&next); err != nil {
 					t.Fatal(err)
@@ -193,7 +193,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				domainUnitPublish(t, e, late)
 			}
 			before := e.CatalogRead()
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}
