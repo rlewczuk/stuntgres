@@ -71,3 +71,5 @@ func (e JSONBPathQueryArray) Rebuild(info expr.Info, children []expr.Expr) (expr
 	copy(args[:], children)
 	return rebuilt(e.Reconstruct(info, args))
 }
+
+func (e JSONBPathQueryArray) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

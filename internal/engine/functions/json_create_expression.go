@@ -194,3 +194,5 @@ func JSONCreateIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
 func JSONCreateVariadicArgumentValid(usage sqltype.Usage) bool {
 	return usage.Type != nil && usage.Type.BaseType().IsArray()
 }
+
+func (e JSONCreate) IntrinsicVolatility() expr.Volatility { return expr.Stable }

@@ -88,3 +88,5 @@ func (e NetworkFormat) Eval(c expr.Context) (sqltype.Value, error) {
 	return e.Plan.Binary(ctx, values[0], values[1])
 }
 func NetworkFormatIntrinsicRule() IntrinsicPropertyRule { return ExactImmutable }
+
+func (e NetworkFormat) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

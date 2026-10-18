@@ -329,3 +329,5 @@ func (e DatetimeOverlaps) Rebuild(info expr.Info, children []expr.Expr) (expr.Ex
 	node, _, err := e.Reconstruct(info, args, keepDescriptor, keepValue)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeOverlaps) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }

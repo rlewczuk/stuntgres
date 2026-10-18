@@ -140,3 +140,5 @@ func (e NullCount) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, err
 	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
 	return e, nil
 }
+
+func (e NullCount) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

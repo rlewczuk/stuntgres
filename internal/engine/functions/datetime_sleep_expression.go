@@ -240,3 +240,7 @@ func (x DatetimeSleep) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr,
 	}
 	return rebuilt(x.Reconstruct(info, children[0], x.ClockUsage))
 }
+
+// IntrinsicVolatility is the analyzed volatility: the call is volatile or
+// has no children, so nothing from eliminated arms can be retained.
+func (x DatetimeSleep) IntrinsicVolatility() expr.Volatility { return x.Property.Volatility }

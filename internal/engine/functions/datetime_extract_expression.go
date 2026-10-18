@@ -179,3 +179,5 @@ func (e DatetimeExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 	node, _, err := e.Reconstruct(info, args, keepDescriptor)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeExtract) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }

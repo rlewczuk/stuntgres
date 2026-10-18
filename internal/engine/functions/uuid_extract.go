@@ -121,3 +121,5 @@ func (e UUIDExtract) Eval(c expr.Context) (sqltype.Value, error) {
 }
 
 func UUIDExtractIntrinsicRule() IntrinsicPropertyRule { return ExactImmutable }
+
+func (e UUIDExtract) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

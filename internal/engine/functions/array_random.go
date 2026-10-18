@@ -208,3 +208,5 @@ func (e ArrayRandom) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.OwnedArrayValue(e.Usage.Type, dimensions, elements)
 }
+
+func (e ArrayRandom) IntrinsicVolatility() expr.Volatility { return expr.Volatile }

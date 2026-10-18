@@ -339,3 +339,5 @@ func (e Math) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	ref, conflict := e.Plan.InputCollation()
 	return rebuilt(e.Reconstruct(info, children, ref, conflict))
 }
+
+func (e Math) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

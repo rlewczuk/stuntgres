@@ -134,3 +134,6 @@ func (e Posix) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) 
 	}
 	return rebuilt(e.Reconstruct(info, children[0], children[1], e.Provider.Collation(), e.Provider.Conflict()))
 }
+
+func (e Posix) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e PosixSubstring) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

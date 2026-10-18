@@ -141,3 +141,5 @@ func (e DatetimeBin) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, e
 	node, _, err := e.Reconstruct(info, args, keepDescriptor)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeBin) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

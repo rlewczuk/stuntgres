@@ -211,3 +211,8 @@ func NewJSONBElements(info expr.Info, name string, arg expr.Expr) (JSONBElements
 	}
 	return JSONBElements{info, plan, []expr.Expr{arg}}, nil
 }
+
+func (e JSONKeys) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONEach) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONElements) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
+func (e JSONBElements) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

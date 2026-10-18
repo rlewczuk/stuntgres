@@ -517,3 +517,5 @@ func CoerceBinaryArguments(b ArgumentCoercer, name string, family sqltype.ID, ar
 	}
 	return args, nil
 }
+
+func (e Binary) IntrinsicVolatility() expr.Volatility { return stableIf(!e.Plan.Immutable()) }

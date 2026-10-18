@@ -42,3 +42,12 @@ func checkPresent(message string, children []expr.Expr) error {
 func keepDescriptor(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 
 func keepValue(v sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) { return v, nil }
+
+// stableIf is the intrinsic volatility of a node that is session-dependent
+// only under the given condition.
+func stableIf(stable bool) expr.Volatility {
+	if stable {
+		return expr.Stable
+	}
+	return expr.Immutable
+}

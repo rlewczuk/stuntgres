@@ -65,3 +65,5 @@ func (e DatetimeJustify) Rebuild(info expr.Info, children []expr.Expr) (expr.Exp
 	node, _, err := e.Reconstruct(info, children[0], keepDescriptor)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeJustify) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

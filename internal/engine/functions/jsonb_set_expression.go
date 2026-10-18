@@ -72,3 +72,5 @@ func (e JSONBSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, erro
 	copy(args[:], children)
 	return rebuilt(e.Reconstruct(info, args))
 }
+
+func (e JSONBSet) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

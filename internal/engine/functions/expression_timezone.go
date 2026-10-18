@@ -84,3 +84,5 @@ func (e Timezone) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, erro
 	}
 	return e, nil
 }
+
+func (e Timezone) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }

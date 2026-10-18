@@ -91,3 +91,22 @@ func TestCompositeProviderlessRebuildOwnsChildren(t *testing.T) {
 		t.Fatalf("rebuilt node aliases its input: %v", args)
 	}
 }
+
+// IntrinsicVolatility excludes children: fixed and plan-selected values, and
+// the analyzed volatility for nodes that cannot retain eliminated arms.
+func TestIntrinsicVolatilityExcludesChildren(t *testing.T) {
+	for _, tc := range []struct {
+		node expr.Intrinsic
+		want expr.Volatility
+	}{
+		{RangeInspect{Info: expr.Info{Property: expr.Properties{Volatility: expr.Volatile}}}, expr.Immutable},
+		{JSONStripNulls{}, expr.Stable},
+		{ArrayRandom{}, expr.Volatile},
+		{Timezone{Local: true}, expr.Stable},
+		{TransactionTime{Info: expr.Info{Property: expr.Properties{Volatility: expr.Stable}}}, expr.Stable},
+	} {
+		if got := tc.node.IntrinsicVolatility(); got != tc.want {
+			t.Errorf("%T intrinsic volatility = %v, want %v", tc.node, got, tc.want)
+		}
+	}
+}

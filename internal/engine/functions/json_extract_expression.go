@@ -85,3 +85,5 @@ func (e JSONExtract) Validate() error {
 	}
 	return nil
 }
+
+func (e JSONExtract) IntrinsicVolatility() expr.Volatility { return expr.Immutable }

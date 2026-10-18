@@ -137,3 +137,5 @@ func (e ArraySearch) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, e
 	ref, conflict := e.Plan.InputCollation()
 	return rebuilt(e.Reconstruct(info, children, e.Plan.Array(), info.Usage.Type, e.Plan.Integer(), ref, conflict))
 }
+
+func (e ArraySearch) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }

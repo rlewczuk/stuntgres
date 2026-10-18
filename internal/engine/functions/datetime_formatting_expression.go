@@ -127,3 +127,5 @@ func (e DatetimeFormatting) Rebuild(info expr.Info, children []expr.Expr) (expr.
 	copy(args[:], children)
 	return rebuilt(e.Reconstruct(info, args))
 }
+
+func (e DatetimeFormatting) IntrinsicVolatility() expr.Volatility { return expr.Stable }

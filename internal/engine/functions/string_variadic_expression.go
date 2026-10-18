@@ -241,3 +241,5 @@ func (e StringVariadic) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	}
 	return rebuilt(e.Reconstruct(info, children))
 }
+
+func (e StringVariadic) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }

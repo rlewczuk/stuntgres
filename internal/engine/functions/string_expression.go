@@ -355,3 +355,5 @@ func (e String) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error)
 	}
 	return rebuilt(e.Reconstruct(info, children, e.Plan.TextUsage()))
 }
+
+func (e String) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }

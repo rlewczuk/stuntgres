@@ -334,3 +334,5 @@ func (e ArrayTransform) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	ref, conflict := e.Sort.InputCollation()
 	return rebuilt(e.Reconstruct(info, children, ref, conflict))
 }
+
+func (e ArrayTransform) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }

@@ -238,3 +238,5 @@ func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (exp
 	node, _, err := e.Reconstruct(info, args)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeZoneCalendar) IntrinsicVolatility() expr.Volatility { return stableIf(e.IntrinsicStable()) }

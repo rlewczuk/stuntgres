@@ -197,3 +197,7 @@ func (e UUIDGeneration) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr
 	}
 	return rebuilt(e.Reconstruct(info, children, e.Timestamp))
 }
+
+// IntrinsicVolatility is the analyzed volatility: the call is volatile or
+// has no children, so nothing from eliminated arms can be retained.
+func (e UUIDGeneration) IntrinsicVolatility() expr.Volatility { return e.Property.Volatility }

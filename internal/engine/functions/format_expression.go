@@ -113,3 +113,5 @@ func (e Format) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error)
 	e.Info, e.Args = info, append([]expr.Expr(nil), children...)
 	return e, nil
 }
+
+func (e Format) IntrinsicVolatility() expr.Volatility { return expr.Stable }

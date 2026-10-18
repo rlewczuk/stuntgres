@@ -214,3 +214,5 @@ func (e DatetimeAgeFinite) Rebuild(info expr.Info, children []expr.Expr) (expr.E
 	node, _, err := e.Reconstruct(info, args, keepDescriptor)
 	return rebuilt(node, err)
 }
+
+func (e DatetimeAgeFinite) IntrinsicVolatility() expr.Volatility { return stableIf(e.Plan.SessionDependent()) }

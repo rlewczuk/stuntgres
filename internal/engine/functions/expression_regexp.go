@@ -208,3 +208,5 @@ func (e RegexpSet) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, err
 	}
 	return RegexpSet{call}, nil
 }
+
+func (call RegexpCall) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
